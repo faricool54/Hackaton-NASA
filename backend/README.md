@@ -150,3 +150,6 @@ La integración de espectros, comparaciones y fichas científicas sigue las depe
 Para verificar un PR apilado contra su base inmediata: `ERRANTE_BASE_REF=origin/<rama-base>` antes de
 `python scripts/dev.py check` (PowerShell: `$env:ERRANTE_BASE_REF=...`). La guardia mantiene las mismas
 reglas de dueños y CI usa la base del PR. Sin la variable sigue comparando con `origin/main`.
+
+La selección de pool con λ emparejada de WS2 #35 usa revisión `wavelength-pool-v3` en la clave de jobs.
+No se reutilizan resultados de `season-grid-v2`; los pedidos persistidos conservan su contexto original.

@@ -40,7 +40,7 @@ def _build_context():
     return {
         "collections": list(settings.IRSA_COLLECTIONS),
         "sources": [settings.IRSA_SIA, settings.IRSA_TAP_SYNC, settings.S3_HTTPS],
-        "build_revision": "season-grid-v2",
+        "build_revision": "wavelength-pool-v3",
     }
 
 
