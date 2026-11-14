@@ -54,7 +54,9 @@ COMPARE_DIR = "compare"
 MIN_TARGET_EXCLUDE_PX = 8.0
 MAX_TARGET_EXCLUDE_FRACTION = 0.45  # of the grid size: the corners stay available for field stars
 HALO_EXCLUDE_FACTOR = 1.2
-HALO_NSIGMA = 3.0  # the halo ends at the first ring whose median is within this many background sigmas
+HALO_NSIGMA = (
+    10.0  # halo ends at the first ring within this many background sigmas (10: R Dra fits 12/18 pairs, 3: 2/18)
+)
 MIN_RING_PIXELS = 8  # rings with fewer valid pixels (saturated core, no data) do not end the halo
 MIN_BACKGROUND_PIXELS = 50
 
