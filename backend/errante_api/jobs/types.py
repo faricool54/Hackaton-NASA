@@ -9,7 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any
@@ -34,12 +34,21 @@ class JobStatus(str, Enum):  # noqa: UP042 — StrEnum requires Python 3.11+; ke
 # ---------------------------------------------------------------------------
 
 
+def _build_context():
+    from errante import settings
+
+    return {
+        "collections": list(settings.IRSA_COLLECTIONS),
+        "sources": [settings.IRSA_SIA, settings.IRSA_TAP_SYNC, settings.S3_HTTPS],
+        "build_revision": "wavelength-pool-v3",
+    }
+
+
 @dataclass(frozen=True)
 class JobRequest:
     """Validated and normalised build request.
 
-    Coordinates are rounded to 6 decimal places (sub-arcsecond precision) to
-    produce a stable cache key without changing the requested region.
+    Coordinates are preserved; validation must never round a valid RA to 360.
     """
 
     ra: float  # ICRS degrees, [0, 360)
@@ -52,6 +61,7 @@ class JobRequest:
     # Pipeline/product versioning for cache key stability
     pipeline_version: str = ""
     schema_version: str = ""
+    build_context: dict[str, Any] = field(default_factory=_build_context)
 
     # --- construction helpers ------------------------------------------------
 
@@ -94,9 +104,9 @@ class JobRequest:
         if mjd_min is not None and mjd_max is not None and mjd_min >= mjd_max:
             raise InvalidRequest("mjd_min must be < mjd_max")
         return cls(
-            ra=round(ra, 6),
-            dec=round(dec, 6),
-            size_deg=round(size_deg, 6),
+            ra=float(ra),
+            dec=float(dec),
+            size_deg=float(size_deg),
             detectors=dets,
             mjd_min=mjd_min,
             mjd_max=mjd_max,
@@ -121,7 +131,8 @@ class JobRequest:
             "pipeline_version": self.pipeline_version,
             "schema_version": self.schema_version,
         }
-        canonical = json.dumps(doc, sort_keys=True, separators=(",", ":"))
+        doc["build_context"] = self.build_context
+        canonical = json.dumps(doc, sort_keys=True, separators=(",", ":"), allow_nan=False)
         return hashlib.sha256(canonical.encode()).hexdigest()
 
     def to_dict(self) -> dict[str, Any]:
@@ -135,21 +146,25 @@ class JobRequest:
             "max_frames": self.max_frames,
             "pipeline_version": self.pipeline_version,
             "schema_version": self.schema_version,
+            "build_context": self.build_context,
         }
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> JobRequest:
-        return cls(
+        from dataclasses import replace
+
+        validated = cls.create(
             ra=d["ra"],
             dec=d["dec"],
             size_deg=d["size_deg"],
-            detectors=tuple(d.get("detectors") or []),
+            detectors=d.get("detectors"),
             mjd_min=d.get("mjd_min"),
             mjd_max=d.get("mjd_max"),
             max_frames=d.get("max_frames", 40),
             pipeline_version=d.get("pipeline_version", ""),
             schema_version=d.get("schema_version", ""),
         )
+        return replace(validated, build_context=d.get("build_context") or validated.build_context)
 
 
 # ---------------------------------------------------------------------------

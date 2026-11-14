@@ -169,3 +169,33 @@ def test_resolve_caches_second_call(client):
 def test_resolve_name_in_autodoc(client):
     r = client.get("/openapi.json")
     assert "/api/resolve-name" in r.text
+
+
+@pytest.mark.parametrize(
+    "position",
+    [
+        "<jpos>16:32:40.22 +66:45:17.9</jpos>",
+        "<jpos>16 32 40.22 +66 45 17.9</jpos>",
+        "<jradeg>248.16761083</jradeg><jdedeg>66.75497942</jdedeg>",
+    ],
+)
+def test_real_cfa_position_formats(client, position):
+    # Real R Draconis response checked against CfA on 2026-11-14.
+    xml = f"<Sesame><Resolver><otype>Mi*</otype>{position}</Resolver></Sesame>"
+    with patch("errante_api.routes.resolve.httpx.get", return_value=_mock_response(xml)):
+        response = client.get("/api/resolve-name", params={"name": "R Draconis"})
+    assert response.status_code == 200
+    assert response.json()["ra"] == pytest.approx(248.1676, abs=0.001)
+    assert response.json()["dec"] == pytest.approx(66.75498, abs=0.001)
+
+
+def test_resolver_encodes_reserved_name_characters(client):
+    with patch("errante_api.routes.resolve.httpx.get", return_value=_mock_response(_SESAME_BARNARD)) as get:
+        assert client.get("/api/resolve-name", params={"name": "a&b#c"}).status_code == 200
+    assert get.call_args.args[0].endswith("?a%26b%23c")
+
+
+@pytest.mark.parametrize("xml", ["not XML", "<Sesame><Resolver><jpos>NaN 0</jpos></Resolver></Sesame>"])
+def test_invalid_upstream_position_is_not_name_absence(client, xml):
+    with patch("errante_api.routes.resolve.httpx.get", return_value=_mock_response(xml)):
+        assert client.get("/api/resolve-name", params={"name": "bad"}).status_code == 502

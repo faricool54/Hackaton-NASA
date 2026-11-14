@@ -1,0 +1,51 @@
+{
+  "additionalProperties": false,
+  "description": "GET /api/resolve-name. A catalog coordinate, not proof of SPHEREx coverage.",
+  "properties": {
+    "dec": {
+      "description": "ICRS declination [deg]",
+      "maximum": 90,
+      "minimum": -90,
+      "title": "Dec",
+      "type": "number"
+    },
+    "object_type": {
+      "enum": [
+        "asteroid",
+        "comet",
+        "tno",
+        "dwarf_planet",
+        "planet",
+        "star",
+        "brown_dwarf",
+        "unknown"
+      ],
+      "title": "Object Type",
+      "type": "string"
+    },
+    "ra": {
+      "description": "ICRS right ascension [deg]",
+      "exclusiveMaximum": 360,
+      "minimum": 0,
+      "title": "Ra",
+      "type": "number"
+    },
+    "resolved_name": {
+      "title": "Resolved Name",
+      "type": "string"
+    },
+    "source": {
+      "title": "Source",
+      "type": "string"
+    }
+  },
+  "required": [
+    "ra",
+    "dec",
+    "object_type",
+    "resolved_name",
+    "source"
+  ],
+  "title": "ResolvedRegion",
+  "type": "object"
+}

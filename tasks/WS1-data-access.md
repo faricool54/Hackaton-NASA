@@ -37,8 +37,8 @@ El camino crítico termina en imágenes visibles; catálogos y detección no son
 - [x] **WS1-3 (P0) `fetch_cutout(s)`.** ✅ #22 (20 cutouts de 10′ en ~10 s por S3). URL con `cutout_url`, descarga cacheada (`cache.cached_download`),
   `ThreadPoolExecutor(settings.MAX_PARALLEL_DOWNLOADS)`, reintentos, y **reporte de fallas sin abortar todo**.
   *Acepta:* bajar 20 cutouts de 10′ de Barnard en < 2 min; segunda corrida instantánea (caché).
-- [ ] **WS1-4 (P0) Primer campo real con WS2.** 🔄 Build de Barnard OK en local con #21–#23 + #16; falta verlo
-  en el blink y repetir los otros cuatro blancos. Junto a WS2, lograr que `errante build barnards-star` llegue
+- [x] **WS1-4 (P0) Primer campo real con WS2.** ✅ Los cinco campos reales están publicados (WS2 #17). Cuatro
+  están validados en `docs/validation/` (#36); falta el registro de Barnard. Junto a WS2, lograr que `errante build barnards-star` llegue
   hasta los PNG (I1 en `docs/ARCHITECTURE.md`). *Acepta:* el blink muestra frames reales en `?dataset=real`
   sin `--analyze`; luego repetir cobertura y descargas para los cinco blancos de `docs/VALIDATION.md`,
   con reporte de épocas y fallas.
@@ -49,14 +49,24 @@ El camino crítico termina en imágenes visibles; catálogos y detección no son
   la selección del build la hace WS2 en #16. Agrupar por visita y detector/λ compatible; seleccionar
   línea de base útil para movimiento propio y variables. No truncar siempre a los primeros `max_frames`.
   Eliminar reprocesados duplicados; registrar cobertura insuficiente y selección temporal en la evidencia.
-- [ ] **WS1-7 (P2) Fallback S3.** 🔄 Los píxeles ya salen de S3 (#22); falta buscar sin IRSA. Si IRSA está caído: buscar por semana en S3 + lectura por rangos HTTP del
+- [ ] **WS1-7 (P2) Fallback S3.** 🔄 Los píxeles ya salen de S3 (#22). Snapshots de búsqueda de los cinco blancos (#43):
+  la demo sobrevive a una caída de IRSA. Falta buscar sin IRSA en un punto arbitrario (HpxFinder solo indexa tiles del cubo). Si IRSA está caído: buscar por semana en S3 + lectura por rangos HTTP del
   header para ver si el campo cae en el archivo (lento, pero independiente de IRSA).
-- [ ] **WS1-8 (P2) HiPS DR1.** Investigar `dr1/hips5_cube/` y si IRSA publica un HiPS de imagen usable en
-  Aladin Lite (le sirve a WS5).
+- [x] **WS1-8 (P2) HiPS DR1.** ✅ Aladin Lite dibuja el cubo DR1 de IRSA (`docs/VISION.md`), y `cube_spectrum`
+  da el espectro de cualquier posición desde los tiles en S3 (#42).
 - [ ] **WS1-9 (P1, C01) Actualización de releases.** Descubrir/configurar colecciones, registrar release y
   versión de procesamiento, refrescar consultas y separar claves de caché por versión. La documentación
   consultada ya enumera `spherex_dr1`, `spherex_dr1_deep`, `spherex_qr3`, `spherex_qr3_deep` (DATA.md §3);
   verificar respuesta real antes de usarlas. *Acepta:* incorporar nuevas épocas sin cambiar la UI ni duplicar OBSID.
+
+**Visión (14/11, [`docs/VISION.md`](../docs/VISION.md)):**
+
+- [ ] **WS1-10 (P0/P1) Todas las exposiciones de un punto.** `errante.data.point.point_series` + `errante point`:
+  stamps de cada exposición en (ra, dec) con λ y tiempo, materia prima del video, el espectro y la curva de luz del panel.
+  🔄 Implementado y revisado; PR en curso.
+- [x] **WS1-11 (P1) Espectro rápido de cualquier punto.** ✅ #42 (`cube_spectrum`, `errante cube-spectrum`).
+- [x] **WS1-12 (P0) La demo sobrevive a una caída de IRSA.** ✅ #43 (snapshots de los cinco blancos y fallback
+  antes del timeout de la API). Sin fallback, un punto arbitrario sigue dependiendo de IRSA (timeout del backend: WS4).
 
 **C04/C07:** `fetch_cutouts` debe recibir el FOV validado por WS4, preservar WCS, flags, VARIANCE y ZODI,
 y devolver una asociación inequívoca frame→resultado. Saltar descargas no puede desalinear `refs` y `paths`;
