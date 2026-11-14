@@ -4,7 +4,7 @@
 // Pixel convention for every x/y: PNG convention — origin at the TOP-LEFT pixel,
 // 0-based, x → right, y → DOWN, on the field's common north-up grid (east left).
 
-export const SCHEMA_VERSION = '0.3.0';
+export const SCHEMA_VERSION = '0.2.2';
 
 export type Release = 'dr1' | 'qr2' | 'qr3' | 'synthetic';
 export type ObjectType =
@@ -21,7 +21,7 @@ export type CandidateKind = 'moving' | 'proper_motion' | 'variable';
 export type CandidateStatus = 'unconfirmed' | 'known' | 'artifact' | 'injected';
 export type MatchSource = 'jpl_sbident' | 'jpl_horizons' | 'skybot' | 'simbad' | 'synthetic';
 /**
- * How a FALSE-COLOR composite maps SPHEREx infrared wavelengths to RGB (added in 0.3.0).
+ * How a FALSE-COLOR composite maps SPHEREx infrared wavelengths to RGB (added in 0.2.2).
  * detectors = whole SPHEREx detectors over the full 0.75-5.0 um range;
  * jhk = 2MASS-like, exposures near J/H/Ks (~1.25/1.65/2.15 um). Blue = shortest, red = longest.
  */
@@ -166,7 +166,7 @@ export interface CompositeChannel {
 }
 
 /**
- * FALSE-COLOR infrared composite of one observing season (added in 0.3.0).
+ * FALSE-COLOR infrared composite of one observing season (added in 0.2.2).
  * SPHEREx sees 0.75-5.0 um, invisible to the eye: it is NOT a true-color image and the UI must say so.
  */
 export interface Composite {
@@ -190,7 +190,7 @@ export interface Field {
   grid: Grid;
   frames: Frame[];
   provenance: Provenance;
-  composites?: Composite[]; // added in 0.3.0 (absent in older products: treat as [])
+  composites?: Composite[]; // added in 0.2.2 (absent in older products: treat as [])
 }
 
 export interface FieldSummary {

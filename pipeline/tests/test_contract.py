@@ -56,7 +56,7 @@ def test_field_id_must_be_slug():
         SkyField.model_validate(data)
 
 
-# --- False-color composites (contract 0.3.0) --------------------------------
+# --- False-color composites (contract 0.2.2) --------------------------------
 
 TYPES_TS = settings.REPO_ROOT / "frontend" / "src" / "api" / "types.ts"
 
@@ -96,7 +96,7 @@ def _demo_field_dict() -> dict:
 
 
 def test_field_without_composites_key_defaults_to_empty_list():
-    """Products written before 0.3.0 (no 'composites' key) stay valid and read as []."""
+    """Products written before 0.2.2 (no 'composites' key) stay valid and read as []."""
     data = _demo_field_dict()
     data.pop("composites", None)
     field = SkyField.model_validate(data)
