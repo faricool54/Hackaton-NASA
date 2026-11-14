@@ -108,14 +108,16 @@ def build_fields(out: Path, targets=TARGETS, timeout_s: float = 900) -> dict:
                     destination.parent.mkdir(parents=True, exist_ok=True)
                     source = stage / "fields" / field_id
                     backup = stage / "previous"
-                    if destination.exists():
-                        os.replace(destination, backup)
+                    installed = False
                     try:
+                        if destination.exists():
+                            os.replace(destination, backup)
                         os.replace(source, destination)
+                        installed = True
                         AtomicProductStore(out).rebuild_manifest()
-                    except Exception:
+                    except BaseException:
                         try:
-                            if destination.exists():
+                            if installed:
                                 os.replace(destination, source)
                             if backup.exists():
                                 os.replace(backup, destination)

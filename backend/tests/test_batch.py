@@ -139,3 +139,20 @@ def test_failed_restore_retains_previous_product_for_recovery(tmp_path, monkeypa
     assert item["status"] == "failed"
     preserved = Path(item["recovery_dir"]) / "previous" / "field.json"
     assert json.loads(preserved.read_text())["description"] == "retain this product"
+
+
+def test_interrupt_during_publication_restores_previous_product(tmp_path, monkeypatch):
+    out = tmp_path / "products"
+    old = write_test_field(out, batch.TARGETS[0])
+    old.description = "before interruption"
+    ProductStore(out).write_field(old)
+    monkeypatch.setattr(batch.subprocess, "run", fake_build)
+
+    def interrupt(*args):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(batch.AtomicProductStore, "rebuild_manifest", interrupt)
+    with pytest.raises(KeyboardInterrupt):
+        batch.build_fields(out, targets=batch.TARGETS[:1])
+    assert ProductStore(out).read_field(batch.TARGETS[0]).description == "before interruption"
+    assert not (out / ".build.lock").exists()
