@@ -26,7 +26,7 @@
       "kind": "star",
       "description": "A Mira variable: an old red giant whose visible brightness changes by hundreds of times.",
       "radius_km": 173925000.0,
-      "mass_kg": null,
+      "mass_kg": 1.989e+30,
       "teff_k": 3000.0,
       "spectral_type": "M5e–M9eIII",
       "rotation_period_hours": null,
@@ -92,6 +92,13 @@
           "unit": "solar radii",
           "source": "drawing value: published sizes depend strongly on the assumed distance and the pulsation phase",
           "verified": false
+        },
+        {
+          "label": "Mass (class-typical)",
+          "value": "~1",
+          "unit": "solar masses",
+          "source": "Feast 2009, AGB Stars and Related Phenomena (Tokyo 2008), arXiv:0812.0250, Sect. 3: O-rich Miras with log P ~2.3 have initial masses < 1 M_sun, those with log P ~2.5 are ~7 Gyr old, and C-Miras at log P ~2.7 have ~1.8 M_sun; R Dra has log P = 2.39. Class-typical initial mass for its period, not a measurement of this star (its present mass is lower after mass loss); used only to size the drawn convection cells",
+          "verified": false
         }
       ],
       "candidate_id": null
@@ -100,7 +107,7 @@
   "representation_note": "3D model drawn from published catalog and literature values (each fact shows its source) - not an image. Sizes and distances may be exaggerated for visibility.",
   "provenance": {
     "pipeline_version": "0.1.0",
-    "built_at": "2026-11-14T17:41:23.387439Z",
+    "built_at": "2026-11-14T20:01:36.494921Z",
     "synthetic": false,
     "data_releases": [],
     "notes": [

@@ -8,6 +8,9 @@
 // - A "today" marker at the query date says that no later data is in this dataset.
 // - The axis is a keyboard slider (arrows +-1 d, Shift +-10 d, PageUp/PageDown +-30 d, Home/End);
 //   "Pass N" buttons seek to the pass mid-date (onSeek) and then report the pass (onPass).
+// - Variable bodies (tracks, S3) get a row on the same axis: the predicted V light curve of a star
+//   with a catalogue ephemeris (R Dra: VSX) with each predicted maximum and its timing band, and the
+//   predicted phase over the selected pass; irregular variables a hatched row ("cannot be predicted").
 // SVG coordinates are real pixels (the width is measured), so text stays legible at 375 px.
 import {
   useEffect,
@@ -17,11 +20,23 @@ import {
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
 } from 'react';
 import { DETECTOR_BANDS, formatMjd } from '../api/format';
 import {
+  IRREGULAR_TEXT,
+  MIRA_PREDICTION_CAVEAT,
+  miraPhase,
+  miraShape,
+  miraTimingSigmaDays,
+  passPhaseSummary,
+  predictedMaxima,
+  type VariabilityTrack,
+} from './ephemerides';
+import {
   ARCHIVE_CAPTION,
   betweenVisits,
+  datasetBounds,
   dateTicks,
   DATASET_TODAY_MJD,
   mjdToIsoDate,
@@ -44,6 +59,8 @@ export interface DatasetTimelineProps {
   onPass?: (index: number) => void;
   /** Accessible name; defaults to "SPHEREx coverage of <target>" (or "Synthetic frame dates of <id>"). */
   label?: string;
+  /** Variable bodies (ephemerides.variabilityTracks): predicted curve, irregular or phase unknown (S3). */
+  tracks?: readonly VariabilityTrack[];
 }
 
 const C = {
@@ -176,7 +193,7 @@ function Dot({ color }: { color: string }) {
   );
 }
 
-export function DatasetTimeline({ window: win, mjd, onSeek, onPass, label }: DatasetTimelineProps) {
+export function DatasetTimeline({ window: win, mjd, onSeek, onPass, label, tracks = [] }: DatasetTimelineProps) {
   const [wrapRef, width] = useWidth(640);
   const svgRef = useRef<SVGSVGElement>(null);
   const dragging = useRef(false);
@@ -214,8 +231,7 @@ export function DatasetTimeline({ window: win, mjd, onSeek, onPass, label }: Dat
   const nowAnchor = xNow < PAD_X + 34 ? 'start' : xNow > width - PAD_X - 34 ? 'end' : 'middle';
 
   // Seeking stops at the dataset start and at "today": the axis margins are not selectable dates.
-  const seekLo = win.startMjd;
-  const seekHi = Math.max(win.endMjd, DATASET_TODAY_MJD);
+  const [seekLo, seekHi] = datasetBounds(win);
   const seekTo = (m: number) => onSeek(clamp(m, seekLo, seekHi));
   const seekFromPointer = (e: ReactPointerEvent<SVGSVGElement>) => {
     const svg = svgRef.current;
@@ -435,6 +451,10 @@ export function DatasetTimeline({ window: win, mjd, onSeek, onPass, label }: Dat
         )}
       </svg>
 
+      {tracks.length > 0 && (
+        <TrackStrip tracks={tracks} x={x} lo={lo} hi={hi} seekLo={seekLo} seekHi={seekHi} now={now} width={width} hatchId={`${hatchId}-tr`} />
+      )}
+
       <p style={{ ...S.muted, color: C.text }}>
         {Number.isFinite(mjd) ? formatMjd(mjd) : '—'} · MJD {Number.isFinite(mjd) ? mjd.toFixed(2) : '—'} ·{' '}
         <span style={{ color: C.muted }}>{whereText(win, now)}</span>
@@ -469,6 +489,13 @@ export function DatasetTimeline({ window: win, mjd, onSeek, onPass, label }: Dat
         <>
           <p style={S.muted}>{passSummary(active)}</p>
           {active.note && <p style={{ ...S.muted, fontStyle: 'italic' }}>{active.note}</p>}
+          {tracks.map((t) =>
+            t.kind === 'predicted' ? (
+              <p key={t.bodyId} style={{ ...S.muted, color: C.text }}>
+                {t.name}, Pass {active.index + 1}: {passPhaseSummary(t.ephemeris, active.startMjd, active.endMjd)}
+              </p>
+            ) : null,
+          )}
           {active.frames.length > 0 ? (
             <FrameStrip pass={active} mjd={now} width={width} synthetic={win.synthetic} />
           ) : (
@@ -496,6 +523,125 @@ export function DatasetTimeline({ window: win, mjd, onSeek, onPass, label }: Dat
       {win.note && <p style={S.muted}>{win.note}</p>}
       <p style={{ ...S.muted, fontSize: '0.78rem' }}>Source: {win.source}</p>
     </section>
+  );
+}
+
+const TRACK_COLOR = '#f9a8d4';
+
+/**
+ * One row per variable body under the pass bands (S3): the predicted V light curve with each
+ * predicted maximum and its timing band; a hatched row for irregular variables (never a curve); a
+ * flat dashed line for a periodic variable without an ephemeris (frozen at mean brightness).
+ */
+function TrackStrip({
+  tracks,
+  x,
+  lo,
+  hi,
+  seekLo,
+  seekHi,
+  now,
+  width,
+  hatchId,
+}: {
+  tracks: readonly VariabilityTrack[];
+  x: (mjd: number) => number;
+  lo: number;
+  hi: number;
+  seekLo: number;
+  seekHi: number;
+  now: number;
+  width: number;
+  hatchId: string;
+}) {
+  const predicted = tracks.filter((t): t is Extract<VariabilityTrack, { kind: 'predicted' }> => t.kind === 'predicted');
+  const irregular = tracks.filter((t) => t.kind === 'irregular');
+  const unknown = tracks.filter((t) => t.kind === 'unknown');
+  const BAND_H = 20;
+  const x0 = x(seekLo);
+  const x1 = x(seekHi);
+  const xNow = x(now);
+  const names = (ts: readonly VariabilityTrack[]) => ts.map((t) => t.name).join(', ');
+
+  // One row: an HTML caption (wraps on phones) above an SVG band on the same date axis as the passes.
+  const row = (key: string, caption: string, description: string, children: ReactNode) => (
+    <div key={key} style={{ margin: '4px 0' }}>
+      <div style={{ color: C.text, fontSize: FONT, margin: `0 ${PAD_X}px 2px` }}>{caption}</div>
+      <svg
+        role="img"
+        aria-label={description}
+        width={width}
+        height={BAND_H}
+        viewBox={`0 0 ${width} ${BAND_H}`}
+        style={{ display: 'block', width: '100%', height: BAND_H }}
+      >
+        {children}
+        <line x1={xNow} x2={xNow} y1={0} y2={BAND_H} style={{ stroke: C.accent, strokeWidth: 1.5, opacity: 0.8 }} />
+      </svg>
+    </div>
+  );
+
+  return (
+    <figure style={{ margin: '4px 0' }}>
+      {predicted.map((t) => {
+        const e = t.ephemeris;
+        const pts: string[] = [];
+        const steps = Math.max(2, Math.round((x1 - x0) / 2));
+        for (let i = 0; i <= steps; i++) {
+          const m = seekLo + ((seekHi - seekLo) * i) / steps;
+          const s = miraShape(e, miraPhase(e, m));
+          pts.push(`${x(m).toFixed(1)},${(1 + (1 - (s + 1) / 2) * (BAND_H - 2)).toFixed(1)}`);
+        }
+        const maxima = predictedMaxima(e, lo, hi);
+        return row(
+          t.bodyId,
+          `${t.name}: predicted ${e.band} light curve (VSX ephemeris; bright = up; shaded = predicted maximum ± 1σ)`,
+          `${t.name}: predicted ${e.band} light curve; predicted maxima ${maxima.map((m) => mjdToIsoDate(m)).join(', ')}`,
+          <>
+            {maxima.map((m) => {
+              const sd = miraTimingSigmaDays(e, m);
+              return (
+                <g key={m}>
+                  <title>{`predicted maximum ${mjdToIsoDate(m)} ± ${Math.round(sd)} d`}</title>
+                  <rect x={x(m - sd)} y={0} width={Math.max(x(m + sd) - x(m - sd), 1)} height={BAND_H} style={{ fill: TRACK_COLOR, opacity: 0.25 }} />
+                  <line x1={x(m)} x2={x(m)} y1={0} y2={BAND_H} style={{ stroke: TRACK_COLOR, strokeWidth: 1 }} />
+                </g>
+              );
+            })}
+            <polyline points={pts.join(' ')} fill="none" style={{ stroke: TRACK_COLOR, strokeWidth: 1.5 }} />
+          </>,
+        );
+      })}
+      {irregular.length > 0 &&
+        row(
+          'irregular',
+          `${names(irregular)}: ${IRREGULAR_TEXT}`,
+          `${names(irregular)}: ${IRREGULAR_TEXT}`,
+          <>
+            <defs>
+              <Hatch id={hatchId} />
+            </defs>
+            <rect x={x0} y={1} width={Math.max(x1 - x0, 2)} height={BAND_H - 2} fill={`url(#${hatchId})`} style={{ stroke: C.muted, strokeWidth: 1 }} />
+          </>,
+        )}
+      {unknown.length > 0 &&
+        row(
+          'unknown',
+          `${names(unknown)}: pulsation phase unknown, drawn at mean brightness`,
+          `${names(unknown)}: pulsation phase unknown`,
+          <line x1={x0} x2={x1} y1={BAND_H / 2} y2={BAND_H / 2} style={{ stroke: C.muted, strokeWidth: 1.5, strokeDasharray: '4 3' }} />,
+        )}
+      {predicted.length > 0 && (
+        <figcaption style={{ color: C.muted, margin: `2px ${PAD_X}px` }}>
+          {MIRA_PREDICTION_CAVEAT}.
+          {predicted.map((t) => (
+            <span key={t.bodyId} style={{ display: 'block', margin: '2px 0', fontSize: '0.78rem' }}>
+              {t.name}: {t.ephemeris.source}. Timing band: {t.ephemeris.timingSource}. {t.ephemeris.note}
+            </span>
+          ))}
+        </figcaption>
+      )}
+    </figure>
   );
 }
 

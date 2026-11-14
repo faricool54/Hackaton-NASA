@@ -17,8 +17,10 @@ import {
   nonFittedOrbits,
   orbitalPhaseAngle,
   periapsisAu,
+  PULSATION_PHASE_NOTE,
   PULSATION_RADIUS_AMPLITUDE,
   pulsationRadiusScale,
+  quotedPeriodText,
   referenceAu,
   rotationAngle,
   spinAliased,
@@ -196,7 +198,7 @@ describe('radius caps: bodies never pass through each other', () => {
     expect(pulsationRadiusScale(spotted, 60000)).toBe(1);
   });
 
-  it('the pulsation radius stays within ±10 % and peaks with the brightness', () => {
+  it('the pulsation radius stays within ±10 %, drawn in phase with the drawn light curve (display choice)', () => {
     const mira = body({ kind: 'star', variability: { kind: 'pulsation', period_days: 245.6, amplitude_mag: 6.5, band: 'V' } });
     let lo = Infinity;
     let hi = -Infinity;
@@ -208,9 +210,12 @@ describe('radius caps: bodies never pass through each other', () => {
     expect(lo).toBeGreaterThanOrEqual(0.9 - 1e-12);
     expect(hi).toBeLessThanOrEqual(maxPulsationScale(mira) + 1e-12);
     expect(hi - lo).toBeCloseTo(0.2, 3);
+    // In phase with the drawn light curve: a display convention, not physics (PULSATION_PHASE_NOTE).
     const brightest = J2000_MJD + 0.75 * 245.6; // sin = −1 in variabilityFactor
     expect(pulsationRadiusScale(mira, brightest)).toBeCloseTo(1.1, 9);
     expect(variabilityFactor(mira, brightest)).toBeGreaterThan(1);
+    expect(PULSATION_PHASE_NOTE).toMatch(/not modelled/);
+    expect(PULSATION_PHASE_NOTE).not.toMatch(/largest when brightest/);
   });
 });
 
@@ -384,9 +389,24 @@ describe('rotation (M2): nothing spins without a period or the tidal-lock rule',
 
   it('the spin legend names the measured period, the THEORY lock and the unknown rotations', () => {
     const barnard = spinLegend(byId('barnards-star'), 1);
-    expect(barnard).toMatch(/Barnard's Star turns once per 145\.0 days \(MEASURED period/);
+    // The period as the verified Fact quotes it (145 ± 15 d), never with an added decimal.
+    expect(barnard).toMatch(/Barnard's Star turns once per 145 ± 15 days \(MEASURED period/);
+    expect(barnard).not.toMatch(/145\.0/);
     expect(barnard).toMatch(/THEORY/);
     expect(spinLegend(byId('epsilon-indi'), 1)).toMatch(/rotation unknown for every body/);
+  });
+
+  it('a quoted period keeps the Fact precision; an unbacked one is rounded with ~', () => {
+    const barnard = byId('barnards-star').bodies.find((b) => b.id === 'barnards-star')!;
+    const s = spinModel(barnard, [barnard]);
+    expect(s.kind === 'period' && s.periodText).toBe('145 ± 15 days');
+    expect(s.method).toMatch(/^turns once per 145 ± 15 days in model time/);
+    expect(quotedPeriodText(3480, { fact: null, tier: 'illustrative' })).toBe('~150 days');
+    const unbacked = spinModel(body({ rotation_period_hours: 10.37 }), []);
+    expect(unbacked.kind === 'period' && unbacked.periodText).toBe('~10 hours');
+    const locked = spinModel(byId('barnards-star').bodies.find((b) => b.id === 'barnard-b')!, byId('barnards-star').bodies);
+    expect(locked.periodText).toBe('3.2 days');
+    expect(spinModel(byId('wise-0855').bodies[0], byId('wise-0855').bodies).periodText).toBeNull();
   });
 
   it('suggestedSpeed includes rotation periods', () => {

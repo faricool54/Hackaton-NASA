@@ -1,5 +1,5 @@
 // #/system/<id>[/<bodyId>] — 3D view of one system; a body id "enters" that body.
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { client } from '../api/client';
 import type { SystemModel } from '../api/types';
 import { formatRaDec } from '../api/format';
@@ -7,6 +7,10 @@ import { BodyPanel } from '../components/BodyPanel';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { SyntheticBadge } from '../components/SyntheticBadge';
 import { SystemViewer } from '../components/SystemViewer';
+
+// The sky-track panel (S4) and its astrometry module load on demand, like the 3D scene, so the
+// main chunk does not grow.
+const SkyTrackPanel = lazy(() => import('../three/SkyTrackPanel').then((m) => ({ default: m.SkyTrackPanel })));
 
 export function SystemPage({ systemId, bodyId }: { systemId: string; bodyId: string | null }) {
   const [system, setSystem] = useState<SystemModel | null>(null);
@@ -96,7 +100,8 @@ export function SystemPage({ systemId, bodyId }: { systemId: string; bodyId: str
                 </>
               )}
             </p>
-            {/* TODO(WS7-5): "move through space" view using SpaceMotion (parallax + proper motion + RV). */}
+            {/* The predicted sky track (proper motion + parallax + RV) is the panel below; a 3D
+                "move through space" view is still TODO(WS7-5). */}
             {system.field_id &&
               (fieldExists ? (
                 <a href={`#/field/${system.field_id}`}>
@@ -117,6 +122,14 @@ export function SystemPage({ systemId, bodyId }: { systemId: string; bodyId: str
               </ul>
             )}
           </div>
+          {m && (
+            // Where SPHEREx should see the target on its pass dates (prediction from catalog astrometry).
+            <ErrorBoundary what="The sky-track panel">
+              <Suspense fallback={<div className="panel small muted">Loading the predicted sky track…</div>}>
+                <SkyTrackPanel system={system} />
+              </Suspense>
+            </ErrorBoundary>
+          )}
         </aside>
       </div>
     </main>

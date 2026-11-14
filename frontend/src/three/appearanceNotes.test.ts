@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Body, SystemModel } from '../api/types';
+import panelSource from '../components/BodyPanel.tsx?raw';
 import notesSource from './appearanceNotes.ts?raw';
-import { surfacePattern } from './appearance';
+import { classTypicalFeature, surfacePattern } from './appearance';
 import {
   FLAG_TEXT,
   GRANULATION_SENSITIVITY,
@@ -11,6 +12,7 @@ import {
   NOTES_HEADER,
   ROTATION_NOT_DRAWN_NOTES,
   SPHEREX_SCALE_NOTE,
+  SURFACE_NOT_DRAWN_NOTES,
   appearanceNotes,
   pixelText,
   separationVerdict,
@@ -18,7 +20,7 @@ import {
 } from './appearanceNotes';
 import { PHYS, spherexPrediction } from './astro';
 import { bodyLook } from './colorModes';
-import { drawsPulsation, spinModel } from './sceneLayout';
+import { PULSATION_PHASE_NOTE, drawsPulsation, spinModel } from './sceneLayout';
 
 // Every demo system shipped with the site (the same JSON the pipeline writes).
 const SYSTEMS = Object.values(
@@ -48,7 +50,9 @@ function rowOf(notes: readonly AppearanceNote[], property: string | RegExp): App
 
 const verdictOf = (systemId: string, bodyId: string) => rowOf(notesOf(systemId, bodyId), 'Resolved by SPHEREx?').value;
 const IR_COLOUR = /^Colour · SPHEREx IR/;
+const DETECTOR_GREY = /^Grey level · SPHEREx single detector \(D1–D6\)$/;
 const VISIBLE_COLOUR = /^Colour · Visible/;
+const CLASS_TOGGLE = "Toggle 'Show class-typical features'";
 const BAD_TEXT = /\bNaN\b|\bundefined\b|\bnull\b|Infinity|\[object/;
 
 describe('every demo body', () => {
@@ -81,12 +85,12 @@ describe('every demo body', () => {
         .filter((n) => n.section === 'drawn')
         .map((n) => n.property);
       const where = `${s.id}/${b.id}`;
-      for (const p of [IR_COLOUR, VISIBLE_COLOUR, /^Surface pattern$/, /^Size on screen$/, /^Rotation$/, /^Lighting$/]) {
+      for (const p of [IR_COLOUR, DETECTOR_GREY, VISIBLE_COLOUR, /^Surface pattern$/, /^Size on screen$/, /^Rotation$/, /^Lighting$/]) {
         expect(props.some((x) => p.test(x)), `${where} ${String(p)}`).toBe(true);
       }
       if (b.kind === 'star') for (const p of ['Glow', 'Limb darkening', 'On-screen brightness']) expect(props, where).toContain(p);
       // The class-typical toggle only exists for real systems (the synthetic demo keeps its textures).
-      expect(props.includes("Toggle 'Show class-typical features'"), where).toBe(!s.provenance.synthetic);
+      expect(props.includes(CLASS_TOGGLE), where).toBe(!s.provenance.synthetic);
     }
     // IR false colour is the default colour mode and the panel says so.
     expect(rowOf(notesOf('barnards-star', 'barnards-star'), IR_COLOUR).property).toMatch(/default view/);
@@ -115,6 +119,12 @@ describe('every demo body', () => {
         expect(irRow.flags, where).toContain('blackbody-unreliable');
       }
       if (ir.drawnAs === 'outline') expect(irRow.tier, where).toBe('not-drawn');
+      if (ir.drawnAs === 'synthetic') expect(irRow.value, where).toBe(`${ir.hex} (demo palette)`);
+      const d1 = bodyLook(b, s, 'D1');
+      const grey = rowOf(notes, DETECTOR_GREY);
+      if (d1.drawnAs === 'outline') expect(grey.tier, where).toBe('not-drawn');
+      if (d1.drawnAs === 'qualitative') expect(grey.value, where).not.toMatch(/\d/);
+      if (d1.drawnAs === 'blackbody') expect(grey.value, where).toMatch(/^display level D1 [\d.]+ · D2 [\d.]+ · D3 [\d.]+ · D4 [\d.]+ · D5 [\d.]+ · D6 [\d.]+$/);
 
       const spin = spinModel(b, s.bodies);
       expect(rowOf(notes, 'Rotation').tier, where).toBe(spin.kind === 'none' ? 'not-drawn' : spin.tier);
@@ -125,7 +135,31 @@ describe('every demo body', () => {
         const pattern = surfacePattern(b, s, false);
         expect(rowOf(notes, 'Surface pattern').tier, where).toBe(pattern === 'none' ? 'not-drawn' : 'illustrative');
       }
+      // The toggle row says exactly what appearance.classTypicalFeature (the scene's gate) adds.
+      if (!s.provenance.synthetic) {
+        const feature = classTypicalFeature(b, s);
+        const toggle = rowOf(notes, CLASS_TOGGLE);
+        expect(toggle.tier, where).toBe(feature.pattern === 'none' ? 'not-drawn' : 'class-typical');
+        expect(surfacePattern(b, s, true), where).toBe(feature.pattern);
+        if (feature.pattern !== 'none') {
+          expect(toggle.value, where).toContain(feature.what);
+          expect(toggle.citation, where).toBe(feature.citation);
+        }
+      }
     }
+  });
+
+  it('never states a quantity in the wrong unit or a phase relation as physics', () => {
+    for (const { system: s, body: b } of ALL) {
+      for (const n of appearanceNotes(b, s)) {
+        const text = `${n.value} ${n.method}`;
+        expect(text, `${b.id} ${n.property}`).not.toMatch(/F_ν units/); // ⟨I_ν⟩ is a surface brightness
+        expect(text, `${b.id} ${n.property}`).not.toMatch(/largest when brightest/);
+        expect(text, `${b.id} ${n.property}`).not.toMatch(/mottling/);
+      }
+    }
+    const ir = rowOf(notesOf('barnards-star', 'barnards-star'), IR_COLOUR);
+    expect(ir.method).toMatch(/⟨I_ν⟩ = Σ∫B_λ dλ \/ ΣΔν over its two detectors \(surface brightness, MJy\/sr-like units\)/);
   });
 });
 
@@ -154,6 +188,86 @@ describe('How this body is drawn', () => {
       if (adds) expect(row.value, b.id).toMatch(/ILLUSTRATIVE/);
     }
     expect(rowOf(notesOf('epsilon-indi', 'eps-indi-ba'), /class-typical/).value).toMatch(/bands/);
+  });
+
+  it('surface-pattern rows say exactly what is known: no map, and no verified modulation amplitude in the catalog', () => {
+    for (const { system: s, body: b } of ALL) {
+      if (b.kind === 'star' || s.provenance.synthetic) continue;
+      const row = rowOf(appearanceNotes(b, s), 'Surface pattern');
+      // The old blanket claim was false for WISE 0855 (Esplin et al. 2016 measured its modulation).
+      expect(row.method, b.id).not.toMatch(/rotational modulation exists/);
+      if (b.kind === 'disk') {
+        expect(row.value, b.id).toBe('none (uniform translucent ring)');
+        expect(row.method, b.id).toMatch(/only marks the disk radius/);
+      } else {
+        expect(row.method, b.id).toMatch(/^no surface map of this body is measured, and the catalog has no verified rotational-modulation amplitude for it/);
+      }
+    }
+    // WISE 0855: modulation IS measured (Spitzer), but period and amplitude are not verified for the catalog.
+    const wise = notesOf('wise-0855', 'wise-0855');
+    const surface = rowOf(wise, 'Surface pattern');
+    expect(surface.method).toMatch(/rotational modulation itself IS measured: Spitzer 3\.6 and 4\.5 µm/);
+    expect(surface.method).toMatch(/period is not determined, no amplitude is verified for this catalog/);
+    expect(surface.citation).toMatch(/Esplin et al\. 2016, ApJ 832, 58/);
+    // ... consistent with its Rotation row, which cites the same Spitzer fits.
+    expect(rowOf(wise, 'Rotation').citation).toMatch(/Esplin et al\. 2016, ApJ 832, 58/);
+    expect(rowOf(notesOf('rw-aurigae', 'rw-aur-a-disk'), 'Surface pattern').citation).toMatch(/Kurtovic et al\. 2024/);
+    // The literature notes name real demo bodies that are drawn uniform.
+    for (const id of Object.keys(SURFACE_NOT_DRAWN_NOTES)) {
+      const hit = ALL.find(({ body }) => body.id === id);
+      expect(hit, id).toBeDefined();
+      const row = rowOf(appearanceNotes(hit!.body, hit!.system), 'Surface pattern');
+      expect(row.tier, id).toBe('not-drawn');
+      expect(row.method, id).toContain(SURFACE_NOT_DRAWN_NOTES[id].note);
+      expect(row.citation, id).toContain(SURFACE_NOT_DRAWN_NOTES[id].citation);
+    }
+    // A catalog rotation amplitude would be named, and still not turned into a map.
+    const ba = bodyIn('epsilon-indi', 'eps-indi-ba');
+    const modulated: Body = { ...ba, variability: { kind: 'rotation', period_days: 0.1, amplitude_mag: 0.05, band: 'J' } };
+    const sys: SystemModel = { ...system('epsilon-indi'), bodies: system('epsilon-indi').bodies.map((b) => (b.id === ba.id ? modulated : b)) };
+    expect(rowOf(appearanceNotes(modulated, sys), 'Surface pattern').method).toMatch(
+      /the catalog gives a rotational modulation of 0\.05 mag \(J\), but a disc-integrated light curve is not a map/,
+    );
+  });
+
+  it('class-typical features: only the S5 list (Ba patchy clouds, Ab zonal bands), each with its own class-level source', () => {
+    const ba = rowOf(notesOf('epsilon-indi', 'eps-indi-ba'), CLASS_TOGGLE);
+    expect(ba.value).toBe('off by default; when on: patchy cloud bands, ±15 % about the mean brightness (ILLUSTRATIVE)');
+    expect(ba.method).toMatch(/L\/T-transition brown dwarfs \(L9–T3\.5\)/);
+    expect(ba.citation).toMatch(/Radigan et al\. 2014/);
+    const ab = rowOf(notesOf('epsilon-indi', 'eps-indi-ab'), CLASS_TOGGLE);
+    expect(ab.value).toMatch(/^off by default; when on: zonal bands/);
+    expect(ab.citation).not.toMatch(/brown dwarfs/); // the gas-giant bands are not cited to brown-dwarf papers
+    expect(ab.method).toMatch(/visible mode/);
+    for (const [sysId, id] of [
+      ['epsilon-indi', 'eps-indi-bb'],
+      ['wise-0855', 'wise-0855'],
+      ['barnards-star', 'barnard-b'],
+      ['barnards-star', 'barnard-c'],
+      ['barnards-star', 'barnard-d'],
+      ['barnards-star', 'barnard-e'],
+    ] as const) {
+      const r = rowOf(notesOf(sysId, id), CLASS_TOGGLE);
+      expect(r.value, id).toBe('off by default; nothing to add for this body');
+      expect(r.tier, id).toBe('not-drawn');
+      expect(r.method, id).toMatch(/no class-level source for a drawn pattern has been checked for this body/);
+    }
+  });
+
+  it('R Dra (Mira): every colour row says the molecular bands and dust are not modelled; the size phase is a display choice', () => {
+    const notes = notesOf('r-draconis', 'r-draconis');
+    const ir = rowOf(notes, IR_COLOUR);
+    expect(ir.method).toMatch(/Mira \/ AGB variable \('Variable type: Mira'\): H₂O and CO bands and circumstellar dust are not modelled/);
+    expect(ir.citation).toMatch(/Höfner & Olofsson 2018/);
+    expect(rowOf(notes, DETECTOR_GREY).method).toMatch(/H₂O and CO bands/);
+    const vis = rowOf(notes, VISIBLE_COLOUR);
+    expect(vis.method).toMatch(/TiO absorption bands/);
+    expect(vis.flags).toContain('not-modelled');
+    expect(rowOf(notes, 'Predicted AB (D1–D6)').value).toBe('not shown: photosphere blackbody - molecular bands and dust not modelled');
+    expect(notes.filter((n) => n.unit === 'AB mag')).toEqual([]);
+    const puls = rowOf(notes, 'Pulsation (radius)');
+    expect(puls.method).toContain(PULSATION_PHASE_NOTE);
+    expect(puls.tier).toBe('class-typical');
   });
 
   it('stars: granulation only where resolvable; dwarfs say how many cells and why they are not drawn', () => {
@@ -197,7 +311,10 @@ describe('How this body is drawn', () => {
 
   it('rotation: only a verified period or the tidal-lock rule makes a body spin', () => {
     const star = rowOf(notesOf('barnards-star', 'barnards-star'), 'Rotation');
-    expect(star.value).toBe('one turn per 145.0 days');
+    // The Fact's own text with its error: no false decimal (145 ± 15 d, Toledo-Padrón et al. 2019).
+    expect(star.value).toBe('one turn per 145 ± 15 days');
+    expect(star.method).toMatch(/drawn at P = 3,480 h \(145 d, the catalog's central value\)/);
+    expect(star.method).not.toMatch(/145\.0/);
     expect(star.tier).toBe('measured');
     expect(star.citation).toMatch(/Toledo-Padrón et al\. 2019/);
     for (const id of ['barnard-b', 'barnard-c', 'barnard-d', 'barnard-e']) {
@@ -378,6 +495,7 @@ describe('physical quantities behind the drawing', () => {
     expect(compact('barnards-star', 'barnards-star')).toMatchInlineSnapshot(`
       [
         "drawn | Colour · SPHEREx IR (false colour), default view | #85ffe1: R 0.52 · G 1 · B 0.88; the system's brightest (top of the stretch) | model",
+        "drawn | Grey level · SPHEREx single detector (D1–D6) | display level D1 1 · D2 1 · D3 1 · D4 1 · D5 1 · D6 1 | model",
         "drawn | Colour · Visible (CIE 1931, blackbody) | #ffbe7a (x 0.4237, y 0.3991), at display brightness 0.8 | model",
         "drawn | On-screen brightness | visible 0.8 · IR 1 | display",
         "drawn | Glow | ×5 display radius (IR), ×5 (visible) | display",
@@ -385,7 +503,7 @@ describe('physical quantities behind the drawing', () => {
         "drawn | Surface pattern | none: ≈1,600 cells across, too small to draw | model",
         "drawn | Toggle 'Show class-typical features' | off by default; nothing to add for this kind of body | not-drawn",
         "drawn | Size on screen | ×4.1 true size (true-proportions mode), ×7.3 (compressed mode) | display",
-        "drawn | Rotation | one turn per 145.0 days | measured",
+        "drawn | Rotation | one turn per 145 ± 15 days | measured",
         "drawn | Lighting | self-luminous; its light takes its drawn hue (visible #ffbe7a, IR #85ffe1) | display",
         "derived | Luminosity | 0.00321 L☉ | derived",
         "derived | Surface gravity log g | 5.11 dex (cgs) | derived",
@@ -405,12 +523,13 @@ describe('physical quantities behind the drawing', () => {
     expect(compact('barnards-star', 'barnard-b')).toMatchInlineSnapshot(`
       [
         "drawn | Colour · SPHEREx IR (false colour), default view | emission not modelled: drawn as an outline | not-drawn | not-modelled",
+        "drawn | Grey level · SPHEREx single detector (D1–D6) | emission not modelled: drawn as an outline | not-drawn | not-modelled",
         "drawn | Colour · Visible (CIE 1931, blackbody) | neutral 18 % grey | display | not-modelled",
         "drawn | Surface pattern | none (uniform) | not-drawn",
-        "drawn | Toggle 'Show class-typical features' | off by default; when on: albedo mottling, ±10 % (ILLUSTRATIVE) | class-typical",
+        "drawn | Toggle 'Show class-typical features' | off by default; nothing to add for this body | not-drawn",
         "drawn | Size on screen | ×36 true size (true-proportions mode), ×64 (compressed mode) | display",
         "drawn | Rotation | tidally locked: one turn per orbit (3.2 days) | theory",
-        "drawn | Lighting | visible: light of Barnard's Star #ffbe7a; IR: dark, with an outline | display",
+        "drawn | Lighting | visible: light of Barnard's Star #ffbe7a; SPHEREx modes: dark, with an outline | display",
         "derived | Equilibrium temperature (A_B = 0) | 438 K | model",
         "derived | Equilibrium temperature (A_B = 0.3) | 401 K | model",
         "derived | Insolation S/S⊕ | 6.1 S⊕ | model",
@@ -425,7 +544,14 @@ describe('physical quantities behind the drawing', () => {
 });
 
 describe('bundle boundary', () => {
-  it('appearanceNotes.ts never imports three.js (BodyPanel is in the main chunk)', () => {
+  it('BodyPanel loads appearanceNotes only on demand (dynamic import), so it stays out of the main chunk', () => {
+    const fromNotes = [...panelSource.matchAll(/^\s*import\s+(type\s+)?[^;]*?\bfrom\s+['"]\.\.\/three\/appearanceNotes['"]/gm)];
+    expect(fromNotes.length).toBeGreaterThan(0);
+    for (const m of fromNotes) expect(m[1], m[0]).toBe('type '); // type-only: erased at build time
+    expect(panelSource).toMatch(/import\(\s*['"]\.\.\/three\/appearanceNotes['"]\s*\)/);
+  });
+
+  it('appearanceNotes.ts never imports three.js (it is loaded next to the main chunk, not with the 3D one)', () => {
     expect(notesSource).not.toMatch(/from\s+['"]three(\/|['"])/);
     expect(notesSource).not.toMatch(/import\(/);
     const imports = [...notesSource.matchAll(/^\s*import\b[^;]*?\bfrom\s+['"]([^'"]+)['"]/gm)].map((m) => m[1]);

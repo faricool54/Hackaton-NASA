@@ -5,7 +5,7 @@
 // Everything is a MODEL REPRESENTATION: sizes are exaggerated, distances optionally compressed.
 import type { Body, Orbit, OrbitQuality, SystemModel } from '../api/types';
 import { compressDistance } from './appearance';
-import { paramTier, spectralClass, type Tier } from './astro';
+import { paramTier, spectralClass, type ParamTier, type Tier } from './astro';
 import { formatPeriod } from './bodyFormat';
 import { J2000_MJD, topoOrder, type Vec3 } from './orbits';
 
@@ -26,6 +26,14 @@ export const PULSATION_RADIUS_AMPLITUDE = 0.1;
 
 export const PULSATION_CITATION =
   'Ireland et al. 2004, MNRAS 350, 365; Woodruff et al. 2004, A&A 421, 703 (Mira continuum diameters change by ~20 % peak-to-peak)';
+
+/**
+ * How the size is phased against the light curve: arbitrarily. No published phase offset between
+ * the continuum diameter and the V light curve is applied, so the size is drawn in phase with the
+ * drawn light curve for display only. This is not a claim about when the real star is largest.
+ */
+export const PULSATION_PHASE_NOTE =
+  'the phase relation between size and light curve is not modelled: drawn in phase for display, not a claim about when the real star is largest';
 
 /** Orbit line colors (also used by the legend under the canvas, so both always agree). */
 export const ORBIT_COLOR: Record<OrbitQuality, string> = {
@@ -92,8 +100,8 @@ export function drawsPulsation(body: Body): boolean {
 
 /**
  * Radius factor of a pulsating star at `mjd`: 1 − A·sin(phase), on the same sinusoid and phase as
- * variabilityFactor (largest when brightest). The real phase lag between size and visual light is
- * not modelled. 1 for every body that is not drawn as pulsating.
+ * variabilityFactor. That phase choice is a display convention (PULSATION_PHASE_NOTE): the real
+ * phase relation between size and light is not modelled. 1 for every body not drawn as pulsating.
  */
 export function pulsationRadiusScale(body: Body, mjd: number): number {
   if (!drawsPulsation(body)) return 1;
@@ -268,9 +276,34 @@ export const SPIN_ALIAS_MAX_DEG_PER_FRAME = 90;
  *   'none'       rotation unknown: not drawn.
  */
 export type SpinModel =
-  | { readonly kind: 'period'; readonly periodHours: number; readonly tier: Tier; readonly method: string; readonly citation: string }
-  | { readonly kind: 'tidal-lock'; readonly periodHours: number; readonly tier: 'theory'; readonly method: string; readonly citation: string }
-  | { readonly kind: 'none'; readonly periodHours: null; readonly tier: null; readonly method: string; readonly citation: string };
+  | {
+      readonly kind: 'period';
+      readonly periodHours: number;
+      /** The period as the catalog quotes it ('145 ± 15 days'), never with added digits (quotedPeriodText). */
+      readonly periodText: string;
+      readonly tier: Tier;
+      readonly method: string;
+      readonly citation: string;
+    }
+  | {
+      readonly kind: 'tidal-lock';
+      readonly periodHours: number;
+      readonly periodText: string;
+      readonly tier: 'theory';
+      readonly method: string;
+      readonly citation: string;
+    }
+  | { readonly kind: 'none'; readonly periodHours: null; readonly periodText: null; readonly tier: null; readonly method: string; readonly citation: string };
+
+/**
+ * A drawn rotation period as the catalog quotes it: the backing Fact's own text with its error
+ * ('145 ± 15 days') when a Fact backs the drawn value, so no false decimal is added; otherwise the
+ * period rounded to 2 significant figures with '~'. Same rule as the body panel's Rotation row.
+ */
+export function quotedPeriodText(periodHours: number, t: Pick<ParamTier, 'fact' | 'tier'>): string {
+  if (t.fact && t.tier !== 'illustrative') return `${t.fact.value.trim()}${t.fact.unit ? ` ${t.fact.unit.trim()}` : ''}`;
+  return formatPeriod(periodHours / 24, true);
+}
 
 /** An M-type main-sequence star (from the parsed spectral type). */
 function isMDwarf(body: Body): boolean {
@@ -287,11 +320,13 @@ export function spinModel(body: Body, bodies: readonly Body[]): SpinModel {
   const p = body.rotation_period_hours;
   if (body.kind !== 'disk' && typeof p === 'number' && Number.isFinite(p) && p > 0) {
     const t = paramTier(body, 'rotationPeriod');
+    const periodText = quotedPeriodText(p, t);
     return {
       kind: 'period',
       periodHours: p,
+      periodText,
       tier: t.tier,
-      method: `turns once per ${formatPeriod(p / 24)} in model time (${t.tier}: ${t.method}); spin-axis orientation unknown, drawn perpendicular to the reference plane`,
+      method: `turns once per ${periodText} in model time (${t.tier}: ${t.method}); spin-axis orientation unknown, drawn perpendicular to the reference plane`,
       citation: t.citation,
     };
   }
@@ -302,13 +337,14 @@ export function spinModel(body: Body, bodies: readonly Body[]): SpinModel {
       return {
         kind: 'tidal-lock',
         periodHours: o.period_days * 24,
+        periodText: formatPeriod(o.period_days),
         tier: 'theory',
         method: `orbital period ${formatPeriod(o.period_days)} < ${TIDAL_LOCK_MAX_PERIOD_DAYS} d around the M dwarf ${parent.name}: expected to be tidally locked, so it keeps one face to it`,
         citation: TIDAL_LOCK_CITATION,
       };
     }
   }
-  return { kind: 'none', periodHours: null, tier: null, method: 'rotation unknown: not drawn', citation: 'none' };
+  return { kind: 'none', periodHours: null, periodText: null, tier: null, method: 'rotation unknown: not drawn', citation: 'none' };
 }
 
 /** Azimuth (rad) of a body around its parent in the reference plane, from its relative position (AU). */
@@ -344,7 +380,7 @@ export function spinLegend(system: Pick<SystemModel, 'bodies'>, daysPerSecond: n
     if (s.kind !== 'period') continue;
     const held = spinAliased(s.periodHours, daysPerSecond / 60) ? ', held still at this speed (it would alias)' : '';
     const tier = s.tier === 'measured' ? 'MEASURED period' : `period ${s.tier.toUpperCase()}`;
-    parts.push(`${b.name} turns once per ${formatPeriod(s.periodHours / 24)} (${tier}; axis orientation unknown, drawn upright${held})`);
+    parts.push(`${b.name} turns once per ${s.periodText} (${tier}; axis orientation unknown, drawn upright${held})`);
   }
   const locked = spins.filter(({ s }) => s.kind === 'tidal-lock').map(({ b }) => b.name);
   if (locked.length) {

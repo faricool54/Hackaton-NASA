@@ -18,8 +18,10 @@
 //
 // Time scale: SPHEREx frame times are MJD-AVG (docs/RECON_SPHEREX.md 2.4). They are treated as UTC
 // here; a TT/UTC ambiguity (~69 s) is irrelevant at the day-level precision of these windows.
-import type { Body, Frame, Provenance, SystemModel, Variability } from '../api/types';
+import type { Body, Frame, Provenance, SystemModel } from '../api/types';
 import { mjdToDate } from '../api/format';
+import { miraEphemerisFor } from './ephemerides';
+import { drawsPulsation } from './sceneLayout';
 
 export const SPHEREX_COVERAGE_SOURCE = 'IRSA SIA2+TAP DR1+QR3, queried 2026-11-14, docs/RECON_SPHEREX.md 4.2';
 
@@ -557,6 +559,25 @@ export function dateTicks(startMjd: number, endMjd: number, maxTicks: number): D
   return ticks;
 }
 
+// --- playing inside the window -------------------------------------------------------------------
+
+/** Dates the dataset clock can take: the dataset start to the last frame or the query date ("today"). */
+export function datasetBounds(w: Pick<DatasetWindow, 'startMjd' | 'endMjd'>): [number, number] {
+  return [w.startMjd, Math.max(w.endMjd, DATASET_TODAY_MJD)];
+}
+
+/** At ×1, playing through the whole dataset takes at least this long (seconds). */
+export const DATASET_PLAY_SECONDS = 60;
+
+/**
+ * Speed (days per second) of the dataset clock: the free-running speed (fastest period in 8 s), but
+ * never faster than the whole window in DATASET_PLAY_SECONDS, so a wide binary does not skip passes.
+ */
+export function datasetSpeed(freeDaysPerSecond: number, w: Pick<DatasetWindow, 'startMjd' | 'endMjd'>): number {
+  const [lo, hi] = datasetBounds(w);
+  return Math.min(freeDaysPerSecond, Math.max(hi - lo, 1) / DATASET_PLAY_SECONDS);
+}
+
 // --- which phases are real on a calendar date ----------------------------------------------------
 
 export interface PhaseStatus {
@@ -564,35 +585,37 @@ export interface PhaseStatus {
   dated: string[];
   /** Orbiting bodies without an epoch: arbitrary phase, never a position for a real date. */
   arbitrary: string[];
-  /** Bodies with a periodic variability (period_days > 0) but no epoch for its phase. */
+  /** Periodic variables with a WS7 catalogue ephemeris (ephemerides.ts): predicted phase on a real date. */
+  pulsationPredicted: string[];
+  /** Periodic variables (period_days > 0) without an ephemeris: frozen at mean brightness on a real date. */
   pulsationArbitrary: string[];
+  /** Irregular variables (no period): never predicted. */
+  irregular: string[];
 }
 
 /**
- * Contract 0.2.1 has no epoch for Variability, so every periodic variability is phase-unknown. An
- * `epoch_mjd` on it (a possible later contract addition) is honoured when present.
+ * Root bodies (no orbit) sit at the origin and are in neither orbit list. Contract 0.2.1 has no epoch
+ * for a Variability, so a predicted pulsation comes only from the WS7 table (by system and body id).
  */
-function variabilityEpoch(v: Variability): number | null {
-  const epoch = (v as Variability & { epoch_mjd?: number | null }).epoch_mjd;
-  return typeof epoch === 'number' && Number.isFinite(epoch) ? epoch : null;
-}
-
-/** Root bodies (no orbit) sit at the origin and are in neither orbit list. */
-export function phaseStatus(system: Pick<SystemModel, 'bodies'>): PhaseStatus {
-  const out: PhaseStatus = { dated: [], arbitrary: [], pulsationArbitrary: [] };
+export function phaseStatus(system: Pick<SystemModel, 'bodies'> & { id?: string }): PhaseStatus {
+  const out: PhaseStatus = { dated: [], arbitrary: [], pulsationPredicted: [], pulsationArbitrary: [], irregular: [] };
   for (const b of system.bodies) {
     if (b.orbit) (b.orbit.epoch_mjd != null && Number.isFinite(b.orbit.epoch_mjd) ? out.dated : out.arbitrary).push(b.id);
     const v = b.variability;
-    if (v && (v.period_days ?? 0) > 0 && variabilityEpoch(v) === null) out.pulsationArbitrary.push(b.id);
+    if (!v) continue;
+    if (v.kind === 'irregular' || !((v.period_days ?? 0) > 0)) {
+      if (v.kind === 'irregular') out.irregular.push(b.id);
+    } else if (system.id && miraEphemerisFor(system.id, b.id) && drawsPulsation(b)) out.pulsationPredicted.push(b.id);
+    else out.pulsationArbitrary.push(b.id);
   }
   return out;
 }
 
 /**
  * The line shown next to the calendar date in dataset mode, e.g.
- * "Real epoch: none · Arbitrary phase: Barnard d, Barnard b, Barnard c, Barnard e".
+ * "Real epoch: Barnard d, Barnard b, Barnard c, Barnard e · Arbitrary phase: none".
  */
-export function phaseStatusLine(system: Pick<SystemModel, 'bodies'>): string {
+export function phaseStatusLine(system: Pick<SystemModel, 'bodies'> & { id?: string }): string {
   const s = phaseStatus(system);
   const byId = new Map<string, Body>(system.bodies.map((b) => [b.id, b]));
   const names = (ids: string[]) => (ids.length ? ids.map((id) => byId.get(id)?.name ?? id).join(', ') : 'none');
@@ -600,6 +623,8 @@ export function phaseStatusLine(system: Pick<SystemModel, 'bodies'>): string {
   if (s.dated.length + s.arbitrary.length > 0) {
     parts.push(`Real epoch: ${names(s.dated)}`, `Arbitrary phase: ${names(s.arbitrary)}`);
   }
+  if (s.pulsationPredicted.length > 0) parts.push(`Predicted pulsation phase (catalogue ephemeris): ${names(s.pulsationPredicted)}`);
   if (s.pulsationArbitrary.length > 0) parts.push(`Pulsation phase unknown: ${names(s.pulsationArbitrary)}`);
+  if (s.irregular.length > 0) parts.push(`Irregular, unpredictable: ${names(s.irregular)}`);
   return parts.length ? parts.join(' · ') : 'Nothing in this model depends on an orbital or pulsation phase.';
 }

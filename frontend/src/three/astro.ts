@@ -1110,10 +1110,37 @@ export type SpherexReliability =
   | 'illustrative inputs'
   | 'blackbody unreliable - not shown'
   | 'photosphere only - IR excess not modelled'
+  | 'photosphere blackbody - molecular bands and dust not modelled'
   | 'not modelled';
 
 /** Text that marks a young stellar object (spectral-type note or a 'Type' Fact). */
 const YOUNG_STAR_TEXT = /t\s*tau|pre-?main|\bpms\b|\byso\b|young stellar|herbig/i;
+
+/** Text that marks a Mira / AGB long-period variable in a 'Variable type' or 'Type' Fact. */
+const MIRA_TEXT = /\bmira\b|\bagb\b|asymptotic giant|long[-\s]period variable|\blpv\b/i;
+
+/** Giant stages of the MK luminosity classes (III, II, I). */
+const GIANT_STAGES: ReadonlySet<EvolutionaryStage> = new Set<EvolutionaryStage>(['giant', 'bright giant', 'supergiant']);
+
+export const MIRA_CITE =
+  'extended molecular (H₂O, CO) layers and circumstellar dust of Mira / AGB stars: Höfner & Olofsson 2018, A&ARv 26, 1; near-IR spectra of long-period variables at several pulsation phases: Lançon & Wood 2000, A&AS 146, 217; wavelength-dependent Mira diameters from molecular layers: Woodruff et al. 2004, A&A 421, 703';
+
+/**
+ * Why a star's light is not a single photosphere blackbody because it is a Mira / AGB pulsator: a
+ * 'Variable type' / 'Type' Fact naming a Mira (or an AGB / long-period variable), or a periodic
+ * pulsation of an M-type giant. Null otherwise (main-sequence M dwarfs are never caught).
+ */
+export function miraReason(body: Body): string | null {
+  if (body.kind !== 'star') return null;
+  const typeFact = body.facts.find((f) => /^(variable\s+)?type\b/i.test(f.label.trim()) && MIRA_TEXT.test(f.value));
+  if (typeFact) return `Mira / AGB variable ('${typeFact.label}: ${typeFact.value}')`;
+  const v = body.variability;
+  const st = body.spectral_type ? parseSpectralType(body.spectral_type) : null;
+  if (v?.kind === 'pulsation' && v.period_days && st?.letter === 'M' && GIANT_STAGES.has(st.stage)) {
+    return `pulsating M ${st.stage} (spectral type '${body.spectral_type}', period ${fmt(v.period_days)} d)`;
+  }
+  return null;
+}
 
 const IR_EXCESS_CITE =
   'evidence for the rule (RW Aur A+B, classical T Tauri stars with disks): SPHEREx measured D5 7.92–8.65 and D6 7.63–8.38 AB in 2025-09 to 2026-09 (docs/RECON_SPHEREX.md §4.4), and 2MASS gives Ks = 7.020 Vega = 8.87 AB (Cutri et al. 2003, VizieR II/246; K_AB − K_Vega = 1.85, Blanton & Roweis 2007, AJ 133, 734), i.e. 1.3–3.8 mag brighter than the A+B photosphere blackbody';
@@ -1143,6 +1170,10 @@ function irExcessReason(body: Body, system: SystemModel): string | null {
  *                                      pre-main-sequence star, or a disk in the system: hot dust and
  *                                      accretion add near/mid-IR light the blackbody lacks (RW Aur:
  *                                      1.3–3.8 mag); no AB value is returned
+ *   'photosphere blackbody - molecular bands and dust not modelled'
+ *                                      Mira / AGB variable (miraReason): H₂O and CO bands of an
+ *                                      extended pulsating atmosphere and circumstellar dust shape
+ *                                      the 0.75–5 µm spectrum; no AB value is returned (R Dra)
  *   'not modelled'                     planets (reflected + thermal light), disks, or missing inputs
  */
 export function spherexReliability(body: Body, system: SystemModel): Derived<SpherexReliability> {
@@ -1163,6 +1194,23 @@ export function spherexReliability(body: Body, system: SystemModel): Derived<Sph
       method: `Teff ${fmt(body.teff_k)} K < ${BLACKBODY_MIN_TEFF_K} K: a blackbody misplaces the flux of an L/T/Y dwarf by magnitudes`,
       citation,
       flags: ['blackbody-unreliable'],
+    };
+  }
+  const mira = miraReason(body);
+  if (mira) {
+    const dist = Number(d.value);
+    const teff = body.teff_k;
+    const radius = body.radius_km;
+    const overOnset = SPHEREX_DETECTORS.every((det) => {
+      const ab = blackbodyBandAbMag(teff, radius, dist, det).value;
+      return ab !== null && ab < det.nonLinearityOnsetAB;
+    });
+    return {
+      value: 'photosphere blackbody - molecular bands and dust not modelled',
+      tier: 'model',
+      method: `${mira}: its extended, pulsating atmosphere has deep H₂O and CO absorption bands in the 0.75–5 µm range, and circumstellar dust adds emission towards 5 µm; a single photosphere blackbody at Teff ${fmt(teff)} K (${T.tier}; Teff itself changes through the cycle) models neither, so no AB value is shown${overOnset ? '; the photosphere blackbody alone is already brighter than the pre-launch non-linearity onset in every detector: check the OVERFLOW/NONLINEAR pixel flags' : ''}`,
+      citation: `${SPHEREX_BANDS_CITATION}; ${MIRA_CITE}`,
+      flags: ['not-modelled'],
     };
   }
   const excess = irExcessReason(body, system);
@@ -1201,8 +1249,8 @@ export interface SpherexPrediction extends Derived<readonly SpherexBandEstimate[
 /**
  * Blackbody predictions for the six SPHEREx detectors: F_ν = π B_ν(T)(R/d)² averaged over the 17
  * log-uniform channels of each detector, AB = −2.5 log10(F_ν / 3631 Jy) (Oke & Gunn 1983).
- * AB values are returned only for 'blackbody approx.' and 'illustrative inputs' (never below 2500 K
- * and never for a star with an unmodelled IR excess).
+ * AB values are returned only for 'blackbody approx.' and 'illustrative inputs' (never below 2500 K,
+ * never for a star with an unmodelled IR excess, and never for a Mira / AGB star).
  */
 export function spherexPrediction(body: Body, system: SystemModel): SpherexPrediction {
   const rel = spherexReliability(body, system);
@@ -1210,6 +1258,7 @@ export function spherexPrediction(body: Body, system: SystemModel): SpherexPredi
   const T = paramTier(body, 'teff');
   const showAb = rel.value === 'blackbody approx.' || rel.value === 'illustrative inputs';
   const photosphereOnly = rel.value === 'photosphere only - IR excess not modelled';
+  const molecular = rel.value === 'photosphere blackbody - molecular bands and dust not modelled';
   const d = distanceTier(system);
   const bands = SPHEREX_DETECTORS.map((det): SpherexBandEstimate => {
     const fr =
@@ -1222,7 +1271,7 @@ export function spherexPrediction(body: Body, system: SystemModel): SpherexPredi
         : {
             ...fr,
             tier: derivedTier([T.tier], 'model'),
-            method: `${fr.method}${photosphereOnly ? '; photosphere only (the IR excess is not modelled)' : ''}; ${inputsText([T])}`,
+            method: `${fr.method}${photosphereOnly ? '; photosphere only (the IR excess is not modelled)' : ''}${molecular ? '; photosphere blackbody only (molecular bands and dust are not modelled)' : ''}; ${inputsText([T])}`,
           };
     if (!showAb || body.teff_k === null || body.radius_km === null || d.value === null) {
       return {
@@ -1246,7 +1295,8 @@ export function spherexPrediction(body: Body, system: SystemModel): SpherexPredi
       },
     };
   });
-  return { value: bands, tier: rel.tier, method: rel.method, citation: photosphereOnly ? `${citation}; ${IR_EXCESS_CITE}` : citation, flags: rel.flags, reliability: rel.value };
+  const extra = photosphereOnly ? `; ${IR_EXCESS_CITE}` : molecular ? `; ${MIRA_CITE}` : '';
+  return { value: bands, tier: rel.tier, method: rel.method, citation: `${citation}${extra}`, flags: rel.flags, reliability: rel.value };
 }
 
 // --- body-level colour and visible light -------------------------------------------------------

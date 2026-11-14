@@ -95,17 +95,42 @@ def _provenance(*, synthetic: bool, notes: list[str]) -> Provenance:
 
 # --- Barnard's Star: nearest single star to the Sun, four small planets -------
 
+BJD_MINUS_MJD = 2400000.5  # MJD = JD - 2400000.5; BJD_TDB vs UTC (~69 s) is negligible at this precision
+
+# Mean anomaly at the time of inferior conjunction of a circular orbit drawn with i = Omega = omega = 0
+# (M5). The WS7 scene maps the AU frame (x, y, z-up) to three.js (x, z, -y), and the default camera
+# looks from scene +z, so AU -y = scene +z is "toward Earth" (the line of sight projected on the orbit
+# plane; the inclination is unknown). E = M = 270 deg puts the planet at (0, -a, 0): in front of the star.
+CONJUNCTION_MEAN_ANOMALY_DEG = 270.0
+
+# Dates at which the orbit notes quote the 1-sigma phase spread: DR1 start and the last QR3 frame
+# (frontend/src/three/spherexCoverage.ts DR1_START_MJD, QR3_LAST_MJD).
+PHASE_SPREAD_DATES = ((60789.75, "2025-04-24"), (61318.0, "2026-10-05"))
+
+
+def phase_sigma_deg(t_mjd: float, t0_mjd: float, t0_err_days: float, period_days: float, period_err_days: float) -> float:
+    """First-order 1-sigma orbital phase spread (deg) at ``t_mjd`` from a published t0 and P.
+
+    sigma_phi = sqrt(sigma_t0^2 + N^2 sigma_P^2) / P with N = (t - t0) / P (linear propagation; Taylor
+    1997; Zellem et al. 2020, PASP 132, 054401). The t0-P covariance is not published and is ignored.
+    """
+    n = (t_mjd - t0_mjd) / period_days
+    return 360.0 * ((t0_err_days**2 + (n * period_err_days) ** 2) ** 0.5) / period_days
+
 
 def barnards_star() -> SystemModel:
     star_src = f"{EXOPLANET_ARCHIVE} (González Hernández et al. 2024, A&A 690, A79)"
     planet_src = f"{EXOPLANET_ARCHIVE} (Basant et al. 2025, ApJL 982, L1)"
+    basant_t3 = "Basant et al. 2025, ApJL 982, L1, Table 3 (arXiv:2503.08095)"
     gaia = f"{GAIA_DR3} 4472832130942575872"
     planets = [
-        # (id, name, period_days, min_mass_earth, a_au, archive radius estimate [R_earth])
-        ("barnard-d", "Barnard d", 2.3402, 0.263, 0.0188, 0.694),
-        ("barnard-b", "Barnard b", 3.1542, 0.299, 0.0229, 0.720),
-        ("barnard-c", "Barnard c", 4.1244, 0.335, 0.0274, 0.743),
-        ("barnard-e", "Barnard e", 6.7392, 0.193, 0.0381, 0.637),
+        # (id, name, period_days, period_err_days, min_mass_earth, a_au, archive radius estimate [R_earth],
+        #  t0 [BJD], t0 text as published, t0 1-sigma [d] = the larger side of an asymmetric error)
+        # Periods, t0 and their errors: Basant et al. 2025 Table 3 (t0 is listed there as BJD - 2450000).
+        ("barnard-d", "Barnard d", 2.3402, 0.0003, 0.263, 0.0188, 0.694, 2460243.70, "+0.08/−0.07", 0.08),
+        ("barnard-b", "Barnard b", 3.1542, 0.0004, 0.299, 0.0229, 0.720, 2460243.38, "± 0.09", 0.09),
+        ("barnard-c", "Barnard c", 4.1244, 0.0006, 0.335, 0.0274, 0.743, 2460242.92, "± 0.10", 0.10),
+        ("barnard-e", "Barnard e", 6.7392, 0.0028, 0.193, 0.0381, 0.637, 2460245.30, "+0.37/−0.36", 0.37),
     ]
     bodies = [
         Body(
@@ -136,7 +161,11 @@ def barnards_star() -> SystemModel:
             ],
         )
     ]
-    for pid, name, period, mmin, a_au, r_est in planets:
+    for pid, name, period, period_err, mmin, a_au, r_est, t0_bjd, t0_text, t0_err in planets:
+        t0_mjd = round(t0_bjd - BJD_MINUS_MJD, 5)
+        spread = ", ".join(
+            f"±{phase_sigma_deg(t, t0_mjd, t0_err, period, period_err):.0f}° on {iso}" for t, iso in PHASE_SPREAD_DATES
+        )
         bodies.append(
             Body(
                 id=pid,
@@ -152,14 +181,30 @@ def barnards_star() -> SystemModel:
                     parent="barnards-star",
                     semi_major_axis_au=a_au,
                     period_days=period,
+                    mean_anomaly_deg=CONJUNCTION_MEAN_ANOMALY_DEG,
+                    epoch_mjd=t0_mjd,
                     note=(
                         "Drawn circular: the fitted eccentricities are consistent with zero (Basant et al. 2025 "
-                        "favour e < 0.02). Orbit inclination unknown (radial-velocity detection)."
+                        "favour e < 0.02). Orbit inclination unknown (radial-velocity detection). "
+                        f"Phase: the planet is drawn in front of the star (on the 'toward Earth' arrow) at "
+                        f"t0 = BJD {t0_bjd:.2f} {t0_text} (Basant et al. 2025, Table 3), read as the time of "
+                        "inferior conjunction as used by juliet/RadVel (tc); the paper text says periastron. "
+                        f"1-sigma phase spread from t0 and P ({period} ± {period_err} d): {spread} (linear "
+                        "propagation; the t0-P covariance is not published and is ignored). The sense of motion "
+                        "on the sky is unknown: drawn counter-clockwise seen from above."
                     ),
                 ),
                 appearance=Appearance(model="rocky"),
                 facts=[
-                    _vfact("Orbital period", f"{period}", "days", planet_src),
+                    _vfact("Orbital period", f"{period} ± {period_err}", "days", basant_t3),
+                    _vfact(
+                        "Reference time t0",
+                        f"{t0_bjd:.2f} {t0_text}",
+                        "BJD",
+                        f"{basant_t3}, listed as BJD − 2450000. Verified for the value only: the paper calls t0 "
+                        "the time of periastron, the fitting code (juliet, RadVel 'tc') the time of conjunction; "
+                        "see the orbit note",
+                    ),
                     _vfact("Minimum mass", f"{mmin}", "Earth masses", planet_src),
                     _vfact("Orbit size", f"{a_au}", "AU", planet_src),
                     _vfact(
@@ -192,7 +237,9 @@ def barnards_star() -> SystemModel:
             synthetic=False,
             notes=[
                 VERIFIED_NOTE,
-                PHASE_NOTE,
+                "Planet phases follow the t0 and periods of Basant et al. 2025 (Table 3), read as times of inferior "
+                "conjunction: a position on a real date is a prediction with the 1-sigma spread given in each orbit "
+                "note. The star's rotational phase is not known.",
                 "Planet masses are minimum masses (M sin i) and planet radii are estimates: radial velocity measures "
                 "neither the inclination nor the size.",
             ],
@@ -419,6 +466,16 @@ def wise_0855() -> SystemModel:
 
 def r_draconis() -> SystemModel:
     gcvs = "GCVS 5.1 (Samus et al. 2017)"
+    # No dynamical mass exists for R Dra. Feast (2009) ties the initial mass of a Mira to its period:
+    # O-rich Miras of log P ~ 2.3 have initial masses < 1 M_sun, the bulk (log P ~ 2.5) are ~7 Gyr old,
+    # and C-Miras at log P ~ 2.7 have ~1.8 M_sun. R Dra (P = 245.6 d) has log P = 2.39, so a class-typical
+    # mass of ~1 M_sun. It is an INITIAL mass and only sizes the drawn convection cells.
+    feast = (
+        "Feast 2009, AGB Stars and Related Phenomena (Tokyo 2008), arXiv:0812.0250, Sect. 3: O-rich Miras with "
+        "log P ~2.3 have initial masses < 1 M_sun, those with log P ~2.5 are ~7 Gyr old, and C-Miras at log P ~2.7 "
+        "have ~1.8 M_sun; R Dra has log P = 2.39. Class-typical initial mass for its period, not a measurement of "
+        "this star (its present mass is lower after mass loss); used only to size the drawn convection cells"
+    )
     return SystemModel(
         id="r-draconis",
         name="R Draconis",
@@ -441,6 +498,7 @@ def r_draconis() -> SystemModel:
                 kind="star",
                 description="A Mira variable: an old red giant whose visible brightness changes by hundreds of times.",
                 radius_km=250 * R_SUN_KM,  # illustrative; varies during the cycle
+                mass_kg=1.0 * M_SUN_KG,  # class-typical Mira mass for P = 245.6 d (Feast 2009); unverified
                 teff_k=3000,  # representative drawing value inside the published range
                 spectral_type="M5e–M9eIII",
                 variability=Variability(kind="pulsation", period_days=245.6, amplitude_mag=6.5, band="V"),
@@ -464,6 +522,7 @@ def r_draconis() -> SystemModel:
                         "solar radii",
                         "drawing value: published sizes depend strongly on the assumed distance and the pulsation phase",
                     ),
+                    _fact("Mass (class-typical)", "~1", "solar masses", feast),
                 ],
             )
         ],

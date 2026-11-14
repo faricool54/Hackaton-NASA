@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import type { Body, Field, SystemModel, Variability } from '../api/types';
+import type { Body, Field, SystemModel } from '../api/types';
 import { formatMjd } from '../api/format';
 import {
   ARCHIVE_SEASON_GAP_DAYS,
   betweenVisits,
   coverageFor,
+  DATASET_PLAY_SECONDS,
+  datasetBounds,
+  datasetSpeed,
   datasetWindow,
   DATASET_TODAY_ISO,
   DATASET_TODAY_MJD,
@@ -389,33 +392,56 @@ describe('phaseStatus', () => {
     );
   });
 
-  it("follows Barnard's planets as epochs are added (M5)", () => {
+  it("dates every Barnard planet after M5 (Basant et al. 2025 t0)", () => {
     const s = system('barnards-star');
     const st = phaseStatus(s);
-    expect([...st.dated, ...st.arbitrary].sort()).toEqual(['barnard-b', 'barnard-c', 'barnard-d', 'barnard-e']);
-    // Giving one planet an epoch moves it from "arbitrary" to "dated".
-    const withEpoch: SystemModel = {
+    expect(st.dated).toEqual(['barnard-d', 'barnard-b', 'barnard-c', 'barnard-e']);
+    expect(st.arbitrary).toEqual([]);
+    expect(phaseStatusLine(s)).toBe('Real epoch: Barnard d, Barnard b, Barnard c, Barnard e · Arbitrary phase: none');
+    // Removing an epoch moves the planet back to "arbitrary".
+    const without: SystemModel = {
       ...s,
-      bodies: s.bodies.map((b) => (b.id === 'barnard-b' && b.orbit ? { ...b, orbit: { ...b.orbit, epoch_mjd: 60000 } } : b)),
+      bodies: s.bodies.map((b) => (b.id === 'barnard-b' && b.orbit ? { ...b, orbit: { ...b.orbit, epoch_mjd: null } } : b)),
     };
-    const after = phaseStatus(withEpoch);
-    expect(after.dated).toContain('barnard-b');
-    expect(after.arbitrary).not.toContain('barnard-b');
+    const after = phaseStatus(without);
+    expect(after.arbitrary).toEqual(['barnard-b']);
+    expect(after.dated).not.toContain('barnard-b');
   });
 
-  it('flags periodic variability without an epoch (R Dra), not irregular variability (RW Aur)', () => {
-    expect(phaseStatus(system('r-draconis')).pulsationArbitrary).toEqual(['r-draconis']);
-    expect(phaseStatus(system('rw-aurigae')).pulsationArbitrary).toEqual([]);
-    expect(phaseStatusLine(system('r-draconis'))).toBe('Pulsation phase unknown: R Draconis');
+  it('predicts R Dra from the WS7 ephemeris table (S3), never an irregular variable (RW Aur)', () => {
     const rdra = system('r-draconis');
-    const dated: Body[] = rdra.bodies.map((b) =>
-      b.variability ? { ...b, variability: { ...b.variability, epoch_mjd: 60000 } as Variability } : b,
+    expect(phaseStatus(rdra)).toMatchObject({ pulsationPredicted: ['r-draconis'], pulsationArbitrary: [], irregular: [] });
+    expect(phaseStatusLine(rdra)).toBe('Predicted pulsation phase (catalogue ephemeris): R Draconis');
+    // Without a table entry (no system id) the same star is phase-unknown, i.e. frozen on a real date.
+    const anonymous: { bodies: Body[] } = { bodies: rdra.bodies };
+    expect(phaseStatus(anonymous).pulsationArbitrary).toEqual(['r-draconis']);
+    expect(phaseStatusLine(anonymous)).toBe('Pulsation phase unknown: R Draconis');
+    const rw = phaseStatus(system('rw-aurigae'));
+    expect(rw).toMatchObject({ pulsationPredicted: [], pulsationArbitrary: [], irregular: ['rw-aur-a', 'rw-aur-b'], arbitrary: ['rw-aur-b'] });
+    expect(phaseStatusLine(system('rw-aurigae'))).toBe(
+      'Real epoch: none · Arbitrary phase: RW Aurigae B · Irregular, unpredictable: RW Aurigae A, RW Aurigae B',
     );
-    expect(phaseStatus({ bodies: dated }).pulsationArbitrary).toEqual([]);
   });
 
   it('says when nothing depends on a phase', () => {
-    expect(phaseStatus(system('wise-0855'))).toEqual({ dated: [], arbitrary: [], pulsationArbitrary: [] });
+    expect(phaseStatus(system('wise-0855'))).toEqual({
+      dated: [],
+      arbitrary: [],
+      pulsationPredicted: [],
+      pulsationArbitrary: [],
+      irregular: [],
+    });
     expect(phaseStatusLine(system('wise-0855'))).toBe('Nothing in this model depends on an orbital or pulsation phase.');
+  });
+});
+
+describe('dataset clock', () => {
+  it('runs from the dataset start to the query date, never faster than the window in 60 s', () => {
+    const w = datasetWindow(system('epsilon-indi'));
+    if (!w) throw new Error('no window');
+    expect(datasetBounds(w)).toEqual([DR1_START_MJD, DATASET_TODAY_MJD]);
+    const span = DATASET_TODAY_MJD - DR1_START_MJD;
+    expect(datasetSpeed(500, w)).toBeCloseTo(span / DATASET_PLAY_SECONDS, 9); // Eps Ind: 11-yr binary, capped
+    expect(datasetSpeed(0.29, w)).toBe(0.29); // Barnard-like speed: kept
   });
 });

@@ -5,7 +5,7 @@
 // 'ir' (DEFAULT) — SPHEREx false colour, 0.75–5 µm (user decision: the SPHEREx link is the point)
 //   blue  = D1+D2 (0.746–1.650 µm)   green = D3+D4 (1.630–3.847 µm)   red = D5+D6 (3.811–5.010 µm)
 //   Each channel is the frequency-averaged surface brightness  ⟨I_ν⟩ = Σ ∫B_λ dλ / Σ Δν  over the two
-//   detectors (W m⁻² Hz⁻¹ sr⁻¹, the units of the SPHEREx MJy/sr images), from the astro.ts band
+//   detectors (surface brightness, W m⁻² Hz⁻¹ sr⁻¹: the quantity of the SPHEREx MJy/sr images), from the astro.ts band
 //   fractions of a blackbody at the catalog Teff (MODEL). The composite preserves colour (Lupton et
 //   al. 2004, PASP 116, 133): all three channels of a body share one stretch factor, so the screen
 //   ratios equal the ⟨I_ν⟩ ratios. The stretch is logarithmic over a FIXED 10 mag (4 decades) below
@@ -13,8 +13,12 @@
 //   hue is only a qualitative guide (tier MODEL, no numbers shown): molecular bands move the flux by
 //   magnitudes (Burrows, Sudarsky & Lunine 2003, ApJ 596, 587). Planets and disks: emission and
 //   reflected light are not modelled, so they are drawn as outlines.
+// 'D1' … 'D6' — one SPHEREx detector in grey: the same ⟨I_ν⟩ of that detector alone, on the same
+//   10 mag log stretch below the brightest body in that detector (M3 single-detector mode).
 // 'visible' — CIE 1931 2° colour of the blackbody for stars (astro.ts), brightness on the astro.ts
 //   display scale (DISPLAY); brown dwarfs and planets: visible colour not computed (neutral).
+// Synthetic demo system: planets, small bodies and disks keep their hand palette (and SystemScene
+//   their procedural textures) in EVERY mode; its stars follow the mode like real stars.
 import type { Body, SystemModel } from '../api/types';
 import {
   bandFraction,
@@ -32,18 +36,39 @@ import {
   visibleLuminosity,
   type Tier,
 } from './astro';
-import { bodyColor as baseColor, NEUTRAL_ALBEDO, surfacePattern } from './appearance';
-import { drawsPulsation, PULSATION_RADIUS_AMPLITUDE } from './sceneLayout';
+import { bodyColor as baseColor, CLASS_TYPICAL_CONTRAST, classTypicalFeature, NEUTRAL_ALBEDO } from './appearance';
+import { drawsPulsation, PULSATION_PHASE_NOTE, PULSATION_RADIUS_AMPLITUDE } from './sceneLayout';
 import { SPHEREX_DETECTORS, type SpherexDetector, type SpherexDetectorId } from './spherexBands';
 
-export type ColorMode = 'ir' | 'visible';
+/** A single SPHEREx detector drawn in grey (M3 'SPHEREx D1..D6'). */
+export type DetectorMode = SpherexDetectorId;
+
+export type ColorMode = 'ir' | 'visible' | DetectorMode;
+
+/** Every colour mode, in the order of the selector. */
+export const COLOR_MODES: readonly ColorMode[] = ['ir', 'visible', ...SPHEREX_DETECTORS.map((d) => d.id)];
 
 /** User decision: SPHEREx false colour is the default on every 3D view. */
 export const DEFAULT_COLOR_MODE: ColorMode = 'ir';
 
+/** True for a single-detector (grey) mode. */
+export function isDetectorMode(mode: ColorMode): mode is DetectorMode {
+  return mode !== 'ir' && mode !== 'visible';
+}
+
+/** True for every SPHEREx mode (false colour or one detector): everything but 'visible'. */
+export function isInfraredMode(mode: ColorMode): boolean {
+  return mode !== 'visible';
+}
+
+const fmtEdge = (x: number) => (Math.round(x * 100) / 100).toString();
+
 export const COLOR_MODE_LABEL: Record<ColorMode, string> = {
   ir: 'SPHEREx IR (false colour)',
   visible: 'Visible (CIE 1931, blackbody)',
+  ...(Object.fromEntries(
+    SPHEREX_DETECTORS.map((d) => [d.id, `SPHEREx ${d.id} only (${fmtEdge(d.lambdaMinUm)}–${fmtEdge(d.lambdaMaxUm)} µm, grey)`]),
+  ) as Record<DetectorMode, string>),
 };
 
 /** Dynamic range of the IR stretch: bodies more than this many magnitudes below the system peak are black. */
@@ -81,7 +106,7 @@ export const IR_CHANNELS: readonly [IrChannel, IrChannel, IrChannel] = [
   channel('b', 'D1', 'D2'),
 ];
 
-const fmtUm = (x: number) => (Math.round(x * 100) / 100).toString();
+const fmtUm = fmtEdge;
 
 /** Wavelength span of the IR mode, for the 'FALSE COLOUR · SPHEREx …' label. */
 export const IR_SPAN_TEXT = `${Number(det('D1').lambdaMinUm.toPrecision(2))}–${Number(det('D6').lambdaMaxUm.toPrecision(2))} µm`;
@@ -142,6 +167,20 @@ export function irChannelIntensity(teffK: number): RgbIntensity | null {
   return result;
 }
 
+const detectorCache = new Map<string, number | null>();
+
+/** ⟨I_ν⟩ of one detector (W m⁻² Hz⁻¹ sr⁻¹), cached per (Teff, detector): the single-detector modes. */
+export function detectorIntensity(teffK: number, id: DetectorMode): number | null {
+  if (!(teffK > 0)) return null;
+  const key = `${teffK}:${id}`;
+  const cached = detectorCache.get(key);
+  if (cached !== undefined) return cached;
+  const v = detectorMeanIntensity(teffK, det(id));
+  if (detectorCache.size > 512) detectorCache.clear();
+  detectorCache.set(key, v);
+  return v;
+}
+
 const isStellar = (b: Body) => b.kind === 'star' || b.kind === 'brown_dwarf';
 const emits = (b: Body): b is Body & { teff_k: number } => isStellar(b) && typeof b.teff_k === 'number' && b.teff_k > 0;
 
@@ -152,6 +191,16 @@ export function systemIrPeak(system: Pick<SystemModel, 'bodies'>): number | null
     if (!emits(b)) continue;
     const i = irChannelIntensity(b.teff_k);
     if (i) peak = Math.max(peak, i.r, i.g, i.b);
+  }
+  return peak > 0 ? peak : null;
+}
+
+/** Brightest ⟨I_ν⟩ of any star or brown dwarf of the system in one detector (top of its grey stretch). */
+export function systemDetectorPeak(system: Pick<SystemModel, 'bodies'>, id: DetectorMode): number | null {
+  let peak = 0;
+  for (const b of system.bodies) {
+    if (!emits(b)) continue;
+    peak = Math.max(peak, detectorIntensity(b.teff_k, id) ?? 0);
   }
   return peak > 0 ? peak : null;
 }
@@ -197,7 +246,7 @@ export type DrawnAs =
   | 'reflected-grey'
   /** Emission and reflection not modelled: drawn as an outline (DISPLAY). */
   | 'outline'
-  /** Synthetic demo system: legacy palette (decoration). */
+  /** Synthetic demo system: legacy palette (decoration), in every colour mode for non-stellar bodies. */
   | 'synthetic';
 
 export interface BodyLook {
@@ -220,7 +269,19 @@ function look(hue: readonly [number, number, number], level: number, drawnAs: Dr
   return { hue, level: l, hex: toHex([hue[0] * l, hue[1] * l, hue[2] * l]), drawnAs, tier, note };
 }
 
+/** Synthetic demo body without an emission model: its palette in every mode (SystemScene keeps its texture). */
+function syntheticDecoration(body: Body, system: Pick<SystemModel, 'provenance'>): BodyLook {
+  return look(
+    hexToRgb(baseColor(body, system)),
+    1,
+    'synthetic',
+    'illustrative',
+    'synthetic demo: hand palette and procedural texture in every colour mode (decoration; no emission is modelled)',
+  );
+}
+
 function irLook(body: Body, system: SystemModel): BodyLook {
+  if (!emits(body) && system.provenance.synthetic) return syntheticDecoration(body, system);
   if (!emits(body)) {
     const what = body.kind === 'disk' ? 'disk' : body.kind.replace('_', ' ');
     return look(NEUTRAL, GREY_LEVEL, 'outline', 'display', `${what}: SPHEREx-band emission not modelled (outline only)`);
@@ -247,6 +308,35 @@ function irLook(body: Body, system: SystemModel): BodyLook {
     'blackbody',
     derivedTier([T.tier], 'model'),
     `blackbody ⟨I_ν⟩ per channel at Teff (${T.tier}); log stretch over ${IR_DYNAMIC_RANGE_MAG} mag below the system peak${excess ? '; photosphere only: the IR excess of its disk and accretion is not modelled' : ''}`,
+  );
+}
+
+/** One detector in grey: ⟨I_ν⟩ of that detector, log stretch below the system's brightest body in it. */
+function detectorLook(body: Body, system: SystemModel, id: DetectorMode): BodyLook {
+  if (!emits(body) && system.provenance.synthetic) return syntheticDecoration(body, system);
+  if (!emits(body)) {
+    const what = body.kind === 'disk' ? 'disk' : body.kind.replace('_', ' ');
+    return look(NEUTRAL, GREY_LEVEL, 'outline', 'display', `${what}: SPHEREx-band emission not modelled (outline only)`);
+  }
+  const i = detectorIntensity(body.teff_k, id) ?? 0;
+  const level = irLevel(i, systemDetectorPeak(system, id) ?? i);
+  const T = paramTier(body, 'teff');
+  if (body.teff_k < BLACKBODY_MIN_TEFF_K) {
+    return look(
+      NEUTRAL,
+      level,
+      'qualitative',
+      'model',
+      `below ${BLACKBODY_MIN_TEFF_K} K: blackbody level in ${id} as a qualitative guide only (molecular bands move the flux by magnitudes)`,
+    );
+  }
+  const excess = isYoungWithExcess(body, system);
+  return look(
+    NEUTRAL,
+    level,
+    'blackbody',
+    derivedTier([T.tier], 'model'),
+    `blackbody ⟨I_ν⟩ in ${id} at Teff (${T.tier}), grey; log stretch over ${IR_DYNAMIC_RANGE_MAG} mag below the brightest body in ${id}${excess ? '; photosphere only: the IR excess of its disk and accretion is not modelled' : ''}`,
   );
 }
 
@@ -288,7 +378,9 @@ function visibleLook(body: Body, system: Pick<SystemModel, 'provenance'>): BodyL
 
 /** Colour, brightness and provenance of one body in a colour mode. */
 export function bodyLook(body: Body, system: SystemModel, mode: ColorMode): BodyLook {
-  return mode === 'ir' ? irLook(body, system) : visibleLook(body, system);
+  if (mode === 'ir') return irLook(body, system);
+  if (mode === 'visible') return visibleLook(body, system);
+  return detectorLook(body, system, mode);
 }
 
 // --- star shader inputs -------------------------------------------------------------------------
@@ -315,10 +407,29 @@ export function irLimbDarkeningLut(teffK: number, n = 16): Float32Array {
   return out;
 }
 
-/** Limb-darkening table of a star in a colour mode (flat when Teff is missing or < 2500 K). */
+/** Centre of a detector band (geometric mean of the edges, µm): where its limb darkening is evaluated. */
+export function detectorCenterUm(id: DetectorMode): number {
+  const d = det(id);
+  return Math.sqrt(d.lambdaMinUm * d.lambdaMaxUm);
+}
+
+/** Single-detector limb darkening: the grey-atmosphere model at the detector centre, the same in r, g, b. MODEL. */
+export function detectorLimbDarkeningLut(teffK: number, id: DetectorMode, n = 16): Float32Array {
+  const count = Math.max(2, Math.floor(n));
+  const out = new Float32Array(count * 3);
+  const nm = detectorCenterUm(id) * 1000;
+  for (let i = 0; i < count; i++) {
+    const v = teffK > 0 ? limbDarkeningAt(teffK, nm, i / (count - 1)).value : 1;
+    out.fill(v, i * 3, i * 3 + 3);
+  }
+  return out;
+}
+
+/** Limb-darkening table of a star in a colour mode (flat when Teff is missing or < 2500 K). A new array on every call. */
 export function starLimbDarkening(body: Body, mode: ColorMode, n = 16): Float32Array {
   if (!body.teff_k || body.teff_k < BLACKBODY_MIN_TEFF_K) return flatLimbDarkening(n);
   if (mode === 'ir') return irLimbDarkeningLut(body.teff_k, n);
+  if (mode !== 'visible') return detectorLimbDarkeningLut(body.teff_k, mode, n);
   return bodyLimbDarkening(body, n).value ?? flatLimbDarkening(n);
 }
 
@@ -329,14 +440,16 @@ export const GLOW_DECADES = 4;
 
 /**
  * Luminosity (L_sun) a star's glow is scaled with, in the light the mode shows: visible light
- * L × f(380–780 nm) (M2), or the light in the SPHEREx span L × f(0.746–5.01 µm) in IR mode.
+ * L × f(380–780 nm) (M2), the light in the SPHEREx span L × f(0.746–5.01 µm) in IR mode, or in one
+ * detector's band in a single-detector mode.
  */
 export function glowLuminosity(body: Body, mode: ColorMode): number | null {
   if (body.kind !== 'star') return null;
   if (mode === 'visible') return visibleLuminosity(body).value;
   const L = luminosity(body).value;
   if (L === null || !body.teff_k) return null;
-  const f = bandFraction(body.teff_k, det('D1').lambdaMinUm, det('D6').lambdaMaxUm).value;
+  const [lo, hi] = mode === 'ir' ? [det('D1').lambdaMinUm, det('D6').lambdaMaxUm] : [det(mode).lambdaMinUm, det(mode).lambdaMaxUm];
+  const f = bandFraction(body.teff_k, lo, hi).value;
   return f === null ? null : L * f;
 }
 
@@ -364,8 +477,8 @@ export function systemGlowFactors(system: Pick<SystemModel, 'bodies'>, mode: Col
 
 /**
  * Glow opacity: the display level of the star, modulated by its V-band light curve in visible mode
- * only (brightness factor f, 1 = mean; f^0.25). No IR light curve is modelled, so the IR glow is
- * steady. DISPLAY.
+ * only (brightness factor f, 1 = mean; f^0.25). No IR light curve is modelled, so the glow is steady
+ * in every SPHEREx mode. DISPLAY.
  */
 export function glowOpacity(level: number, brightnessFactor: number, mode: ColorMode): number {
   const f = mode === 'visible' && brightnessFactor > 0 ? Math.pow(brightnessFactor, 0.25) : 1;
@@ -383,6 +496,26 @@ function names(bodies: readonly Body[]): string {
   return bodies.map((b) => b.name).join(', ');
 }
 
+/** Lines shared by the SPHEREx modes: T Tauri excess, cold bodies, outlines, synthetic decoration. */
+function infraredCaveats(system: SystemModel, cold: readonly Body[], dark: readonly Body[]): string[] {
+  const lines: string[] = [];
+  const young = system.bodies.filter((b) => isYoungWithExcess(b, system));
+  if (young.length) {
+    lines.push(
+      `${names(young)}: photosphere only. The infrared excess of the disk and accretion, which makes the real system several magnitudes brighter at 3–5 µm, is not modelled.`,
+    );
+  }
+  if (cold.length) lines.push(`${names(cold)}: below ${BLACKBODY_MIN_TEFF_K} K, qualitative only (molecular bands, not a blackbody; MODEL).`);
+  if (dark.length) {
+    lines.push(
+      system.provenance.synthetic
+        ? `${names(dark)}: synthetic demo bodies, drawn with their hand palette and procedural textures in every colour mode (decoration, not SPHEREx emission).`
+        : `${names(dark)}: SPHEREx-band emission not modelled, drawn as an outline.`,
+    );
+  }
+  return lines;
+}
+
 /** Legend lines for the colour mode of one system (no numbers for bodies below 2500 K). */
 export function colorLegend(mode: ColorMode, system: SystemModel): string[] {
   const cold = system.bodies.filter((b) => emits(b) && b.teff_k < BLACKBODY_MIN_TEFF_K);
@@ -390,16 +523,15 @@ export function colorLegend(mode: ColorMode, system: SystemModel): string[] {
   const lines: string[] = [];
   if (mode === 'ir') {
     lines.push(
-      `False colour: ${IR_MAPPING_TEXT}. Each channel is the band-averaged surface brightness F_ν of a blackbody at the catalog Teff (MODEL); colours preserved, after Lupton et al. 2004 (PASP 116, 133); brightness log-scaled over ${IR_DYNAMIC_RANGE_MAG} mag below the brightest body and channel of this system (DISPLAY).`,
+      `False colour: ${IR_MAPPING_TEXT}. Each channel is the band-averaged surface brightness ⟨I_ν⟩ (MJy/sr-like units) of a blackbody at the catalog Teff (MODEL); colours preserved, after Lupton et al. 2004 (PASP 116, 133); brightness log-scaled over ${IR_DYNAMIC_RANGE_MAG} mag below the brightest body and channel of this system (DISPLAY).`,
     );
-    const young = system.bodies.filter((b) => isYoungWithExcess(b, system));
-    if (young.length) {
-      lines.push(
-        `${names(young)}: photosphere only. The infrared excess of the disk and accretion, which makes the real system several magnitudes brighter at 3–5 µm, is not modelled.`,
-      );
-    }
-    if (cold.length) lines.push(`${names(cold)}: below ${BLACKBODY_MIN_TEFF_K} K, qualitative only (molecular bands, not a blackbody; MODEL).`);
-    if (dark.length) lines.push(`${names(dark)}: SPHEREx-band emission not modelled, drawn as an outline.`);
+    lines.push(...infraredCaveats(system, cold, dark));
+  } else if (mode !== 'visible') {
+    const d = det(mode);
+    lines.push(
+      `Single detector ${d.id} (${fmtUm(d.lambdaMinUm)}–${fmtUm(d.lambdaMaxUm)} µm) in grey: the band-averaged surface brightness ⟨I_ν⟩ (MJy/sr-like units) of a blackbody at the catalog Teff (MODEL), log-scaled over ${IR_DYNAMIC_RANGE_MAG} mag below the brightest body of this system in ${d.id} (DISPLAY).`,
+    );
+    lines.push(...infraredCaveats(system, cold, dark));
   } else {
     if (system.bodies.some((b) => b.kind === 'star')) {
       lines.push(
@@ -409,7 +541,7 @@ export function colorLegend(mode: ColorMode, system: SystemModel): string[] {
       );
     }
     const bds = system.bodies.filter((b) => b.kind === 'brown_dwarf' && !blackbodyBodyColor(b).value);
-    if (bds.length) {
+    if (bds.length && !system.provenance.synthetic) {
       lines.push(
         `${names(bds)}: visible colour not computed (T/Y-dwarf spectra are shaped by Na I and K I wings, Burrows, Marley & Sharp 2000); drawn neutral at the display brightness, so a dark silhouette: switch to SPHEREx IR.`,
       );
@@ -426,7 +558,8 @@ const round2 = (x: number) => Number(x.toPrecision(2)).toLocaleString('en');
 
 /**
  * Legend lines on surfaces and sizes: limb darkening, convection cells (drawn only where
- * astro.granulationParams says they are resolvable), Mira pulsation, and the class-typical toggle.
+ * astro.granulationParams says they are resolvable), Mira pulsation, and the class-typical toggle
+ * (appearance.classTypicalFeature: the S5 list, each with its class-level source).
  */
 export function surfaceLegend(system: Pick<SystemModel, 'bodies' | 'provenance'>, mode: ColorMode, classTypical: boolean): string[] {
   const lines: string[] = [];
@@ -440,7 +573,7 @@ export function surfaceLegend(system: Pick<SystemModel, 'bodies' | 'provenance'>
       if (g.draw) {
         const tau = g.turnoverDays.value;
         drawn.push(
-          `${s.name}: ≈${round2(g.value)} convection cells across (cell size 10 H_p, MODEL; ±${Math.round(g.contrast.value * 100)} % contrast, ILLUSTRATIVE)${tau ? `, renewed every ≈${round2(tau)} d of model time` : ''}`,
+          `${s.name}: ≈${round2(g.value)} convection cells across (cell size 10 H_p, MODEL${g.tier === 'model' ? '' : ` with ${g.tier.toUpperCase()} inputs`}; ±${Math.round(g.contrast.value * 100)} % contrast, ILLUSTRATIVE)${tau ? `, renewed every ≈${round2(tau)} d of model time` : ''}`,
         );
       } else small.push(`${s.name} ≈${round2(g.value)}`);
     }
@@ -454,36 +587,47 @@ export function surfaceLegend(system: Pick<SystemModel, 'bodies' | 'provenance'>
   }
   for (const s of system.bodies.filter(drawsPulsation)) {
     lines.push(
-      `${s.name}: radius pulsates ±${Math.round(PULSATION_RADIUS_AMPLITUDE * 100)} % (CLASS-TYPICAL Mira diameter change); its ${s.variability?.band ?? 'visual'}-band light curve drives the glow${mode === 'ir' ? ' in the visible mode only (no SPHEREx light curve is modelled)' : ''}.`,
+      `${s.name}: radius pulsates ±${Math.round(PULSATION_RADIUS_AMPLITUDE * 100)} % (CLASS-TYPICAL Mira diameter change); ${PULSATION_PHASE_NOTE}. Its ${s.variability?.band ?? 'visual'}-band light curve drives the glow${isInfraredMode(mode) ? ' in the visible mode only (no SPHEREx light curve is modelled)' : ''}.`,
     );
   }
   if (system.provenance.synthetic) {
-    lines.push('Synthetic demo: planet textures are procedural decoration.');
+    lines.push('Synthetic demo: planet colours and textures are procedural decoration, in every colour mode.');
     return lines;
   }
   const others = system.bodies.filter((b) => b.kind !== 'star' && b.kind !== 'disk');
   if (!others.length) return lines;
   if (!classTypical) {
-    lines.push(`No surface features on ${names(others)}: none is measured, so each is a uniform sphere.`);
+    lines.push(
+      `No surface features on ${names(others)}: no surface map is measured and the catalog holds no verified rotational-modulation amplitude, so each is a uniform sphere.`,
+    );
     return lines;
   }
-  const bands = others.filter((b) => surfacePattern(b, system, true) === 'bands');
-  const mottled = others.filter((b) => surfacePattern(b, system, true) === 'mottling');
-  const parts = [
-    ...(bands.length ? [`bands on ${names(bands)}`] : []),
-    ...(mottled.length ? [`albedo mottling on ${names(mottled)}`] : []),
-  ];
-  if (parts.length) {
-    const hidden = mode === 'ir' && others.some((b) => !isStellar(b) && surfacePattern(b, system, true) !== 'none');
+  const features = others.map((b) => ({ b, f: classTypicalFeature(b, system) }));
+  const shown = features.filter(({ f }) => f.pattern !== 'none');
+  const none = features.filter(({ f }) => f.pattern === 'none');
+  if (shown.length) {
+    const pct = Math.round(CLASS_TYPICAL_CONTRAST.bands * 100);
+    const hidden = isInfraredMode(mode) && shown.some(({ b }) => !isStellar(b));
     lines.push(
-      `ILLUSTRATIVE class-typical features: ${parts.join('; ')}. Random patterns typical of the class, not observed on these objects${hidden ? '; planets show them in the visible mode only' : ''}.`,
+      `ILLUSTRATIVE class-typical features: ${shown.map(({ b, f }) => `${f.what} on ${b.name}, typical of ${f.basis} (${f.citation})`).join('; ')}. Random patterns, ±${pct} % about the mean brightness (a drawing choice), not observed on these objects${hidden ? '; planets show them in the visible mode only' : ''}.`,
     );
+  }
+  if (none.length) {
+    lines.push(`Nothing class-typical is drawn on ${names(none.map(({ b }) => b))}: no class-level source for a drawn pattern has been checked for ${none.length === 1 ? 'it' : 'them'}.`);
   }
   return lines;
 }
 
 /** Text of the overlay chip shown whenever the IR mode is on. */
-export const FALSE_COLOUR_CHIP = `FALSE COLOUR · SPHEREx ${IR_SPAN_TEXT}`;
+export const FALSE_COLOUR_CHIP = `FALSE COLOUR · BLACKBODY MODEL · SPHEREx ${IR_SPAN_TEXT} bands`;
+
+/** Overlay chip of a colour mode: the false-colour chip, a single-detector chip, or null for visible light. */
+export function colourModeChip(mode: ColorMode): string | null {
+  if (mode === 'ir') return FALSE_COLOUR_CHIP;
+  if (mode === 'visible') return null;
+  const d = det(mode);
+  return `SPHEREx ${d.id} ONLY · GREY · BLACKBODY MODEL · ${fmtUm(d.lambdaMinUm)}–${fmtUm(d.lambdaMaxUm)} µm`;
+}
 
 /** Text of the overlay chip shown while the class-typical toggle is on. */
 export const CLASS_TYPICAL_CHIP = 'CLASS-TYPICAL FEATURES · ILLUSTRATIVE';

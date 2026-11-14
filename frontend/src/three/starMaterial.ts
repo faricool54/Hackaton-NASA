@@ -12,9 +12,14 @@
 //   - base colour (linear) × display brightness, then three's tone mapping and output colour space.
 // It is still a Mesh, so raycast selection keeps working.
 //
-// Rim material: a Fresnel outline that keeps a dark body (a near-black brown dwarf in visible light,
-// a planet whose SPHEREx emission is not modelled) findable on the black sky. Dashed for bodies drawn
-// only qualitatively (below 2500 K in IR mode). DISPLAY: it is not light the body emits.
+// Uniform ownership: every material owns its uLd array. The caller's tables (SystemScene keeps one per
+// colour mode) are copied in, never stored, so a mode switch (setStarLook) can never overwrite them.
+//
+// Rim material: an outline that keeps a dark body (a near-black brown dwarf in visible light, a planet
+// whose SPHEREx emission is not modelled) findable on the black sky. Solid: a thin line on the
+// silhouette plus a soft Fresnel falloff. Qualitative (below 2500 K in IR mode): a thin DASHED line on
+// the silhouette only, so the disc itself is never striped. The line width is in screen pixels
+// (fwidth, WebGL2), whatever the body's size on screen. DISPLAY: it is not light the body emits.
 import * as THREE from 'three';
 
 /** Entries of the limb-darkening table (μ = i / 15), as in astro.limbDarkeningLut's default. */
@@ -125,8 +130,12 @@ function seedOffset(seed: number): THREE.Vector3 {
   return new THREE.Vector3((s & 1023) / 10.24, ((s >>> 10) & 1023) / 10.24, ((s >>> 20) & 1023) / 10.24);
 }
 
-function ldArray(ld: Float32Array): Float32Array {
-  if (ld.length === LD_SAMPLES * 3) return ld;
+/**
+ * The table as a NEW Float32Array of LD_SAMPLES × 3 entries: a copy when it already has that length,
+ * else resampled linearly in μ. Never returns its input (the material must not alias the caller's table).
+ */
+export function ldArray(ld: Float32Array): Float32Array {
+  if (ld.length === LD_SAMPLES * 3) return Float32Array.from(ld);
   // Resample any other table length (linear in μ) so the uniform array size is fixed.
   const n = ld.length / 3;
   const out = new Float32Array(LD_SAMPLES * 3);
@@ -143,7 +152,7 @@ export function createStarMaterial(look: StarLook, granulation: Granulation | nu
   return new THREE.ShaderMaterial({
     defines: { LD_N: LD_SAMPLES },
     uniforms: {
-      uLd: { value: ldArray(look.ld) },
+      uLd: { value: ldArray(look.ld) }, // owned copy (see ldArray)
       uColor: { value: new THREE.Color().setRGB(look.hue[0], look.hue[1], look.hue[2], THREE.SRGBColorSpace) },
       uBrightness: { value: look.brightness },
       uGranCells: { value: granulation && granulation.cells > 0 ? granulation.cells : 0 },
@@ -156,7 +165,10 @@ export function createStarMaterial(look: StarLook, granulation: Granulation | nu
   });
 }
 
-/** Swap the colour-mode inputs of a star (no geometry or program rebuild). */
+/**
+ * Swap the colour-mode inputs of a star (no geometry or program rebuild). The new table is copied
+ * into the material's own uLd array; `look.ld` itself is never written.
+ */
 export function setStarLook(mat: THREE.ShaderMaterial, look: StarLook): void {
   (mat.uniforms.uLd.value as Float32Array).set(ldArray(look.ld));
   (mat.uniforms.uColor.value as THREE.Color).setRGB(look.hue[0], look.hue[1], look.hue[2], THREE.SRGBColorSpace);
@@ -183,14 +195,25 @@ const RIM_FRAGMENT = /* glsl */ `
 uniform vec3 uColor;
 uniform float uStrength;
 uniform float uDashes;
+uniform float uLinePx;
 varying vec3 vN;
 varying vec3 vV;
 void main() {
   vec3 n = normalize(vN);
   float mu = clamp(dot(n, normalize(-vV)), 0.0, 1.0);
-  float f = pow(1.0 - mu, 3.0) * uStrength;
-  if (uDashes > 0.0) f *= step(0.5, fract(atan(n.y, n.x) / 6.28318530718 * uDashes));
-  gl_FragColor = vec4(uColor, f);
+  // Projected radius r = sin(angle to the view axis) grows linearly across the screen, so
+  // (1 - r) / fwidth(r) is the distance to the silhouette in pixels.
+  float r = sqrt(max(0.0, 1.0 - mu * mu));
+  float px = (1.0 - r) / max(fwidth(r), 1e-5);
+  float line = 1.0 - smoothstep(0.5 * uLinePx, uLinePx, px);
+  float f;
+  if (uDashes > 0.0) {
+    // Qualitative: dashes along the thin silhouette line only (angle about the view axis).
+    f = line * step(0.5, fract(atan(n.y, n.x) / 6.28318530718 * uDashes));
+  } else {
+    f = max(line, pow(1.0 - mu, 3.0));
+  }
+  gl_FragColor = vec4(uColor, f * uStrength);
   #include <colorspace_fragment>
 }
 `;
@@ -198,13 +221,17 @@ void main() {
 /** Number of dashes around a dashed (qualitative) outline. */
 export const RIM_DASHES = 24;
 
-/** Fresnel outline (additive, drawn over the body with the same geometry). DISPLAY. */
+/** Width (screen pixels) of the silhouette line of every outline. */
+export const RIM_LINE_PX = 2;
+
+/** Outline (additive, drawn over the body with the same geometry). DISPLAY. */
 export function createRimMaterial(hex: string, strength: number): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     uniforms: {
       uColor: { value: new THREE.Color(hex) },
       uStrength: { value: strength },
       uDashes: { value: 0 },
+      uLinePx: { value: RIM_LINE_PX },
     },
     vertexShader: RIM_VERTEX,
     fragmentShader: RIM_FRAGMENT,
@@ -214,7 +241,7 @@ export function createRimMaterial(hex: string, strength: number): THREE.ShaderMa
   });
 }
 
-/** Solid (0) or dashed outline. */
+/** Solid (0: thin line + soft Fresnel) or dashed (thin dashed line only) outline. */
 export function setRimDashes(mat: THREE.ShaderMaterial, dashes: number): void {
   mat.uniforms.uDashes.value = dashes;
 }

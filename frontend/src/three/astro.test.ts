@@ -30,6 +30,7 @@ import {
   limbDarkeningLut,
   luminosity,
   massClass,
+  miraReason,
   paramTier,
   PHYS,
   pressureScaleHeight,
@@ -373,7 +374,7 @@ describe('reliability of the SPHEREx numbers', () => {
       'eps-indi-ba': 'blackbody unreliable - not shown',
       'eps-indi-bb': 'blackbody unreliable - not shown',
       'wise-0855': 'blackbody unreliable - not shown',
-      'r-draconis': 'illustrative inputs',
+      'r-draconis': 'photosphere blackbody - molecular bands and dust not modelled', // Mira (AGB)
       'rw-aur-a': 'photosphere only - IR excess not modelled', // classical T Tauri star with a disk
       'rw-aur-b': 'photosphere only - IR excess not modelled', // classical T Tauri star
       sun: 'not modelled', // synthetic system: no distance
@@ -414,6 +415,52 @@ describe('reliability of the SPHEREx numbers', () => {
         expect(est.fraction.method).toMatch(/photosphere only/);
       }
     }
+  });
+
+  it('R Dra (Mira): no AB numbers, because the molecular bands and dust are not modelled', () => {
+    const rdra = bodyIn('r-draconis', 'r-draconis');
+    const r = spherexReliability(rdra, RDRA);
+    expect(r.value).toBe('photosphere blackbody - molecular bands and dust not modelled');
+    expect(r.tier).toBe('model');
+    expect(r.flags).toEqual(['not-modelled']);
+    expect(r.method).toMatch(/Mira \/ AGB variable \('Variable type: Mira'\)/);
+    expect(r.method).toMatch(/H₂O and CO/);
+    expect(r.method).toMatch(/OVERFLOW\/NONLINEAR/); // even the bare photosphere is above the onset
+    expect(r.citation).toMatch(/Höfner & Olofsson 2018, A&ARv 26, 1/);
+    expect(r.citation).toMatch(/Lançon & Wood 2000, A&AS 146, 217/);
+    const p = spherexPrediction(rdra, RDRA);
+    expect(p.reliability).toBe(r.value);
+    expect(p.citation).toMatch(/Höfner & Olofsson/);
+    for (const est of p.value) {
+      expect(est.abMag.value, est.detector.id).toBeNull();
+      expect(est.abMag.flags, est.detector.id).toContain('not-modelled');
+      // The band fractions stay as a labelled blackbody diagnostic.
+      expect(est.fraction.value, est.detector.id).not.toBeNull();
+      expect(est.fraction.method, est.detector.id).toMatch(/molecular bands and dust are not modelled/);
+    }
+    // Still true with the illustrative 1 M_sun of M2.
+    expect(spherexReliability(rDraWithMass, RDRA).value).toBe(r.value);
+  });
+
+  it('the Mira rule: a Mira / AGB type Fact, or a pulsating M giant; never an M dwarf or a non-pulsating giant', () => {
+    const rdra = bodyIn('r-draconis', 'r-draconis');
+    expect(miraReason(rdra)).toMatch(/^Mira \/ AGB variable/);
+    // Without the 'Variable type' Fact the pulsation + M giant spectral type still catches it.
+    const noType: Body = { ...rdra, facts: rdra.facts.filter((f) => !/type/i.test(f.label)) };
+    expect(miraReason(noType)).toMatch(/^pulsating M giant \(spectral type 'M5e–M9eIII', period 245\.6 d\)/);
+    expect(spherexReliability(noType, RDRA).value).toBe('photosphere blackbody - molecular bands and dust not modelled');
+    // A giant without a periodic pulsation, or a pulsating M dwarf, keeps the blackbody numbers.
+    const steady: Body = { ...noType, variability: null };
+    expect(miraReason(steady)).toBeNull();
+    expect(spherexReliability(steady, RDRA).value).toBe('illustrative inputs');
+    const pulsingDwarf: Body = { ...barnard, variability: { kind: 'pulsation', period_days: 100, amplitude_mag: 0.1, band: 'V' } };
+    expect(miraReason(pulsingDwarf)).toBeNull();
+    expect(spherexReliability(pulsingDwarf, BARNARD).value).toBe('blackbody approx.');
+    // An AGB 'Type' Fact on any star.
+    const agb: Body = { ...barnard, facts: [...barnard.facts, { label: 'Type', value: 'AGB star', unit: null, source: 'x', verified: true }] };
+    expect(miraReason(agb)).toMatch(/AGB/);
+    // Only stars: brown dwarfs and planets are never Miras.
+    for (const s of SYSTEMS) for (const b of s.bodies) if (b.kind !== 'star') expect(miraReason(b), b.id).toBeNull();
   });
 
   it('flags an IR excess for any pre-main-sequence star or any star in a system with a disk', () => {

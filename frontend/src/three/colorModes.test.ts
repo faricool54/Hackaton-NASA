@@ -1,16 +1,30 @@
 import { describe, expect, it } from 'vitest';
 import type { Body, SystemModel } from '../api/types';
-import appearanceSource from './appearance.ts?raw';
-import colorModesSource from './colorModes.ts?raw';
-import sceneLayoutSource from './sceneLayout.ts?raw';
-import { bodyColor, hasSurfacePattern, NEUTRAL_GREY_HEX, surfacePattern } from './appearance';
+import {
+  bodyColor,
+  CLASS_TYPICAL_CITATION,
+  classTypicalFeature,
+  GAS_GIANT_BANDS_CITATION,
+  hasSurfacePattern,
+  isLTTransition,
+  NEUTRAL_GREY_HEX,
+  surfacePattern,
+} from './appearance';
 import { limbDarkeningLut } from './astro';
 import {
   bodyLook,
+  COLOR_MODE_LABEL,
+  COLOR_MODES,
   colorLegend,
+  colourModeChip,
   DEFAULT_COLOR_MODE,
+  detectorCenterUm,
+  detectorIntensity,
+  detectorLimbDarkeningLut,
   detectorMeanIntensity,
   FALSE_COLOUR_CHIP,
+  isDetectorMode,
+  systemDetectorPeak,
   glowOpacity,
   glowPulse,
   IR_CHANNELS,
@@ -33,12 +47,17 @@ const SYSTEMS = Object.values(
 );
 const sys = (id: string) => SYSTEMS.find((s) => s.id === id)!;
 const bod = (systemId: string, bodyId: string): Body => sys(systemId).bodies.find((b) => b.id === bodyId)!;
-const MODES: ColorMode[] = ['ir', 'visible'];
+const MODES: readonly ColorMode[] = COLOR_MODES;
 
 describe('colour modes (M3)', () => {
-  it('SPHEREx false colour is the default, labelled with the SPHEREx span', () => {
+  it('SPHEREx false colour is the default, labelled as a blackbody MODEL in the SPHEREx bands', () => {
     expect(DEFAULT_COLOR_MODE).toBe('ir');
-    expect(FALSE_COLOUR_CHIP).toBe('FALSE COLOUR · SPHEREx 0.75–5 µm');
+    expect(FALSE_COLOUR_CHIP).toBe('FALSE COLOUR · BLACKBODY MODEL · SPHEREx 0.75–5 µm bands');
+    expect(colourModeChip('ir')).toBe(FALSE_COLOUR_CHIP);
+    expect(colourModeChip('visible')).toBeNull();
+    expect(colourModeChip('D3')).toBe('SPHEREx D3 ONLY · GREY · BLACKBODY MODEL · 1.63–2.44 µm');
+    expect(COLOR_MODES).toEqual(['ir', 'visible', 'D1', 'D2', 'D3', 'D4', 'D5', 'D6']);
+    for (const m of COLOR_MODES) expect(COLOR_MODE_LABEL[m], m).toBeTruthy();
     expect(IR_CHANNELS.map((c) => `${c.channel}:${c.detectors.map((d) => d.id).join('+')}`)).toEqual(['r:D5+D6', 'g:D3+D4', 'b:D1+D2']);
   });
 
@@ -67,7 +86,7 @@ describe('colour modes (M3)', () => {
         const c = bodyColor(b, system);
         expect(['#7a2e3b', '#c9a27a', '#bcd7e8', '#d9a066', '#9a8f84'], `${system.id}/${b.id}`).not.toContain(c);
         if (b.kind !== 'star') expect(c, b.id).toBe(NEUTRAL_GREY_HEX);
-        for (const mode of MODES) expect(bodyLook(b, system, mode).drawnAs).not.toBe('synthetic');
+        for (const mode of MODES) expect(bodyLook(b, system, mode).drawnAs, mode).not.toBe('synthetic');
       }
     }
     // A hand-set colour is ignored for a real body, kept for the synthetic demo.
@@ -179,9 +198,95 @@ describe('colour modes (M3)', () => {
     }
   });
 
+  it('the synthetic demo keeps its palette in every mode; only its star follows the mode', () => {
+    const demo = sys('demo-ecliptic-orbits');
+    for (const b of demo.bodies) {
+      for (const mode of MODES) {
+        const l = bodyLook(b, demo, mode);
+        if (b.kind === 'star') {
+          expect(l.drawnAs, `${b.id} ${mode}`).toBe(mode === 'visible' ? 'synthetic' : 'blackbody');
+        } else {
+          expect(l.drawnAs, `${b.id} ${mode}`).toBe('synthetic');
+          expect(l.hex, `${b.id} ${mode}`).toBe(bodyColor(b, demo));
+          expect(l.note, b.id).not.toMatch(/not modelled \(outline/);
+        }
+      }
+    }
+    // The legends say the same thing in every SPHEREx mode.
+    for (const mode of ['ir', 'D4'] as const) {
+      const text = colorLegend(mode, demo).join(' ');
+      expect(text, mode).toMatch(/synthetic demo bodies, drawn with their hand palette and procedural textures in every colour mode/);
+      expect(text, mode).not.toMatch(/drawn as an outline/);
+      expect(surfaceLegend(demo, mode, false).join(' '), mode).toMatch(/procedural decoration, in every colour mode/);
+    }
+  });
+
+  it('the IR legend names the surface brightness I_nu, never the flux density F_nu', () => {
+    for (const system of SYSTEMS) {
+      for (const mode of ['ir', 'D2'] as const) {
+        const text = colorLegend(mode, system).join(' ');
+        expect(text, `${system.id} ${mode}`).not.toMatch(/F_ν/);
+        if (system.bodies.some((b) => b.kind === 'star' || b.kind === 'brown_dwarf')) {
+          expect(text, `${system.id} ${mode}`).toMatch(/surface brightness ⟨I_ν⟩ \(MJy\/sr-like units\)/);
+        }
+      }
+    }
+  });
+
   it('sRGB transfer curve round-trips', () => {
     for (const v of [0, 0.002, 0.05, 0.18, 0.5, 1]) expect(srgbDecode(srgbEncode(v))).toBeCloseTo(v, 9);
     expect(srgbEncode(0.18)).toBeCloseTo(0x76 / 255, 2);
+  });
+});
+
+describe('single-detector modes (D1..D6, grey)', () => {
+  it('each body is grey at the mean I_nu of that detector, on a 10 mag stretch below the system peak in it', () => {
+    for (const system of SYSTEMS.filter((s) => !s.provenance.synthetic)) {
+      for (const mode of MODES.filter(isDetectorMode)) {
+        const peak = systemDetectorPeak(system, mode);
+        const levels: number[] = [];
+        for (const b of system.bodies) {
+          const l = bodyLook(b, system, mode);
+          if (l.drawnAs === 'outline') continue;
+          expect(l.hue, `${system.id}/${b.id} ${mode}`).toEqual([1, 1, 1]);
+          const i = detectorIntensity(b.teff_k!, mode)!;
+          expect(l.level, `${b.id} ${mode}`).toBeCloseTo(irLevel(i, peak!), 12);
+          levels.push(l.level);
+        }
+        if (levels.length) expect(Math.max(...levels), `${system.id} ${mode}`).toBeCloseTo(1, 12);
+      }
+    }
+  });
+
+  it('WISE 0855 (285 K) is a million times brighter in D6 than in D1 and stays qualitative; Ba gains on A toward D6', () => {
+    const wise = sys('wise-0855');
+    const w = bod('wise-0855', 'wise-0855');
+    expect(bodyLook(w, wise, 'D6').drawnAs).toBe('qualitative');
+    expect(bodyLook(w, wise, 'D6').tier).toBe('model');
+    expect(detectorIntensity(285, 'D6')! / detectorIntensity(285, 'D1')!).toBeGreaterThan(1e6);
+    // Eps Ind: Ba and Bb are dimmer than A in D1, much closer to it in D6.
+    const eps = sys('epsilon-indi');
+    const ba = bod('epsilon-indi', 'eps-indi-ba');
+    expect(bodyLook(ba, eps, 'D6').level).toBeGreaterThan(bodyLook(ba, eps, 'D1').level);
+  });
+
+  it('the single-detector limb darkening is the grey-atmosphere model at the detector centre, equal in r, g, b', () => {
+    for (const mode of MODES.filter(isDetectorMode)) {
+      const lut = detectorLimbDarkeningLut(3195, mode);
+      expect(lut.length).toBe(48);
+      for (let i = 0; i < 16; i++) {
+        expect(lut[i * 3]).toBe(lut[i * 3 + 1]);
+        expect(lut[i * 3]).toBe(lut[i * 3 + 2]);
+      }
+      expect(lut[45]).toBeCloseTo(1, 9);
+      expect(lut[0]).toBeLessThan(1);
+    }
+    // Longer wavelengths darken less.
+    expect(detectorLimbDarkeningLut(3195, 'D6')[0]).toBeGreaterThan(detectorLimbDarkeningLut(3195, 'D1')[0]);
+    expect(detectorCenterUm('D1')).toBeCloseTo(Math.sqrt(0.746 * 1.117), 12);
+    // The planets stay outlines and the disk a faint ring in a single-detector mode too.
+    expect(bodyLook(bod('barnards-star', 'barnard-b'), sys('barnards-star'), 'D3').drawnAs).toBe('outline');
+    expect(colorLegend('D5', sys('barnards-star')).join(' ')).toMatch(/Single detector D5 \(3\.81–4\.43 µm\) in grey/);
   });
 });
 
@@ -262,15 +367,32 @@ describe('surfaces: real targets show only what is measured (M3, S5)', () => {
     }
   });
 
-  it('with the toggle on: bands on gas giants and brown dwarfs, mottling on rocky planets, never on stars or disks', () => {
+  it('with the toggle on: only the S5 list (Ba cloud bands, Ab zonal bands), each with its class source', () => {
     const on = (s: string, b: string) => surfacePattern(bod(s, b), sys(s), true);
     expect(on('epsilon-indi', 'eps-indi-ab')).toBe('bands');
     expect(on('epsilon-indi', 'eps-indi-ba')).toBe('bands');
-    expect(on('wise-0855', 'wise-0855')).toBe('bands');
-    expect(on('barnards-star', 'barnard-b')).toBe('mottling');
+    // No checked class-level source for a drawn pattern: later T (Bb, T6), Y (WISE 0855), rocky planets.
+    expect(on('epsilon-indi', 'eps-indi-bb')).toBe('none');
+    expect(on('wise-0855', 'wise-0855')).toBe('none');
+    for (const id of ['barnard-b', 'barnard-c', 'barnard-d', 'barnard-e']) expect(on('barnards-star', id), id).toBe('none');
     expect(on('barnards-star', 'barnards-star')).toBe('none');
     expect(on('rw-aurigae', 'rw-aur-a-disk')).toBe('none');
     expect(on('r-draconis', 'r-draconis')).toBe('none');
+    // Nothing anywhere ever gets the uncited 'mottling'.
+    for (const system of SYSTEMS) for (const b of system.bodies) expect(surfacePattern(b, system, true), b.id).not.toBe('mottling');
+
+    const ba = classTypicalFeature(bod('epsilon-indi', 'eps-indi-ba'), sys('epsilon-indi'));
+    expect(ba.citation).toBe(CLASS_TYPICAL_CITATION);
+    expect(ba.citation).toMatch(/Radigan et al\. 2014.*Metchev et al\. 2015.*Apai et al\. 2017/);
+    const ab = classTypicalFeature(bod('epsilon-indi', 'eps-indi-ab'), sys('epsilon-indi'));
+    expect(ab.citation).toBe(GAS_GIANT_BANDS_CITATION);
+    expect(ab.citation).not.toMatch(/Radigan/);
+    expect(classTypicalFeature(bod('wise-0855', 'wise-0855'), sys('wise-0855')).citation).toBe('none');
+    // The L/T window is L9–T3.5 (Radigan et al. 2014).
+    const bd = (spectral_type: string) => ({ ...bod('epsilon-indi', 'eps-indi-ba'), spectral_type, facts: [] });
+    expect(['L8', 'L9', 'T0', 'T3.5', 'T4', 'Y0'].map((t) => isLTTransition(bd(t)))).toEqual([false, true, true, true, false, false]);
+    // The synthetic demo keeps its procedural textures and never uses the class-typical list.
+    for (const b of sys('demo-ecliptic-orbits').bodies) expect(classTypicalFeature(b, sys('demo-ecliptic-orbits')).pattern).toBe('none');
   });
 
   it('legends say what is drawn and label the illustrative parts', () => {
@@ -289,22 +411,53 @@ describe('surfaces: real targets show only what is measured (M3, S5)', () => {
     expect(bodyLook(bod('rw-aurigae', 'rw-aur-a'), sys('rw-aurigae'), 'ir').note).toMatch(/IR excess/);
     expect(colorLegend('ir', sys('barnards-star')).join(' ')).not.toMatch(/photosphere only/);
     expect(surfaceLegend(eps, 'ir', false).join(' ')).toMatch(/No surface features/);
-    expect(surfaceLegend(eps, 'visible', true).join(' ')).toMatch(/ILLUSTRATIVE/);
-    expect(surfaceLegend(sys('r-draconis'), 'ir', false).join(' ')).toMatch(/CLASS-TYPICAL Mira/);
+    expect(surfaceLegend(eps, 'ir', false).join(' ')).toMatch(/no verified rotational-modulation amplitude/);
+    const on = surfaceLegend(eps, 'visible', true).join(' ');
+    expect(on).toMatch(/ILLUSTRATIVE/);
+    expect(on).toMatch(/patchy cloud bands on Epsilon Indi Ba/);
+    expect(on).toMatch(/zonal bands on Epsilon Indi Ab, typical of giant planets \(zonal bands of Jupiter/);
+    expect(on).toMatch(/±15 % about the mean/);
+    expect(on).toMatch(/Nothing class-typical is drawn on Epsilon Indi Bb/);
+    expect(surfaceLegend(sys('wise-0855'), 'ir', true).join(' ')).toMatch(/Nothing class-typical is drawn on WISE/);
+    expect(surfaceLegend(eps, 'ir', true).join(' ')).toMatch(/planets show them in the visible mode only/);
+    const rdra = surfaceLegend(sys('r-draconis'), 'ir', false).join(' ');
+    expect(rdra).toMatch(/CLASS-TYPICAL Mira/);
+    // The size/light phase is a display choice, never stated as physics.
+    expect(rdra).toMatch(/phase relation between size and light curve is not modelled: drawn in phase for display/);
+    expect(rdra).not.toMatch(/largest when brightest/);
     expect(surfaceLegend(sys('barnards-star'), 'visible', false).join(' ')).toMatch(/too small to draw/);
   });
 });
 
 describe('main-chunk safety', () => {
-  it('the modules SystemViewer imports statically never import three.js', () => {
-    for (const [name, src] of [
-      ['colorModes.ts', colorModesSource],
-      ['sceneLayout.ts', sceneLayoutSource],
-      ['appearance.ts', appearanceSource],
-    ] as const) {
+  // Every module of this folder as raw text, to walk the static import graph (not only direct imports).
+  const SOURCES = import.meta.glob<string>('./*.ts', { eager: true, query: '?raw', import: 'default' });
+
+  /** Every module reachable through static imports from `entry` (relative './x' imports only). */
+  function reachable(entry: string): string[] {
+    const seen = new Set<string>();
+    const queue = [entry];
+    while (queue.length) {
+      const name = queue.shift()!;
+      if (seen.has(name)) continue;
+      seen.add(name);
+      const src = SOURCES[`./${name}.ts`];
+      expect(src, `source of ${name}`).toBeTypeOf('string');
+      for (const m of src.matchAll(/^\s*(?:import|export)\b[^;]*?\bfrom\s+['"]\.\/([\w.-]+)['"]/gm)) queue.push(m[1]);
+    }
+    return [...seen];
+  }
+
+  it('the modules SystemViewer imports statically never reach three.js, SystemScene or starMaterial', () => {
+    const graph = new Set(['colorModes', 'sceneLayout', 'appearance'].flatMap(reachable));
+    expect(graph.has('astro')).toBe(true); // the walk really follows imports
+    expect(graph.has('bodyFormat')).toBe(true);
+    for (const name of graph) {
+      const src = SOURCES[`./${name}.ts`];
+      expect(name).not.toMatch(/^(SystemScene|starMaterial)$/);
       expect(src, name).not.toMatch(/from\s+['"]three/);
       expect(src, name).not.toMatch(/import\(\s*['"]three/);
-      expect(src, name).not.toMatch(/from\s+['"]\.\/(SystemScene|starMaterial)['"]/);
+      expect(src, name).not.toMatch(/import\(\s*['"]\.\/(SystemScene|starMaterial)/);
     }
   });
 });

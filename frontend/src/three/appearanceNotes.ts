@@ -1,8 +1,10 @@
 // "How this body is drawn" and "At SPHEREx scale" for the body panel (WS7, work package M6).
 //
-// Pure: no React, no three.js (BodyPanel is in the main chunk; three.js must stay in the lazily
-// loaded 3D chunk). Every row is { section, property, value, unit, tier, method, citation, flags },
-// so a reviewer can audit and reproduce each pixel decision and each derived number:
+// Pure: no React, no three.js. BodyPanel loads this module on demand (dynamic import, when one of
+// its two <details> sections is first opened or hovered), so it and its tables stay out of the
+// main chunk; three.js must stay in the separate 3D chunk. Every row is
+// { section, property, value, unit, tier, method, citation, flags }, so a reviewer can audit and
+// reproduce each pixel decision and each derived number:
 //   drawn    every visual property of the 3D view: colour in both colour modes, on-screen
 //            brightness, glow, limb darkening, surface pattern, the class-typical toggle, size,
 //            pulsation, rotation and lighting
@@ -19,10 +21,19 @@
 //                   pulsation amplitude, capRadii (display radii)
 //   astro.ts        granulationParams (convection cells drawn only when resolvable)
 import type { Body, Fact, SystemModel } from '../api/types';
-import { CLASS_TYPICAL_CITATION, CLASS_TYPICAL_CONTRAST, NEUTRAL_ALBEDO, compressDistance, displayRadius, surfacePattern } from './appearance';
+import {
+  CLASS_TYPICAL_CONTRAST,
+  LT_TRANSITION,
+  NEUTRAL_ALBEDO,
+  classTypicalFeature,
+  compressDistance,
+  displayRadius,
+  surfacePattern,
+} from './appearance';
 import {
   BLACKBODY_MIN_TEFF_K,
   GRANULATION_MAX_CELLS,
+  MIRA_CITE,
   PHYS,
   TIERS,
   VISIBLE_BAND_NM,
@@ -30,6 +41,7 @@ import {
   deriveBody,
   derivedTier,
   distanceTier,
+  miraReason,
   paramTier,
   spherexPrediction,
   weakestTier,
@@ -41,6 +53,7 @@ import {
 } from './astro';
 import { formatPeriod } from './bodyFormat';
 import {
+  COLOR_MODES,
   COLOR_MODE_LABEL,
   DEFAULT_COLOR_MODE,
   GLOW_DECADES,
@@ -51,13 +64,17 @@ import {
   bodyLook,
   glowLuminosity,
   irChannelIntensity,
+  isDetectorMode,
   starLimbDarkening,
   systemGlowFactors,
   systemIrPeak,
+  type BodyLook,
+  type DetectorMode,
 } from './colorModes';
 import {
   AU_PER_KM,
   PULSATION_CITATION,
+  PULSATION_PHASE_NOTE,
   PULSATION_RADIUS_AMPLITUDE,
   SPIN_ALIAS_MAX_DEG_PER_FRAME,
   capRadii,
@@ -359,9 +376,36 @@ export const ROTATION_NOT_DRAWN_NOTES: Readonly<Record<string, { readonly note: 
 };
 
 /**
+ * What the literature says about the surface or variability of a real non-stellar body that the 3D
+ * view draws as a uniform sphere, and why none of it is a map (sources from the WS7 stage-2
+ * literature research of 2026-11-14, as for ROTATION_NOT_DRAWN_NOTES). Appended to the
+ * 'Surface pattern' row.
+ */
+export const SURFACE_NOT_DRAWN_NOTES: Readonly<Record<string, { readonly note: string; readonly citation: string }>> = {
+  'wise-0855': {
+    note: 'rotational modulation itself IS measured: Spitzer 3.6 and 4.5 µm light curves vary by a few per cent (Esplin et al. 2016) and JWST spectra vary too, but the period is not determined, no amplitude is verified for this catalog, and a disc-integrated light curve does not show where the clouds are',
+    citation: 'Esplin et al. 2016, ApJ 832, 58 (Sect. 3); Wilson et al. 2025, arXiv:2510.24575; Miles et al. 2026, arXiv:2609.20664 (Sect. 5.2)',
+  },
+  'eps-indi-ba': {
+    note: 'Ba and Bb are unresolved in the I-band monitoring of the pair: no period, mean brightness changes of up to 0.10 mag over ≥ 2 d; no significant variability in the NACO and FORS2 data',
+    citation: 'Hitchcock et al. 2020, arXiv:2005.06906 (Sect. 4.1); Chen et al. 2022, AJ 163, 288 (Sect. V)',
+  },
+  'eps-indi-bb': {
+    note: 'Ba and Bb are unresolved in the I-band monitoring of the pair: no period, mean brightness changes of up to 0.10 mag over ≥ 2 d; no significant variability in the NACO and FORS2 data',
+    citation: 'Hitchcock et al. 2020, arXiv:2005.06906 (Sect. 4.1); Chen et al. 2022, AJ 163, 288 (Sect. V)',
+  },
+  'eps-indi-ab': {
+    note: 'JWST/MIRI imaging sees the planet only as an unresolved point of light',
+    citation: 'Matthews et al. 2024, Nature 633, 789',
+  },
+};
+
+/**
  * Sensitivity ranges for illustrative inputs of the granulation count: they test whether the
- * drawn / not-drawn verdict depends on the guessed values. R Dra has no dynamical mass (typical Miras
- * have 1–2 M☉) and its 250 R☉ is a drawing value (published sizes depend on the distance and phase).
+ * drawn / not-drawn verdict depends on the guessed values. R Dra has no dynamical mass: the catalog's
+ * ~1 M☉ is a class-typical initial mass for its period (unverified Fact, Feast 2009), up to ~2 M☉ for
+ * longer-period Miras; a lower present-day mass only lowers the count, so the drawn verdict holds
+ * below 1 M☉ too. Its 250 R☉ is a drawing value (published sizes depend on the distance and phase).
  */
 export const GRANULATION_SENSITIVITY: Readonly<Record<string, { readonly radiusRsun: readonly [number, number]; readonly massMsun: readonly [number, number] }>> = {
   'r-draconis': { radiusRsun: [200, 300], massMsun: [1, 2] },
@@ -379,8 +423,13 @@ interface Ctx {
 function irColourRow({ body, system }: Ctx): AppearanceNote {
   const prop = `Colour · ${COLOR_MODE_LABEL.ir}${DEFAULT_COLOR_MODE === 'ir' ? ', default view' : ''}`;
   const look = bodyLook(body, system, 'ir');
-  const mapping = `${IR_MAPPING_TEXT}; each channel is the frequency-averaged blackbody surface brightness ⟨I_ν⟩ = Σ∫B_λ dλ / ΣΔν over its two detectors (F_ν units, like the SPHEREx MJy/sr images); all three channels share one stretch, so the colour is preserved (Lupton et al. 2004), and the stretch is logarithmic over the ${IR_DYNAMIC_RANGE_MAG} mag below the brightest body × channel of the system. This body: ${look.note}`;
-  const citation = `${LUPTON_CITATION}; ${SPHEREX_BANDS_CITATION}; ${COLOR_MODES_CITE}`;
+  const mira = miraReason(body);
+  const miraCaveat = mira
+    ? `; ${mira}: H₂O and CO bands and circumstellar dust are not modelled, so this hue is that of the photosphere blackbody only, not the star's SPHEREx colour`
+    : '';
+  const mapping = `${IR_MAPPING_TEXT}; each channel is the frequency-averaged blackbody ⟨I_ν⟩ = Σ∫B_λ dλ / ΣΔν over its two detectors (surface brightness, MJy/sr-like units); all three channels share one stretch, so the colour is preserved (Lupton et al. 2004), and the stretch is logarithmic over the ${IR_DYNAMIC_RANGE_MAG} mag below the brightest body × channel of the system. This body: ${look.note}${miraCaveat}`;
+  const citation = `${LUPTON_CITATION}; ${SPHEREX_BANDS_CITATION}; ${COLOR_MODES_CITE}${mira ? `; ${MIRA_CITE}` : ''}`;
+  if (look.drawnAs === 'synthetic') return syntheticColourRow(prop, look);
   if (look.drawnAs === 'outline') {
     return row('drawn', prop, 'emission not modelled: drawn as an outline', 'not-drawn', look.note, WS7_RULE, ['not-modelled']);
   }
@@ -410,23 +459,71 @@ function irColourRow({ body, system }: Ctx): AppearanceNote {
   );
 }
 
+const SYNTHETIC_CITE = 'synthetic demo (provenance.synthetic); frontend/src/three/appearance.ts';
+
+/** A synthetic demo body drawn with its hand palette (decoration). */
+function syntheticColourRow(prop: string, look: BodyLook): AppearanceNote {
+  return row('drawn', prop, `${look.hex} (demo palette)`, look.tier, `${look.note}; not from measurements`, SYNTHETIC_CITE);
+}
+
+/** The single-detector colour modes of colorModes (one SPHEREx detector drawn in grey). */
+const DETECTOR_MODES: readonly DetectorMode[] = COLOR_MODES.filter(isDetectorMode);
+
+function detectorColourRow({ body, system, d }: Ctx): AppearanceNote | null {
+  if (!DETECTOR_MODES.length) return null;
+  const ids = `${DETECTOR_MODES[0]}–${DETECTOR_MODES[DETECTOR_MODES.length - 1]}`;
+  const prop = `Grey level · SPHEREx single detector (${ids})`;
+  const looks = DETECTOR_MODES.map((id) => ({ id, look: bodyLook(body, system, id) }));
+  const first = looks[0].look;
+  const citation = `${SPHEREX_BANDS_CITATION}; ${COLOR_MODES_CITE}`;
+  if (first.drawnAs === 'synthetic') return syntheticColourRow(prop, first);
+  if (first.drawnAs === 'outline') {
+    return row('drawn', prop, 'emission not modelled: drawn as an outline', 'not-drawn', first.note, WS7_RULE, ['not-modelled']);
+  }
+  const method = `each single-detector mode draws the blackbody ⟨I_ν⟩ of that one detector (surface brightness, MJy/sr-like units) in grey, on a log stretch over the ${IR_DYNAMIC_RANGE_MAG} mag below the system's brightest body in that detector, so the levels of different detectors are not on one scale`;
+  if (looks.some(({ look }) => look.drawnAs === 'qualitative')) {
+    return row(
+      'drawn',
+      prop,
+      'qualitative grey level in each detector (no numbers)',
+      first.tier,
+      `${method}; no numbers are shown below ${BLACKBODY_MIN_TEFF_K} K`,
+      `${citation}; Burrows, Sudarsky & Lunine 2003, ApJ 596, 587`,
+      ['blackbody-unreliable'],
+    );
+  }
+  const mira = miraReason(body);
+  return row(
+    'drawn',
+    prop,
+    `display level ${looks.map(({ id, look }) => `${id} ${fmt(look.level, 2)}`).join(' · ')}`,
+    weakestTier(looks.map(({ look }) => look.tier)),
+    `${method}. This body: blackbody at Teff (${d.inputs.teff.tier})${isYoungWithExcess(d) ? '; photosphere only: the IR excess of its disk and accretion is not modelled' : ''}${mira ? `; ${mira}: H₂O and CO bands and circumstellar dust are not modelled` : ''}`,
+    mira ? `${citation}; ${MIRA_CITE}` : citation,
+  );
+}
+
+/** astro's reliability rule found an unmodelled IR excess (T Tauri star, disk in the system). */
+const isYoungWithExcess = (d: BodyDerivation) => d.spherex.reliability === 'photosphere only - IR excess not modelled';
+
 function visibleColourRow({ body, system, d }: Ctx): AppearanceNote {
   const prop = `Colour · ${COLOR_MODE_LABEL.visible}`;
   const look = bodyLook(body, system, 'visible');
   switch (look.drawnAs) {
     case 'synthetic':
-      return row('drawn', prop, `${look.hex} (demo palette)`, look.tier, `${look.note}; not from measurements`, 'synthetic demo (provenance.synthetic); frontend/src/three/appearance.ts');
+      return syntheticColourRow(prop, look);
     case 'blackbody': {
       const c = d.color;
       const xy = c.value ? ` (x ${c.value.x.toFixed(4)}, y ${c.value.y.toFixed(4)})` : '';
+      const mira = miraReason(body);
       return row(
         'drawn',
         prop,
         `${c.value?.hex ?? look.hex}${xy}, at display brightness ${fmt(look.level, 2)}`,
         look.tier,
-        `${c.method}; ${look.note}`,
-        c.citation,
-        c.flags,
+        `${c.method}; ${look.note}${mira ? `; ${mira}: its visible spectrum is dominated by TiO absorption bands, so this is the colour of the photosphere blackbody only` : ''}`,
+        mira ? `${c.citation}; TiO in Mira visual light: Reid & Goldston 2002, ApJ 568, 931` : c.citation,
+        mira ? [...c.flags, 'not-modelled'] : c.flags,
       );
     }
     case 'neutral-emission': {
@@ -469,7 +566,7 @@ function brightnessRow({ body, system, d }: Ctx): AppearanceNote | null {
     'On-screen brightness',
     `visible ${b.value === null ? 'dimmest level' : fmt(b.value, 2)} · IR ${irText}`,
     'display',
-    `fraction of the display range. Visible: ${b.method}. IR: 1 + log10(⟨I_ν⟩/peak)/${IR_DYNAMIC_RANGE_MAG / 2.5}, clamped to [0, 1] (log over ${IR_DYNAMIC_RANGE_MAG} mag below the system's brightest body × channel)`,
+    `fraction of the display range. Visible: ${b.method}. IR: 1 + log10(⟨I_ν⟩/peak)/${IR_DYNAMIC_RANGE_MAG / 2.5}, clamped to [0, 1] (log over ${IR_DYNAMIC_RANGE_MAG} mag below the system's brightest body × channel); the single-detector levels are in the grey-level row`,
     `${b.citation}; ${COLOR_MODES_CITE}`,
     b.flags,
   );
@@ -484,16 +581,19 @@ function glowRow({ body, system }: Ctx): AppearanceNote | null {
   const v = body.variability;
   const variable =
     v?.kind === 'pulsation' && v.amplitude_mag && v.period_days
-      ? `; the ${fmt(v.amplitude_mag, 2)} mag ${v.band ?? ''} light curve modulates the glow in visible mode only: that swing is driven by TiO absorption, not by the Planck function (Reid & Goldston 2002, ApJ 568, 931)`
+      ? `; the ${fmt(v.amplitude_mag, 2)} mag ${v.band ?? ''} light curve modulates the glow in visible mode only (no SPHEREx light curve is modelled): that swing is driven by TiO absorption, not by the Planck function (Reid & Goldston 2002, ApJ 568, 931)`
       : v && !v.period_days
         ? '; the irregular dimming is not animated (no periodic model)'
         : '';
+  const single = DETECTOR_MODES.length
+    ? `, or in the band of one detector (single-detector modes: ×${DETECTOR_MODES.map((id) => fmt(systemGlowFactors(system, id).get(body.id) ?? 2, 2)).join('/')} for ${DETECTOR_MODES.join('/')})`
+    : '';
   return row(
     'drawn',
     'Glow',
     `×${fmt(ir, 2)} display radius (IR), ×${fmt(vis, 2)} (visible)`,
     'display',
-    `sprite size = display radius × (2 + 3n), n = 1 + log10(L/L_max)/${GLOW_DECADES} clamped to [0, 1], with L the luminosity in the SPHEREx span (IR: ${lIr === null ? 'not computed' : `${fmt(lIr, 2)} L☉`}) or at ${VISIBLE_BAND_NM[0]}–${VISIBLE_BAND_NM[1]} nm (visible: ${lVis === null ? 'not computed' : `${fmt(lVis, 2)} L☉`}) and L_max the system's brightest star in that mode; opacity follows the display brightness${variable}`,
+    `sprite size = display radius × (2 + 3n), n = 1 + log10(L/L_max)/${GLOW_DECADES} clamped to [0, 1], with L the luminosity in the SPHEREx span (IR: ${lIr === null ? 'not computed' : `${fmt(lIr, 2)} L☉`}) or at ${VISIBLE_BAND_NM[0]}–${VISIBLE_BAND_NM[1]} nm (visible: ${lVis === null ? 'not computed' : `${fmt(lVis, 2)} L☉`})${single}, and L_max the system's brightest star in that mode; opacity follows the display brightness${variable}`,
     `${COLOR_MODES_CITE}; L = 4πR²σTeff⁴ × blackbody band fraction (astro.ts)`,
   );
 }
@@ -512,7 +612,7 @@ function limbRow({ body, d }: Ctx): AppearanceNote | null {
     'Limb darkening',
     `I(limb)/I(centre): visible ${rgbText(vis)}; IR (${centres} µm) ${rgbText(ir)}`,
     ld.tier,
-    `${ld.method}. IR mode: the same grey-atmosphere model evaluated monochromatically at the IR channel centres. The limb is redder because T(τ = μ) is cooler there; real M-dwarf and Mira atmospheres are molecular, not grey`,
+    `${ld.method}. IR mode: the same grey-atmosphere model evaluated monochromatically at the IR channel centres${DETECTOR_MODES.length ? '; single-detector modes: at the centre of that detector, the same in every channel (grey)' : ''}. The limb is redder because T(τ = μ) is cooler there; real M-dwarf and Mira atmospheres are molecular, not grey`,
     ld.citation,
     ld.flags,
   );
@@ -572,41 +672,83 @@ function surfaceRow({ body, system, d }: Ctx): AppearanceNote {
       'synthetic demo (provenance.synthetic); frontend/src/three/appearance.ts surfacePattern',
     );
   }
+  if (pattern !== 'none') {
+    // Not reached today (a real body has no pattern with the toggle off); kept honest if the gate changes.
+    return row('drawn', prop, pattern, 'illustrative', `${pattern}: a drawing pattern, not this body's measured map`, WS7_RULE);
+  }
+  if (body.kind === 'disk') {
+    const r = paramTier(body, 'radius');
+    return row(
+      'drawn',
+      prop,
+      'none (uniform translucent ring)',
+      'not-drawn',
+      `the ring only marks the disk radius (${r.tier}: ${r.method}); no brightness structure of the disk (rings, gaps, a radial profile, e.g. from resolved millimetre images) is drawn`,
+      r.fact ? `${r.citation}; ${WS7_RULE}` : WS7_RULE,
+    );
+  }
+  const literature = SURFACE_NOT_DRAWN_NOTES[body.id];
   return row(
     'drawn',
     prop,
-    pattern === 'none' ? 'none (uniform)' : pattern,
-    pattern === 'none' ? 'not-drawn' : 'illustrative',
-    'no measured surface map or rotational modulation exists for this body, so no craters, bands or spots are drawn',
-    WS7_RULE,
+    'none (uniform)',
+    'not-drawn',
+    `${modulationText(body)}${literature ? `; ${literature.note}` : ''}`,
+    literature ? `${literature.citation}; ${WS7_RULE}` : WS7_RULE,
   );
 }
+
+/**
+ * Why a real non-stellar body is drawn without a surface pattern: what the catalog has (a
+ * rotational light-curve amplitude or nothing) and why that is not a map.
+ */
+function modulationText(body: Body): string {
+  const v = body.variability;
+  if (v?.kind === 'rotation' && v.amplitude_mag) {
+    const band = v.band ? ` (${v.band})` : '';
+    return `no surface map of this body is measured; the catalog gives a rotational modulation of ${fmt(v.amplitude_mag, 2)} mag${band}, but a disc-integrated light curve is not a map and the 3D view does not turn it into spots or bands, so no pattern is drawn`;
+  }
+  return 'no surface map of this body is measured, and the catalog has no verified rotational-modulation amplitude for it, so no craters, bands or spots are drawn';
+}
+
+/** 'L9–T3.5': the L/T-transition window of appearance.classTypicalFeature. */
+const LT_TEXT = `${LT_TRANSITION.from.letter}${LT_TRANSITION.from.subtype}–${LT_TRANSITION.to.letter}${LT_TRANSITION.to.subtype}`;
 
 function classTypicalRow({ body, system, synthetic }: Ctx): AppearanceNote | null {
   if (synthetic) return null;
   const prop = "Toggle 'Show class-typical features'";
-  const on = surfacePattern(body, system, true);
-  if (on === 'bands') {
+  const feature = classTypicalFeature(body, system);
+  if (feature.pattern !== 'none' && surfacePattern(body, system, true) === feature.pattern) {
+    const shownIn = isStellar(body) ? 'in every colour mode' : 'in the visible mode (SPHEREx modes draw the planet as an outline)';
     return row(
       'drawn',
       prop,
-      `off by default; when on: zonal bands / patchy clouds, ±${fmt(CLASS_TYPICAL_CONTRAST.bands * 100, 2)} % (ILLUSTRATIVE)`,
+      `off by default; when on: ${feature.what}, ±${fmt(CLASS_TYPICAL_CONTRAST.bands * 100, 2)} % about the mean brightness (ILLUSTRATIVE)`,
       'class-typical',
-      `${body.kind === 'brown_dwarf' ? 'brown dwarfs' : 'gas giants'} commonly show banded, patchy cloud structure; the drawn pattern is random and its contrast a drawing choice, never this body's observed map`,
-      CLASS_TYPICAL_CITATION,
+      `typical of ${feature.basis}, not observed on this body: the drawn pattern is random (seeded by the body id) and its contrast is a drawing choice, never this body's map; shown ${shownIn}`,
+      feature.citation,
     );
   }
-  if (on === 'mottling') {
+  if (body.kind === 'star' || body.kind === 'disk') {
     return row(
       'drawn',
       prop,
-      `off by default; when on: albedo mottling, ±${fmt(CLASS_TYPICAL_CONTRAST.mottling * 100, 2)} % (ILLUSTRATIVE)`,
-      'class-typical',
-      'a random albedo mottling, as on rocky and icy surfaces of the solar system; no surface of this body is resolved or measured, and the contrast is a drawing choice',
-      'WS7 drawing choice (frontend/src/three/appearance.ts surfacePattern, CLASS_TYPICAL_CONTRAST)',
+      'off by default; nothing to add for this kind of body',
+      'not-drawn',
+      body.kind === 'star'
+        ? 'the toggle adds nothing to a star: its convection cells follow the granulation rule above'
+        : 'the toggle adds nothing to a disk',
+      WS7_RULE,
     );
   }
-  return row('drawn', prop, 'off by default; nothing to add for this kind of body', 'not-drawn', 'no class-typical surface feature is defined for this kind of body', WS7_RULE);
+  return row(
+    'drawn',
+    prop,
+    'off by default; nothing to add for this body',
+    'not-drawn',
+    `the toggle draws only the class-typical features of the S5 list: patchy cloud bands on L/T-transition brown dwarfs (${LT_TEXT}) and zonal bands on gas giants; no class-level source for a drawn pattern has been checked for this body, so it stays uniform`,
+    WS7_RULE,
+  );
 }
 
 function sizeRow({ body, system }: Ctx): AppearanceNote {
@@ -654,7 +796,7 @@ function pulsationRow({ body }: Ctx): AppearanceNote | null {
     'Pulsation (radius)',
     `±${fmt(PULSATION_RADIUS_AMPLITUDE * 100, 2)} %`,
     'class-typical',
-    `radius factor 1 − ${PULSATION_RADIUS_AMPLITUDE}·sin(phase), on the same sinusoid and phase as the V light curve (largest when brightest): the class-typical ~20 % peak-to-peak continuum diameter change of Mira variables. Only the period (${formatPeriod(body.variability!.period_days!)}) is this star's; the real lag between size and light is not modelled`,
+    `radius factor 1 − ${PULSATION_RADIUS_AMPLITUDE}·sin(phase): the class-typical ~20 % peak-to-peak continuum diameter change of Mira variables. Only the period (${formatPeriod(body.variability!.period_days!)}) is this star's; ${PULSATION_PHASE_NOTE}`,
     PULSATION_CITATION,
   );
 }
@@ -666,14 +808,14 @@ function rotationRow({ body, system }: Ctx): AppearanceNote {
     return row(
       'drawn',
       prop,
-      `one turn per ${formatPeriod(spin.periodHours / 24)}`,
+      `one turn per ${spin.periodText}`,
       spin.tier,
-      `${spin.method}; angle = 2π · 24 · (MJD − 51544.5) / P_h, so scrubbing the time works; the rotational phase is not known (zero at J2000); the spin is held still while it would advance more than ${SPIN_ALIAS_MAX_DEG_PER_FRAME}° per rendered frame (aliasing guard)`,
+      `${spin.method}; drawn at P = ${fmt(spin.periodHours, 4)} h (${fmt(spin.periodHours / 24, 4)} d, the catalog's central value); angle = 2π · 24 · (MJD − 51544.5) / P_h, so scrubbing the time works; the rotational phase is not known (zero at J2000); the spin is held still while it would advance more than ${SPIN_ALIAS_MAX_DEG_PER_FRAME}° per rendered frame (aliasing guard)`,
       spin.citation,
     );
   }
   if (spin.kind === 'tidal-lock') {
-    return row('drawn', prop, `tidally locked: one turn per orbit (${formatPeriod(spin.periodHours / 24)})`, spin.tier, `${spin.method}; not observed`, spin.citation);
+    return row('drawn', prop, `tidally locked: one turn per orbit (${spin.periodText})`, spin.tier, `${spin.method}; not observed`, spin.citation);
   }
   const known = ROTATION_NOT_DRAWN_NOTES[body.id];
   return row(
@@ -691,16 +833,18 @@ function hueHex(hue: readonly number[]): string {
   return '#' + hue.map((v) => Math.round(Math.min(1, Math.max(0, v)) * 255).toString(16).padStart(2, '0')).join('');
 }
 
-function lightingRow({ body, system, d }: Ctx): AppearanceNote {
+function lightingRow({ body, system, d, synthetic }: Ctx): AppearanceNote {
   const prop = 'Lighting';
   const hues = (s: Body) => `visible ${hueHex(bodyLook(s, system, 'visible').hue)}, IR ${hueHex(bodyLook(s, system, 'ir').hue)}`;
   if (body.kind === 'star') {
     return row(
       'drawn',
       prop,
-      `self-luminous; its light takes its drawn hue (${hues(body)})`,
+      synthetic
+        ? `self-luminous; its light keeps its visible hue ${hueHex(bodyLook(body, system, 'visible').hue)} in every colour mode`
+        : `self-luminous; its light takes its drawn hue (${hues(body)})`,
       'display',
-      'a star is not lit: its disc comes from its own temperature (star shader). It carries a point light in its hue of the current colour mode, with a display-normalised intensity (no 1/r² fall-off)',
+      `a star is not lit: its disc comes from its own temperature (star shader). It carries a point light ${synthetic ? 'in its visible hue in every colour mode (the demo planets keep their visible look)' : 'in its hue of the current colour mode'}, with a display-normalised intensity (no 1/r² fall-off)`,
       `${COLOR_MODES_CITE}; ${DISPLAY_CITE}`,
     );
   }
@@ -727,14 +871,24 @@ function lightingRow({ body, system, d }: Ctx): AppearanceNote {
   }
   const stars = system.bodies.filter((b) => b.kind === 'star');
   const S = d.insolation.value === null ? '' : `; the true flux is S = ${fmt(d.insolation.value, 2)} S⊕ (see the physical quantities)`;
+  if (bodyLook(body, system, 'ir').drawnAs === 'synthetic') {
+    return row(
+      'drawn',
+      prop,
+      stars.length ? `lit by ${stars.map((s) => s.name).join(', ')} in every colour mode (demo palette and texture)` : 'ambient light only',
+      'display',
+      `synthetic demo: the point light of each star in that star's visible hue, display-normalised with no 1/r² fall-off, plus a faint white ambient light; the body keeps its hand palette and procedural texture in every colour mode (decoration)${S}`,
+      `${SYNTHETIC_CITE}; ${DISPLAY_CITE}`,
+    );
+  }
   return row(
     'drawn',
     prop,
     stars.length
-      ? `visible: light of ${stars.map((s) => `${s.name} ${hueHex(bodyLook(s, system, 'visible').hue)}`).join(', ')}; IR: dark, with an outline`
+      ? `visible: light of ${stars.map((s) => `${s.name} ${hueHex(bodyLook(s, system, 'visible').hue)}`).join(', ')}; SPHEREx modes: dark, with an outline`
       : 'ambient light only',
     'display',
-    `the point light of each star in that star's drawn hue, display-normalised with no 1/r² fall-off, plus a faint white ambient light so the night side is not black; in IR mode the body's SPHEREx-band emission and reflection are not modelled, so it is a dark sphere with a Fresnel outline${S}`,
+    `the point light of each star in that star's drawn hue, display-normalised with no 1/r² fall-off, plus a faint white ambient light so the night side is not black; in the SPHEREx modes (false colour and single detectors) the body's SPHEREx-band emission and reflection are not modelled, so it is a dark sphere with a Fresnel outline${S}`,
     DISPLAY_CITE,
   );
 }
@@ -742,6 +896,7 @@ function lightingRow({ body, system, d }: Ctx): AppearanceNote {
 function drawnRows(ctx: Ctx): AppearanceNote[] {
   const rows: (AppearanceNote | null)[] = [
     irColourRow(ctx),
+    detectorColourRow(ctx),
     visibleColourRow(ctx),
     brightnessRow(ctx),
     glowRow(ctx),
