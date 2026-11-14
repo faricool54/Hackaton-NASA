@@ -127,6 +127,64 @@ figure { margin: 8px 0; }
 .facts th { border-top: 1px solid var(--border); }
 .unverified { color: var(--unconfirmed); font-size: 0.75rem; }
 
+/* Keep the 3D transport in the same visual family as the frame playback bar. */
+.system-viewer .blink-controls {
+  display: flex; align-items: center; gap: 10px 12px; flex-wrap: wrap;
+  margin: 0 0 16px; padding: 12px 14px;
+  color: var(--muted); font-size: 0.78rem;
+  background: linear-gradient(145deg, rgba(20, 28, 44, 0.96), rgba(13, 17, 28, 0.96));
+  border: 1px solid rgba(124, 196, 255, 0.12); border-top: 0; border-radius: 0 0 14px 14px;
+}
+.system-viewer .blink-controls > button {
+  min-height: 38px; padding: 7px 13px;
+  color: #b8c7da; background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(184, 199, 218, 0.15); border-radius: 999px;
+  transition: color 0.15s, background 0.15s, border-color 0.15s, transform 0.15s;
+}
+.system-viewer .blink-controls > button:hover {
+  color: white; background: rgba(124, 196, 255, 0.12);
+  border-color: rgba(124, 196, 255, 0.55); transform: translateY(-1px);
+}
+.system-viewer .blink-controls > button:first-child {
+  min-width: 94px; color: #07111c; font-weight: 650;
+  background: linear-gradient(145deg, #a6e0ff, #68baff); border: 0;
+  box-shadow: 0 5px 20px rgba(80, 166, 232, 0.2);
+}
+.system-viewer .blink-controls > button:first-child:hover {
+  color: #07111c; background: #c4ecff; box-shadow: 0 7px 24px rgba(80, 166, 232, 0.32);
+}
+.system-viewer .blink-controls > label {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 36px;
+  white-space: nowrap;
+}
+.system-viewer .blink-controls select {
+  min-height: 36px; padding: 5px 30px 5px 11px;
+  color: var(--text); background-color: rgba(255, 255, 255, 0.045);
+  border-color: rgba(184, 199, 218, 0.16); border-radius: 9px;
+}
+.system-viewer .blink-controls > span {
+  color: var(--muted); font-variant-numeric: tabular-nums;
+}
+.system-viewer .blink-controls > label:has(input[type='checkbox']) {
+  min-height: 34px; padding: 4px 10px; gap: 7px;
+  color: #b8c7da; background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(184, 199, 218, 0.13); border-radius: 999px;
+  cursor: pointer; transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+.system-viewer .blink-controls > label:has(input[type='checkbox']):hover {
+  color: var(--text); border-color: rgba(124, 196, 255, 0.4);
+}
+.system-viewer .blink-controls input[type='checkbox'] { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); }
+.system-viewer .blink-controls button:focus-visible,
+.system-viewer .blink-controls select:focus-visible,
+.system-viewer .blink-controls input:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 3px;
+}
+@media (max-width: 560px) {
+  .system-viewer .blink-controls { gap: 8px; padding: 10px 11px; }
+  .system-viewer .blink-controls > label { gap: 6px; }
+}
+
 /* --- Scrubber / Blink controls (UI-2, WS5) --- */
 .scrubber-wrap {
   display: flex; flex-direction: column; gap: 5px; width: 100%;
