@@ -9,10 +9,17 @@
     "young-star"
   ],
   "center": {
-    "ra": 76.9563,
-    "dec": 30.4014
+    "ra": 76.9565443110343,
+    "dec": 30.401316149887936
   },
-  "motion": null,
+  "motion": {
+    "distance_pc": 156.1,
+    "parallax_mas": 6.406,
+    "pm_ra_cosdec_mas_yr": 2.641,
+    "pm_dec_mas_yr": -27.398,
+    "radial_velocity_km_s": 15.0,
+    "epoch": "J2016.0"
+  },
   "field_id": null,
   "bodies": [
     {
@@ -20,8 +27,8 @@
       "name": "RW Aurigae A",
       "kind": "star",
       "description": "A T Tauri star: a newborn star still feeding from its disk.",
-      "radius_km": 1182690.0,
-      "mass_kg": 2.7846e+30,
+      "radius_km": 904410.0,
+      "mass_kg": 2.462382e+30,
       "teff_k": 4900.0,
       "spectral_type": "K1–K4 (T Tauri)",
       "rotation_period_hours": null,
@@ -29,7 +36,7 @@
       "variability": {
         "kind": "irregular",
         "period_days": null,
-        "amplitude_mag": 2.0,
+        "amplitude_mag": 4.4,
         "band": "V"
       },
       "appearance": {
@@ -43,14 +50,42 @@
           "label": "Type",
           "value": "Classical T Tauri star",
           "unit": null,
-          "source": "SIMBAD",
-          "verified": false
+          "source": "SIMBAD; AAVSO VSX",
+          "verified": true
+        },
+        {
+          "label": "Mass (dynamical)",
+          "value": "1.24",
+          "unit": "solar masses",
+          "source": "Kurtovic et al. 2024, A&A (arXiv:2407.18828), gas disk rotation",
+          "verified": true
+        },
+        {
+          "label": "Temperature",
+          "value": "4900",
+          "unit": "K",
+          "source": "Testi et al. 2022, A&A 663, A98",
+          "verified": true
+        },
+        {
+          "label": "Visual range (A+B)",
+          "value": "9.2–13.6",
+          "unit": "mag (V)",
+          "source": "AAVSO VSX",
+          "verified": true
         },
         {
           "label": "Dimming events",
-          "value": "~2 mag since 2010",
+          "value": "~2 mag since 2010; A alone up to ~5 mag in 2014–2018",
           "unit": null,
-          "source": "literature (e.g. Rodriguez et al.)",
+          "source": "Rodriguez et al. 2013, AJ 146, 112; 2016, AJ 151, 29; Dodin et al. 2019, MNRAS 482, 5524",
+          "verified": true
+        },
+        {
+          "label": "Radius (estimate)",
+          "value": "~1.3",
+          "unit": "solar radii",
+          "source": "Herczeg & Hillenbrand 2014 (1.20 at 140 pc) rescaled to the Gaia distance; uncertain",
           "verified": false
         }
       ],
@@ -60,8 +95,8 @@
       "id": "rw-aur-a-disk",
       "name": "Disk around A",
       "kind": "disk",
-      "description": "Gas and dust left over from the star's birth, truncated by companion B.",
-      "radius_km": 5984000000.0,
+      "description": "Gas and dust left over from the star's birth; small, possibly trimmed by a past close pass of companion B.",
+      "radius_km": 2842359543.2999997,
       "mass_kg": null,
       "teff_k": null,
       "spectral_type": null,
@@ -76,11 +111,18 @@
       },
       "facts": [
         {
-          "label": "Outer radius (rough)",
-          "value": "~40",
+          "label": "Dust disk radius",
+          "value": "~19",
           "unit": "AU",
-          "source": "literature",
-          "verified": false
+          "source": "Kurtovic et al. 2024, A&A (arXiv:2407.18828) (ALMA, 90% of the flux)",
+          "verified": true
+        },
+        {
+          "label": "Gas (CO) disk radius",
+          "value": "~58",
+          "unit": "AU",
+          "source": "Rodriguez et al. 2018, ApJ 859, 150",
+          "verified": true
         }
       ],
       "candidate_id": null
@@ -89,26 +131,31 @@
       "id": "rw-aur-b",
       "name": "RW Aurigae B",
       "kind": "star",
-      "description": "The companion star, about 1.4 arcsec away on the sky.",
-      "radius_km": 834840.0,
-      "mass_kg": 1.7901e+30,
-      "teff_k": 4400.0,
-      "spectral_type": null,
+      "description": "The companion star, about 1.5 arcsec away on the sky. It also has irregular dips.",
+      "radius_km": 1043550.0,
+      "mass_kg": 1.979055e+30,
+      "teff_k": 4150.0,
+      "spectral_type": "K6.5 (T Tauri)",
       "rotation_period_hours": null,
       "orbit": {
         "parent": "rw-aur-a",
-        "semi_major_axis_au": 200.0,
-        "period_days": 681195.0,
-        "eccentricity": 0.0,
-        "inclination_deg": 0.0,
-        "ascending_node_deg": 0.0,
-        "arg_periapsis_deg": 0.0,
+        "semi_major_axis_au": 258.0,
+        "period_days": 1012838.0,
+        "eccentricity": 0.787,
+        "inclination_deg": 129.8,
+        "ascending_node_deg": 73.8,
+        "arg_periapsis_deg": 42.3,
         "mean_anomaly_deg": 0.0,
         "epoch_mjd": null,
-        "quality": "assumed",
-        "note": "Circle at the projected separation; period from Kepler's law. Not a fitted orbit."
+        "quality": "fitted",
+        "note": "Best-fit orbit of Kurtovic et al. 2024 (a derived from their periastron 55 AU and e). Very uncertain: period 2773 (+27100/−366) years and an unbound orbit is not ruled out."
       },
-      "variability": null,
+      "variability": {
+        "kind": "irregular",
+        "period_days": null,
+        "amplitude_mag": 1.3,
+        "band": "V"
+      },
       "appearance": {
         "model": "star",
         "color_hex": null,
@@ -117,26 +164,84 @@
       },
       "facts": [
         {
+          "label": "Mass (dynamical)",
+          "value": "1.00",
+          "unit": "solar masses",
+          "source": "Kurtovic et al. 2024, A&A (arXiv:2407.18828), gas disk rotation",
+          "verified": true
+        },
+        {
+          "label": "Temperature",
+          "value": "4100–4200",
+          "unit": "K",
+          "source": "Dodin et al. 2020, MNRAS 497, 4527",
+          "verified": true
+        },
+        {
+          "label": "Radius",
+          "value": "~1.5",
+          "unit": "solar radii",
+          "source": "Dodin et al. 2020, MNRAS 497, 4527",
+          "verified": true
+        },
+        {
+          "label": "Spectral type",
+          "value": "K6.5",
+          "unit": null,
+          "source": "Herczeg & Hillenbrand 2014, ApJ 786, 97",
+          "verified": true
+        },
+        {
           "label": "Projected separation",
-          "value": "~1.4 (~200 AU)",
+          "value": "~1.5",
           "unit": "arcsec",
-          "source": "literature",
-          "verified": false
+          "source": "Kurtovic et al. 2024, A&A (arXiv:2407.18828) (1.494″, ALMA 2017)",
+          "verified": true
+        },
+        {
+          "label": "Projected distance from A",
+          "value": "~233",
+          "unit": "AU",
+          "source": "Kurtovic et al. 2024, A&A (arXiv:2407.18828)",
+          "verified": true
+        },
+        {
+          "label": "Orbital period",
+          "value": "~2800 (+27100/−370)",
+          "unit": "years",
+          "source": "Kurtovic et al. 2024, A&A (arXiv:2407.18828)",
+          "verified": true
+        },
+        {
+          "label": "Eccentricity",
+          "value": "~0.79",
+          "unit": null,
+          "source": "Kurtovic et al. 2024, A&A (arXiv:2407.18828)",
+          "verified": true
+        },
+        {
+          "label": "Dips",
+          "value": "up to 1.3 mag, about a day long",
+          "unit": null,
+          "source": "Dodin et al. 2020, MNRAS 497, 4527",
+          "verified": true
         }
       ],
       "candidate_id": null
     }
   ],
-  "representation_note": "Model representation built from catalog parameters - not an image. Sizes and distances may be exaggerated for visibility.",
+  "representation_note": "3D model drawn from published catalog and literature values (each fact shows its source) - not an image. Sizes and distances may be exaggerated for visibility.",
   "provenance": {
     "pipeline_version": "0.1.0",
-    "built_at": "2026-11-14T15:09:55.680564Z",
+    "built_at": "2026-11-14T16:18:25.188120Z",
     "synthetic": false,
     "data_releases": [],
     "notes": [
-      "Parameters typed by hand as a starting point; NOT yet verified against catalogs (tasks/WS7-3d-systems.md, WS7-2).",
+      "Values checked on 2026-11-14 against the NASA Exoplanet Archive, SIMBAD (CfA mirror), Gaia DR3, VizieR and the cited papers (tasks/WS7-3d-systems.md, WS7-2). Facts still marked 'unverified' are estimates no source states.",
       "Orbital and pulsation phases are arbitrary (no epoch): positions are not predictions for a real date.",
-      "The disk body has no orbit: the UI draws it centred on its host (rw-aur-a)."
+      "The disk body has no orbit: the UI draws it centred on its host (rw-aur-a).",
+      "SIMBAD swaps the Gaia DR3 identifiers of the two stars: A is Gaia DR3 156430817820015232 and B is 156430822114424576 (WDS position angle; Kurtovic et al. 2024).",
+      "Parallax and proper motion come from B's Gaia DR3 solution (A's is unreliable, RUWE 16), as adopted by Kurtovic et al. 2024. Radial velocity 15 km/s from SIMBAD (Nguyen et al. 2012)."
     ]
   }
 }

@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { SystemModel } from '../api/types';
 import { formatElapsed, formatMjd } from '../api/format';
-import type { DistanceMode, SystemScene } from '../three/SystemScene';
+import type { SystemScene } from '../three/SystemScene';
+import { nonFittedOrbits, ORBIT_COLOR, type DistanceMode } from '../three/sceneLayout';
 
 interface Props {
   system: SystemModel;
@@ -13,15 +14,20 @@ interface Props {
 
 const SPEED_STEPS = [0.25, 0.5, 1, 2, 4, 8];
 
+/** 'load' = the three.js chunk did not download; 'webgl' = the browser could not create the 3D context. */
+type ErrorKind = 'load' | 'webgl';
+
 export function SystemViewer({ system, selectedId, onSelect }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<SystemScene | null>(null);
   const baseSpeedRef = useRef(1);
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
+  const selectedIdRef = useRef(selectedId);
+  selectedIdRef.current = selectedId;
 
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ kind: ErrorKind; message: string } | null>(null);
   const [mjd, setMjd] = useState<number | null>(null);
   const [startMjd, setStartMjd] = useState<number | null>(null);
   // Phases without an epoch (and all variability) are arbitrary: show elapsed time, not a calendar date.
@@ -37,24 +43,40 @@ export function SystemViewer({ system, selectedId, onSelect }: Props) {
   // Create / destroy the scene when the system changes.
   useEffect(() => {
     let disposed = false;
+    const fail = (kind: ErrorKind, e: unknown) => {
+      if (disposed) return;
+      setError({ kind, message: e instanceof Error ? e.message : String(e) });
+      setStatus('error');
+    };
     setStatus('loading');
-    import('../three/SystemScene')
-      .then(({ SystemScene, suggestedSpeed }) => {
+    setError(null);
+    import('../three/SystemScene').then(
+      ({ SystemScene, suggestedSpeed }) => {
         if (disposed || !containerRef.current) return;
-        const scene = new SystemScene(containerRef.current, system, {
-          onSelect: (id) => onSelectRef.current(id),
-          onTick: setMjd,
-        });
+        let scene: SystemScene;
+        try {
+          scene = new SystemScene(containerRef.current, system, {
+            // Clicking the body that is already entered (mesh or label) flies back to it: the
+            // selection (URL) does not change, so the parent would not re-trigger the focus.
+            onSelect: (id) => {
+              if (id && id === selectedIdRef.current) sceneRef.current?.focus(id);
+              else onSelectRef.current(id);
+            },
+            onTick: setMjd,
+          });
+        } catch (e) {
+          // Remove anything a half-built scene attached (React does not own these nodes).
+          containerRef.current.querySelectorAll('canvas, .scene-labels').forEach((el) => el.remove());
+          fail('webgl', e);
+          return;
+        }
         baseSpeedRef.current = suggestedSpeed(system);
         sceneRef.current = scene;
         setStartMjd(scene.getStartTime());
         setStatus('ready');
-      })
-      .catch((e: Error) => {
-        if (disposed) return;
-        setError(e.message);
-        setStatus('error');
-      });
+      },
+      (e: unknown) => fail('load', e),
+    );
     return () => {
       disposed = true;
       sceneRef.current?.dispose();
@@ -71,14 +93,30 @@ export function SystemViewer({ system, selectedId, onSelect }: Props) {
   useEffect(() => sceneRef.current?.focus(selectedId), [selectedId, status]);
 
   const daysPerSec = baseSpeedRef.current * speedMul;
+  const notFitted = nonFittedOrbits(system.bodies);
 
   return (
     <div className="system-viewer">
-      <div className="scene-stage" ref={containerRef} role="img" aria-label={`3D model of ${system.name}`}>
-        {status === 'loading' && <p className="scene-msg muted">Loading 3D view…</p>}
-        {status === 'error' && (
-          <p className="scene-msg error">
-            The 3D view could not start ({error}). Your browser may not support WebGL.
+      <div className="scene-stage" ref={containerRef} role="group" aria-label={`3D model of ${system.name}`}>
+        {status === 'loading' && (
+          <p className="scene-msg muted" role="status">
+            Loading 3D view…
+          </p>
+        )}
+        {status === 'error' && error?.kind === 'load' && (
+          <div className="scene-msg error" role="alert">
+            <div>
+              The 3D viewer could not be downloaded ({error.message}). Check your connection and reload the page.
+              <br />
+              <button type="button" onClick={() => window.location.reload()}>
+                Reload
+              </button>
+            </div>
+          </div>
+        )}
+        {status === 'error' && error?.kind === 'webgl' && (
+          <p className="scene-msg error" role="alert">
+            The 3D view could not start ({error.message}). Your browser may not support WebGL, or it is turned off.
           </p>
         )}
       </div>
@@ -116,6 +154,31 @@ export function SystemViewer({ system, selectedId, onSelect }: Props) {
           </button>
         )}
       </div>
+      {(notFitted.assumed.length > 0 || notFitted.hypothetical.length > 0) && (
+        // Explained here too, not only inside the body panel: the whole-system view shows these orbits.
+        <p className="muted small orbit-legend">
+          {notFitted.assumed.length > 0 && (
+            <span>
+              <Swatch color={ORBIT_COLOR.assumed} /> Yellow orbit = assumed, not fitted:{' '}
+              {notFitted.assumed.join(', ')}.{' '}
+            </span>
+          )}
+          {notFitted.hypothetical.length > 0 && (
+            <span>
+              <Swatch color={ORBIT_COLOR.hypothetical} /> Violet orbit = hypothetical object:{' '}
+              {notFitted.hypothetical.join(', ')}.{' '}
+            </span>
+          )}
+          {notFitted.fitted && (
+            <span>
+              <Swatch color={ORBIT_COLOR.fitted} />{' '}
+              {system.provenance.synthetic
+                ? 'Blue-grey orbit = synthetic demo orbit (not a published solution).'
+                : 'Blue-grey orbit = fitted orbit from the cited catalog or paper.'}
+            </span>
+          )}
+        </p>
+      )}
       <p className="muted small">
         Model time:{' '}
         {mjd === null
@@ -126,6 +189,22 @@ export function SystemViewer({ system, selectedId, onSelect }: Props) {
         · drag to rotate, scroll to zoom, click a body to enter it
       </p>
     </div>
+  );
+}
+
+function Swatch({ color }: { color: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        display: 'inline-block',
+        width: 14,
+        height: 0,
+        borderTop: `3px solid ${color}`,
+        verticalAlign: 'middle',
+        marginRight: 2,
+      }}
+    />
   );
 }
 

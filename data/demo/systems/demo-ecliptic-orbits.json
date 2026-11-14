@@ -208,8 +208,8 @@
     {
       "id": "syn-tno-1",
       "name": "SYN-TNO-1 (unconfirmed, synthetic)",
-      "kind": "tno",
-      "description": "Unconfirmed candidate. Its orbit is NOT known: drawn as a circle at the estimated distance.",
+      "kind": "unknown",
+      "description": "Unconfirmed (synthetic) candidate: it could be an artifact, a measurement error or an uncatalogued slow mover. Its orbit is NOT known: drawn as a circle at the estimated distance.",
       "radius_km": 150.0,
       "mass_kg": null,
       "teff_k": null,
@@ -249,15 +249,22 @@
           "unit": null,
           "source": "placeholder",
           "verified": false
+        },
+        {
+          "label": "Size",
+          "value": "unknown (drawn at an arbitrary size)",
+          "unit": null,
+          "source": null,
+          "verified": false
         }
       ],
       "candidate_id": "SYN-TNO-1"
     }
   ],
-  "representation_note": "Model representation built from catalog parameters - not an image. Sizes and distances may be exaggerated for visibility.",
+  "representation_note": "Illustrative model of a SYNTHETIC system (synthetic candidates, approximate planet orbits) - not an image. Sizes and distances may be exaggerated for visibility.",
   "provenance": {
     "pipeline_version": "0.1.0",
-    "built_at": "2026-11-14T15:09:55.680288Z",
+    "built_at": "2026-11-14T16:18:25.188120Z",
     "synthetic": true,
     "data_releases": [
       "synthetic"

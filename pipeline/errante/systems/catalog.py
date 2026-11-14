@@ -1,11 +1,14 @@
 """Curated 3D systems for the challenge test targets (WS7).
 
-⚠️ Every number below was typed by hand as a STARTING POINT and is flagged
-``verified=False``. WS7-2 replaces them with values fetched by
-``systems.sources`` (NASA Exoplanet Archive, SIMBAD/Gaia DR3, JPL SBDB) and
-flips ``verified`` to True only for values checked against the cited source.
-Where a value is a model estimate (e.g. radius of a non-transiting planet), the
-fact label says so.
+WS7-2 (2026-11-14): every value below was checked against the NASA Exoplanet
+Archive, SIMBAD (CfA mirror), Gaia DR3, VizieR and the cited papers. The
+fetchers in ``systems.sources`` reproduce the archive queries and the
+``network`` tests in ``tests/test_systems.py`` re-run them. A ``Fact`` is
+``verified=True`` only when its value was found in the cited source; model
+estimates and illustrative drawing values say so in their label and source.
+Where the drawing needs a number no source gives (e.g. the radius of a brown
+dwarf in the Epsilon Indi B pair), it is set on the body without a Fact and the
+provenance notes say it is illustrative.
 
 The one fully *synthetic* system (``demo-ecliptic-orbits``) belongs to the
 synthetic demo field and is labelled as such.
@@ -34,13 +37,24 @@ R_EARTH_KM = 6_371.0
 M_SUN_KG = 1.989e30
 M_JUP_KG = 1.898e27
 M_EARTH_KG = 5.972e24
+M_JUP_MSUN = M_JUP_KG / M_SUN_KG
+AU_KM = 1.495978707e8
 DAYS_PER_YEAR = 365.25
 
 PHASE_NOTE = "Orbital and pulsation phases are arbitrary (no epoch): positions are not predictions for a real date."
 
-UNVERIFIED_NOTE = (
-    "Parameters typed by hand as a starting point; NOT yet verified against catalogs (tasks/WS7-3d-systems.md, WS7-2)."
+VERIFIED_NOTE = (
+    "Values checked on 2026-11-14 against the NASA Exoplanet Archive, SIMBAD (CfA mirror), Gaia DR3, VizieR and the "
+    "cited papers (tasks/WS7-3d-systems.md, WS7-2). Facts still marked 'unverified' are estimates no source states."
 )
+
+REAL_REPRESENTATION = (
+    "3D model drawn from published catalog and literature values (each fact shows its source) - not an image. "
+    "Sizes and distances may be exaggerated for visibility."
+)
+
+GAIA_DR3 = "Gaia DR3"
+EXOPLANET_ARCHIVE = "NASA Exoplanet Archive, pscomppars"
 
 
 def kepler_period_days(a_au: float, total_mass_msun: float) -> float:
@@ -60,7 +74,13 @@ def _demo_field_center(field_id: str) -> SkyCoord:
 
 
 def _fact(label: str, value: str, unit: str | None = None, source: str | None = None) -> Fact:
+    """A value nobody checked (synthetic systems, or an estimate no source states)."""
     return Fact(label=label, value=value, unit=unit, source=source, verified=False)
+
+
+def _vfact(label: str, value: str, unit: str | None, source: str) -> Fact:
+    """A value found in ``source`` during WS7-2 (2026-11-14)."""
+    return Fact(label=label, value=value, unit=unit, source=source, verified=True)
 
 
 def _provenance(*, synthetic: bool, notes: list[str]) -> Provenance:
@@ -77,14 +97,15 @@ def _provenance(*, synthetic: bool, notes: list[str]) -> Provenance:
 
 
 def barnards_star() -> SystemModel:
-    m_star = 0.16
-    src_planets = "Basant et al. 2025 (ApJL) / NASA Exoplanet Archive"
+    star_src = f"{EXOPLANET_ARCHIVE} (González Hernández et al. 2024, A&A 690, A79)"
+    planet_src = f"{EXOPLANET_ARCHIVE} (Basant et al. 2025, ApJL 982, L1)"
+    gaia = f"{GAIA_DR3} 4472832130942575872"
     planets = [
-        # (id, name, period_days, min_mass_earth)
-        ("barnard-d", "Barnard d", 2.340, 0.26),
-        ("barnard-b", "Barnard b", 3.154, 0.30),
-        ("barnard-c", "Barnard c", 4.124, 0.34),
-        ("barnard-e", "Barnard e", 6.739, 0.19),
+        # (id, name, period_days, min_mass_earth, a_au, archive radius estimate [R_earth])
+        ("barnard-d", "Barnard d", 2.3402, 0.263, 0.0188, 0.694),
+        ("barnard-b", "Barnard b", 3.1542, 0.299, 0.0229, 0.720),
+        ("barnard-c", "Barnard c", 4.1244, 0.335, 0.0274, 0.743),
+        ("barnard-e", "Barnard e", 6.7392, 0.193, 0.0381, 0.637),
     ]
     bodies = [
         Body(
@@ -92,38 +113,54 @@ def barnards_star() -> SystemModel:
             name="Barnard's Star",
             kind="star",
             description="A small, cool red dwarf. It moves faster across our sky than any other star.",
-            radius_km=0.187 * R_SUN_KM,
-            mass_kg=m_star * M_SUN_KG,
-            teff_k=3200,
+            radius_km=0.185 * R_SUN_KM,
+            mass_kg=0.162 * M_SUN_KG,
+            teff_k=3195,
             spectral_type="M4V",
             appearance=Appearance(model="star"),
             facts=[
-                _fact("Spectral type", "M4V", source="SIMBAD"),
-                _fact("Temperature", "~3200", "K", "SIMBAD / literature"),
-                _fact("Distance", "1.83", "pc", "Gaia DR3"),
-                _fact("Proper motion", "~10.4", "arcsec/yr", "Gaia DR3"),
+                _vfact("Spectral type", "M4V", None, "SIMBAD (Kirkpatrick et al. 1991)"),
+                _vfact("Temperature", "3195 ± 28", "K", star_src),
+                _vfact("Mass", "0.162 ± 0.007", "solar masses", star_src),
+                _vfact("Radius", "0.185 ± 0.006", "solar radii", star_src),
+                _vfact("Distance", "1.828", "pc", f"{gaia} (parallax 546.976 ± 0.040 mas)"),
+                _vfact("Proper motion", "10.39", "arcsec/yr", gaia),
+                _vfact("Radial velocity", "−110.47 ± 0.13", "km/s", gaia),
             ],
         )
     ]
-    for pid, name, period, mmin in planets:
+    for pid, name, period, mmin, a_au, r_est in planets:
         bodies.append(
             Body(
                 id=pid,
                 name=name,
                 kind="planet",
-                description="Rocky sub-Earth found by radial velocity. Too hot for liquid water.",
-                radius_km=0.7 * R_EARTH_KM,  # estimate: not transiting, radius unknown
-                mass_kg=mmin * M_EARTH_KG,
+                description=(
+                    "A small planet found by radial velocity (minimum mass well below Earth's); probably rocky. "
+                    "Too hot for liquid water."
+                ),
+                radius_km=r_est * R_EARTH_KM,  # archive estimate from the mass: not transiting, radius not measured
+                mass_kg=mmin * M_EARTH_KG,  # minimum mass (M sin i)
                 orbit=Orbit(
                     parent="barnards-star",
-                    semi_major_axis_au=round(kepler_a_au(period, m_star), 5),
+                    semi_major_axis_au=a_au,
                     period_days=period,
+                    note=(
+                        "Drawn circular: the fitted eccentricities are consistent with zero (Basant et al. 2025 "
+                        "favour e < 0.02). Orbit inclination unknown (radial-velocity detection)."
+                    ),
                 ),
                 appearance=Appearance(model="rocky"),
                 facts=[
-                    _fact("Orbital period", f"{period}", "days", src_planets),
-                    _fact("Minimum mass", f"~{mmin}", "Earth masses", src_planets),
-                    _fact("Radius (model estimate)", "~0.7", "Earth radii", "mass-radius relation; not measured"),
+                    _vfact("Orbital period", f"{period}", "days", planet_src),
+                    _vfact("Minimum mass", f"{mmin}", "Earth masses", planet_src),
+                    _vfact("Orbit size", f"{a_au}", "AU", planet_src),
+                    _vfact(
+                        "Radius (model estimate)",
+                        f"~{r_est:.2f}",
+                        "Earth radii",
+                        f"{EXOPLANET_ARCHIVE}: calculated from the mass, not measured (no transits)",
+                    ),
                 ],
             )
         )
@@ -132,18 +169,27 @@ def barnards_star() -> SystemModel:
         name="Barnard's Star system",
         description="Challenge test target: the fastest-moving star in our sky, with four small planets.",
         tags=["test-target", "proper-motion", "exoplanets"],
-        center=SkyCoord(ra=269.4521, dec=4.6934),
+        center=SkyCoord(ra=269.44850252543836, dec=4.739420051112412),
         motion=SpaceMotion(
-            distance_pc=1.83,
-            parallax_mas=546.98,
-            pm_ra_cosdec_mas_yr=-801.6,
-            pm_dec_mas_yr=10362.4,
-            radial_velocity_km_s=-110.6,
-            epoch="J2000.0",  # center is the J2000 position; WS7-2: switch both to Gaia DR3 J2016.0
+            distance_pc=1.8282,
+            parallax_mas=546.976,
+            pm_ra_cosdec_mas_yr=-801.551,
+            pm_dec_mas_yr=10362.394,
+            radial_velocity_km_s=-110.47,
+            epoch="J2016.0",  # Gaia DR3 reference epoch
         ),
         field_id="barnards-star",
         bodies=bodies,
-        provenance=_provenance(synthetic=False, notes=[UNVERIFIED_NOTE, PHASE_NOTE]),
+        representation_note=REAL_REPRESENTATION,
+        provenance=_provenance(
+            synthetic=False,
+            notes=[
+                VERIFIED_NOTE,
+                PHASE_NOTE,
+                "Planet masses are minimum masses (M sin i) and planet radii are estimates: radial velocity measures "
+                "neither the inclination nor the size.",
+            ],
+        ),
     )
 
 
@@ -151,20 +197,24 @@ def barnards_star() -> SystemModel:
 
 
 def epsilon_indi() -> SystemModel:
-    m_a, m_ba, m_bb = 0.76, 66.9 * M_JUP_KG / M_SUN_KG, 53.3 * M_JUP_KG / M_SUN_KG
+    m_a = 0.80  # Sanghi et al. 2026 via the NASA Exoplanet Archive
+    m_ba, m_bb = 66.92 * M_JUP_MSUN, 53.25 * M_JUP_MSUN  # Chen et al. 2022, Table 4
+    host_src = f"{EXOPLANET_ARCHIVE} (Sanghi et al. 2026, AJ 172, 115)"
+    chen = "Chen et al. 2022, AJ 163, 288 (Table 4)"
+    gaia = f"{GAIA_DR3} 6412595290592307840"
     return SystemModel(
         id="epsilon-indi",
         name="Epsilon Indi system",
         description="Challenge test target: a Sun-like star, a cold giant planet and a pair of brown dwarfs.",
         tags=["test-target", "brown-dwarf", "binary", "exoplanets"],
-        center=SkyCoord(ra=330.8402, dec=-56.7860),
+        center=SkyCoord(ra=330.8724078795965, dec=-56.79725466122902),  # Eps Ind A
         motion=SpaceMotion(
-            distance_pc=3.64,
-            parallax_mas=274.8,
-            pm_ra_cosdec_mas_yr=3966.7,
-            pm_dec_mas_yr=-2536.2,
-            radial_velocity_km_s=-40.4,
-            epoch="J2000.0",  # center is the J2000 position; WS7-2: switch both to Gaia DR3 J2016.0
+            distance_pc=3.638,
+            parallax_mas=274.843,
+            pm_ra_cosdec_mas_yr=3966.661,
+            pm_dec_mas_yr=-2536.192,
+            radial_velocity_km_s=-40.43,
+            epoch="J2016.0",  # Gaia DR3 reference epoch
         ),
         field_id=None,  # TODO(WS3/WS7): add an epsilon-indi field to config/fields.toml
         bodies=[
@@ -173,14 +223,17 @@ def epsilon_indi() -> SystemModel:
                 name="Epsilon Indi A",
                 kind="star",
                 description="An orange dwarf star, a bit smaller and cooler than the Sun.",
-                radius_km=0.71 * R_SUN_KM,
+                radius_km=0.713 * R_SUN_KM,
                 mass_kg=m_a * M_SUN_KG,
-                teff_k=4630,
+                teff_k=4700,
                 spectral_type="K5V",
                 appearance=Appearance(model="star"),
                 facts=[
-                    _fact("Spectral type", "K5V", source="SIMBAD"),
-                    _fact("Distance", "3.64", "pc", "Gaia DR3"),
+                    _vfact("Spectral type", "K5V", None, "SIMBAD"),
+                    _vfact("Temperature", "4700 ± 65", "K", host_src),
+                    _vfact("Mass", "0.80 ± 0.02", "solar masses", host_src),
+                    _vfact("Radius", "0.713", "solar radii", host_src),
+                    _vfact("Distance", "3.638", "pc", f"{gaia} (parallax 274.84 mas)"),
                 ],
             ),
             Body(
@@ -188,22 +241,33 @@ def epsilon_indi() -> SystemModel:
                 name="Epsilon Indi Ab",
                 kind="planet",
                 description="A cold giant planet photographed directly by JWST.",
-                radius_km=1.0 * R_JUP_KM,  # estimate
-                mass_kg=6.0 * M_JUP_KG,
+                radius_km=1.13 * R_JUP_KM,  # archive estimate from the mass, not measured
+                mass_kg=6.5 * M_JUP_KG,
                 teff_k=275,
                 orbit=Orbit(
                     parent="eps-indi-a",
-                    semi_major_axis_au=28.0,
-                    period_days=round(kepler_period_days(28.0, m_a), 0),
-                    eccentricity=0.40,
-                    note="Orientation (inclination ~104 deg, node, periastron) and phase not modelled.",
+                    semi_major_axis_au=15.76,
+                    period_days=25450.0,
+                    eccentricity=0.25,
+                    note=(
+                        "Fit by Sanghi et al. 2026 (JWST imaging + radial velocity + Hipparcos-Gaia). The measured "
+                        "orientation (inclination ~102°) and the orbital phase are not modelled. The first JWST fit "
+                        "(Matthews et al. 2024) gave a wider orbit (~28 AU, e ~0.4)."
+                    ),
                 ),
                 appearance=Appearance(model="gas_giant"),
                 facts=[
-                    _fact("Mass", "~6", "Jupiter masses", "Matthews et al. 2024 (Nature)"),
-                    _fact("Orbit size", "~28", "AU", "Matthews et al. 2024 (Nature)"),
-                    _fact("Eccentricity", "~0.4 (+0.15/-0.18)", None, "Matthews et al. 2024 (Nature)"),
-                    _fact("Temperature", "~275", "K", "Matthews et al. 2024 (Nature)"),
+                    _vfact("Mass", "6.5 (+0.7/−0.6)", "Jupiter masses", host_src),
+                    _vfact("Orbit size", "15.8 (+1.7/−1.4)", "AU", host_src),
+                    _vfact("Orbital period", "~70 (+12/−9)", "years", f"{host_src}: 25450 (+4387/−3302) days"),
+                    _vfact("Eccentricity", "0.25 ± 0.09", None, host_src),
+                    _vfact("Temperature", "~275", "K", "Matthews et al. 2024, Nature 633, 789 (JWST)"),
+                    _vfact(
+                        "Radius (model estimate)",
+                        "~1.1",
+                        "Jupiter radii",
+                        f"{EXOPLANET_ARCHIVE}: calculated from the mass, not measured",
+                    ),
                 ],
             ),
             Body(
@@ -211,7 +275,7 @@ def epsilon_indi() -> SystemModel:
                 name="Epsilon Indi Ba",
                 kind="brown_dwarf",
                 description="A brown dwarf: too heavy to be a planet, too light to shine like a star.",
-                radius_km=0.9 * R_JUP_KM,
+                radius_km=0.9 * R_JUP_KM,  # illustrative: no published radius
                 mass_kg=m_ba * M_SUN_KG,
                 teff_k=1300,
                 spectral_type="T1",
@@ -221,13 +285,19 @@ def epsilon_indi() -> SystemModel:
                     semi_major_axis_au=1460.0,
                     period_days=round(kepler_period_days(1460.0, m_a + m_ba + m_bb), 0),
                     quality="assumed",
-                    note="Circle at the projected separation; period from Kepler's law. Not a fitted orbit.",
+                    note="Circle at the projected separation; period from Kepler's law. The A–B orbit is not known.",
                 ),
                 appearance=Appearance(model="brown_dwarf"),
                 facts=[
-                    _fact("Spectral type", "T1", source="SIMBAD"),
-                    _fact("Mass", "~67", "Jupiter masses", "Chen et al. 2022"),
-                    _fact("Separation from A", "~1460 (projected)", "AU", "literature"),
+                    _vfact("Spectral type", "T1", None, f"SIMBAD; {chen}"),
+                    _vfact("Mass", "66.92 ± 0.36", "Jupiter masses", chen),
+                    _vfact("Temperature", "~1300", "K", "King et al. 2010, as adopted by Chen et al. 2022"),
+                    _vfact(
+                        "Separation from A",
+                        "~1460 (projected)",
+                        "AU",
+                        "Scholz et al. 2003, A&A 398, L29; Gaia DR3 positions",
+                    ),
                 ],
             ),
             Body(
@@ -235,27 +305,39 @@ def epsilon_indi() -> SystemModel:
                 name="Epsilon Indi Bb",
                 kind="brown_dwarf",
                 description="The colder twin of Ba; the two orbit each other every ~11 years.",
-                radius_km=0.9 * R_JUP_KM,
+                radius_km=0.9 * R_JUP_KM,  # illustrative: no published radius
                 mass_kg=m_bb * M_SUN_KG,
                 teff_k=900,
                 spectral_type="T6",
                 orbit=Orbit(
                     parent="eps-indi-ba",
-                    semi_major_axis_au=round(kepler_a_au(11.0 * DAYS_PER_YEAR, m_ba + m_bb), 3),
-                    period_days=11.0 * DAYS_PER_YEAR,
-                    eccentricity=0.54,
+                    semi_major_axis_au=2.4058,
+                    period_days=round(11.0197 * DAYS_PER_YEAR, 2),
+                    eccentricity=0.5404,
+                    note="Fitted orbit (Chen et al. 2022); its orientation on the sky (i ≈ 77°) is not modelled.",
                 ),
                 appearance=Appearance(model="brown_dwarf"),
                 facts=[
-                    _fact("Spectral type", "T6", source="SIMBAD"),
-                    _fact("Mass", "~53", "Jupiter masses", "Chen et al. 2022"),
-                    _fact("Orbital period around Ba", "~11", "years", "Chen et al. 2022"),
+                    _vfact("Spectral type", "T6", None, f"SIMBAD; {chen}"),
+                    _vfact("Mass", "53.25 ± 0.29", "Jupiter masses", chen),
+                    _vfact("Temperature", "~900", "K", "King et al. 2010, as adopted by Chen et al. 2022"),
+                    _vfact("Orbital period around Ba", "11.0197 ± 0.0076", "years", chen),
+                    _vfact("Orbit size", "2.406", "AU", chen),
+                    _vfact("Eccentricity", "0.540", None, chen),
                 ],
             ),
         ],
+        representation_note=REAL_REPRESENTATION,
         provenance=_provenance(
             synthetic=False,
-            notes=[UNVERIFIED_NOTE, PHASE_NOTE, "Simplified hierarchy: Ba orbits A and Bb orbits Ba (no barycenters)."],
+            notes=[
+                VERIFIED_NOTE,
+                PHASE_NOTE,
+                "Simplified hierarchy: Ba orbits A and Bb orbits Ba (no barycenters).",
+                "Ba and Bb are drawn with an illustrative radius of 0.9 Jupiter radii (no published radius); the "
+                "radius of Ab is the archive's estimate from its mass.",
+                "Gaia DR3 measures Ba+Bb as one unresolved source (RUWE 4.3): its parallax is not used for distance.",
+            ],
         ),
     )
 
@@ -264,18 +346,21 @@ def epsilon_indi() -> SystemModel:
 
 
 def wise_0855() -> SystemModel:
+    k21 = "Kirkpatrick et al. 2021, ApJS 253, 7"
+    l24 = "Luhman et al. 2024, AJ 167, 5 (JWST)"
     return SystemModel(
         id="wise-0855",
         name="WISE 0855−0714",
-        description="Challenge test target: the coldest known brown dwarf, around the freezing point of water.",
+        description="Challenge test target: the coldest known brown dwarf, near the freezing point of water.",
         tags=["test-target", "brown-dwarf", "proper-motion"],
-        center=SkyCoord(ra=133.79513, dec=-7.24515),  # coordinates given in the challenge (older epoch)
+        # Kirkpatrick et al. 2021 position at its astrometric epoch (not in Gaia: too faint).
+        center=SkyCoord(ra=133.780984, dec=-7.243932),
         motion=SpaceMotion(
             distance_pc=2.28,
             parallax_mas=439.0,
-            pm_ra_cosdec_mas_yr=-8118.0,
-            pm_dec_mas_yr=680.0,
-            epoch="J2014 (approx.)",
+            pm_ra_cosdec_mas_yr=-8123.7,
+            pm_dec_mas_yr=673.2,
+            epoch="J2016.67",  # Kirkpatrick et al. 2021 astrometric epoch, MJD 57633.39
         ),
         field_id="wise-0855",
         bodies=[
@@ -285,26 +370,30 @@ def wise_0855() -> SystemModel:
                 kind="brown_dwarf",
                 description="A free-floating brown dwarf so cold that water could condense in its atmosphere.",
                 radius_km=1.0 * R_JUP_KM,
-                mass_kg=5.0 * M_JUP_KG,
+                mass_kg=5.0 * M_JUP_KG,  # illustrative value inside the 3-10 M_Jup model range
                 teff_k=285,
                 spectral_type="Y4 (approx.)",
                 appearance=Appearance(model="brown_dwarf"),
                 facts=[
-                    _fact(
-                        "Temperature",
-                        "~250-300 (best fit 285)",
-                        "K",
-                        "Luhman et al. 2024, AJ 167, 5 (JWST); model dependent",
-                    ),
-                    _fact(
-                        "Distance", "~2.28", "pc", "Kirkpatrick et al. 2021, ApJS 253, 7 (parallax 439.0 +/- 2.4 mas)"
-                    ),
-                    _fact("Mass", "3–10", "Jupiter masses", "literature (model dependent)"),
-                    _fact("Proper motion", "~8.1", "arcsec/yr", "literature"),
+                    _vfact("Spectral type", "~Y4", None, f"{k21}; {l24}"),
+                    _vfact("Temperature", "~250–300 (best fit 285)", "K", f"{l24}; model dependent"),
+                    _vfact("Distance", "~2.28", "pc", f"{k21} (parallax 439.0 ± 2.4 mas)"),
+                    _vfact("Proper motion", "~8.15", "arcsec/yr", k21),
+                    _vfact("Mass (evolutionary models)", "3–10", "Jupiter masses", f"{l24}; for ages of 1–10 Gyr"),
+                    _vfact("Radius (evolutionary models)", "~1", "Jupiter radii", f"{l24} (0.10–0.11 solar radii)"),
                 ],
             )
         ],
-        provenance=_provenance(synthetic=False, notes=[UNVERIFIED_NOTE, PHASE_NOTE]),
+        representation_note=REAL_REPRESENTATION,
+        provenance=_provenance(
+            synthetic=False,
+            notes=[
+                VERIFIED_NOTE,
+                "The challenge gives 133.79513, −7.24515: the WISE All-Sky position at epoch 2010.34 (MJD 55320.4). "
+                "The object moves ~8.2 arcsec per year, so positions must be propagated to the date of each image.",
+                "The model is drawn with 5 Jupiter masses, an illustrative value inside the published 3–10 range.",
+            ],
+        ),
     )
 
 
@@ -312,33 +401,67 @@ def wise_0855() -> SystemModel:
 
 
 def r_draconis() -> SystemModel:
+    gcvs = "GCVS 5.1 (Samus et al. 2017)"
     return SystemModel(
         id="r-draconis",
         name="R Draconis",
         description="Challenge test target: a giant star that swells and fades every ~8 months.",
         tags=["test-target", "variable"],
-        center=SkyCoord(ra=248.1675, dec=66.7550),
+        center=SkyCoord(ra=248.1673783672889, dec=66.75500674547219),
+        motion=SpaceMotion(
+            distance_pc=792.0,
+            parallax_mas=1.2509,
+            pm_ra_cosdec_mas_yr=-20.643,
+            pm_dec_mas_yr=6.149,
+            radial_velocity_km_s=-132.8,
+            epoch="J2016.0",  # Gaia DR3 reference epoch
+        ),
         field_id=None,  # TODO(WS3/WS7): add an r-draconis field to config/fields.toml
         bodies=[
             Body(
                 id="r-draconis",
                 name="R Draconis",
                 kind="star",
-                description="A Mira variable: an old red giant whose brightness changes by hundreds of times.",
-                radius_km=250 * R_SUN_KM,  # rough estimate; varies during the cycle
-                teff_k=3000,
-                spectral_type="M5e–M9e",
+                description="A Mira variable: an old red giant whose visible brightness changes by hundreds of times.",
+                radius_km=250 * R_SUN_KM,  # illustrative; varies during the cycle
+                teff_k=3000,  # representative drawing value inside the published range
+                spectral_type="M5e–M9eIII",
                 variability=Variability(kind="pulsation", period_days=245.6, amplitude_mag=6.5, band="V"),
                 appearance=Appearance(model="star"),
                 facts=[
-                    _fact("Variable type", "Mira", source="GCVS / AAVSO VSX"),
-                    _fact("Period", "~245.6", "days", "GCVS / AAVSO VSX"),
-                    _fact("Visual range", "6.7–13.2", "mag", "GCVS / AAVSO VSX"),
-                    _fact("Radius (rough estimate)", "~250", "solar radii", "typical Mira; not measured"),
+                    _vfact("Variable type", "Mira", None, f"{gcvs}; AAVSO VSX"),
+                    _vfact("Spectral type", "M5e–M9eIII", None, gcvs),
+                    _vfact("Period", "~245.6", "days", f"{gcvs} (AAVSO VSX: 246.1 days)"),
+                    _vfact("Visual range", "6.7–13.2", "mag (V)", f"{gcvs}; AAVSO VSX"),
+                    _vfact(
+                        "Temperature (changes with the pulsation)",
+                        "~2000–3300",
+                        "K",
+                        "van Belle et al. 2002, AJ 124, 1706 (2034 ± 139 K at phase 0.83); "
+                        "McDonald et al. 2012, MNRAS 427, 343 (3336 K, SED fit)",
+                    ),
+                    _vfact("Distance", "~790", "pc", "Bailer-Jones et al. 2021 (Gaia EDR3)"),
+                    _fact(
+                        "Radius (illustrative)",
+                        "~250",
+                        "solar radii",
+                        "drawing value: published sizes depend strongly on the assumed distance and the pulsation phase",
+                    ),
                 ],
             )
         ],
-        provenance=_provenance(synthetic=False, notes=[UNVERIFIED_NOTE, PHASE_NOTE]),
+        representation_note=REAL_REPRESENTATION,
+        provenance=_provenance(
+            synthetic=False,
+            notes=[
+                VERIFIED_NOTE,
+                PHASE_NOTE,
+                "The size/brightness animation is a sine wave spanning the V-band range: real Mira cycles are "
+                "asymmetric, change from cycle to cycle and are much smaller in the infrared SPHEREx sees. It is "
+                "not a measured or SPHEREx light curve.",
+                "Radial velocity −132.8 km/s from SIMBAD (Wilson 1953); optical lines of a Mira move with the pulsation.",
+            ],
+        ),
     )
 
 
@@ -346,12 +469,23 @@ def r_draconis() -> SystemModel:
 
 
 def rw_aurigae() -> SystemModel:
+    kurtovic = "Kurtovic et al. 2024, A&A (arXiv:2407.18828)"
+    dodin20 = "Dodin et al. 2020, MNRAS 497, 4527"
+    m_a, m_b = 1.238, 0.995  # dynamical masses, Kurtovic et al. 2024
     return SystemModel(
         id="rw-aurigae",
         name="RW Aurigae",
         description="Challenge test target: a young binary star whose dusty disk causes deep dimming events.",
         tags=["test-target", "variable", "binary", "young-star"],
-        center=SkyCoord(ra=76.9563, dec=30.4014),
+        center=SkyCoord(ra=76.9565443110343, dec=30.401316149887936),  # RW Aur A, Gaia DR3 156430817820015232
+        motion=SpaceMotion(
+            distance_pc=156.1,
+            parallax_mas=6.406,
+            pm_ra_cosdec_mas_yr=2.641,
+            pm_dec_mas_yr=-27.398,
+            radial_velocity_km_s=15.0,
+            epoch="J2016.0",  # Gaia DR3 reference epoch
+        ),
         field_id=None,  # TODO(WS3/WS7): add an rw-aurigae field to config/fields.toml
         bodies=[
             Body(
@@ -359,52 +493,92 @@ def rw_aurigae() -> SystemModel:
                 name="RW Aurigae A",
                 kind="star",
                 description="A T Tauri star: a newborn star still feeding from its disk.",
-                radius_km=1.7 * R_SUN_KM,
-                mass_kg=1.4 * M_SUN_KG,
+                radius_km=1.3 * R_SUN_KM,
+                mass_kg=m_a * M_SUN_KG,
                 teff_k=4900,
                 spectral_type="K1–K4 (T Tauri)",
-                variability=Variability(kind="irregular", amplitude_mag=2.0, band="V"),
+                variability=Variability(kind="irregular", amplitude_mag=4.4, band="V"),
                 appearance=Appearance(model="star"),
                 facts=[
-                    _fact("Type", "Classical T Tauri star", source="SIMBAD"),
-                    _fact("Dimming events", "~2 mag since 2010", source="literature (e.g. Rodriguez et al.)"),
+                    _vfact("Type", "Classical T Tauri star", None, "SIMBAD; AAVSO VSX"),
+                    _vfact("Mass (dynamical)", "1.24", "solar masses", f"{kurtovic}, gas disk rotation"),
+                    _vfact("Temperature", "4900", "K", "Testi et al. 2022, A&A 663, A98"),
+                    _vfact("Visual range (A+B)", "9.2–13.6", "mag (V)", "AAVSO VSX"),
+                    _vfact(
+                        "Dimming events",
+                        "~2 mag since 2010; A alone up to ~5 mag in 2014–2018",
+                        None,
+                        "Rodriguez et al. 2013, AJ 146, 112; 2016, AJ 151, 29; Dodin et al. 2019, MNRAS 482, 5524",
+                    ),
+                    _fact(
+                        "Radius (estimate)",
+                        "~1.3",
+                        "solar radii",
+                        "Herczeg & Hillenbrand 2014 (1.20 at 140 pc) rescaled to the Gaia distance; uncertain",
+                    ),
                 ],
             ),
             Body(
                 id="rw-aur-a-disk",
                 name="Disk around A",
                 kind="disk",
-                description="Gas and dust left over from the star's birth, truncated by companion B.",
-                radius_km=40 * 1.496e8,  # ~40 AU outer radius (rough)
+                description="Gas and dust left over from the star's birth; small, possibly trimmed by a past close pass of companion B.",
+                radius_km=19 * AU_KM,  # dust disk (R90%)
                 orbit=None,
                 appearance=Appearance(model="disk"),
-                facts=[_fact("Outer radius (rough)", "~40", "AU", "literature")],
+                facts=[
+                    _vfact("Dust disk radius", "~19", "AU", f"{kurtovic} (ALMA, 90% of the flux)"),
+                    _vfact("Gas (CO) disk radius", "~58", "AU", "Rodriguez et al. 2018, ApJ 859, 150"),
+                ],
             ),
             Body(
                 id="rw-aur-b",
                 name="RW Aurigae B",
                 kind="star",
-                description="The companion star, about 1.4 arcsec away on the sky.",
-                radius_km=1.2 * R_SUN_KM,
-                mass_kg=0.9 * M_SUN_KG,
-                teff_k=4400,
+                description="The companion star, about 1.5 arcsec away on the sky. It also has irregular dips.",
+                radius_km=1.5 * R_SUN_KM,
+                mass_kg=m_b * M_SUN_KG,
+                teff_k=4150,
+                spectral_type="K6.5 (T Tauri)",
+                variability=Variability(kind="irregular", amplitude_mag=1.3, band="V"),
                 orbit=Orbit(
                     parent="rw-aur-a",
-                    semi_major_axis_au=200.0,
-                    period_days=round(kepler_period_days(200.0, 2.3), 0),
-                    quality="assumed",
-                    note="Circle at the projected separation; period from Kepler's law. Not a fitted orbit.",
+                    semi_major_axis_au=258.0,
+                    period_days=round(2773 * DAYS_PER_YEAR, 0),
+                    eccentricity=0.787,
+                    inclination_deg=129.8,
+                    ascending_node_deg=73.8,
+                    arg_periapsis_deg=42.3,
+                    note=(
+                        "Best-fit orbit of Kurtovic et al. 2024 (a derived from their periastron 55 AU and e). Very "
+                        "uncertain: period 2773 (+27100/−366) years and an unbound orbit is not ruled out."
+                    ),
                 ),
                 appearance=Appearance(model="star"),
-                facts=[_fact("Projected separation", "~1.4 (~200 AU)", "arcsec", "literature")],
+                facts=[
+                    _vfact("Mass (dynamical)", "1.00", "solar masses", f"{kurtovic}, gas disk rotation"),
+                    _vfact("Temperature", "4100–4200", "K", dodin20),
+                    _vfact("Radius", "~1.5", "solar radii", dodin20),
+                    _vfact("Spectral type", "K6.5", None, "Herczeg & Hillenbrand 2014, ApJ 786, 97"),
+                    _vfact("Projected separation", "~1.5", "arcsec", f"{kurtovic} (1.494″, ALMA 2017)"),
+                    _vfact("Projected distance from A", "~233", "AU", kurtovic),
+                    _vfact("Orbital period", "~2800 (+27100/−370)", "years", kurtovic),
+                    _vfact("Eccentricity", "~0.79", None, kurtovic),
+                    _vfact("Dips", "up to 1.3 mag, about a day long", None, dodin20),
+                ],
             ),
         ],
+        representation_note=REAL_REPRESENTATION,
         provenance=_provenance(
             synthetic=False,
             notes=[
-                UNVERIFIED_NOTE,
+                VERIFIED_NOTE,
                 PHASE_NOTE,
                 "The disk body has no orbit: the UI draws it centred on its host (rw-aur-a).",
+                "SIMBAD swaps the Gaia DR3 identifiers of the two stars: A is Gaia DR3 156430817820015232 and B is "
+                "156430822114424576 (WDS position angle; Kurtovic et al. 2024).",
+                "Parallax and proper motion come from B's Gaia DR3 solution (A's is unreliable, RUWE 16), as adopted "
+                "by Kurtovic et al. 2024. Radial velocity 15 km/s from SIMBAD (Nguyen et al. 2012).",
             ],
         ),
     )
@@ -440,6 +614,10 @@ def demo_ecliptic_orbits() -> SystemModel:
         tags=["synthetic", "solar-system"],
         center=_demo_field_center("demo-ecliptic"),
         field_id="demo-ecliptic",
+        representation_note=(
+            "Illustrative model of a SYNTHETIC system (synthetic candidates, approximate planet orbits) - not an "
+            "image. Sizes and distances may be exaggerated for visibility."
+        ),
         bodies=[
             Body(
                 id="sun",
@@ -479,9 +657,12 @@ def demo_ecliptic_orbits() -> SystemModel:
             Body(
                 id="syn-tno-1",
                 name="SYN-TNO-1 (unconfirmed, synthetic)",
-                kind="tno",
-                description="Unconfirmed candidate. Its orbit is NOT known: drawn as a circle at the estimated distance.",
-                radius_km=150.0,
+                kind="unknown",
+                description=(
+                    "Unconfirmed (synthetic) candidate: it could be an artifact, a measurement error or an "
+                    "uncatalogued slow mover. Its orbit is NOT known: drawn as a circle at the estimated distance."
+                ),
+                radius_km=150.0,  # arbitrary drawing size: nothing constrains it
                 orbit=Orbit(
                     parent="sun",
                     semi_major_axis_au=42.2,
@@ -494,6 +675,7 @@ def demo_ecliptic_orbits() -> SystemModel:
                 facts=[
                     _fact("Distance estimate", "~42", "AU", "pipeline (synthetic)"),
                     _fact("Orbit", "assumed circular — not fitted", source="placeholder"),
+                    _fact("Size", "unknown (drawn at an arbitrary size)"),
                 ],
             ),
         ],
@@ -508,7 +690,7 @@ def demo_ecliptic_orbits() -> SystemModel:
 
 
 def curated_systems() -> list[SystemModel]:
-    """Real objects (hand-typed, unverified) — the challenge test targets."""
+    """Real objects — the challenge test targets (values checked in WS7-2)."""
     return [barnards_star(), epsilon_indi(), wise_0855(), r_draconis(), rw_aurigae()]
 
 

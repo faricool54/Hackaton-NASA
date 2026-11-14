@@ -7,21 +7,28 @@
     "variable"
   ],
   "center": {
-    "ra": 248.1675,
-    "dec": 66.755
+    "ra": 248.1673783672889,
+    "dec": 66.75500674547219
   },
-  "motion": null,
+  "motion": {
+    "distance_pc": 792.0,
+    "parallax_mas": 1.2509,
+    "pm_ra_cosdec_mas_yr": -20.643,
+    "pm_dec_mas_yr": 6.149,
+    "radial_velocity_km_s": -132.8,
+    "epoch": "J2016.0"
+  },
   "field_id": null,
   "bodies": [
     {
       "id": "r-draconis",
       "name": "R Draconis",
       "kind": "star",
-      "description": "A Mira variable: an old red giant whose brightness changes by hundreds of times.",
+      "description": "A Mira variable: an old red giant whose visible brightness changes by hundreds of times.",
       "radius_km": 173925000.0,
       "mass_kg": null,
       "teff_k": 3000.0,
-      "spectral_type": "M5e–M9e",
+      "spectral_type": "M5e–M9eIII",
       "rotation_period_hours": null,
       "orbit": null,
       "variability": {
@@ -41,43 +48,66 @@
           "label": "Variable type",
           "value": "Mira",
           "unit": null,
-          "source": "GCVS / AAVSO VSX",
-          "verified": false
+          "source": "GCVS 5.1 (Samus et al. 2017); AAVSO VSX",
+          "verified": true
+        },
+        {
+          "label": "Spectral type",
+          "value": "M5e–M9eIII",
+          "unit": null,
+          "source": "GCVS 5.1 (Samus et al. 2017)",
+          "verified": true
         },
         {
           "label": "Period",
           "value": "~245.6",
           "unit": "days",
-          "source": "GCVS / AAVSO VSX",
-          "verified": false
+          "source": "GCVS 5.1 (Samus et al. 2017) (AAVSO VSX: 246.1 days)",
+          "verified": true
         },
         {
           "label": "Visual range",
           "value": "6.7–13.2",
-          "unit": "mag",
-          "source": "GCVS / AAVSO VSX",
-          "verified": false
+          "unit": "mag (V)",
+          "source": "GCVS 5.1 (Samus et al. 2017); AAVSO VSX",
+          "verified": true
         },
         {
-          "label": "Radius (rough estimate)",
+          "label": "Temperature (changes with the pulsation)",
+          "value": "~2000–3300",
+          "unit": "K",
+          "source": "van Belle et al. 2002, AJ 124, 1706 (2034 ± 139 K at phase 0.83); McDonald et al. 2012, MNRAS 427, 343 (3336 K, SED fit)",
+          "verified": true
+        },
+        {
+          "label": "Distance",
+          "value": "~790",
+          "unit": "pc",
+          "source": "Bailer-Jones et al. 2021 (Gaia EDR3)",
+          "verified": true
+        },
+        {
+          "label": "Radius (illustrative)",
           "value": "~250",
           "unit": "solar radii",
-          "source": "typical Mira; not measured",
+          "source": "drawing value: published sizes depend strongly on the assumed distance and the pulsation phase",
           "verified": false
         }
       ],
       "candidate_id": null
     }
   ],
-  "representation_note": "Model representation built from catalog parameters - not an image. Sizes and distances may be exaggerated for visibility.",
+  "representation_note": "3D model drawn from published catalog and literature values (each fact shows its source) - not an image. Sizes and distances may be exaggerated for visibility.",
   "provenance": {
     "pipeline_version": "0.1.0",
-    "built_at": "2026-11-14T15:09:55.680530Z",
+    "built_at": "2026-11-14T16:18:25.188120Z",
     "synthetic": false,
     "data_releases": [],
     "notes": [
-      "Parameters typed by hand as a starting point; NOT yet verified against catalogs (tasks/WS7-3d-systems.md, WS7-2).",
-      "Orbital and pulsation phases are arbitrary (no epoch): positions are not predictions for a real date."
+      "Values checked on 2026-11-14 against the NASA Exoplanet Archive, SIMBAD (CfA mirror), Gaia DR3, VizieR and the cited papers (tasks/WS7-3d-systems.md, WS7-2). Facts still marked 'unverified' are estimates no source states.",
+      "Orbital and pulsation phases are arbitrary (no epoch): positions are not predictions for a real date.",
+      "The size/brightness animation is a sine wave spanning the V-band range: real Mira cycles are asymmetric, change from cycle to cycle and are much smaller in the infrared SPHEREx sees. It is not a measured or SPHEREx light curve.",
+      "Radial velocity −132.8 km/s from SIMBAD (Wilson 1953); optical lines of a Mira move with the pulsation."
     ]
   }
 }

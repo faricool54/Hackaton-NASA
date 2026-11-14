@@ -21,12 +21,12 @@ blanco no completa los cinco ensayos. Verificar valores es condición para anunc
 
 ## Estado actual
 - ✅ Contrato `SystemModel` (schema 0.2.1, con `Orbit.quality`), `Manifest.systems`, `GET /api/systems/{id}`, `errante systems`.
-- ✅ 5 sistemas de los objetivos de prueba (valores **tipeados a mano, sin verificar**) + 1 sintético ligado a
-  `demo-ecliptic`.
+- ✅ 5 sistemas de los objetivos de prueba, **verificados** (WS7-2) contra NASA Exoplanet Archive, SIMBAD, Gaia DR3,
+  VizieR y papers + 1 sintético ligado a `demo-ecliptic`.
 - ✅ `#/systems`, `#/system/<id>[/<cuerpo>]`: órbitas keplerianas animadas, colores por temperatura, texturas
   procedurales, disco, pulsación, clic/etiqueta → la cámara entra y sigue al cuerpo, ficha con fuente/verified,
   distancias comprimidas/lineales, enlaces campo ⇄ sistema, responsive.
-- ⛔ Valores verificados, órbitas reales de asteroides, modelos de forma, vista de movimiento por el espacio.
+- ⛔ Órbitas reales de asteroides, modelos de forma, vista de movimiento por el espacio.
 
 ## Tareas
 
@@ -35,7 +35,7 @@ blanco no completa los cinco ensayos. Verificar valores es condición para anunc
   `epsilon-indi`, `r-draconis`, `rw-aurigae` a `config/fields.toml` (con WS3) para que todos los sistemas
   tengan su campo SPHEREx. Los presets/ensayos de esos blancos son P0 de WS3-3/9 y se pueden completar sin 3D;
   no copiar coordenadas del catálogo ilustrativo sin fuente/época/propagación verificadas.
-- [ ] **WS7-2 (P2; requisito para afirmar valores verificados) Verificar valores**: implementar `sources.exoplanet_archive_system` y `sources.simbad_star`
+- [x] **WS7-2 (P2; requisito para afirmar valores verificados) Verificar valores**: implementar `sources.exoplanet_archive_system` y `sources.simbad_star`
   (tests `network`), reemplazar los valores de `catalog.py` y poner `verified=True` **solo** en lo comprobado,
   con la fuente exacta (tabla/URL/paper). Corregir lo que esté mal. Criterio: badge "UNVERIFIED VALUES"
   desaparece en los sistemas verificados.

@@ -11,8 +11,21 @@ import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRe
 import type { Body, SystemModel } from '../api/types';
 import { bodyColor, compressDistance, displayRadius } from './appearance';
 import { orbitalPosition, orbitPath, topoOrder, variabilityFactor, type Vec3 } from './orbits';
+import {
+  advanceModelTime,
+  AU_PER_KM,
+  capRadii,
+  distanceMapper,
+  fitDistance,
+  focusDistance,
+  linearScale,
+  ORBIT_COLOR,
+  pulsationScale,
+  referenceAu,
+  type DistanceMode,
+} from './sceneLayout';
 
-export type DistanceMode = 'compressed' | 'linear';
+export type { DistanceMode } from './sceneLayout';
 
 export interface SceneOptions {
   distanceMode: DistanceMode;
@@ -25,9 +38,6 @@ export interface SceneCallbacks {
   onTick?: (mjd: number) => void;
 }
 
-const AU_PER_KM = 1 / 1.495978707e8;
-/** Longest model-time span before wrapping back to the start (~6,800 yr keeps dates in 4-digit years). */
-const MAX_SPAN_DAYS = 2.5e6;
 const DEFAULT_OPTIONS: SceneOptions = { distanceMode: 'compressed', showOrbits: true, showLabels: true };
 
 export function nowMjd(): number {
@@ -143,7 +153,6 @@ export class SystemScene {
   private options: SceneOptions = { ...DEFAULT_OPTIONS };
   private mjd = nowMjd();
   private startMjd = this.mjd;
-  private spanDays: number;
   private speed: number; // days per second
   private playing = true;
   private focusId: string | null = null;
@@ -152,9 +161,12 @@ export class SystemScene {
   private raf = 0;
   private lastFrame = 0;
   private lastTick = 0;
+  private fitNear = 0.005;
+  private pixelRatio = 0;
   private resizeObserver: ResizeObserver;
   private disposables: { dispose: () => void }[] = [];
   private pointerDown: { x: number; y: number } | null = null;
+  private userMovedCamera = false;
 
   constructor(
     private container: HTMLElement,
@@ -162,27 +174,19 @@ export class SystemScene {
     private callbacks: SceneCallbacks,
   ) {
     this.order = topoOrder(system.bodies);
-    const scales = system.bodies.flatMap((b) => [
-      b.orbit?.semi_major_axis_au,
-      b.kind === 'disk' && b.radius_km ? b.radius_km * AU_PER_KM : undefined,
-    ]);
-    const valid = scales.filter((v): v is number => typeof v === 'number' && v > 0);
-    this.refAu = valid.length ? Math.min(...valid) : 1;
-    const maxExtent = system.bodies.reduce(
-      (s, b) => s + (b.orbit ? b.orbit.semi_major_axis_au * (1 + b.orbit.eccentricity) : 0),
-      0,
-    );
-    this.linearScale = maxExtent > 0 ? 30 / maxExtent : 1;
+    this.refAu = referenceAu(system.bodies);
+    this.linearScale = linearScale(system.bodies);
     this.speed = suggestedSpeed(system);
-    const periods = system.bodies
-      .flatMap((b) => [b.orbit?.period_days, b.variability?.period_days])
-      .filter((p): p is number => typeof p === 'number' && p > 0);
-    this.spanDays = Math.min(MAX_SPAN_DAYS, Math.max(3650, ...periods.map((p) => p * 4)));
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true }); // throws if WebGL is unavailable
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    container.appendChild(this.renderer.domElement);
+    const canvas = this.renderer.domElement;
+    canvas.setAttribute('role', 'img');
+    canvas.setAttribute(
+      'aria-label',
+      `3D model of ${system.name}, drawn from catalog parameters (not a telescope image)`,
+    );
+    container.appendChild(canvas);
 
     this.labelRenderer = new CSS2DRenderer();
     this.labelRenderer.domElement.className = 'scene-labels';
@@ -191,6 +195,8 @@ export class SystemScene {
     this.camera = new THREE.PerspectiveCamera(50, 1, 0.01, 5000);
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
+    // A view the user rotated or zoomed by hand is kept when the window resizes (see resize()).
+    this.controls.addEventListener('start', this.onControlsStart);
 
     this.scene.background = new THREE.Color('#03050a');
     this.scene.add(new THREE.AmbientLight(0xffffff, 0.25));
@@ -198,6 +204,7 @@ export class SystemScene {
     this.buildBodies();
     this.rebuildOrbits();
     this.updatePositions();
+    this.resize(); // real aspect ratio first, then frame the whole system for it
     this.fitCamera();
 
     const el = this.renderer.domElement;
@@ -205,7 +212,6 @@ export class SystemScene {
     el.addEventListener('pointerup', this.onPointerUp);
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(container);
-    this.resize();
     this.raf = requestAnimationFrame(this.loop);
   }
 
@@ -236,7 +242,9 @@ export class SystemScene {
       this.applyModeRadii();
       this.rebuildOrbits();
       this.updatePositions();
-      if (!this.focusId) this.fitCamera();
+      // Reframe for the new sizes: the entered body (it may have shrunk a lot), or the whole system.
+      if (this.focusId) this.focus(this.focusId);
+      else this.fitCamera();
     }
     for (const n of this.nodes.values()) {
       if (n.orbitLine) n.orbitLine.visible = this.options.showOrbits;
@@ -249,9 +257,17 @@ export class SystemScene {
     this.focusId = node ? node.body.id : null;
     if (node) {
       this.lastFocusPos.copy(node.group.position);
-      const fovHalf = THREE.MathUtils.degToRad(this.camera.fov / 2);
-      this.zoomTarget =
-        node.body.kind === 'disk' ? (node.focusRadius / Math.sin(fovHalf)) * 1.1 : Math.max(node.radius * 6, 2.5);
+      const isDisk = node.body.kind === 'disk';
+      this.zoomTarget = focusDistance(
+        isDisk ? 'disk' : 'body',
+        isDisk ? node.focusRadius : node.radius,
+        this.options.distanceMode,
+        this.camera.fov,
+        this.camera.aspect,
+      );
+      // Tiny bodies (true proportions) are framed from very close: keep them clear of the near plane.
+      this.camera.near = Math.max(Math.min(this.fitNear, this.zoomTarget / 50), 1e-4);
+      this.camera.updateProjectionMatrix();
     } else {
       this.zoomTarget = null;
       this.fitCamera();
@@ -263,6 +279,7 @@ export class SystemScene {
     const el = this.renderer.domElement;
     el.removeEventListener('pointerdown', this.onPointerDown);
     el.removeEventListener('pointerup', this.onPointerUp);
+    this.controls.removeEventListener('start', this.onControlsStart);
     this.controls.dispose();
     this.scene.traverse((obj) => {
       if (obj instanceof CSS2DObject) obj.element.remove();
@@ -303,53 +320,14 @@ export class SystemScene {
     this.scene.add(new THREE.Points(geo, mat));
   }
 
-  private childrenByParent(): Map<string, Body[]> {
-    const byParent = new Map<string, Body[]>();
-    for (const b of this.system.bodies) {
-      if (b.orbit && b.kind !== 'disk') byParent.set(b.orbit.parent, [...(byParent.get(b.orbit.parent) ?? []), b]);
-    }
-    return byParent;
-  }
-
-  /**
-   * Cap child radii so siblings don't overlap, measuring gaps between closest approaches
-   * (periapsis of the outer body vs apoapsis of the inner one) with the mode's distance mapping.
-   * In linear mode parents are also capped so their children are not swallowed.
-   */
-  private radiusCaps(mode: DistanceMode, base: Map<string, number>): Map<string, number> {
-    const map = (au: number) => (mode === 'compressed' ? compressDistance(au, this.refAu) : au * this.linearScale);
-    const floor = mode === 'compressed' ? 0.12 : 0.03;
-    const radius = new Map(base);
-    const byParent = this.childrenByParent();
-    if (mode === 'linear') {
-      for (const [parentId, kids] of byParent) {
-        const nearest = Math.min(...kids.map((k) => map(k.orbit!.semi_major_axis_au * (1 - k.orbit!.eccentricity))));
-        radius.set(parentId, Math.max(floor, Math.min(radius.get(parentId) ?? Infinity, 0.6 * nearest)));
-      }
-    }
-    for (const body of this.order) {
-      const kids = byParent.get(body.id);
-      if (!kids) continue;
-      const spans = kids
-        .map((k) => {
-          const { semi_major_axis_au: a, eccentricity: e } = k.orbit!;
-          return { peri: map(a * (1 - e)), apo: map(a * (1 + e)) };
-        })
-        .sort((x, y) => x.peri - y.peri);
-      const gaps = [spans[0].peri - (radius.get(body.id) ?? 0)];
-      for (let i = 1; i < spans.length; i++) gaps.push(spans[i].peri - spans[i - 1].apo);
-      const cap = Math.max(floor, 0.4 * Math.min(...gaps));
-      kids.forEach((k) => radius.set(k.id, Math.min(radius.get(k.id) ?? Infinity, cap)));
-    }
-    return radius;
-  }
-
   private buildBodies() {
     const glowTex = glowTexture();
     if (glowTex) this.track(glowTex);
     const base = new Map(this.order.map((b) => [b.id, displayRadius(b)]));
-    const compressed = this.radiusCaps('compressed', base);
-    const linear = this.radiusCaps('linear', compressed);
+    const bodies = this.system.bodies;
+    const toUnits = (mode: DistanceMode) => distanceMapper(mode, this.refAu, this.linearScale);
+    const compressed = capRadii(bodies, 'compressed', base, toUnits('compressed'));
+    const linear = capRadii(bodies, 'linear', compressed, toUnits('linear'));
     for (const body of this.order) {
       const group = new THREE.Group();
       const radius = compressed.get(body.id) ?? displayRadius(body);
@@ -483,7 +461,7 @@ export class SystemScene {
       const geo = new THREE.BufferGeometry().setFromPoints(pts);
       const quality = orbit.quality ?? 'fitted';
       const mat = new THREE.LineBasicMaterial({
-        color: quality === 'assumed' ? 0xfbbf24 : quality === 'hypothetical' ? 0xc084fc : 0x3a4a6b,
+        color: new THREE.Color(ORBIT_COLOR[quality] ?? ORBIT_COLOR.fitted),
         transparent: true,
         opacity: quality === 'fitted' ? 0.8 : 0.55,
       });
@@ -508,7 +486,7 @@ export class SystemScene {
       }
       if (body.variability) {
         const f = variabilityFactor(body, this.mjd);
-        const s = Math.pow(f, 0.08); // pulsating stars change size a little, brightness a lot
+        const s = pulsationScale(f); // pulsating stars change size a little, brightness a lot
         node.mesh.scale.setScalar(s * (node.radius / node.baseRadius));
         if (node.glow) {
           node.glow.scale.setScalar(node.radius * 5 * Math.pow(f, 0.3));
@@ -530,20 +508,35 @@ export class SystemScene {
         if (bs) extent = Math.max(extent, n.orbitLine.position.length() + bs.center.length() + bs.radius);
       }
     }
-    const dist = Math.max(extent * 1.9, maxRadius * 4.5, 6);
+    // Frame for the tighter of the vertical and horizontal FOV, so portrait screens see it all too.
+    const dist = fitDistance(extent, maxRadius, this.camera.fov, this.camera.aspect);
     this.controls.target.set(0, 0, 0);
     this.camera.position.set(0, dist * 0.55, dist);
-    this.camera.near = Math.max(dist / 5000, 0.005);
+    this.fitNear = Math.max(dist / 5000, 0.005);
+    this.camera.near = this.fitNear;
     this.camera.updateProjectionMatrix();
+    this.userMovedCamera = false;
   }
+
+  private onControlsStart = () => {
+    this.userMovedCamera = true;
+  };
 
   private resize() {
     const w = this.container.clientWidth || 1;
     const h = this.container.clientHeight || 1;
+    // Re-read the pixel ratio every time: browser zoom or another monitor changes it.
+    this.pixelRatio = window.devicePixelRatio || 1;
+    this.renderer.setPixelRatio(Math.min(this.pixelRatio, 2));
     this.renderer.setSize(w, h);
     this.labelRenderer.setSize(w, h);
-    this.camera.aspect = w / h;
+    const aspect = w / h;
+    const aspectChanged = Math.abs(aspect - this.camera.aspect) > 1e-3;
+    this.camera.aspect = aspect;
     this.camera.updateProjectionMatrix();
+    // The whole-system view depends on the aspect ratio (portrait is limited by the horizontal FOV),
+    // but a view the user set by hand is theirs: keep it.
+    if (aspectChanged && !this.focusId && !this.userMovedCamera) this.fitCamera();
   }
 
   private onPointerDown = (e: PointerEvent) => {
@@ -569,10 +562,11 @@ export class SystemScene {
   private loop = (t: number) => {
     const dt = this.lastFrame ? Math.min((t - this.lastFrame) / 1000, 0.1) : 0;
     this.lastFrame = t;
+    // Moving to a monitor with another pixel density does not resize the container: check here.
+    if ((window.devicePixelRatio || 1) !== this.pixelRatio) this.resize();
     if (this.playing && dt > 0) {
-      this.mjd += this.speed * dt;
-      // Wrap long runs so model time never leaves a displayable date range.
-      if (this.mjd - this.startMjd > this.spanDays) this.mjd = this.startMjd + ((this.mjd - this.startMjd) % this.spanDays);
+      // Model time runs on continuously (no wrap), so no body or pulsation ever jumps.
+      this.mjd = advanceModelTime(this.mjd, this.speed, dt);
       this.updatePositions();
     }
     for (const n of this.nodes.values()) if (n.body.kind !== 'disk') n.mesh.rotation.y += dt * 0.25;
@@ -590,7 +584,15 @@ export class SystemScene {
         const d = off.length();
         const next = d + (this.zoomTarget - d) * 0.08;
         this.camera.position.copy(this.controls.target).add(off.setLength(next));
-        if (Math.abs(next - this.zoomTarget) < 0.05) this.zoomTarget = null;
+        // Relative stop threshold: true-proportions targets can be a few hundredths of a unit.
+        if (Math.abs(next - this.zoomTarget) < Math.min(0.05, 0.02 * this.zoomTarget)) this.zoomTarget = null;
+      }
+      // Keep the near plane proportional to the viewing distance: very small near values (needed to
+      // frame tiny bodies) would ruin depth precision once the user zooms back out by hand.
+      const near = Math.min(Math.max(this.camera.position.distanceTo(this.controls.target) / 200, 1e-4), this.fitNear);
+      if (Math.abs(near - this.camera.near) > 0.1 * near) {
+        this.camera.near = near;
+        this.camera.updateProjectionMatrix();
       }
     }
 

@@ -9,16 +9,16 @@
     "exoplanets"
   ],
   "center": {
-    "ra": 330.8402,
-    "dec": -56.786
+    "ra": 330.8724078795965,
+    "dec": -56.79725466122902
   },
   "motion": {
-    "distance_pc": 3.64,
-    "parallax_mas": 274.8,
-    "pm_ra_cosdec_mas_yr": 3966.7,
-    "pm_dec_mas_yr": -2536.2,
-    "radial_velocity_km_s": -40.4,
-    "epoch": "J2000.0"
+    "distance_pc": 3.638,
+    "parallax_mas": 274.843,
+    "pm_ra_cosdec_mas_yr": 3966.661,
+    "pm_dec_mas_yr": -2536.192,
+    "radial_velocity_km_s": -40.43,
+    "epoch": "J2016.0"
   },
   "field_id": null,
   "bodies": [
@@ -27,9 +27,9 @@
       "name": "Epsilon Indi A",
       "kind": "star",
       "description": "An orange dwarf star, a bit smaller and cooler than the Sun.",
-      "radius_km": 493947.0,
-      "mass_kg": 1.51164e+30,
-      "teff_k": 4630.0,
+      "radius_km": 496034.1,
+      "mass_kg": 1.5912e+30,
+      "teff_k": 4700.0,
       "spectral_type": "K5V",
       "rotation_period_hours": null,
       "orbit": null,
@@ -46,14 +46,35 @@
           "value": "K5V",
           "unit": null,
           "source": "SIMBAD",
-          "verified": false
+          "verified": true
+        },
+        {
+          "label": "Temperature",
+          "value": "4700 ± 65",
+          "unit": "K",
+          "source": "NASA Exoplanet Archive, pscomppars (Sanghi et al. 2026, AJ 172, 115)",
+          "verified": true
+        },
+        {
+          "label": "Mass",
+          "value": "0.80 ± 0.02",
+          "unit": "solar masses",
+          "source": "NASA Exoplanet Archive, pscomppars (Sanghi et al. 2026, AJ 172, 115)",
+          "verified": true
+        },
+        {
+          "label": "Radius",
+          "value": "0.713",
+          "unit": "solar radii",
+          "source": "NASA Exoplanet Archive, pscomppars (Sanghi et al. 2026, AJ 172, 115)",
+          "verified": true
         },
         {
           "label": "Distance",
-          "value": "3.64",
+          "value": "3.638",
           "unit": "pc",
-          "source": "Gaia DR3",
-          "verified": false
+          "source": "Gaia DR3 6412595290592307840 (parallax 274.84 mas)",
+          "verified": true
         }
       ],
       "candidate_id": null
@@ -63,23 +84,23 @@
       "name": "Epsilon Indi Ab",
       "kind": "planet",
       "description": "A cold giant planet photographed directly by JWST.",
-      "radius_km": 71492.0,
-      "mass_kg": 1.1388e+28,
+      "radius_km": 80785.95999999999,
+      "mass_kg": 1.2337e+28,
       "teff_k": 275.0,
       "spectral_type": null,
       "rotation_period_hours": null,
       "orbit": {
         "parent": "eps-indi-a",
-        "semi_major_axis_au": 28.0,
-        "period_days": 62076.0,
-        "eccentricity": 0.4,
+        "semi_major_axis_au": 15.76,
+        "period_days": 25450.0,
+        "eccentricity": 0.25,
         "inclination_deg": 0.0,
         "ascending_node_deg": 0.0,
         "arg_periapsis_deg": 0.0,
         "mean_anomaly_deg": 0.0,
         "epoch_mjd": null,
         "quality": "fitted",
-        "note": "Orientation (inclination ~104 deg, node, periastron) and phase not modelled."
+        "note": "Fit by Sanghi et al. 2026 (JWST imaging + radial velocity + Hipparcos-Gaia). The measured orientation (inclination ~102°) and the orbital phase are not modelled. The first JWST fit (Matthews et al. 2024) gave a wider orbit (~28 AU, e ~0.4)."
       },
       "variability": null,
       "appearance": {
@@ -91,31 +112,45 @@
       "facts": [
         {
           "label": "Mass",
-          "value": "~6",
+          "value": "6.5 (+0.7/−0.6)",
           "unit": "Jupiter masses",
-          "source": "Matthews et al. 2024 (Nature)",
-          "verified": false
+          "source": "NASA Exoplanet Archive, pscomppars (Sanghi et al. 2026, AJ 172, 115)",
+          "verified": true
         },
         {
           "label": "Orbit size",
-          "value": "~28",
+          "value": "15.8 (+1.7/−1.4)",
           "unit": "AU",
-          "source": "Matthews et al. 2024 (Nature)",
-          "verified": false
+          "source": "NASA Exoplanet Archive, pscomppars (Sanghi et al. 2026, AJ 172, 115)",
+          "verified": true
+        },
+        {
+          "label": "Orbital period",
+          "value": "~70 (+12/−9)",
+          "unit": "years",
+          "source": "NASA Exoplanet Archive, pscomppars (Sanghi et al. 2026, AJ 172, 115): 25450 (+4387/−3302) days",
+          "verified": true
         },
         {
           "label": "Eccentricity",
-          "value": "~0.4 (+0.15/-0.18)",
+          "value": "0.25 ± 0.09",
           "unit": null,
-          "source": "Matthews et al. 2024 (Nature)",
-          "verified": false
+          "source": "NASA Exoplanet Archive, pscomppars (Sanghi et al. 2026, AJ 172, 115)",
+          "verified": true
         },
         {
           "label": "Temperature",
           "value": "~275",
           "unit": "K",
-          "source": "Matthews et al. 2024 (Nature)",
-          "verified": false
+          "source": "Matthews et al. 2024, Nature 633, 789 (JWST)",
+          "verified": true
+        },
+        {
+          "label": "Radius (model estimate)",
+          "value": "~1.1",
+          "unit": "Jupiter radii",
+          "source": "NASA Exoplanet Archive, pscomppars: calculated from the mass, not measured",
+          "verified": true
         }
       ],
       "candidate_id": null
@@ -126,14 +161,14 @@
       "kind": "brown_dwarf",
       "description": "A brown dwarf: too heavy to be a planet, too light to shine like a star.",
       "radius_km": 64342.8,
-      "mass_kg": 1.269762e+29,
+      "mass_kg": 1.2701416000000002e+29,
       "teff_k": 1300.0,
       "spectral_type": "T1",
       "rotation_period_hours": null,
       "orbit": {
         "parent": "eps-indi-a",
         "semi_major_axis_au": 1460.0,
-        "period_days": 21786616.0,
+        "period_days": 21305259.0,
         "eccentricity": 0.0,
         "inclination_deg": 0.0,
         "ascending_node_deg": 0.0,
@@ -141,7 +176,7 @@
         "mean_anomaly_deg": 0.0,
         "epoch_mjd": null,
         "quality": "assumed",
-        "note": "Circle at the projected separation; period from Kepler's law. Not a fitted orbit."
+        "note": "Circle at the projected separation; period from Kepler's law. The A–B orbit is not known."
       },
       "variability": null,
       "appearance": {
@@ -155,22 +190,29 @@
           "label": "Spectral type",
           "value": "T1",
           "unit": null,
-          "source": "SIMBAD",
-          "verified": false
+          "source": "SIMBAD; Chen et al. 2022, AJ 163, 288 (Table 4)",
+          "verified": true
         },
         {
           "label": "Mass",
-          "value": "~67",
+          "value": "66.92 ± 0.36",
           "unit": "Jupiter masses",
-          "source": "Chen et al. 2022",
-          "verified": false
+          "source": "Chen et al. 2022, AJ 163, 288 (Table 4)",
+          "verified": true
+        },
+        {
+          "label": "Temperature",
+          "value": "~1300",
+          "unit": "K",
+          "source": "King et al. 2010, as adopted by Chen et al. 2022",
+          "verified": true
         },
         {
           "label": "Separation from A",
           "value": "~1460 (projected)",
           "unit": "AU",
-          "source": "literature",
-          "verified": false
+          "source": "Scholz et al. 2003, A&A 398, L29; Gaia DR3 positions",
+          "verified": true
         }
       ],
       "candidate_id": null
@@ -181,22 +223,22 @@
       "kind": "brown_dwarf",
       "description": "The colder twin of Ba; the two orbit each other every ~11 years.",
       "radius_km": 64342.8,
-      "mass_kg": 1.0116339999999999e+29,
+      "mass_kg": 1.010685e+29,
       "teff_k": 900.0,
       "spectral_type": "T6",
       "rotation_period_hours": null,
       "orbit": {
         "parent": "eps-indi-ba",
-        "semi_major_axis_au": 2.403,
-        "period_days": 4017.75,
-        "eccentricity": 0.54,
+        "semi_major_axis_au": 2.4058,
+        "period_days": 4024.95,
+        "eccentricity": 0.5404,
         "inclination_deg": 0.0,
         "ascending_node_deg": 0.0,
         "arg_periapsis_deg": 0.0,
         "mean_anomaly_deg": 0.0,
         "epoch_mjd": null,
         "quality": "fitted",
-        "note": null
+        "note": "Fitted orbit (Chen et al. 2022); its orientation on the sky (i ≈ 77°) is not modelled."
       },
       "variability": null,
       "appearance": {
@@ -210,37 +252,60 @@
           "label": "Spectral type",
           "value": "T6",
           "unit": null,
-          "source": "SIMBAD",
-          "verified": false
+          "source": "SIMBAD; Chen et al. 2022, AJ 163, 288 (Table 4)",
+          "verified": true
         },
         {
           "label": "Mass",
-          "value": "~53",
+          "value": "53.25 ± 0.29",
           "unit": "Jupiter masses",
-          "source": "Chen et al. 2022",
-          "verified": false
+          "source": "Chen et al. 2022, AJ 163, 288 (Table 4)",
+          "verified": true
+        },
+        {
+          "label": "Temperature",
+          "value": "~900",
+          "unit": "K",
+          "source": "King et al. 2010, as adopted by Chen et al. 2022",
+          "verified": true
         },
         {
           "label": "Orbital period around Ba",
-          "value": "~11",
+          "value": "11.0197 ± 0.0076",
           "unit": "years",
-          "source": "Chen et al. 2022",
-          "verified": false
+          "source": "Chen et al. 2022, AJ 163, 288 (Table 4)",
+          "verified": true
+        },
+        {
+          "label": "Orbit size",
+          "value": "2.406",
+          "unit": "AU",
+          "source": "Chen et al. 2022, AJ 163, 288 (Table 4)",
+          "verified": true
+        },
+        {
+          "label": "Eccentricity",
+          "value": "0.540",
+          "unit": null,
+          "source": "Chen et al. 2022, AJ 163, 288 (Table 4)",
+          "verified": true
         }
       ],
       "candidate_id": null
     }
   ],
-  "representation_note": "Model representation built from catalog parameters - not an image. Sizes and distances may be exaggerated for visibility.",
+  "representation_note": "3D model drawn from published catalog and literature values (each fact shows its source) - not an image. Sizes and distances may be exaggerated for visibility.",
   "provenance": {
     "pipeline_version": "0.1.0",
-    "built_at": "2026-11-14T15:09:55.680433Z",
+    "built_at": "2026-11-14T16:18:25.188120Z",
     "synthetic": false,
     "data_releases": [],
     "notes": [
-      "Parameters typed by hand as a starting point; NOT yet verified against catalogs (tasks/WS7-3d-systems.md, WS7-2).",
+      "Values checked on 2026-11-14 against the NASA Exoplanet Archive, SIMBAD (CfA mirror), Gaia DR3, VizieR and the cited papers (tasks/WS7-3d-systems.md, WS7-2). Facts still marked 'unverified' are estimates no source states.",
       "Orbital and pulsation phases are arbitrary (no epoch): positions are not predictions for a real date.",
-      "Simplified hierarchy: Ba orbits A and Bb orbits Ba (no barycenters)."
+      "Simplified hierarchy: Ba orbits A and Bb orbits Ba (no barycenters).",
+      "Ba and Bb are drawn with an illustrative radius of 0.9 Jupiter radii (no published radius); the radius of Ab is the archive's estimate from its mass.",
+      "Gaia DR3 measures Ba+Bb as one unresolved source (RUWE 4.3): its parallax is not used for distance."
     ]
   }
 }
