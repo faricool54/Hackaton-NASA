@@ -16,11 +16,13 @@
         },
         "id": {
           "description": "Unique within the field, e.g. 'detectors_S0'",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
           "title": "Id",
           "type": "string"
         },
         "image": {
-          "description": "RGB/RGBA PNG on the field grid, path relative to the field directory, e.g. 'color/detectors_S0.png'",
+          "description": "RGB/RGBA PNG on the field grid, path relative to the field directory (no '..', no absolute or Windows paths), e.g. 'color/detectors_S0.png'",
+          "pattern": "\\.png$",
           "title": "Image",
           "type": "string"
         },
