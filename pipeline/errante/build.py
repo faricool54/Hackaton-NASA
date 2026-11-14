@@ -174,6 +174,21 @@ class _Projected:
     date_obs: str
     data: np.ndarray
     bad: np.ndarray
+    wavelength_um: float | None = None
+    bandwidth_um: float | None = None
+
+
+def _wavelength_at_centre(img, cfg: FieldConfig) -> tuple[float | None, float | None]:
+    """(wavelength, bandwidth) [um] at the field centre from the frame's WCS-WAVE table (WS1).
+
+    The contract defines ``Frame.wavelength_um`` at the field centre. For the
+    five targets the centre is the target at the mean epoch of its frames; a
+    mover is at most ~1-2 px away at any epoch (D3 changes ~0.4 nm per px, far
+    below the ~10-40 nm bandwidth). None when the file has no WCS-WAVE table.
+    """
+    lookup = getattr(img, "wavelength_at", None)  # test doubles may not have it
+    found = lookup(cfg.ra, cfg.dec) if lookup is not None else None
+    return found if found is not None else (None, None)
 
 
 def _project(refs: list[FrameRef], cfg: FieldConfig, grid) -> tuple[list[_Projected], list[tuple[FrameRef, str]]]:
@@ -199,8 +214,20 @@ def _project(refs: list[FrameRef], cfg: FieldConfig, grid) -> tuple[list[_Projec
             skipped.append((ref, "target outside the cutout"))
             continue
         obs_id = img.obs_id or ref.obs_id
+        wavelength, bandwidth = _wavelength_at_centre(img, cfg)
         projected.append(
-            _Projected(ref, f"{obs_id}D{img.detector}", obs_id, img.detector, img.mjd, img.date_obs, data, bad)
+            _Projected(
+                ref,
+                f"{obs_id}D{img.detector}",
+                obs_id,
+                img.detector,
+                img.mjd,
+                img.date_obs,
+                data,
+                bad,
+                wavelength if wavelength is not None else ref.wavelength_um,
+                bandwidth,
+            )  # fmt: skip
         )
     return projected, skipped
 
@@ -269,8 +296,8 @@ def build_field(cfg: FieldConfig, out: Path = settings.PRODUCTS_DIR, *, analyze:
                 detector=p.detector,
                 mjd=p.mjd,
                 date_obs=datetime.fromisoformat(p.date_obs).replace(tzinfo=UTC),
-                wavelength_um=p.ref.wavelength_um,
-                bandwidth_um=None,
+                wavelength_um=p.wavelength_um,
+                bandwidth_um=p.bandwidth_um,
                 release=p.ref.release,
                 image=rel,
                 source_uri=p.ref.irsa_uri,
