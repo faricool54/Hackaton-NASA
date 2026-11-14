@@ -20,7 +20,7 @@ blanco no completa los cinco ensayos. Verificar valores es condición para anunc
 `pipeline/errante/systems/catalog.py`, `frontend/src/three/SystemScene.ts`.
 
 ## Estado actual
-- ✅ Contrato `SystemModel` (schema 0.2.0), `Manifest.systems`, `GET /api/systems/{id}`, `errante systems`.
+- ✅ Contrato `SystemModel` (schema 0.3.0, con `Orbit.quality`), `Manifest.systems`, `GET /api/systems/{id}`, `errante systems`.
 - ✅ 5 sistemas de los objetivos de prueba (valores **tipeados a mano, sin verificar**) + 1 sintético ligado a
   `demo-ecliptic`.
 - ✅ `#/systems`, `#/system/<id>[/<cuerpo>]`: órbitas keplerianas animadas, colores por temperatura, texturas
@@ -51,7 +51,8 @@ blanco no completa los cinco ensayos. Verificar valores es condición para anunc
 - [ ] **WS7-6 (P2) Modelos de forma**: `appearance.model = "mesh"` + `mesh_url` (glTF) con `GLTFLoader`; fuentes:
   NASA 3D Resources, DAMIT. Archivos < 1 MB, licencia anotada.
 - [ ] **WS7-7 (P2) Planeta Nueve hipotético**: sistema solar externo con Neptuno, TNOs extremos y una órbita
-  hipotética (rango de Brown & Batygin 2021) dibujada como **hipótesis** (otro color + aviso), conectado con el
+  hipotética (Brown & Batygin 2021: a = 380 +140/−80 AU, q = 300 +85/−60 AU, i = 16 ± 5°; dibujar la mediana y
+  sombrear la banda 1σ de a) con `Orbit.quality = "hypothetical"` (violeta + aviso), conectado con el
   widget "¿Lo vería SPHEREx?" de WS3.
 - [ ] **WS7-8 (P2) Espectro en 3D**: color del cuerpo calculado desde el espectro SPHEREx medido (si WS3 lo tiene)
   en lugar de la temperatura de catálogo, con explicación.

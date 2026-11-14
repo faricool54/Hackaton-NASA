@@ -7,8 +7,8 @@
     "solar-system"
   ],
   "center": {
-    "ra": 180.0,
-    "dec": 0.0
+    "ra": 150.0,
+    "dec": 11.0
   },
   "motion": null,
   "field_id": "demo-ecliptic",
@@ -53,7 +53,9 @@
         "ascending_node_deg": 0.0,
         "arg_periapsis_deg": 0.0,
         "mean_anomaly_deg": 0.0,
-        "epoch_mjd": null
+        "epoch_mjd": null,
+        "quality": "fitted",
+        "note": null
       },
       "variability": null,
       "appearance": {
@@ -92,7 +94,9 @@
         "ascending_node_deg": 0.0,
         "arg_periapsis_deg": 0.0,
         "mean_anomaly_deg": 0.0,
-        "epoch_mjd": null
+        "epoch_mjd": null,
+        "quality": "fitted",
+        "note": null
       },
       "variability": null,
       "appearance": {
@@ -131,7 +135,9 @@
         "ascending_node_deg": 0.0,
         "arg_periapsis_deg": 0.0,
         "mean_anomaly_deg": 0.0,
-        "epoch_mjd": null
+        "epoch_mjd": null,
+        "quality": "fitted",
+        "note": null
       },
       "variability": null,
       "appearance": {
@@ -155,7 +161,7 @@
       "id": "syn-2026-aa",
       "name": "SYN 2026 AA (synthetic asteroid)",
       "kind": "asteroid",
-      "description": "Synthetic main-belt asteroid matching candidate SYN-AST-1.",
+      "description": "Synthetic outer-belt asteroid matching candidate SYN-AST-1.",
       "radius_km": 5.0,
       "mass_kg": null,
       "teff_k": null,
@@ -163,14 +169,16 @@
       "rotation_period_hours": null,
       "orbit": {
         "parent": "sun",
-        "semi_major_axis_au": 2.9,
-        "period_days": 1803.8,
-        "eccentricity": 0.12,
+        "semi_major_axis_au": 3.8,
+        "period_days": 2705.6,
+        "eccentricity": 0.05,
         "inclination_deg": 8.0,
         "ascending_node_deg": 40.0,
         "arg_periapsis_deg": 110.0,
         "mean_anomaly_deg": 0.0,
-        "epoch_mjd": null
+        "epoch_mjd": null,
+        "quality": "fitted",
+        "note": null
       },
       "variability": null,
       "appearance": {
@@ -185,6 +193,13 @@
           "value": "SYN-AST-1 (known, synthetic)",
           "unit": null,
           "source": null,
+          "verified": false
+        },
+        {
+          "label": "Distance estimate",
+          "value": "~3.8",
+          "unit": "AU",
+          "source": "pipeline (synthetic, opposition rate)",
           "verified": false
         }
       ],
@@ -209,7 +224,9 @@
         "ascending_node_deg": 0.0,
         "arg_periapsis_deg": 0.0,
         "mean_anomaly_deg": 0.0,
-        "epoch_mjd": null
+        "epoch_mjd": null,
+        "quality": "assumed",
+        "note": "Unconfirmed candidate: circle at the estimated distance, not a fitted orbit."
       },
       "variability": null,
       "appearance": {
@@ -240,13 +257,14 @@
   "representation_note": "Model representation built from catalog parameters - not an image. Sizes and distances may be exaggerated for visibility.",
   "provenance": {
     "pipeline_version": "0.1.0",
-    "built_at": "2026-11-14T14:28:54.560972Z",
+    "built_at": "2026-11-14T15:09:55.680288Z",
     "synthetic": true,
     "data_releases": [
       "synthetic"
     ],
     "notes": [
-      "SYNTHETIC system for the synthetic demo field — NOT real objects."
+      "SYNTHETIC system for the synthetic demo field — NOT real objects.",
+      "Orbital phases are arbitrary (no epoch): positions are not predictions for the shown date."
     ]
   }
 }

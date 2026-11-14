@@ -17,7 +17,7 @@
     "pm_ra_cosdec_mas_yr": -801.6,
     "pm_dec_mas_yr": 10362.4,
     "radial_velocity_km_s": -110.6,
-    "epoch": "J2016.0"
+    "epoch": "J2000.0"
   },
   "field_id": "barnards-star",
   "bodies": [
@@ -90,7 +90,9 @@
         "ascending_node_deg": 0.0,
         "arg_periapsis_deg": 0.0,
         "mean_anomaly_deg": 0.0,
-        "epoch_mjd": null
+        "epoch_mjd": null,
+        "quality": "fitted",
+        "note": null
       },
       "variability": null,
       "appearance": {
@@ -143,7 +145,9 @@
         "ascending_node_deg": 0.0,
         "arg_periapsis_deg": 0.0,
         "mean_anomaly_deg": 0.0,
-        "epoch_mjd": null
+        "epoch_mjd": null,
+        "quality": "fitted",
+        "note": null
       },
       "variability": null,
       "appearance": {
@@ -196,7 +200,9 @@
         "ascending_node_deg": 0.0,
         "arg_periapsis_deg": 0.0,
         "mean_anomaly_deg": 0.0,
-        "epoch_mjd": null
+        "epoch_mjd": null,
+        "quality": "fitted",
+        "note": null
       },
       "variability": null,
       "appearance": {
@@ -249,7 +255,9 @@
         "ascending_node_deg": 0.0,
         "arg_periapsis_deg": 0.0,
         "mean_anomaly_deg": 0.0,
-        "epoch_mjd": null
+        "epoch_mjd": null,
+        "quality": "fitted",
+        "note": null
       },
       "variability": null,
       "appearance": {
@@ -287,11 +295,12 @@
   "representation_note": "Model representation built from catalog parameters - not an image. Sizes and distances may be exaggerated for visibility.",
   "provenance": {
     "pipeline_version": "0.1.0",
-    "built_at": "2026-11-14T14:28:54.561060Z",
+    "built_at": "2026-11-14T15:09:55.680382Z",
     "synthetic": false,
     "data_releases": [],
     "notes": [
-      "Parameters typed by hand as a starting point; NOT yet verified against catalogs (tasks/WS7-3d-systems.md, WS7-2)."
+      "Parameters typed by hand as a starting point; NOT yet verified against catalogs (tasks/WS7-3d-systems.md, WS7-2).",
+      "Orbital and pulsation phases are arbitrary (no epoch): positions are not predictions for a real date."
     ]
   }
 }

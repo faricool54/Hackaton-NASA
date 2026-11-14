@@ -5,7 +5,20 @@ export function mjdToDate(mjd: number): Date {
 }
 
 export function formatMjd(mjd: number): string {
-  return mjdToDate(mjd).toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
+  const d = mjdToDate(mjd);
+  if (!Number.isFinite(d.getTime())) return `MJD ${Math.round(mjd).toLocaleString('en')}`;
+  const year = d.getUTCFullYear();
+  if (year < 0 || year > 9999) return `year ${year.toLocaleString('en')}`;
+  return d.toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
+}
+
+/** Elapsed model time, e.g. "+3.2 days" or "+1,250 years". */
+export function formatElapsed(days: number): string {
+  const sign = days < 0 ? '−' : '+';
+  const a = Math.abs(days);
+  if (a < 2) return `${sign}${(a * 24).toFixed(1)} h`;
+  if (a < 730) return `${sign}${a.toFixed(1)} days`;
+  return `${sign}${(a / 365.25).toLocaleString('en', { maximumFractionDigits: a < 36525 ? 1 : 0 })} years`;
 }
 
 export function formatDuration(hours: number): string {
