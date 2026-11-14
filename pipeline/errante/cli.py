@@ -105,8 +105,18 @@ def cmd_compare(args: argparse.Namespace) -> int:
     from .products import ProductStore
 
     store = ProductStore(Path(args.dir))
+    if not store.has_field(args.field_id):
+        print(f"No built field '{args.field_id}' in {args.dir}; run `errante build` first.", file=sys.stderr)
+        return 2
     field = store.read_field(args.field_id)
-    meta = compare_field(field, store.field_dir(field.id), load_from_cutouts(field))
+    try:
+        meta = compare_field(field, store.field_dir(field.id), load_from_cutouts(field))
+    except NotImplementedError as e:
+        print(f"Compare stopped at a stage that is not implemented yet: {e}", file=sys.stderr)
+        return 3
+    except ValueError as e:
+        print(f"Compare failed: {e}", file=sys.stderr)
+        return 2
     print(
         f"{field.id}: {len(meta['coadds'])} season coadds and {len(meta['differences'])} differences in "
         f"{store.field_dir(field.id) / 'compare'}"

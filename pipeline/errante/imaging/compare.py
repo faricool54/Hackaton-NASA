@@ -3,28 +3,36 @@
 Why: the five targets move 1-2 SPHEREx pixels over the whole baseline, which
 is hard to see by blinking single exposures. Subtracting an earlier season
 from a later one turns a moving star into a +/- DIPOLE (bright where it is
-now, dark where it was), while static stars cancel. Variable stars leave a
-same-sign residual instead.
+now, dark where it was), while static field stars cancel.
 
 How (per detector, never across detectors):
-1. Coadd the frames of each (season, detector) on the common grid, weighting
-   every pixel by 1/VARIANCE and skipping bad pixels (saturated cores and
-   defects that were only repaired for display). Each frame's sky level is
-   removed first.
+1. Coadd the frames of each (season, detector) on the common grid. Each frame
+   gets ONE weight, 1 / its median VARIANCE (per-pixel weights would include
+   the stars' own Poisson noise and bias bright stars low); bad and
+   display-repaired pixels (saturated cores, detector defects) are skipped;
+   each frame's sky level is removed first. The coadd variance is propagated.
 2. Each exposure samples another wavelength (linear variable filter), so a
    static star's flux differs between seasons. ``flux_scale`` fits
-   ``late ~ s * early`` on bright, well-measured pixels of the whole field
-   (differential photometry: the field stars set ``s``).
+   ``late ~ s * early`` on FIELD STARS ONLY: one aperture ratio per star,
+   sigma-clipped median, with the target (the field centre) excluded. On a
+   real Barnard's Star field a pixel-level fit followed the target's own halo.
 3. ``late - s * early``; variance ``var_late + s^2 var_early``.
 
-Display products are written by ``compare_field``. The metadata file
-``compare/compare.json`` is PROVISIONAL and not part of the data contract:
-showing these layers in the web app needs an additive ``contract:`` PR.
+Limitation: a coadd holds only the field's selected frames (a few per season
+and detector), which sample different wavelengths in each season. A target
+whose colour differs from the field stars (e.g. a red dwarf) can then leave a
+same-sign residual: that is NOT evidence of variability unless the
+wavelengths are matched (needs WS1 ``wavelength_at``).
+
+Display products are written by ``compare_field``. ``compare/compare.json``
+is PROVISIONAL and not part of the data contract: showing these layers in the
+web app needs an additive ``contract:`` PR.
 """
 
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -33,12 +41,23 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
+from ..detect.difference import StarScale, star_flux_scale
 from ..models import FrameRef, SkyField
 from .render import field_stretches, save_png
 
 COMPARE_DIR = "compare"
-MIN_SCALE_SNR = 20.0  # pixels used to fit the flux scale must be at least this significant
-MIN_SCALE_PIXELS = 20
+# The target sits at the field centre; its halo must not set the flux scale.
+TARGET_EXCLUDE_FRACTION = 0.15  # of the grid size
+MIN_TARGET_EXCLUDE_PX = 8.0
+
+LIMITATIONS = [
+    "Each coadd uses only the field's selected frames (a few per season and detector); they sample different "
+    "wavelengths in each season. A same-sign residual on a star whose colour differs from the field stars "
+    "(e.g. a red dwarf) is not evidence of variability unless the wavelengths are matched.",
+    "The flux scale is fitted on field stars outside a circle around the field centre (the target); with fewer "
+    "than 5 usable stars s = 1 and the difference also shows the wavelength change.",
+    "Saturated cores and detector defects carry no valid data (grey checkerboard).",
+]
 
 
 @dataclass(frozen=True)
@@ -57,11 +76,12 @@ class GridFrame:
 class Coadd:
     detector: int
     season: int
-    frame_ids: list[str]
+    frame_ids: list[str]  # frames that contributed at least one pixel
     mjds: list[float]
     data: np.ndarray
     variance: np.ndarray
     coverage: np.ndarray  # number of frames contributing to each pixel
+    skipped: list[str] = field(default_factory=list)  # frames with no usable pixel
 
     @property
     def id(self) -> str:
@@ -72,8 +92,7 @@ class Coadd:
 class Difference:
     late: Coadd
     early: Coadd
-    scale: float
-    scale_pixels: int
+    scale: StarScale
     data: np.ndarray
     variance: np.ndarray
     notes: list[str] = field(default_factory=list)
@@ -81,6 +100,10 @@ class Difference:
     @property
     def id(self) -> str:
         return f"D{self.late.detector}_S{self.late.season}-S{self.early.season}"
+
+    @property
+    def has_overlap(self) -> bool:
+        return bool(np.isfinite(self.data).any())
 
 
 def _usable(data: np.ndarray, bad: np.ndarray, variance: np.ndarray | None = None) -> np.ndarray:
@@ -99,7 +122,7 @@ def _robust_sigma(values: np.ndarray) -> float:
 
 
 def coadd(frames: Sequence[GridFrame], season: int = 0) -> Coadd:
-    """Inverse-variance weighted mean of ``frames`` (same detector), sky level removed per frame."""
+    """Weighted mean of ``frames`` (one detector): one weight per frame, sky removed, variance propagated."""
     if not frames:
         raise ValueError("coadd needs at least one frame")
     if len({f.detector for f in frames}) != 1:
@@ -107,63 +130,76 @@ def coadd(frames: Sequence[GridFrame], season: int = 0) -> Coadd:
     shape = frames[0].data.shape
     total = np.zeros(shape)
     weight = np.zeros(shape)
+    var_sum = np.zeros(shape)
     coverage = np.zeros(shape, dtype=np.int16)
+    used: list[GridFrame] = []
+    skipped: list[str] = []
     for f in frames:
         ok = _usable(f.data, f.bad, f.variance)
         if not ok.any():
+            skipped.append(f.frame_id)
             continue
         sky = float(np.median(f.data[ok]))
         if f.variance is not None:
-            w = np.where(ok, 1.0 / np.where(ok, f.variance, 1.0), 0.0)
-        else:  # no VARIANCE plane: one weight per frame from its own noise
+            pixel_var = f.variance
+            w = 1.0 / float(np.median(f.variance[ok]))  # background noise of this frame
+        else:  # no VARIANCE plane: the frame's own robust noise
             sigma = _robust_sigma(f.data[ok]) or 1.0
-            w = np.where(ok, 1.0 / sigma**2, 0.0)
+            pixel_var = np.full(shape, sigma**2)
+            w = 1.0 / sigma**2
         total += np.where(ok, f.data - sky, 0.0) * w
-        weight += w
+        weight += np.where(ok, w, 0.0)
+        var_sum += np.where(ok, pixel_var, 0.0) * w**2
         coverage += ok
+        used.append(f)
     with np.errstate(invalid="ignore", divide="ignore"):
         data = np.where(weight > 0, total / weight, np.nan)
-        variance = np.where(weight > 0, 1.0 / weight, np.nan)
+        variance = np.where(weight > 0, var_sum / weight**2, np.nan)
     return Coadd(
         detector=frames[0].detector,
         season=season,
-        frame_ids=[f.frame_id for f in frames],
-        mjds=[f.mjd for f in frames],
+        frame_ids=[f.frame_id for f in used],
+        mjds=[f.mjd for f in used],
         data=data.astype(np.float32),
         variance=variance.astype(np.float32),
         coverage=coverage,
+        skipped=skipped,
     )
 
 
-def flux_scale(late: Coadd, early: Coadd, min_snr: float = MIN_SCALE_SNR) -> tuple[float, int]:
-    """Robust ``s`` with ``late ~ s * early`` on bright, well-measured pixels of both coadds.
+def target_exclusion(shape: tuple[int, int]) -> tuple[float, float, float]:
+    """(x, y, radius) of the circle around the field centre left out of the flux-scale fit."""
+    h, w = shape
+    return ((w - 1) / 2, (h - 1) / 2, max(MIN_TARGET_EXCLUDE_PX, TARGET_EXCLUDE_FRACTION * min(h, w)))
 
-    Returns (s, number of pixels used); (1.0, n) when fewer than
-    ``MIN_SCALE_PIXELS`` pixels qualify.
-    """
-    a, b = late.data, early.data
-    ok = np.isfinite(a) & np.isfinite(b) & np.isfinite(early.variance) & (early.variance > 0)
-    with np.errstate(invalid="ignore", divide="ignore"):
-        snr_b = np.where(ok, b / np.sqrt(np.where(ok, early.variance, 1.0)), 0.0)
-        snr_a = np.where(ok, a / np.sqrt(np.where(ok, late.variance, 1.0)), 0.0)
-    use = ok & (snr_b >= min_snr) & (snr_a >= min_snr)
-    n = int(use.sum())
-    if n < MIN_SCALE_PIXELS:
-        return 1.0, n
-    return float(np.median(a[use] / b[use])), n
+
+def flux_scale(late: Coadd, early: Coadd, exclude: tuple[float, float, float] | None = None) -> StarScale:
+    """``s`` with ``late ~ s * early`` from field-star aperture ratios (target excluded)."""
+    sigma = float(np.sqrt(np.nanmedian(early.variance))) if np.isfinite(early.variance).any() else float("nan")
+    if not math.isfinite(sigma) or sigma <= 0:
+        sigma = _robust_sigma(early.data)
+    if not math.isfinite(sigma) or sigma <= 0:
+        return StarScale(1.0, 0, False)
+    exclude = target_exclusion(early.data.shape) if exclude is None else exclude
+    return star_flux_scale(late.data.astype(np.float64), early.data.astype(np.float64), sigma, exclude=exclude)
 
 
 def difference(late: Coadd, early: Coadd) -> Difference:
     """``late - s * early`` with propagated variance (same detector)."""
     if late.detector != early.detector:
         raise ValueError("difference needs coadds of the same detector")
-    s, n = flux_scale(late, early)
-    notes = []
-    if n < MIN_SCALE_PIXELS:
-        notes.append(f"Flux scale not fitted (only {n} bright pixels); s = 1.")
-    data = late.data - s * early.data
-    variance = late.variance + s**2 * early.variance
-    return Difference(late, early, s, n, data.astype(np.float32), variance.astype(np.float32), notes)
+    scale = flux_scale(late, early)
+    data = late.data - scale.scale * early.data
+    variance = late.variance + scale.scale**2 * early.variance
+    diff = Difference(late, early, scale, data.astype(np.float32), variance.astype(np.float32))
+    if not diff.has_overlap:
+        diff.notes.append("The two seasons share no valid pixel; nothing to compare.")
+    elif not scale.fitted:
+        diff.notes.append(
+            f"Flux scale not fitted (only {scale.n_stars} usable field stars); s = 1, so the wavelength change "
+            "between seasons is not corrected."
+        )
+    return diff
 
 
 def diverging_rgba(data: np.ndarray, limit: float, softening: float = 0.05) -> np.ndarray:
@@ -206,7 +242,8 @@ def build_comparisons(
     groups: dict[tuple[int, int], list[GridFrame]] = {}
     for f in frames:
         groups.setdefault((f.detector, season_of(f.mjd)), []).append(f)
-    coadds = [coadd(fs, season) for (det, season), fs in sorted(groups.items())]
+    coadds = [coadd(fs, season) for (_, season), fs in sorted(groups.items())]
+    coadds = [c for c in coadds if c.frame_ids]  # a season whose frames had no usable pixel
     diffs = []
     for det in sorted({c.detector for c in coadds}):
         mine = sorted((c for c in coadds if c.detector == det), key=lambda c: c.season)
@@ -214,6 +251,17 @@ def build_comparisons(
             for late in mine[i + 1 :]:
                 diffs.append(difference(late, early))
     return coadds, diffs
+
+
+def _finite_or_none(x: float) -> float | None:
+    return float(x) if math.isfinite(x) else None
+
+
+def _clear_previous(out: Path) -> None:
+    """A re-run must not leave PNGs of coadds/differences that no longer exist."""
+    for pattern in ("coadd_*.png", "diff_*.png", "compare.json"):
+        for old in out.glob(pattern):
+            old.unlink()
 
 
 def compare_field(
@@ -241,19 +289,24 @@ def compare_field(
 
     out = field_dir / COMPARE_DIR
     out.mkdir(parents=True, exist_ok=True)
+    _clear_previous(out)
     stretches = field_stretches(
         [c.data for c in coadds], [c.detector for c in coadds], [~np.isfinite(c.data) for c in coadds]
     )
-    meta = {
+    meta: dict = {
         "format": "errante-compare/0 (provisional; not part of the data contract)",
         "field_id": field.id,
+        "field_built_at": field.provenance.built_at.isoformat(),
+        "field_frame_ids": [f.id for f in field.frames],
         "built_at": datetime.now(UTC).isoformat(),
         "method": (
-            "Per detector: inverse-variance coadd of the field's frames in each season (sky level removed, bad "
-            "and display-repaired pixels excluded); difference = later - s * earlier, with s fitted on bright "
-            "pixels of the whole field to cancel the wavelength change between exposures. Units MJy/sr "
-            "(IMAGE - ZODI). Moving stars appear as an orange/cyan dipole; static stars cancel."
+            "Per detector: weighted coadd of the field's frames in each season (one weight per frame from its "
+            "background variance; sky removed; bad and display-repaired pixels excluded). Difference = later - "
+            "s * earlier, with s the sigma-clipped median of field-star aperture ratios (target at the field "
+            "centre excluded), which cancels the wavelength change between exposures for typical field stars. "
+            "Units MJy/sr (IMAGE - ZODI). A moving star appears as an orange/cyan dipole; static stars cancel."
         ),
+        "limitations": LIMITATIONS,
         "colors": {
             "positive": "orange: brighter in the later season",
             "negative": "cyan: brighter in the earlier season",
@@ -261,6 +314,7 @@ def compare_field(
         },
         "coadds": [],
         "differences": [],
+        "skipped": [],
     }
     for c, st in zip(coadds, stretches, strict=True):
         rel = f"{COMPARE_DIR}/coadd_{c.id}.png"
@@ -272,13 +326,18 @@ def compare_field(
                 "season": c.season,
                 "mjd_min": min(c.mjds),
                 "mjd_max": max(c.mjds),
+                "n_frames": len(c.frame_ids),
                 "frame_ids": c.frame_ids,
+                "skipped_frame_ids": c.skipped,
                 "image": rel,
                 "stretch": st.model_dump(),
                 "valid_fraction": float(np.isfinite(c.data).mean()),
             }
         )
     for d in diffs:
+        if not d.has_overlap:
+            meta["skipped"].append({"id": d.id, "reason": d.notes[0]})
+            continue
         rel = f"{COMPARE_DIR}/diff_{d.id}.png"
         limit = difference_limit(d)
         Image.fromarray(diverging_rgba(d.data, limit)).save(field_dir / rel, optimize=True)
@@ -288,15 +347,16 @@ def compare_field(
                 "detector": d.late.detector,
                 "later": d.late.id,
                 "earlier": d.early.id,
-                "flux_scale": d.scale,
-                "flux_scale_pixels": d.scale_pixels,
+                "flux_scale": d.scale.scale,
+                "flux_scale_fitted": d.scale.fitted,
+                "flux_scale_stars": d.scale.n_stars,
                 "limit_mjy_sr": limit,
-                "noise_mjy_sr": float(np.sqrt(np.nanmedian(d.variance))),
+                "noise_mjy_sr": _finite_or_none(float(np.sqrt(np.nanmedian(d.variance)))),
                 "image": rel,
                 "notes": d.notes,
             }
         )
-    (out / "compare.json").write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
+    (out / "compare.json").write_text(json.dumps(meta, indent=2, allow_nan=False) + "\n", encoding="utf-8")
     return meta
 
 
@@ -308,6 +368,8 @@ def load_from_cutouts(field: SkyField) -> Callable[[list[FrameRef]], list[GridFr
     def load(refs: list[FrameRef]) -> list[GridFrame | None]:
         size = field.size_deg * 60 * 1.5  # same cutout size as build_field
         paths = cutouts.fetch_cutouts(refs, field.center.ra, field.center.dec, size_arcmin=size)
+        if len(paths) != len(refs):
+            raise RuntimeError(f"fetch_cutouts returned {len(paths)} paths for {len(refs)} frames")
         out: list[GridFrame | None] = []
         for ref, path in zip(refs, paths, strict=True):
             if path is None:
