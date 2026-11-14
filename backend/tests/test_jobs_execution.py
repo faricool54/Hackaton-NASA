@@ -42,6 +42,16 @@ def _success_builder(request_path: Path, result_path: Path) -> None:
     # Create minimal product structure so publication works
     staging = Path(raw["staging_dir"]) / "products"
     _write_fake_product(staging, field_id)
+    from errante.models import SkyCoord
+    from errante.products import ProductStore
+
+    store = ProductStore(staging)
+    field = store.read_field(field_id)
+    req = raw["request"]
+    field.center = SkyCoord(ra=req["ra"], dec=req["dec"])
+    field.grid.center = field.center
+    field.size_deg = req["size_deg"]
+    store.write_field(field)
     result_path.write_text(
         json.dumps(
             {
@@ -105,10 +115,10 @@ def _write_fake_product(staging_products: Path, field_id: str) -> None:
     frames_dir = store.field_dir(field_id) / "frames"
     frames_dir.mkdir(parents=True, exist_ok=True)
 
-    # Write two minimal PNGs
-    png_header = b"\x89PNG\r\n\x1a\n" + b"\x00" * 50  # minimal header
+    from PIL import Image
+
     for i in range(2):
-        (frames_dir / f"f{i}.png").write_bytes(png_header)
+        Image.new("L", (64, 64)).save(frames_dir / f"f{i}.png")
 
     field = SkyField(
         id=field_id,
@@ -138,7 +148,8 @@ def _write_fake_product(staging_products: Path, field_id: str) -> None:
                 detector=1,
                 mjd=60000.0 + i * 10,
                 date_obs=datetime(2026, 1, 1 + i, tzinfo=UTC),
-                release="synthetic",
+                release="dr1",
+                source_uri="test-double-only",
                 image=f"frames/f{i}.png",
             )
             for i in range(2)
