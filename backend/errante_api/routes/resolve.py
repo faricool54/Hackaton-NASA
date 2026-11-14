@@ -14,9 +14,11 @@ Returns:
 
 from __future__ import annotations
 
+import math
 import re
 import xml.etree.ElementTree as ET
 from functools import lru_cache
+from urllib.parse import quote
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query
@@ -71,6 +73,10 @@ _OTYPE_MAP: dict[str, ObjectType] = {
 }
 
 
+class _NameNotFound(ValueError):
+    pass
+
+
 def _parse_sesame_xml(xml_text: str) -> tuple[float, float, str, ObjectType]:
     """Parse Sesame XML response.
 
@@ -83,17 +89,25 @@ def _parse_sesame_xml(xml_text: str) -> tuple[float, float, str, ObjectType]:
         raise ValueError(f"Could not parse Sesame XML: {exc}") from exc
 
     # Sesame wraps results in <Resolver> elements; use the first successful one.
-    resolver = root.find(".//Resolver")
+    resolver = next(
+        (
+            r
+            for r in root.findall(".//Resolver")
+            if r.findtext("jpos") or (r.findtext("jradeg") and r.findtext("jdedeg"))
+        ),
+        None,
+    )
     if resolver is None:
-        raise ValueError("No Resolver element in Sesame response")
+        raise _NameNotFound("Sesame returned no resolved position")
 
     jpos = resolver.findtext("jpos")
-    if not jpos:
-        raise ValueError("Sesame returned no position (jpos missing)")
-
-    # jpos format: "HH MM SS.ss +DD MM SS.s" or decimal degrees separated by space
-    parts = jpos.strip().split()
-    if len(parts) == 2:
+    # Real CfA XML supplies precise decimal fields and a colon-formatted jpos.
+    # Prefer the decimal fields; support both colon and space sexagesimal fallback.
+    parts = re.split(r"[:\s]+", (jpos or "").strip())
+    if resolver.findtext("jradeg") is not None and resolver.findtext("jdedeg") is not None:
+        ra_deg = float(resolver.findtext("jradeg"))
+        dec_deg = float(resolver.findtext("jdedeg"))
+    elif len(parts) == 2:
         ra_deg = float(parts[0])
         dec_deg = float(parts[1])
     elif len(parts) == 6:
@@ -103,9 +117,13 @@ def _parse_sesame_xml(xml_text: str) -> tuple[float, float, str, ObjectType]:
         sign = -1.0 if parts[3].startswith("-") else 1.0
         dec_d = abs(float(parts[3]))
         dec_m, dec_s = float(parts[4]), float(parts[5])
+        if not (0 <= ra_h < 24 and 0 <= ra_m < 60 and 0 <= ra_s < 60 and 0 <= dec_m < 60 and 0 <= dec_s < 60):
+            raise ValueError("Invalid sexagesimal position")
         dec_deg = sign * (dec_d + dec_m / 60.0 + dec_s / 3600.0)
     else:
         raise ValueError(f"Unexpected jpos format: {jpos!r}")
+    if not (math.isfinite(ra_deg) and math.isfinite(dec_deg) and 0 <= ra_deg < 360 and -90 <= dec_deg <= 90):
+        raise ValueError("Invalid ICRS position")
 
     # Try to extract canonical name
     resolved_name = resolver.findtext("oname") or resolver.findtext("name") or ""
@@ -122,7 +140,7 @@ def _parse_sesame_xml(xml_text: str) -> tuple[float, float, str, ObjectType]:
 @lru_cache(maxsize=200)
 def _resolve_cached(name: str) -> dict:
     """Cached Sesame lookup.  Returns the response dict or raises HTTPException."""
-    url = f"https://vizier.cfa.harvard.edu/viz-bin/nph-sesame/-oxp/SNV?{name}"
+    url = f"https://vizier.cfa.harvard.edu/viz-bin/nph-sesame/-oxp/SNV?{quote(name, safe='')}"
     try:
         response = httpx.get(url, timeout=5.0)
     except httpx.TimeoutException as exc:
@@ -133,12 +151,14 @@ def _resolve_cached(name: str) -> dict:
     if response.status_code == 200:
         try:
             ra, dec, resolved_name, object_type = _parse_sesame_xml(response.text)
-        except ValueError as exc:
+        except _NameNotFound as exc:
             # Sesame returned 200 but with an empty / not-found response
             raise HTTPException(
                 status_code=404,
                 detail=f"Name not found in Sesame: {exc}",
             ) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=502, detail="Sesame returned an invalid position response") from exc
         return {
             "ra": ra,
             "dec": dec,
@@ -158,7 +178,7 @@ def _resolve_cached(name: str) -> dict:
 
 @router.get("/resolve-name", response_model=ResolvedRegion)
 def resolve_name(
-    name: str = Query(min_length=1, description="Object name or coordinate string"),
+    name: str = Query(min_length=1, max_length=200, description="Object name or coordinate string"),
 ) -> ResolvedRegion:
     """Resolve a name via Sesame/CfA and return RA/Dec + object type.
 
@@ -169,5 +189,7 @@ def resolve_name(
     - **404** – name not found in Sesame.
     - **502** – Sesame is unreachable or returned an unexpected response.
     """
+    if not name.strip():
+        raise HTTPException(status_code=422, detail="Object name must not be blank")
     result = _resolve_cached(name.strip())
     return ResolvedRegion(**result)
