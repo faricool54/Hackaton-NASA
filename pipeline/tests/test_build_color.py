@@ -147,3 +147,42 @@ def test_cli_build_tops_up_jhk_unless_asked_not_to(monkeypatch, tmp_path):
     assert main(["build", "wise-0855", "--out", str(tmp_path)]) == 0
     assert main(["build", "wise-0855", "--out", str(tmp_path), "--no-jhk-topup"]) == 0
     assert calls == [True, False]
+
+
+def test_jhk_topup_is_counted_apart_from_the_blink_downloads(monkeypatch, tmp_path):
+    _jhk_archive(monkeypatch)
+    plain = build_field(config(4), tmp_path / "plain")
+    _jhk_archive(monkeypatch)
+    topped = build_field(config(4), tmp_path / "topped", jhk_topup=True)
+    head = "Frame selection: downloaded "
+    assert note(topped, head).split(" candidate")[0] == note(plain, head).split(" candidate")[0]
+    assert "more D2/D3 frame(s) only to find J/H/Ks wavelengths" in note(topped, head)
+    assert "J/H/Ks" not in note(plain, head)
+
+
+def test_a_failed_jhk_topup_keeps_the_field_and_says_why(monkeypatch, tmp_path):
+    _jhk_archive(monkeypatch)
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("archive hiccup")
+
+    monkeypatch.setattr(build, "_jhk_topup", broken)
+    field = build_field(config(4), tmp_path, jhk_topup=True)
+    assert len(field.frames) == 4  # the blink is published as usual
+    assert ProductStore(tmp_path).read_field("t-field").frames
+    assert note(field, "Frame selection: ").endswith("J/H/Ks top-up: not run (RuntimeError: archive hiccup).")
+
+
+def test_jhk_topup_skips_seasons_without_a_final_frame(monkeypatch, tmp_path):
+    _, fetched = _jhk_archive(monkeypatch)
+    calls = []
+    real = build._jhk_topup
+
+    def spy(cfg, grid, ranked, vetted, final, tried):
+        calls.append(sorted({f.mjd < SEASON_1 for f in final}))
+        return real(cfg, grid, ranked, vetted, final[:1], tried)  # pretend only the first season is shown
+
+    monkeypatch.setattr(build, "_jhk_topup", spy)
+    build_field(config(4), tmp_path, jhk_topup=True)
+    assert calls == [[False, True]]
+    assert "S0_D2_J" in fetched and "S1_D2_J" not in fetched

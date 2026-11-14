@@ -344,6 +344,8 @@ class _Selection:
     n_downloaded: int  # candidate cutouts obtained (pool + replacements)
     reference_um: dict[int, float | None]  # per-detector reference wavelength
     pool: list[_Projected] = field(default_factory=list)  # every vetted, projected candidate (final included)
+    n_topup: int = 0  # extra D2/D3 cutouts obtained for the J/H/Ks composites only
+    topup_note: str = ""  # why the J/H/Ks top-up did not run, if it failed
 
 
 def _key_of(ranked: Mapping[GroupKey, list[FrameRef]]) -> dict[tuple[str, int], GroupKey]:
@@ -411,6 +413,7 @@ def _jhk_topup(
     grid,
     ranked: Mapping[GroupKey, list[FrameRef]],
     vetted: list[_Projected],
+    final: list[_Projected],
     tried: set[tuple[str, int]],
 ) -> tuple[list[_Projected], list[tuple[FrameRef, str]], int]:
     """Download more D2/D3 frames of the seasons whose pool misses J, H or Ks (2MASS-like composites).
@@ -419,12 +422,13 @@ def _jhk_topup(
     Ks (2.17 um) wavelengths the ``jhk`` composite needs are often never downloaded (real fields:
     3 of 17 seasons had them). A wavelength is only known after download, so the untried frames of the
     relevant (season, D2/D3) groups are fetched, at most ``JHK_TOPUP_PER_SEASON`` per season. They join
-    the pool for the composites only: the blink frames do not change.
+    the pool for the composites only: the blink frames do not change. Seasons without a final frame are
+    skipped, since composites are only made for the seasons the blink shows.
     """
     from .imaging.color import JHK_BANDS, JHK_TOLERANCE_UM
 
     key_of = _key_of(ranked)
-    seasons = sorted({s for s, _ in ranked})
+    seasons = sorted({key_of[(p.ref.obs_id, p.ref.detector)][0] for p in final})
     wanted_detectors = {"J": (2,), "H": (2, 3), "Ks": (3,)}
     extra: list[FrameRef] = []
     for season in seasons:
@@ -471,13 +475,19 @@ def _select_and_project(cfg: FieldConfig, grid, refs: list[FrameRef], *, jhk_top
     vetted = list(unique.values())
     final, references = _pick_final(vetted, ranked, cfg.max_frames)
     n_downloaded = n_tried - sum(why == DOWNLOAD_FAILED for _, why in skipped)
+    n_topup, topup_note = 0, ""
     if jhk_topup:
         tried = {(r.obs_id, r.detector) for r in [*pool, *spares]}
-        more, more_skipped, n_more = _jhk_topup(cfg, grid, ranked, vetted, tried)
-        known = {p.frame_id for p in vetted}
-        vetted += [p for p in more if p.frame_id not in known]  # composites only; final frames unchanged
-        n_downloaded += n_more - sum(why == DOWNLOAD_FAILED for _, why in more_skipped)
-    return _Selection(final, skipped, n_downloaded, references, vetted)
+        try:
+            more, more_skipped, n_more = _jhk_topup(cfg, grid, ranked, vetted, final, tried)
+        except Exception as e:  # a colour extra: never lose the blink frames over it
+            log.warning("J/H/Ks top-up failed for %s: %r", cfg.id, e)
+            topup_note = f"J/H/Ks top-up: not run ({type(e).__name__}: {e})."
+        else:
+            known = {p.frame_id for p in vetted}
+            vetted += [p for p in more if p.frame_id not in known]  # composites only; final frames unchanged
+            n_topup = n_more - sum(why == DOWNLOAD_FAILED for _, why in more_skipped)
+    return _Selection(final, skipped, n_downloaded, references, vetted, n_topup, topup_note)
 
 
 def _skip_reasons(skipped: list[tuple[FrameRef, str]]) -> str:
@@ -509,6 +519,13 @@ def _selection_note(sel: _Selection, max_frames: int) -> str:
         f"middle; frames without a known wavelength rank last. Rejected {n_bad} bad frame(s) whose "
         f"IMAGE - ZODI robust scatter exceeds {MAX_NOISE_RATIO:g}x the noise of their VARIANCE plane "
         "(background steps)."
+        + (
+            f" Downloaded {sel.n_topup} more D2/D3 frame(s) only to find J/H/Ks wavelengths for the "
+            "false-color composites; they are not blink frames."
+            if sel.n_topup
+            else ""
+        )
+        + (f" {sel.topup_note}" if sel.topup_note else "")
     )
 
 
