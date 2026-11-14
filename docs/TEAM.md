@@ -3,7 +3,7 @@
 Completar en el kickoff. Una persona por fila; cada una con su(s) agente(s).
 
 **Plan vigente:** [trabajo paralelo, entregables y dependencias](PARALLEL_PLAN.md).
-Reserva confirmada el 14/11/2026: **rpccp** (rocco) con Codex toma **WS4**; **faricool54** con Claude toma **WS1** (búsqueda SIA/TAP, lectura por rangos en S3, `wavelength_at`).
+Reserva confirmada el 14/11/2026: **rpccp** (rocco) con Codex toma **WS4**; **faricool54** con Claude toma **WS1** (búsqueda SIA/TAP, lectura por rangos en S3, `wavelength_at`); **V0id47** con Claude toma **WS2** (`reproject_to_grid`, selección temporada × detector en `build.py`, render consistente por campo).
 Las otras filas siguen pendientes de confirmación; no representan reservas automáticas.
 
 **Local Event confirmado por el usuario (14/11/2026): Universidad de Palermo, Buenos Aires, Argentina.**
@@ -17,7 +17,7 @@ no se agregan personas después. Workstreams y agentes no son integrantes adicio
 | WS | Tema | Persona | Agente(s) | Perfil ideal |
 |---|---|---|---|---|
 | WS1 | Acceso a datos SPHEREx | faricool54 | Claude | Python, APIs, paciencia con servicios lentos |
-| WS2 | Grilla, render y comparación; detección opcional | _nombre_ | | Python + numpy, procesamiento de imágenes |
+| WS2 | Grilla, render y comparación; detección opcional | V0id47 | Claude | Python + numpy, procesamiento de imágenes |
 | WS3 | Cinco blancos, astrometría, variables, espectros y contexto | _nombre_ | | el/la más "astro" del grupo |
 | WS4 | Backend + integración + CI | rpccp (rocco) | Codex | backend, devops |
 | WS5 | Frontend | _nombre_ | | React/TS, ojo para UX |
