@@ -9,6 +9,7 @@ GET /api/fields/{id}/candidates       CandidateList
 GET /api/fields/{id}/known            KnownObjectList
 GET /api/search?ra=&dec=              SearchResult      (live IRSA, WS1)   501 until done
 GET /api/known-objects?ra=&dec=&mjd=  list[KnownObject] (live JPL, WS3)    501 until done
+GET /api/resolve-name?name=           ResolvedRegion    (Sesame/CfA proxy)
 GET /data/...                         static files (frame PNGs, thumbnails)
 """
 
@@ -28,7 +29,7 @@ from errante.models import SCHEMA_VERSION
 from errante.products import ProductStore
 
 from .live_service import LiveService
-from .routes import live, products
+from .routes import live, products, resolve
 from .settings import Settings
 from .store import PublicProductStore
 
@@ -92,6 +93,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(products.router, prefix="/api")
     app.include_router(live.router, prefix="/api")
+    app.include_router(resolve.router, prefix="/api")
     if settings.data_dir.exists():
         app.mount("/data", StaticFiles(directory=settings.data_dir), name="data")
     return app
