@@ -59,14 +59,16 @@ Header de `IMAGE` (claves útiles): `MJD-OBS` = `MJD-BEG` (✅ **inicio** de la 
 | 2 | SUR_ERROR | 14 | PHANMISS | 24 | GHOST_EXT |
 | 6 | NONFUNC | 15 | NONLINEAR | 25 | STREAK |
 | 7 | DICHROIC | 17 | PERSIST | 26 | BLOOM |
-| 9 | MISSING_DATA | 19 | OUTLIER | 28 | HALO |
-| 10 | HOT | 20 | CROSSTALK | | |
+| 9 | MISSING_DATA | 19 | OUTLIER | 27 | SNOWBALL |
+| 10 | HOT | 20 | CROSSTALK | 28 | HALO |
 | | | 21 | **SOURCE** | | |
 
 ⚠️ **"Cualquier bit ≠ 0 = malo" está MAL**: `SOURCE` (21) marca todas las estrellas (68 % de los píxeles en el
 archivo inspeccionado). ⚠️ `OUTLIER`/`TRANSIENT` pueden dispararse **justo sobre un objeto en movimiento**
 (no está donde el modelo del cielo estático lo espera): no los enmascares a ciegas para buscar movers.
 Implementado en `errante.imaging.flags` (`DEFAULT_BAD`, `MAYBE_MOVER`, `bits_from_header`).
+✅ 2026-11-14: el bit 27 `SNOWBALL` ("Pixel part of a snowball artifact") está en los headers FLAGS de dr1 y qr3
+(`2025W36_1A_0095_1D1`, `2026W38_1A_0565_1D6`). TODO(WS2): no está en `FLAG_BITS` ni en `DEFAULT_BAD`.
 
 ## 3. Buscar y recortar con IRSA (✅ verificado en vivo el 2026-11-14: ver §3.0)
 
@@ -97,13 +99,17 @@ Consultas reales con `curl`/Python el 2026-11-14. Estos hechos **corrigen** lo q
 | Objetivo (centro de la consulta TAP) | Frames: dr1 / qr3 / deep | 🧮 Visitas (> 6 h) | 🧮 Temporadas: MJD (n) | Fechas |
 |---|---|---|---|---|
 | Barnard (269.4463, 4.7665) | **358**: 239 / 119 / 0 | 48 | 60903–60949 (118) · 61110–61165 (121) · 61269–61306 (119) | 2025-08-15 → 2026-09-22 |
-| Eps Ind B (331.0964, −56.8006) | **460**: 340 / 120 / 0 | 74 | 60790–60836 (120) · 60947–60992 (147) · 61149–61164 (73) · 61305–61315 (120) | 2025-04-24 → 2026-10-02 |
+| Eps Ind B (331.0964, −56.8006) | **460**: 340 / 120 / 0 (⚠️ ver nota) | 74 | 60790–60836 (120) · 60947–60992 (147) · 61149–61164 (73) · 61305–61315 (120) | 2025-04-24 → 2026-10-02 |
 | WISE 0855 (133.7600, −7.2422) | **258**: 258 / **0** / 0 | 37 | 60801–60802 (30) · 60980–61022 (128) · 61151–61174 (100) | 2025-05-05 → 2026-05-14 |
 | RW Aur (76.9565, 30.4014) | **335**: 226 / 109 / 0 | 48 | 60919–60938 (112) · 61092–61111 (114) · 61285–61300 (109) | 2025-09-01 → 2026-09-16 |
 | R Dra (248.1676, 66.7550) | **2493**: 413 / 126 / 1225 + 729 | 249 | 60790–60879 (240) · 60916–61310 casi continuo (2253) | 2025-04-24 → 2026-09-27 |
 
 Centros propagados, movimiento esperado (1–2 px en total) y método para variables: [`SCIENCE.md`](SCIENCE.md) §0.
 Campos profundos: el NEP tiene ~29 400 frames (dr1 + deep + qr3 + qr3_deep): nunca en vivo.
+
+⚠️ Eps Ind B: SIA2 en vivo el 2026-11-14 a las 19:24 UTC, en este mismo centro y en el del campo, da **458**
+(338 / 120; temporadas 118 / 146 / 74 / 120). La causa de la diferencia con 460 no está verificada (¿suma
+SIA+TAP? ¿cambio del índice de IRSA?). Anotar servicio, centro y hora de cada conteo.
 
 ### 3.1 Verificado al implementar WS1 (2026-11-14) ✅
 
@@ -174,6 +180,24 @@ y la [introducción](https://caltech-ipac.github.io/irsa-tutorials/spherex-intro
 es **📄 documentación**, no una consulta SIA ejecutada ni una descarga validada por nosotros.
 La guía muestra WCS espectral `key="W"` con `sip = None`: ✅ comprobado sobre nuestros cutouts (§3.1).
 
+### 3.2 Verificado en la validación y en los tracks de la visión (2026-11-14) ✅
+
+Medido por los agentes de WS1 sobre FITS reales, con una revisión independiente que volvió a medir con código
+propio. Evidencia en [`validation/`](validation/) (#36) y en las PRs #42 (cubo) y #43 (snapshots).
+
+| Tema | Hallazgo |
+|---|---|
+| Colecciones deep | R Dra: 1954 de sus 2493 frames son `*_deep`, y aportan casi todo el muestreo temporal. La búsqueda por defecto (`spherex_dr1,spherex_qr3`) los excluye: ofrecer deep como opción para variables del NEP. |
+| Huella frente a array | 5 frames de la búsqueda de R Dra contienen la posición en su huella, pero el píxel cae 0–6 px fuera del array. El pipeline lo maneja sin fallar; solo infla los conteos de cobertura. |
+| WCS defectuosa en el archivo | `2026W38_1A_0162_3D6`: 4 estrellas Gaia corridas −1,21 a −1,36 px en x (~7,9″), aunque el header dice `FINAST=0` ("good") y `ASTRONETSOLVED=True`. Las exposiciones vecinas están a < 0,1 px. El patch S3 es idéntico al cutout IBE: el error viene del archivo. Hace falta un control de registro por frame. |
+| Registro WCS típico | Contra Gaia DR3, offset por frame con mediana ≤ 0,04 px y máximo ~0,2 px (ε Ind B, WISE 0855, RW Aur, R Dra). La estabilidad entre temporadas es ≤ 0,15″. |
+| `PSF_FWHM` del header | Es más ancho que el núcleo: la mejor gaussiana mide 0,70–0,86 × header, según el método. Los patches S3 de WS1 no traen el HDU `EPSF`, porque `s3range` lee solo PRIMARY, IMAGE, FLAGS, VARIANCE, ZODI y WCS-WAVE. |
+| Saturación | R Dra: `OVERFLOW` en el núcleo en 2488 de 2488 frames. RW Aur: en 304 de 335 (todo D2–D6). `NONLINEAR` no aparece nunca en ninguno de los dos. Los píxeles `OVERFLOW` son **finitos**, no NaN. |
+| WISE 0855 | Se ve solo en D5/D6: SNR ~3,5 por exposición y 21–25 sumando por detector. En D1–D4 no se detecta. |
+| Cubo HiPS DR1 en S3 | Los tiles FITS (512×512×102) se leen por Range. El `obs_description` de IRSA lo presenta como producto **de visualización**: sirve para el panel, no para fotometría fina. `cube_spectrum` está en #42. |
+| Snapshots de búsqueda | Los JSON de `data/index/search/` coinciden exactamente con SIA en vivo para los cinco blancos (centro y círculo descentrado), según #43. |
+| TAP | No respondió en toda la sesión del 14/11: el fallback TAP sigue sin probarse en vivo (§6). |
+
 ## 4. Instrumento y survey 📄
 
 - 6 detectores H2RG 2040×2040 activos, píxel **6.15″**, campo ~3.5°×3.5° por detector; pares simultáneos
@@ -201,8 +225,8 @@ La guía muestra WCS espectral `key="W"` con `sip = None`: ✅ comprobado sobre 
 - ❓ Fallback TAP de la búsqueda (JOIN `observation` + `INTERSECTS`) sin probar en vivo: TAP estuvo caído el 14/11.
 - Política de cita/redistribución para publicar PNGs derivados (incluir créditos siempre).
 - HiPS: ✅ IRSA publica el cubo SPHEREx DR1 (102 canales, orden 5, con CORS); los HiPS QR2 de CDS dan 404 por el
-  incidente. ❓ Que Aladin Lite renderice ese cubo no está probado.
-- ❓ WISE 0855 visible en coadds D5/D6; ❓ saturación de Barnard/R Dra (`OVERFLOW`/`NONLINEAR`); ❓ throughput a S3
+  incidente. ✅ Aladin Lite 3.8.2 lo renderiza (gotchas en [`VISION.md`](VISION.md)).
+- ✅ WISE 0855 visible en D5/D6 y ✅ saturación de R Dra y RW Aur (§3.2). ❓ Saturación de Barnard; ❓ throughput a S3
   desde el host de deploy.
 
 ## 7. Comprobación de los enlaces del enunciado (2026-11-14)
