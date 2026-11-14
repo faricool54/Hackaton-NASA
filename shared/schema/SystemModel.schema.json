@@ -325,6 +325,19 @@
           "title": "Mean Anomaly Deg",
           "type": "number"
         },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Plain-language caveat about this orbit, shown in the UI",
+          "title": "Note"
+        },
         "parent": {
           "description": "Body.id of the body it orbits (or the barycenter body)",
           "title": "Parent",
@@ -334,6 +347,17 @@
           "exclusiveMinimum": 0,
           "title": "Period Days",
           "type": "number"
+        },
+        "quality": {
+          "default": "fitted",
+          "description": "fitted = published orbital solution; assumed = NOT fitted (e.g. circle at a projected separation or a distance estimate); hypothetical = proposed object (e.g. Planet Nine). The UI marks anything but 'fitted'.",
+          "enum": [
+            "fitted",
+            "assumed",
+            "hypothetical"
+          ],
+          "title": "Quality",
+          "type": "string"
         },
         "semi_major_axis_au": {
           "exclusiveMinimum": 0,

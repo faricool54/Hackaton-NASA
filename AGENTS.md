@@ -38,7 +38,7 @@ sus carpetas; una rama `wsN/...` por tarea; un worktree por agente; nunca `git a
 `docs/COLLABORATION.md` §1 y la aplica `scripts/owners.py`.
 
 Plan vigente de pendientes y dependencias: [`docs/PARALLEL_PLAN.md`](docs/PARALLEL_PLAN.md).
-WS4 reservado por el usuario de esta sesión con Codex; otros responsables por confirmar en TEAM.md.
+WS4 está reservado por **rpccp** (rocco) con Codex; otros responsables por confirmar en TEAM.md.
 
 ## Mapa del repo y dueños
 

@@ -5,15 +5,15 @@ All Sesame HTTP calls are mocked — no network required.
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import MagicMock, patch
 
 from errante import settings as core
 from errante_api.main import create_app
 from errante_api.routes.resolve import _resolve_cached
 from errante_api.settings import Settings
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

@@ -13,6 +13,8 @@ const orbit = (o: Partial<Orbit>): Orbit => ({
   arg_periapsis_deg: 0,
   mean_anomaly_deg: 0,
   epoch_mjd: null,
+  quality: 'fitted',
+  note: null,
   ...o,
 });
 

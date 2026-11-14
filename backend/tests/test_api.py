@@ -7,8 +7,10 @@ from errante_api.settings import Settings
 
 
 @pytest.fixture(scope="module")
-def client():
-    return TestClient(create_app(Settings(data_dir=core.DEMO_DIR)))
+def client(tmp_path_factory):
+    config = Settings(data_dir=core.DEMO_DIR, live_cache_dir=tmp_path_factory.mktemp("api-cache"))
+    with TestClient(create_app(config)) as client:
+        yield client
 
 
 def test_health(client):
@@ -34,9 +36,13 @@ def test_unknown_field_is_404(client):
     assert client.get("/api/fields/nope").status_code == 404
 
 
-def test_live_endpoints_report_not_implemented_cleanly(client):
+def test_live_endpoints_report_not_implemented_cleanly(client, monkeypatch):
+    def unavailable(*args, **kwargs):
+        raise NotImplementedError("test stub")
+
+    monkeypatch.setattr("errante.data.irsa.search_frames", unavailable)
     r = client.get("/api/search", params={"ra": 10, "dec": 10})
-    assert r.status_code in (200, 501, 502, 504)
+    assert r.status_code == 501
 
 
 def test_systems_roundtrip(client):
@@ -46,3 +52,17 @@ def test_systems_roundtrip(client):
     system = client.get(f"/api/systems/{sid}").json()
     assert system["id"] == sid and system["bodies"]
     assert client.get("/api/systems/nope").status_code == 404
+
+
+def test_systems_only_products_do_not_hide_the_demo(tmp_path, monkeypatch):
+    """`errante systems` writes a manifest with zero fields: the backend must keep serving the demo."""
+    from errante.products import ProductStore
+    from errante.systems.build import write_systems
+    from errante.systems.catalog import curated_systems
+
+    store = ProductStore(tmp_path)
+    write_systems(store, curated_systems())
+    store.rebuild_manifest()
+    monkeypatch.delenv("ERRANTE_DATA_DIR", raising=False)
+    monkeypatch.setattr(core, "PRODUCTS_DIR", tmp_path)
+    assert Settings.from_env().data_dir == core.DEMO_DIR

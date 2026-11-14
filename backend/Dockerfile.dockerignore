@@ -1,0 +1,17 @@
+# Dockerfile-specific context: never send local credentials or downloaded FITS.
+**/.git
+**/.venv
+**/node_modules
+**/__pycache__
+**/*.egg-info
+**/.pytest_cache
+**/.ruff_cache
+**/.env
+**/.env.*
+**/*.fits
+**/*.fits.gz
+**/*.fits.fz
+data/cache
+data/products
+frontend
+docs

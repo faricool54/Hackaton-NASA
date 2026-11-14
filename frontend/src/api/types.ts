@@ -4,7 +4,7 @@
 // Pixel convention for every x/y: PNG convention — origin at the TOP-LEFT pixel,
 // 0-based, x → right, y → DOWN, on the field's common north-up grid (east left).
 
-export const SCHEMA_VERSION = '0.2.0';
+export const SCHEMA_VERSION = '0.2.1';
 
 export type Release = 'dr1' | 'qr2' | 'qr3' | 'synthetic';
 export type ObjectType =
@@ -189,6 +189,8 @@ export type BodyKind =
   | 'unknown';
 export type AppearanceModel = 'star' | 'brown_dwarf' | 'rocky' | 'icy' | 'gas_giant' | 'disk' | 'mesh';
 export type VariabilityKind = 'pulsation' | 'accretion' | 'eclipse' | 'rotation' | 'irregular';
+/** fitted = published solution; assumed = NOT fitted; hypothetical = proposed object (e.g. Planet Nine). */
+export type OrbitQuality = 'fitted' | 'assumed' | 'hypothetical';
 
 export interface Fact {
   label: string;
@@ -209,6 +211,8 @@ export interface Orbit {
   arg_periapsis_deg: number;
   mean_anomaly_deg: number; // at epoch_mjd
   epoch_mjd: number | null; // null = arbitrary phase
+  quality?: OrbitQuality; // added in 0.2.1 (absent in older products: treat as 'fitted')
+  note?: string | null; // added in 0.2.1
 }
 
 export interface Variability {

@@ -3,7 +3,7 @@
 Completar en el kickoff. Una persona por fila; cada una con su(s) agente(s).
 
 **Plan vigente:** [trabajo paralelo, entregables y dependencias](PARALLEL_PLAN.md).
-Reserva confirmada por el usuario el 14/11/2026: este frente (usuario + Codex) toma **WS4**.
+Reserva confirmada el 14/11/2026: **rpccp** (rocco) con Codex toma **WS4**; **faricool54** con Claude toma **WS1** (búsqueda SIA/TAP, lectura por rangos en S3, `wavelength_at`).
 Las otras filas siguen pendientes de confirmación; no representan reservas automáticas.
 
 **Local Event confirmado por el usuario (14/11/2026): Universidad de Palermo, Buenos Aires, Argentina.**
@@ -16,10 +16,10 @@ no se agregan personas después. Workstreams y agentes no son integrantes adicio
 
 | WS | Tema | Persona | Agente(s) | Perfil ideal |
 |---|---|---|---|---|
-| WS1 | Acceso a datos SPHEREx | _nombre_ | Claude / Codex | Python, APIs, paciencia con servicios lentos |
+| WS1 | Acceso a datos SPHEREx | faricool54 | Claude | Python, APIs, paciencia con servicios lentos |
 | WS2 | Grilla, render y comparación; detección opcional | _nombre_ | | Python + numpy, procesamiento de imágenes |
 | WS3 | Cinco blancos, astrometría, variables, espectros y contexto | _nombre_ | | el/la más "astro" del grupo |
-| WS4 | Backend + integración + CI | Reservado por el usuario de esta sesión | Codex | backend, devops |
+| WS4 | Backend + integración + CI | rpccp (rocco) | Codex | backend, devops |
 | WS5 | Frontend | _nombre_ | | React/TS, ojo para UX |
 | WS6 | Producto, narrativa, deploy, entrega | _nombre_ | | comunicación, diseño, video |
 | WS7 | Galería 3D opcional, modelos y procedencia | _nombre/rol compartido_ | | gráficos y datos; P2 después del recorrido obligatorio |
