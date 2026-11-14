@@ -1,0 +1,189 @@
+{
+  "field_id": "demo-nep-deep",
+  "candidates": [
+    {
+      "id": "SYN-BD-1",
+      "field_id": "demo-nep-deep",
+      "kind": "proper_motion",
+      "status": "unconfirmed",
+      "score": 0.7,
+      "detections": [
+        {
+          "frame_id": "SYN00D1",
+          "mjd": 60810.0,
+          "position": {
+            "ra": 270.0793616498668,
+            "dec": 66.5227613396275
+          },
+          "x": 39.992797754384476,
+          "y": 80.28648695774724,
+          "flux_mjy": 2.1625,
+          "flux_err_mjy": 0.05,
+          "snr": 29.8
+        },
+        {
+          "frame_id": "SYN01D4",
+          "mjd": 60810.07,
+          "position": {
+            "ra": 270.0801985994201,
+            "dec": 66.52337258286903
+          },
+          "x": 39.79807998960379,
+          "y": 79.92843685412025,
+          "flux_mjy": 11.4161,
+          "flux_err_mjy": 0.05,
+          "snr": 157.4
+        },
+        {
+          "frame_id": "SYN02D2",
+          "mjd": 60900.0,
+          "position": {
+            "ra": 270.05739117632817,
+            "dec": 66.52732888486445
+          },
+          "x": 45.11878637481774,
+          "y": 77.61841009439644,
+          "flux_mjy": 2.6801,
+          "flux_err_mjy": 0.05,
+          "snr": 37.0
+        },
+        {
+          "frame_id": "SYN03D5",
+          "mjd": 60900.07,
+          "position": {
+            "ra": 270.0583326372466,
+            "dec": 66.52703649804998
+          },
+          "x": 44.89911737004856,
+          "y": 77.78936001288969,
+          "flux_mjy": 19.1035,
+          "flux_err_mjy": 0.05,
+          "snr": 263.4
+        },
+        {
+          "frame_id": "SYN04D3",
+          "mjd": 60990.0,
+          "position": {
+            "ra": 270.03669899505786,
+            "dec": 66.53139489826725
+          },
+          "x": 49.944732852446016,
+          "y": 75.24193793207559,
+          "flux_mjy": 5.4031,
+          "flux_err_mjy": 0.05,
+          "snr": 74.5
+        },
+        {
+          "frame_id": "SYN05D6",
+          "mjd": 60990.07,
+          "position": {
+            "ra": 270.0367181912781,
+            "dec": 66.53136998533779
+          },
+          "x": 49.94024925681063,
+          "y": 75.25651848196823,
+          "flux_mjy": 20.2296,
+          "flux_err_mjy": 0.05,
+          "snr": 278.9
+        },
+        {
+          "frame_id": "SYN06D2",
+          "mjd": 61080.0,
+          "position": {
+            "ra": 270.01544199881016,
+            "dec": 66.53547171237592
+          },
+          "x": 54.90075231533192,
+          "y": 72.85757798576336,
+          "flux_mjy": 3.4387,
+          "flux_err_mjy": 0.05,
+          "snr": 47.4
+        },
+        {
+          "frame_id": "SYN07D5",
+          "mjd": 61080.07,
+          "position": {
+            "ra": 270.0156635821251,
+            "dec": 66.53559504736685
+          },
+          "x": 54.84912340352213,
+          "y": 72.78536902206051,
+          "flux_mjy": 17.0327,
+          "flux_err_mjy": 0.05,
+          "snr": 234.8
+        }
+      ],
+      "motion": {
+        "rate_arcsec_per_hour": 0.01579710409417882,
+        "position_angle_deg": 296.03309188017215,
+        "ra_cosdec_rate_arcsec_per_hour": -0.01419434112512405,
+        "dec_rate_arcsec_per_hour": 0.0069331939094427015
+      },
+      "distance": null,
+      "known_match": null,
+      "spectrum": [
+        {
+          "frame_id": "SYN00D1",
+          "wavelength_um": 0.9959,
+          "bandwidth_um": 0.0243,
+          "flux_mjy": 2.1625,
+          "flux_err_mjy": 0.05
+        },
+        {
+          "frame_id": "SYN01D4",
+          "wavelength_um": 3.0194,
+          "bandwidth_um": 0.0863,
+          "flux_mjy": 11.4161,
+          "flux_err_mjy": 0.05
+        },
+        {
+          "frame_id": "SYN02D2",
+          "wavelength_um": 1.1491,
+          "bandwidth_um": 0.028,
+          "flux_mjy": 2.6801,
+          "flux_err_mjy": 0.05
+        },
+        {
+          "frame_id": "SYN03D5",
+          "wavelength_um": 4.2559,
+          "bandwidth_um": 0.0387,
+          "flux_mjy": 19.1035,
+          "flux_err_mjy": 0.05
+        },
+        {
+          "frame_id": "SYN04D3",
+          "wavelength_um": 1.8338,
+          "bandwidth_um": 0.0447,
+          "flux_mjy": 5.4031,
+          "flux_err_mjy": 0.05
+        },
+        {
+          "frame_id": "SYN05D6",
+          "wavelength_um": 4.4215,
+          "bandwidth_um": 0.034,
+          "flux_mjy": 20.2296,
+          "flux_err_mjy": 0.05
+        },
+        {
+          "frame_id": "SYN06D2",
+          "wavelength_um": 1.3568,
+          "bandwidth_um": 0.0331,
+          "flux_mjy": 3.4387,
+          "flux_err_mjy": 0.05
+        },
+        {
+          "frame_id": "SYN07D5",
+          "wavelength_um": 3.9425,
+          "bandwidth_um": 0.0358,
+          "flux_mjy": 17.0327,
+          "flux_err_mjy": 0.05
+        }
+      ],
+      "notes": [
+        "SYNTHETIC",
+        "Fake nearby brown dwarf; proper motion EXAGGERATED (~120\"/yr) to be visible.",
+        "Very red: brighter at 4-5 um than at 1-2 um."
+      ]
+    }
+  ]
+}

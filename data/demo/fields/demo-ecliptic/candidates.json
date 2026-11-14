@@ -1,0 +1,346 @@
+{
+  "field_id": "demo-ecliptic",
+  "candidates": [
+    {
+      "id": "SYN-AST-1",
+      "field_id": "demo-ecliptic",
+      "kind": "moving",
+      "status": "known",
+      "score": 0.95,
+      "detections": [
+        {
+          "frame_id": "SYN00D2",
+          "mjd": 60810.1,
+          "position": {
+            "ra": 150.09306234903173,
+            "dec": 11.057028293705445
+          },
+          "x": 20.035648837826578,
+          "y": 40.10924587621635,
+          "flux_mjy": 3.2304,
+          "flux_err_mjy": 0.05,
+          "snr": 44.5
+        },
+        {
+          "frame_id": "SYN01D2",
+          "mjd": 60810.1833,
+          "position": {
+            "ra": 150.07878313644585,
+            "dec": 11.054867934683294
+          },
+          "x": 28.23874019140179,
+          "y": 41.37620797105575,
+          "flux_mjy": 3.5919,
+          "flux_err_mjy": 0.05,
+          "snr": 49.5
+        },
+        {
+          "frame_id": "SYN02D2",
+          "mjd": 60810.2667,
+          "position": {
+            "ra": 150.06525481034768,
+            "dec": 11.05328491272246
+          },
+          "x": 36.010628914537634,
+          "y": 42.30472960264738,
+          "flux_mjy": 3.0515,
+          "flux_err_mjy": 0.05,
+          "snr": 42.1
+        },
+        {
+          "frame_id": "SYN03D2",
+          "mjd": 60811.1,
+          "position": {
+            "ra": 149.92180984106164,
+            "dec": 11.032452642986435
+          },
+          "x": 118.42400786450403,
+          "y": 54.49746292398885,
+          "flux_mjy": 2.8043,
+          "flux_err_mjy": 0.05,
+          "snr": 38.7
+        },
+        {
+          "frame_id": "SYN04D2",
+          "mjd": 60811.1833,
+          "position": {
+            "ra": 149.90813353959666,
+            "dec": 11.030672734837015
+          },
+          "x": 126.28203153110617,
+          "y": 55.537130424258024,
+          "flux_mjy": 3.51,
+          "flux_err_mjy": 0.05,
+          "snr": 48.4
+        },
+        {
+          "frame_id": "SYN05D2",
+          "mjd": 60811.2667,
+          "position": {
+            "ra": 149.89322971911508,
+            "dec": 11.028494774285576
+          },
+          "x": 134.84551776282996,
+          "y": 56.80919649277719,
+          "flux_mjy": 2.797,
+          "flux_err_mjy": 0.05,
+          "snr": 38.6
+        }
+      ],
+      "motion": {
+        "rate_arcsec_per_hour": 25.48102422757311,
+        "position_angle_deg": 261.70948072676254,
+        "ra_cosdec_rate_arcsec_per_hour": -25.2147389150676,
+        "dec_rate_arcsec_per_hour": -3.674171625161708
+      },
+      "distance": {
+        "au_median": 3.841927708253189,
+        "au_low": null,
+        "au_high": null,
+        "method": "opposition_rate"
+      },
+      "known_match": {
+        "designation": "SYN 2026 AA",
+        "name": null,
+        "object_type": "asteroid",
+        "source": "synthetic",
+        "separation_arcsec": 5.6,
+        "predicted_vmag": null
+      },
+      "spectrum": [
+        {
+          "frame_id": "SYN00D2",
+          "wavelength_um": 1.3471,
+          "bandwidth_um": 0.0329,
+          "flux_mjy": 3.2304,
+          "flux_err_mjy": 0.05
+        },
+        {
+          "frame_id": "SYN01D2",
+          "wavelength_um": 1.2115,
+          "bandwidth_um": 0.0295,
+          "flux_mjy": 3.5919,
+          "flux_err_mjy": 0.05
+        },
+        {
+          "frame_id": "SYN02D2",
+          "wavelength_um": 1.4261,
+          "bandwidth_um": 0.0348,
+          "flux_mjy": 3.0515,
+          "flux_err_mjy": 0.05
+        },
+        {
+          "frame_id": "SYN03D2",
+          "wavelength_um": 1.5518,
+          "bandwidth_um": 0.0378,
+          "flux_mjy": 2.8043,
+          "flux_err_mjy": 0.05
+        },
+        {
+          "frame_id": "SYN04D2",
+          "wavelength_um": 1.2398,
+          "bandwidth_um": 0.0302,
+          "flux_mjy": 3.51,
+          "flux_err_mjy": 0.05
+        },
+        {
+          "frame_id": "SYN05D2",
+          "wavelength_um": 1.5559,
+          "bandwidth_um": 0.0379,
+          "flux_mjy": 2.797,
+          "flux_err_mjy": 0.05
+        }
+      ],
+      "notes": [
+        "SYNTHETIC",
+        "Fake main-belt asteroid (~25\"/h)."
+      ]
+    },
+    {
+      "id": "SYN-TNO-1",
+      "field_id": "demo-ecliptic",
+      "kind": "moving",
+      "status": "unconfirmed",
+      "score": 0.7,
+      "detections": [
+        {
+          "frame_id": "SYN00D2",
+          "mjd": 60810.1,
+          "position": {
+            "ra": 150.0068085630782,
+            "dec": 10.95409529414554
+          },
+          "x": 69.58711523149512,
+          "y": 100.37100890108955,
+          "flux_mjy": 1.2922,
+          "flux_err_mjy": 0.05,
+          "snr": 17.8
+        },
+        {
+          "frame_id": "SYN01D2",
+          "mjd": 60810.1833,
+          "position": {
+            "ra": 150.0080259817698,
+            "dec": 10.955690708513936
+          },
+          "x": 68.88748902531817,
+          "y": 99.4370900089302,
+          "flux_mjy": 1.4368,
+          "flux_err_mjy": 0.05,
+          "snr": 19.8
+        },
+        {
+          "frame_id": "SYN02D2",
+          "mjd": 60810.2667,
+          "position": {
+            "ra": 150.00915421996234,
+            "dec": 10.95645108777527
+          },
+          "x": 68.23910701219654,
+          "y": 98.99197121163593,
+          "flux_mjy": 1.2206,
+          "flux_err_mjy": 0.05,
+          "snr": 16.8
+        },
+        {
+          "frame_id": "SYN03D2",
+          "mjd": 60811.1,
+          "position": {
+            "ra": 150.02467795455374,
+            "dec": 10.9639457778899
+          },
+          "x": 59.318039703783874,
+          "y": 94.6043324131418,
+          "flux_mjy": 1.1217,
+          "flux_err_mjy": 0.05,
+          "snr": 15.5
+        },
+        {
+          "frame_id": "SYN04D2",
+          "mjd": 60811.1833,
+          "position": {
+            "ra": 150.02639782718126,
+            "dec": 10.96475616365378
+          },
+          "x": 58.32970255104767,
+          "y": 94.12987624137207,
+          "flux_mjy": 1.404,
+          "flux_err_mjy": 0.05,
+          "snr": 19.4
+        },
+        {
+          "frame_id": "SYN05D2",
+          "mjd": 60811.2667,
+          "position": {
+            "ra": 150.02813414106626,
+            "dec": 10.96493108672303
+          },
+          "x": 57.3318875207556,
+          "y": 94.02739188146022,
+          "flux_mjy": 1.1188,
+          "flux_err_mjy": 0.05,
+          "snr": 15.4
+        }
+      ],
+      "motion": {
+        "rate_arcsec_per_hour": 3.035832618032363,
+        "position_angle_deg": 63.127406745937755,
+        "ra_cosdec_rate_arcsec_per_hour": 2.708004724156822,
+        "dec_rate_arcsec_per_hour": 1.3722208636562732
+      },
+      "distance": {
+        "au_median": 42.2023923836789,
+        "au_low": null,
+        "au_high": null,
+        "method": "opposition_rate"
+      },
+      "known_match": null,
+      "spectrum": [
+        {
+          "frame_id": "SYN00D2",
+          "wavelength_um": 1.3471,
+          "bandwidth_um": 0.0329,
+          "flux_mjy": 1.2922,
+          "flux_err_mjy": 0.05
+        },
+        {
+          "frame_id": "SYN01D2",
+          "wavelength_um": 1.2115,
+          "bandwidth_um": 0.0295,
+          "flux_mjy": 1.4368,
+          "flux_err_mjy": 0.05
+        },
+        {
+          "frame_id": "SYN02D2",
+          "wavelength_um": 1.4261,
+          "bandwidth_um": 0.0348,
+          "flux_mjy": 1.2206,
+          "flux_err_mjy": 0.05
+        },
+        {
+          "frame_id": "SYN03D2",
+          "wavelength_um": 1.5518,
+          "bandwidth_um": 0.0378,
+          "flux_mjy": 1.1217,
+          "flux_err_mjy": 0.05
+        },
+        {
+          "frame_id": "SYN04D2",
+          "wavelength_um": 1.2398,
+          "bandwidth_um": 0.0302,
+          "flux_mjy": 1.404,
+          "flux_err_mjy": 0.05
+        },
+        {
+          "frame_id": "SYN05D2",
+          "wavelength_um": 1.5559,
+          "bandwidth_um": 0.0379,
+          "flux_mjy": 1.1188,
+          "flux_err_mjy": 0.05
+        }
+      ],
+      "notes": [
+        "SYNTHETIC",
+        "Fake slow mover (~3\"/h, Kuiper-belt-like). Unconfirmed ≠ discovery."
+      ]
+    },
+    {
+      "id": "SYN-ART-1",
+      "field_id": "demo-ecliptic",
+      "kind": "moving",
+      "status": "artifact",
+      "score": 0.1,
+      "detections": [
+        {
+          "frame_id": "SYN03D2",
+          "mjd": 60811.1,
+          "position": {
+            "ra": 149.93653287726866,
+            "dec": 11.091327591916427
+          },
+          "x": 109.95762373725478,
+          "y": 20.036016463096523,
+          "flux_mjy": 5.6085,
+          "flux_err_mjy": 0.05,
+          "snr": 77.3
+        }
+      ],
+      "motion": null,
+      "distance": null,
+      "known_match": null,
+      "spectrum": [
+        {
+          "frame_id": "SYN03D2",
+          "wavelength_um": 1.5518,
+          "bandwidth_um": 0.0378,
+          "flux_mjy": 5.6085,
+          "flux_err_mjy": 0.05
+        }
+      ],
+      "notes": [
+        "SYNTHETIC",
+        "Appears in a single frame: cosmic-ray-like artifact, rejected."
+      ]
+    }
+  ]
+}

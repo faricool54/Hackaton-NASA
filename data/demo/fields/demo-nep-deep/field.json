@@ -1,0 +1,202 @@
+{
+  "id": "demo-nep-deep",
+  "name": "Demo · north ecliptic pole deep field",
+  "description": "Synthetic deep field with 8 frames over one year and all six detectors.",
+  "tags": [
+    "synthetic",
+    "deep-field"
+  ],
+  "center": {
+    "ra": 270.0,
+    "dec": 66.56
+  },
+  "size_deg": 0.2,
+  "grid": {
+    "center": {
+      "ra": 270.0,
+      "dec": 66.56
+    },
+    "width_px": 118,
+    "height_px": 118,
+    "pixel_scale_arcsec": 6.15,
+    "wcs": {
+      "CTYPE1": "RA---TAN",
+      "CTYPE2": "DEC--TAN",
+      "CRVAL1": 270.0,
+      "CRVAL2": 66.56,
+      "CRPIX1": 59.5,
+      "CRPIX2": 59.5,
+      "CDELT1": -0.0017083333333333334,
+      "CDELT2": 0.0017083333333333334,
+      "CUNIT1": "deg",
+      "CUNIT2": "deg",
+      "NAXIS1": 118,
+      "NAXIS2": 118
+    }
+  },
+  "frames": [
+    {
+      "id": "SYN00D1",
+      "obs_id": "SYNTHETIC_0000",
+      "detector": 1,
+      "mjd": 60810.0,
+      "date_obs": "2025-05-15T00:00:00Z",
+      "wavelength_um": 0.9959,
+      "bandwidth_um": 0.0243,
+      "release": "synthetic",
+      "image": "frames/SYN00D1.png",
+      "source_uri": null,
+      "valid_fraction": 1.0,
+      "stretch": {
+        "vmin": 0.17819736993195878,
+        "vmax": 3.1226490363785033,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "SYN01D4",
+      "obs_id": "SYNTHETIC_0001",
+      "detector": 4,
+      "mjd": 60810.07,
+      "date_obs": "2025-05-15T01:40:48Z",
+      "wavelength_um": 3.0194,
+      "bandwidth_um": 0.0863,
+      "release": "synthetic",
+      "image": "frames/SYN01D4.png",
+      "source_uri": null,
+      "valid_fraction": 1.0,
+      "stretch": {
+        "vmin": 0.26240995663691474,
+        "vmax": 2.161448489683016,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "SYN02D2",
+      "obs_id": "SYNTHETIC_0002",
+      "detector": 2,
+      "mjd": 60900.0,
+      "date_obs": "2025-08-13T00:00:00Z",
+      "wavelength_um": 1.1491,
+      "bandwidth_um": 0.028,
+      "release": "synthetic",
+      "image": "frames/SYN02D2.png",
+      "source_uri": null,
+      "valid_fraction": 1.0,
+      "stretch": {
+        "vmin": 0.18381305607577247,
+        "vmax": 2.5813281382445354,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "SYN03D5",
+      "obs_id": "SYNTHETIC_0003",
+      "detector": 5,
+      "mjd": 60900.07,
+      "date_obs": "2025-08-13T01:40:48Z",
+      "wavelength_um": 4.2559,
+      "bandwidth_um": 0.0387,
+      "release": "synthetic",
+      "image": "frames/SYN03D5.png",
+      "source_uri": null,
+      "valid_fraction": 1.0,
+      "stretch": {
+        "vmin": 0.30802636104916825,
+        "vmax": 2.5184337154939187,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "SYN04D3",
+      "obs_id": "SYNTHETIC_0004",
+      "detector": 3,
+      "mjd": 60990.0,
+      "date_obs": "2025-11-11T00:00:00Z",
+      "wavelength_um": 1.8338,
+      "bandwidth_um": 0.0447,
+      "release": "synthetic",
+      "image": "frames/SYN04D3.png",
+      "source_uri": null,
+      "valid_fraction": 1.0,
+      "stretch": {
+        "vmin": 0.21223498339162578,
+        "vmax": 1.9094199775686216,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "SYN05D6",
+      "obs_id": "SYNTHETIC_0005",
+      "detector": 6,
+      "mjd": 60990.07,
+      "date_obs": "2025-11-11T01:40:48Z",
+      "wavelength_um": 4.4215,
+      "bandwidth_um": 0.034,
+      "release": "synthetic",
+      "image": "frames/SYN05D6.png",
+      "source_uri": null,
+      "valid_fraction": 1.0,
+      "stretch": {
+        "vmin": 0.3159185421526562,
+        "vmax": 2.5433148404891326,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "SYN06D2",
+      "obs_id": "SYNTHETIC_0006",
+      "detector": 2,
+      "mjd": 61080.0,
+      "date_obs": "2026-02-09T00:00:00Z",
+      "wavelength_um": 1.3568,
+      "bandwidth_um": 0.0331,
+      "release": "synthetic",
+      "image": "frames/SYN06D2.png",
+      "source_uri": null,
+      "valid_fraction": 1.0,
+      "stretch": {
+        "vmin": 0.19442560636990056,
+        "vmax": 2.206026188084839,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "SYN07D5",
+      "obs_id": "SYNTHETIC_0007",
+      "detector": 5,
+      "mjd": 61080.07,
+      "date_obs": "2026-02-09T01:40:48Z",
+      "wavelength_um": 3.9425,
+      "bandwidth_um": 0.0358,
+      "release": "synthetic",
+      "image": "frames/SYN07D5.png",
+      "source_uri": null,
+      "valid_fraction": 1.0,
+      "stretch": {
+        "vmin": 0.2971787791965721,
+        "vmax": 2.4084792579388536,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    }
+  ],
+  "provenance": {
+    "pipeline_version": "0.1.0",
+    "built_at": "2026-11-14T13:48:38.273789Z",
+    "synthetic": true,
+    "data_releases": [
+      "synthetic"
+    ],
+    "notes": [
+      "SYNTHETIC DATA generated by errante.synthetic — NOT SPHEREx."
+    ]
+  }
+}

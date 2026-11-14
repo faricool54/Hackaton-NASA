@@ -1,0 +1,129 @@
+{
+  "$defs": {
+    "FrameRef": {
+      "additionalProperties": false,
+      "description": "A SPHEREx Level-2 file that covers a position (result of an archive query).",
+      "properties": {
+        "detector": {
+          "maximum": 6,
+          "minimum": 1,
+          "title": "Detector",
+          "type": "integer"
+        },
+        "irsa_uri": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Relative IRSA path 'ibe/data/spherex/...'",
+          "title": "Irsa Uri"
+        },
+        "mjd": {
+          "title": "Mjd",
+          "type": "number"
+        },
+        "obs_id": {
+          "title": "Obs Id",
+          "type": "string"
+        },
+        "release": {
+          "enum": [
+            "dr1",
+            "qr2",
+            "qr3",
+            "synthetic"
+          ],
+          "title": "Release",
+          "type": "string"
+        },
+        "s3_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Key in s3://nasa-irsa-spherex/",
+          "title": "S3 Key"
+        },
+        "wavelength_um": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Wavelength Um"
+        }
+      },
+      "required": [
+        "obs_id",
+        "detector",
+        "mjd",
+        "release"
+      ],
+      "title": "FrameRef",
+      "type": "object"
+    },
+    "SkyCoord": {
+      "additionalProperties": false,
+      "properties": {
+        "dec": {
+          "description": "ICRS declination [deg]",
+          "maximum": 90,
+          "minimum": -90,
+          "title": "Dec",
+          "type": "number"
+        },
+        "ra": {
+          "description": "ICRS right ascension [deg]",
+          "exclusiveMaximum": 360,
+          "minimum": 0,
+          "title": "Ra",
+          "type": "number"
+        }
+      },
+      "required": [
+        "ra",
+        "dec"
+      ],
+      "title": "SkyCoord",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "center": {
+      "$ref": "#/$defs/SkyCoord"
+    },
+    "frames": {
+      "items": {
+        "$ref": "#/$defs/FrameRef"
+      },
+      "title": "Frames",
+      "type": "array"
+    },
+    "radius_deg": {
+      "title": "Radius Deg",
+      "type": "number"
+    }
+  },
+  "required": [
+    "center",
+    "radius_deg",
+    "frames"
+  ],
+  "title": "SearchResult",
+  "type": "object"
+}

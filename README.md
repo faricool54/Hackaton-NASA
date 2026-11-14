@@ -1,0 +1,71 @@
+# Errante · SPHEREx sky explorer
+
+**NASA Space Apps Challenge 2026 — reto "Planet X and SPHEREx"** · nombre provisorio (WS6 decide el final)
+
+Una herramienta web pública para **ver cómo cambia el cielo infrarrojo** con imágenes reales de **NASA SPHEREx**
+y **encontrar lo que se mueve**: asteroides, objetos del cinturón de Kuiper, enanas marrones cercanas… y entender
+cómo se buscaría un hipotético **Planeta X**. *Planeta* viene del griego *planḗtēs*: **errante**.
+
+> Estado: **esqueleto funcional**. La web ya corre de punta a punta con **datos sintéticos** (etiquetados como tales).
+> El trabajo del equipo es reemplazar cada stub por la versión real. Ver [`tasks/`](tasks/).
+
+## Empezar (5 minutos)
+
+```bash
+git clone https://github.com/faricool54/Hackaton-NASA && cd Hackaton-NASA
+make setup        # Python venv + pipeline + backend + frontend
+make web          # http://localhost:5173  (datos demo, sin backend)
+```
+
+Opcional: `make api` (backend en http://localhost:8000/docs) y abrir la web con `?mode=api`.
+
+<details><summary>Sin <code>make</code> (Windows)</summary>
+
+```powershell
+py -m venv .venv
+.venv\Scripts\pip install -e "pipeline[dev]" -e "backend[dev]"
+cd frontend; npm ci; npm run dev
+# backend: cd backend; ..\.venv\Scripts\uvicorn errante_api.main:app --reload
+# tests:   .venv\Scripts\pytest -q pipeline/tests backend/tests
+```
+</details>
+
+## Cómo se reparte el trabajo
+
+| WS | Tema | Carpeta | Tareas |
+|---|---|---|---|
+| WS1 | Acceso a datos SPHEREx (IRSA TAP/SIA, S3, cutouts) | `pipeline/errante/data/` | [tasks/WS1-data-access.md](tasks/WS1-data-access.md) |
+| WS2 | Imágenes y detección de objetos en movimiento | `pipeline/errante/imaging/`, `detect/` | [tasks/WS2-imaging-detection.md](tasks/WS2-imaging-detection.md) |
+| WS3 | Ciencia: objetos conocidos, distancia, espectros, Planeta X | `pipeline/errante/science/` | [tasks/WS3-science.md](tasks/WS3-science.md) |
+| WS4 | Backend API | `backend/` | [tasks/WS4-backend.md](tasks/WS4-backend.md) |
+| WS5 | Frontend (blink comparator, mapa, reportes) | `frontend/` | [tasks/WS5-frontend.md](tasks/WS5-frontend.md) |
+| WS6 | Producto, narrativa, deploy y entrega | `docs/submission/` | [tasks/WS6-product-submission.md](tasks/WS6-product-submission.md) |
+
+Con 5 personas: WS6 se reparte entre WS4 y WS5 (ver [docs/TEAM.md](docs/TEAM.md)).
+Cada persona trabaja con su agente (Claude Code / Codex) usando el prompt que está al final de su archivo de tareas.
+
+## Documentación
+
+- [docs/CHALLENGE.md](docs/CHALLENGE.md) — el reto, cómo lo interpretamos, criterios de evaluación
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — arquitectura y flujo de datos
+- [docs/CONTRACT.md](docs/CONTRACT.md) — formato de datos/API entre pipeline, backend y frontend
+- [docs/DATA.md](docs/DATA.md) — **hechos verificados** sobre los datos SPHEREx (S3, FITS, flags, IRSA)
+- [docs/SCIENCE.md](docs/SCIENCE.md) — física necesaria: velocidades, paralaje, límites, encuadre honesto
+- [docs/WORKFLOW.md](docs/WORKFLOW.md) — git, PRs, cómo usar los agentes, cronograma del hackatón
+- [AGENTS.md](AGENTS.md) — reglas para agentes y humanos
+
+## Estructura
+
+```
+pipeline/   paquete Python `errante` (datos → imágenes → detección → ciencia → productos JSON/PNG) + CLI
+backend/    FastAPI `errante_api`: sirve productos + endpoints en vivo (IRSA, JPL)
+frontend/   Vite + React + TypeScript: home, blink viewer, candidatos, espectro, about
+shared/     JSON Schema generado del contrato (no editar a mano: `make schema`)
+data/demo/  datos SINTÉTICOS de ejemplo (commiteados)   data/products/: productos reales   data/cache/: descargas (ignorado)
+docs/ tasks/ notebooks/
+```
+
+## Créditos de datos
+
+SPHEREx: NASA / JPL-Caltech / IPAC, vía NASA/IPAC Infrared Science Archive (IRSA). Efemérides: JPL Solar System
+Dynamics, IMCCE SkyBoT.

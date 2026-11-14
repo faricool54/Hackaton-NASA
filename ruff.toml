@@ -1,0 +1,13 @@
+# Shared lint/format config for pipeline/ and backend/ (run: make lint)
+line-length = 120
+target-version = "py311"
+
+[lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["E501"]
+
+[lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Query", "fastapi.Depends", "fastapi.Path"]
+
+[lint.isort]
+known-first-party = ["errante", "errante_api"]

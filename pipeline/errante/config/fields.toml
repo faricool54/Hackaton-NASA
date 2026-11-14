@@ -1,0 +1,46 @@
+# Showcase fields for `errante build <id>`. WS3 curates this list, WS1 checks
+# that SPHEREx has enough epochs for each one (errante search --ra --dec).
+# Coordinates: ICRS degrees. Moving targets (track_object) must be re-centred
+# with a JPL Horizons ephemeris at the observation dates — never hard-code them.
+
+[[field]]
+id = "barnards-star"
+name = "Barnard's Star"
+description = "Fastest-moving star in the sky (~10.4\"/yr). Sanity check: our pipeline must see it move between survey passes."
+# J2000 (269.452, +4.693) propagated with its proper motion to ~2025.5.
+ra = 269.4463
+dec = 4.7665
+size_deg = 0.15
+tags = ["proper-motion", "validation"]
+
+[[field]]
+id = "wise-0855"
+name = "WISE 0855−0714"
+description = "Coldest known brown dwarf, ~2.3 pc away, high proper motion. Faint: good test of our limits."
+# Position at its ~2014 discovery epoch; moves ~8 arcsec/yr west. WS3: propagate (SIMBAD).
+ra = 133.795
+dec = -7.245
+size_deg = 0.15
+tags = ["brown-dwarf", "proper-motion", "validation"]
+
+[[field]]
+id = "nep-deep"
+name = "North ecliptic pole deep field"
+description = "SPHEREx deep field: many more epochs than the all-sky survey. Best place to blink."
+ra = 270.0
+dec = 66.5607
+size_deg = 0.25
+tags = ["deep-field"]
+
+[[field]]
+id = "sep-deep"
+name = "South ecliptic pole deep field"
+description = "The other SPHEREx deep field."
+ra = 90.0
+dec = -66.5607
+size_deg = 0.25
+tags = ["deep-field"]
+
+# TODO(WS3): add an ecliptic field with a bright known main-belt asteroid (pick
+# one with JPL SBIdent on a real frame), a field following Makemake or another
+# TNO (track_object = "136472"), and a field inside the Planet Nine region.

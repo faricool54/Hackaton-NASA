@@ -1,0 +1,160 @@
+{
+  "$defs": {
+    "KnownObject": {
+      "additionalProperties": false,
+      "properties": {
+        "designation": {
+          "title": "Designation",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "object_type": {
+          "default": "unknown",
+          "enum": [
+            "asteroid",
+            "comet",
+            "tno",
+            "dwarf_planet",
+            "planet",
+            "star",
+            "brown_dwarf",
+            "unknown"
+          ],
+          "title": "Object Type",
+          "type": "string"
+        },
+        "positions": {
+          "items": {
+            "$ref": "#/$defs/KnownObjectPosition"
+          },
+          "title": "Positions",
+          "type": "array"
+        },
+        "source": {
+          "enum": [
+            "jpl_sbident",
+            "jpl_horizons",
+            "skybot",
+            "simbad",
+            "synthetic"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "vmag": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Vmag"
+        }
+      },
+      "required": [
+        "designation",
+        "source",
+        "positions"
+      ],
+      "title": "KnownObject",
+      "type": "object"
+    },
+    "KnownObjectPosition": {
+      "additionalProperties": false,
+      "properties": {
+        "frame_id": {
+          "title": "Frame Id",
+          "type": "string"
+        },
+        "in_frame": {
+          "default": true,
+          "title": "In Frame",
+          "type": "boolean"
+        },
+        "mjd": {
+          "title": "Mjd",
+          "type": "number"
+        },
+        "position": {
+          "$ref": "#/$defs/SkyCoord"
+        },
+        "x": {
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "title": "Y",
+          "type": "number"
+        }
+      },
+      "required": [
+        "frame_id",
+        "mjd",
+        "position",
+        "x",
+        "y"
+      ],
+      "title": "KnownObjectPosition",
+      "type": "object"
+    },
+    "SkyCoord": {
+      "additionalProperties": false,
+      "properties": {
+        "dec": {
+          "description": "ICRS declination [deg]",
+          "maximum": 90,
+          "minimum": -90,
+          "title": "Dec",
+          "type": "number"
+        },
+        "ra": {
+          "description": "ICRS right ascension [deg]",
+          "exclusiveMaximum": 360,
+          "minimum": 0,
+          "title": "Ra",
+          "type": "number"
+        }
+      },
+      "required": [
+        "ra",
+        "dec"
+      ],
+      "title": "SkyCoord",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "field_id": {
+      "title": "Field Id",
+      "type": "string"
+    },
+    "objects": {
+      "items": {
+        "$ref": "#/$defs/KnownObject"
+      },
+      "title": "Objects",
+      "type": "array"
+    }
+  },
+  "required": [
+    "field_id",
+    "objects"
+  ],
+  "title": "KnownObjectList",
+  "type": "object"
+}

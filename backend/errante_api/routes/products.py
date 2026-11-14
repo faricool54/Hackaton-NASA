@@ -1,0 +1,51 @@
+"""Read-only endpoints over the product tree (implemented)."""
+
+from __future__ import annotations
+
+from fastapi import APIRouter, HTTPException, Request
+
+from errante.models import CandidateList, KnownObjectList, Manifest, SkyField
+from errante.products import ProductStore
+
+router = APIRouter(tags=["products"])
+
+
+def _store(request: Request) -> ProductStore:
+    return request.app.state.store
+
+
+def _require_field(store: ProductStore, field_id: str) -> None:
+    if not store.has_field(field_id):
+        raise HTTPException(status_code=404, detail=f"Unknown field '{field_id}'")
+
+
+@router.get("/manifest", response_model=Manifest)
+def get_manifest(request: Request) -> Manifest:
+    store = _store(request)
+    if not store.manifest_path.exists():
+        raise HTTPException(
+            status_code=503,
+            detail="No products built. Run `make demo` or `errante build`.",
+        )
+    return store.read_manifest()
+
+
+@router.get("/fields/{field_id}", response_model=SkyField)
+def get_field(field_id: str, request: Request) -> SkyField:
+    store = _store(request)
+    _require_field(store, field_id)
+    return store.read_field(field_id)
+
+
+@router.get("/fields/{field_id}/candidates", response_model=CandidateList)
+def get_candidates(field_id: str, request: Request) -> CandidateList:
+    store = _store(request)
+    _require_field(store, field_id)
+    return store.read_candidates(field_id)
+
+
+@router.get("/fields/{field_id}/known", response_model=KnownObjectList)
+def get_known(field_id: str, request: Request) -> KnownObjectList:
+    store = _store(request)
+    _require_field(store, field_id)
+    return store.read_known(field_id)

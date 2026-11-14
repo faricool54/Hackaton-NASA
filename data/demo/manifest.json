@@ -1,0 +1,51 @@
+{
+  "schema_version": "0.1.0",
+  "generated_at": "2026-11-14T13:48:38.278167Z",
+  "synthetic": true,
+  "fields": [
+    {
+      "id": "demo-ecliptic",
+      "name": "Demo · ecliptic field",
+      "description": "Synthetic field near the ecliptic: a fast asteroid, a slow distant object and one artifact.",
+      "tags": [
+        "synthetic",
+        "ecliptic"
+      ],
+      "center": {
+        "ra": 150.0,
+        "dec": 11.0
+      },
+      "size_deg": 0.25,
+      "n_frames": 6,
+      "n_candidates": 3,
+      "mjd_range": [
+        60810.1,
+        60811.2667
+      ],
+      "thumbnail": "thumb.png",
+      "synthetic": true
+    },
+    {
+      "id": "demo-nep-deep",
+      "name": "Demo · north ecliptic pole deep field",
+      "description": "Synthetic deep field with 8 frames over one year and all six detectors.",
+      "tags": [
+        "synthetic",
+        "deep-field"
+      ],
+      "center": {
+        "ra": 270.0,
+        "dec": 66.56
+      },
+      "size_deg": 0.2,
+      "n_frames": 8,
+      "n_candidates": 1,
+      "mjd_range": [
+        60810.0,
+        61080.07
+      ],
+      "thumbnail": "thumb.png",
+      "synthetic": true
+    }
+  ]
+}

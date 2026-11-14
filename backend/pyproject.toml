@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "errante-backend"
+version = "0.1.0"
+description = "Errante API (FastAPI) over SPHEREx products"
+requires-python = ">=3.11"
+# Also needs the local package `errante` (../pipeline). It is deliberately NOT
+# listed here so pip never tries to fetch a same-named package from PyPI.
+# Always install both:  pip install -e "pipeline[dev]" -e "backend[dev]"   (make setup)
+dependencies = ["fastapi>=0.110", "uvicorn[standard]>=0.29"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "httpx>=0.27"]
+
+[tool.setuptools.packages.find]
+include = ["errante_api*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

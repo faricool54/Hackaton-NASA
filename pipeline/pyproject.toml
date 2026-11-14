@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "errante"
+version = "0.1.0"
+description = "Find what moves in NASA SPHEREx infrared images (Space Apps 2026 · Planet X and SPHEREx)"
+requires-python = ">=3.11"
+dependencies = [
+  "numpy>=1.26",
+  "astropy>=6.0",
+  "pydantic>=2.6",
+  "pillow>=10.0",
+  "requests>=2.31",
+]
+
+[project.optional-dependencies]
+# Heavier libraries for real data processing (WS1/WS2/WS3). Import them inside functions.
+science = [
+  "scipy>=1.11",
+  "photutils>=1.11",
+  "reproject>=0.13",
+  "astroquery>=0.4.7",
+  "pyvo>=1.5",
+]
+dev = ["pytest>=8", "jsonschema>=4.21", "ruff>=0.5"]
+
+[project.scripts]
+errante = "errante.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["errante*"]
+
+[tool.setuptools.package-data]
+errante = ["config/*.toml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["network: needs internet (IRSA/S3/JPL); skipped unless ERRANTE_NETWORK_TESTS=1"]

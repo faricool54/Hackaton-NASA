@@ -1,0 +1,34 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Node
+node_modules/
+frontend/dist/
+frontend/public/data/
+
+# Data: downloads and caches are NEVER committed
+data/cache/
+*.fits
+*.fits.gz
+*.fits.fz
+# Real products: commit only curated, small showcase fields (see data/README.md)
+data/products/**/*.fits
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json

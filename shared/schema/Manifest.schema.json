@@ -1,0 +1,151 @@
+{
+  "$defs": {
+    "FieldSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "center": {
+          "$ref": "#/$defs/SkyCoord"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "mjd_range": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mjd Range"
+        },
+        "n_candidates": {
+          "title": "N Candidates",
+          "type": "integer"
+        },
+        "n_frames": {
+          "title": "N Frames",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "size_deg": {
+          "title": "Size Deg",
+          "type": "number"
+        },
+        "synthetic": {
+          "title": "Synthetic",
+          "type": "boolean"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
+        "thumbnail": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Path relative to the field directory",
+          "title": "Thumbnail"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "center",
+        "size_deg",
+        "n_frames",
+        "n_candidates",
+        "synthetic"
+      ],
+      "title": "FieldSummary",
+      "type": "object"
+    },
+    "SkyCoord": {
+      "additionalProperties": false,
+      "properties": {
+        "dec": {
+          "description": "ICRS declination [deg]",
+          "maximum": 90,
+          "minimum": -90,
+          "title": "Dec",
+          "type": "number"
+        },
+        "ra": {
+          "description": "ICRS right ascension [deg]",
+          "exclusiveMaximum": 360,
+          "minimum": 0,
+          "title": "Ra",
+          "type": "number"
+        }
+      },
+      "required": [
+        "ra",
+        "dec"
+      ],
+      "title": "SkyCoord",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "fields": {
+      "items": {
+        "$ref": "#/$defs/FieldSummary"
+      },
+      "title": "Fields",
+      "type": "array"
+    },
+    "generated_at": {
+      "format": "date-time",
+      "title": "Generated At",
+      "type": "string"
+    },
+    "schema_version": {
+      "default": "0.1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "synthetic": {
+      "description": "True if ANY field is synthetic",
+      "title": "Synthetic",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "generated_at",
+    "synthetic",
+    "fields"
+  ],
+  "title": "Manifest",
+  "type": "object"
+}

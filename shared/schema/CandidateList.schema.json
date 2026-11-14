@@ -1,0 +1,423 @@
+{
+  "$defs": {
+    "Candidate": {
+      "additionalProperties": false,
+      "properties": {
+        "detections": {
+          "items": {
+            "$ref": "#/$defs/Detection"
+          },
+          "minItems": 1,
+          "title": "Detections",
+          "type": "array"
+        },
+        "distance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DistanceEstimate"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "field_id": {
+          "title": "Field Id",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "moving",
+            "proper_motion",
+            "variable"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "known_match": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/KnownMatch"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "motion": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Motion"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "notes": {
+          "description": "Plain-language caveats for the UI",
+          "items": {
+            "type": "string"
+          },
+          "title": "Notes",
+          "type": "array"
+        },
+        "score": {
+          "description": "Pipeline confidence that it is a real object",
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Score",
+          "type": "number"
+        },
+        "spectrum": {
+          "items": {
+            "$ref": "#/$defs/SpectrumPoint"
+          },
+          "title": "Spectrum",
+          "type": "array"
+        },
+        "status": {
+          "enum": [
+            "unconfirmed",
+            "known",
+            "artifact",
+            "injected"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "field_id",
+        "kind",
+        "status",
+        "score",
+        "detections"
+      ],
+      "title": "Candidate",
+      "type": "object"
+    },
+    "Detection": {
+      "additionalProperties": false,
+      "properties": {
+        "flux_err_mjy": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Flux Err Mjy"
+        },
+        "flux_mjy": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Flux Mjy"
+        },
+        "frame_id": {
+          "title": "Frame Id",
+          "type": "string"
+        },
+        "mjd": {
+          "title": "Mjd",
+          "type": "number"
+        },
+        "position": {
+          "$ref": "#/$defs/SkyCoord"
+        },
+        "snr": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Snr"
+        },
+        "x": {
+          "description": "Grid pixel, PNG convention (see module docstring)",
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "title": "Y",
+          "type": "number"
+        }
+      },
+      "required": [
+        "frame_id",
+        "mjd",
+        "position",
+        "x",
+        "y"
+      ],
+      "title": "Detection",
+      "type": "object"
+    },
+    "DistanceEstimate": {
+      "additionalProperties": false,
+      "properties": {
+        "au_high": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Au High"
+        },
+        "au_low": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Au Low"
+        },
+        "au_median": {
+          "exclusiveMinimum": 0,
+          "title": "Au Median",
+          "type": "number"
+        },
+        "method": {
+          "description": "e.g. 'opposition_rate', 'statistical_ranging', 'parallax_fit'",
+          "title": "Method",
+          "type": "string"
+        }
+      },
+      "required": [
+        "au_median",
+        "method"
+      ],
+      "title": "DistanceEstimate",
+      "type": "object"
+    },
+    "KnownMatch": {
+      "additionalProperties": false,
+      "properties": {
+        "designation": {
+          "title": "Designation",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "object_type": {
+          "default": "unknown",
+          "enum": [
+            "asteroid",
+            "comet",
+            "tno",
+            "dwarf_planet",
+            "planet",
+            "star",
+            "brown_dwarf",
+            "unknown"
+          ],
+          "title": "Object Type",
+          "type": "string"
+        },
+        "predicted_vmag": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Predicted Vmag"
+        },
+        "separation_arcsec": {
+          "minimum": 0,
+          "title": "Separation Arcsec",
+          "type": "number"
+        },
+        "source": {
+          "enum": [
+            "jpl_sbident",
+            "jpl_horizons",
+            "skybot",
+            "simbad",
+            "synthetic"
+          ],
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "designation",
+        "source",
+        "separation_arcsec"
+      ],
+      "title": "KnownMatch",
+      "type": "object"
+    },
+    "Motion": {
+      "additionalProperties": false,
+      "properties": {
+        "dec_rate_arcsec_per_hour": {
+          "title": "Dec Rate Arcsec Per Hour",
+          "type": "number"
+        },
+        "position_angle_deg": {
+          "description": "Direction of motion, east of north",
+          "exclusiveMaximum": 360,
+          "minimum": 0,
+          "title": "Position Angle Deg",
+          "type": "number"
+        },
+        "ra_cosdec_rate_arcsec_per_hour": {
+          "title": "Ra Cosdec Rate Arcsec Per Hour",
+          "type": "number"
+        },
+        "rate_arcsec_per_hour": {
+          "minimum": 0,
+          "title": "Rate Arcsec Per Hour",
+          "type": "number"
+        }
+      },
+      "required": [
+        "rate_arcsec_per_hour",
+        "position_angle_deg",
+        "ra_cosdec_rate_arcsec_per_hour",
+        "dec_rate_arcsec_per_hour"
+      ],
+      "title": "Motion",
+      "type": "object"
+    },
+    "SkyCoord": {
+      "additionalProperties": false,
+      "properties": {
+        "dec": {
+          "description": "ICRS declination [deg]",
+          "maximum": 90,
+          "minimum": -90,
+          "title": "Dec",
+          "type": "number"
+        },
+        "ra": {
+          "description": "ICRS right ascension [deg]",
+          "exclusiveMaximum": 360,
+          "minimum": 0,
+          "title": "Ra",
+          "type": "number"
+        }
+      },
+      "required": [
+        "ra",
+        "dec"
+      ],
+      "title": "SkyCoord",
+      "type": "object"
+    },
+    "SpectrumPoint": {
+      "additionalProperties": false,
+      "properties": {
+        "bandwidth_um": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bandwidth Um"
+        },
+        "flux_err_mjy": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Flux Err Mjy"
+        },
+        "flux_mjy": {
+          "title": "Flux Mjy",
+          "type": "number"
+        },
+        "frame_id": {
+          "title": "Frame Id",
+          "type": "string"
+        },
+        "wavelength_um": {
+          "title": "Wavelength Um",
+          "type": "number"
+        }
+      },
+      "required": [
+        "frame_id",
+        "wavelength_um",
+        "flux_mjy"
+      ],
+      "title": "SpectrumPoint",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "candidates": {
+      "items": {
+        "$ref": "#/$defs/Candidate"
+      },
+      "title": "Candidates",
+      "type": "array"
+    },
+    "field_id": {
+      "title": "Field Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "field_id",
+    "candidates"
+  ],
+  "title": "CandidateList",
+  "type": "object"
+}
