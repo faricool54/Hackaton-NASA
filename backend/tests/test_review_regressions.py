@@ -250,6 +250,15 @@ def test_context_changes_invalidate_keys_and_ra_does_not_round_out_of_range(monk
     assert request.ra < 360
 
 
+def test_wavelength_pool_revision_does_not_reuse_previous_selection():
+    from dataclasses import replace
+
+    current = JobRequest.create(269.45, 4.77, 0.15)
+    previous = replace(current, build_context={**current.build_context, "build_revision": "season-grid-v2"})
+    assert current.cache_key() != previous.cache_key()
+    assert JobRequest.from_dict(previous.to_dict()).cache_key() == previous.cache_key()
+
+
 def test_deadline_cleanup_kills_actual_child_and_descendant():
     script = "import subprocess,sys,time; child=subprocess.Popen([sys.executable,'-c','import time; time.sleep(60)']); print(child.pid,flush=True); time.sleep(60)"
     options = (
