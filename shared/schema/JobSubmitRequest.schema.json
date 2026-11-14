@@ -1,0 +1,71 @@
+{
+  "additionalProperties": false,
+  "description": "POST /api/jobs. Optional filters default to a bounded real-image build.",
+  "properties": {
+    "dec": {
+      "maximum": 90,
+      "minimum": -90,
+      "title": "Dec",
+      "type": "number"
+    },
+    "detectors": {
+      "items": {
+        "maximum": 6,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "title": "Detectors",
+      "type": "array"
+    },
+    "max_frames": {
+      "default": 40,
+      "maximum": 120,
+      "minimum": 2,
+      "title": "Max Frames",
+      "type": "integer"
+    },
+    "mjd_max": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Mjd Max"
+    },
+    "mjd_min": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Mjd Min"
+    },
+    "ra": {
+      "exclusiveMaximum": 360,
+      "minimum": 0,
+      "title": "Ra",
+      "type": "number"
+    },
+    "size_deg": {
+      "default": 0.25,
+      "maximum": 0.5,
+      "minimum": 0.01,
+      "title": "Size Deg",
+      "type": "number"
+    }
+  },
+  "required": [
+    "ra",
+    "dec"
+  ],
+  "title": "JobSubmitRequest",
+  "type": "object"
+}
