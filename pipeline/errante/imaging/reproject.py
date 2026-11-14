@@ -49,8 +49,12 @@ def _inside(x: np.ndarray, y: np.ndarray, shape: tuple[int, int]) -> np.ndarray:
         return np.isfinite(x) & np.isfinite(y) & (x >= -0.5) & (x <= nx - 0.5) & (y >= -0.5) & (y <= ny - 0.5)
 
 
-def bilinear_sample(img: np.ndarray, x: np.ndarray, y: np.ndarray) -> np.ndarray:
-    """Sample ``img`` at 0-based (x, y); NaN outside the array or where mostly NaN."""
+def bilinear_sample(img: np.ndarray, x: np.ndarray, y: np.ndarray, *, variance: bool = False) -> np.ndarray:
+    """Sample ``img`` at 0-based (x, y); NaN outside the array or where mostly NaN.
+
+    ``variance=True`` treats ``img`` as a variance map and returns the variance
+    of the interpolated value, sum(w^2 var) / (sum w)^2.
+    """
     ny, nx = img.shape
     out = np.full(x.shape, np.nan, dtype=np.float64)
     ok = _inside(x, y, img.shape)
@@ -74,10 +78,11 @@ def bilinear_sample(img: np.ndarray, x: np.ndarray, y: np.ndarray) -> np.ndarray
     ):
         v = img[yy, xx].astype(np.float64)
         finite = np.isfinite(v)
-        total += np.where(finite, v, 0.0) * wgt
+        total += np.where(finite, v, 0.0) * (wgt**2 if variance else wgt)
         weight += np.where(finite, wgt, 0.0)
     with np.errstate(invalid="ignore", divide="ignore"):
-        out[ok] = np.where(weight >= MIN_FINITE_WEIGHT, total / weight, np.nan)
+        value = total / weight**2 if variance else total / weight
+        out[ok] = np.where(weight >= MIN_FINITE_WEIGHT, value, np.nan)
     return out
 
 
@@ -196,3 +201,18 @@ def reproject_to_grid(
         bad |= (nearest_sample(flagged, xi, yi, fill=True) | (share >= BAD_WEIGHT)).reshape(shape)
 
     return fits_to_png_orientation(data.astype(np.float32)), fits_to_png_orientation(bad)
+
+
+def reproject_variance(image: SpherexImage, grid: Grid) -> np.ndarray | None:
+    """VARIANCE plane on ``grid`` (PNG orientation), (MJy/sr)^2; None if the file has none.
+
+    It is the variance of each interpolated grid value (same bilinear weights as
+    the data: sum(w^2 var) / (sum w)^2). Interpolation averages up to four
+    pixels, so it is up to 4x smaller than the native per-pixel variance;
+    neighbouring grid pixels are correlated.
+    """
+    if image.variance is None:
+        return None
+    xi, yi = _input_pixel_coords(image, grid)
+    var = bilinear_sample(np.asarray(image.variance, dtype=np.float64), xi, yi, variance=True)
+    return fits_to_png_orientation(var.reshape(grid.height_px, grid.width_px).astype(np.float32))
