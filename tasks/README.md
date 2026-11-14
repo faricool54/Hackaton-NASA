@@ -34,4 +34,4 @@ Orden de integración: I1 imágenes reales sin detección → I2 coordenadas y p
 Plantilla para pedirle una tarea concreta al agente:
 
 > Leé `AGENTS.md`, `docs/CONTRACT.md` y `tasks/WSx-....md`. Implementá la tarea **WSx-N** respetando las rutas
-> de mi workstream. Agregá tests, corré `make check`, y mostrame el diff y cómo lo probaste antes de commitear.
+> de mi workstream. Agregá tests, corré `python scripts/dev.py check`, y mostrame el diff y cómo lo probaste antes de commitear.

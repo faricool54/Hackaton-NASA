@@ -57,10 +57,22 @@ JPL y análisis automático no son requisitos para abrir un campo.
   S08 requiere metadata de atribución para código/datos generados con SI: el inventario actual está en
   `docs/submission/ai-usage.json`; coordinar procedencia de futuros productos sin confundir simulación numérica con imagen IA.
 
+## Hechos verificados (2026-11-14) — leelos antes de implementar
+
+- **IRSA no tiene CORS** (TAP, SIA, cutouts): el backend es obligatorio como proxy para el flujo RA/Dec → video.
+  S3 sí tiene CORS. Detalle en [`docs/DATA.md`](../docs/DATA.md) §3.0.
+- Tiempos medidos: SIA 1–4 s, TAP 8–19 s, cutout IBE 4–15 s y ~4 MB, lectura por Range en S3 ~1 s por frame a 5′.
+  Hace falta caché en disco, timeouts y respuestas 502/504 en JSON (hoy `live.py` solo maneja `NotImplementedError`).
+- **Path traversal:** `field_id` llega sin validar a `root / "fields" / field_id` (en Windows `..\..\x` escapa del
+  data dir). Validar con el patrón slug de `SkyField.id` antes de exponer el backend.
+- El test de `/api/search` va a pegarle a IRSA en CI cuando WS1 implemente `search_frames`: mockearlo con
+  `monkeypatch` y dejar lo real en `@pytest.mark.network`.
+- `ERRANTE_CORS_ORIGINS` se separa por coma sin `strip()`; `/api/health` expone la ruta absoluta del data dir.
+
 ## Prompt de arranque
 
 > Sos el agente del workstream WS4 (backend e integración) del repo Errante para NASA Space Apps 2026. Leé
 > `AGENTS.md`, `docs/CONTRACT.md`, `docs/ARCHITECTURE.md`, `docs/WORKFLOW.md` y `tasks/WS4-backend.md`.
 > Trabajá SOLO en `backend/`, `.github/` y `Makefile`. Leé `docs/REQUIREMENTS.md`. Empezá por WS4-2 y
 > WS4-5: conectar RA/Dec → job → campo visible, con timeouts, caché y errores claros. El cruce JPL es opcional. No
-> cambies el contrato sin un PR `contract:`. Corré `make check` y mostrame el diff antes de commitear.
+> cambies el contrato sin un PR `contract:`. Corré `python scripts/dev.py check` y mostrame el diff antes de commitear.

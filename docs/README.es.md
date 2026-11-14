@@ -27,11 +27,11 @@ de construcción de WS4-5 (o un equivalente probado). Consultar archivos sin gen
 
 ```bash
 git clone https://github.com/faricool54/Hackaton-NASA && cd Hackaton-NASA
-make setup        # Python venv + pipeline + backend + frontend
-make web          # http://localhost:5173  (datos demo, sin backend)
+python scripts/dev.py setup        # Python venv + pipeline + backend + frontend
+python scripts/dev.py web          # http://localhost:5173  (datos demo, sin backend)
 ```
 
-Opcional: `make api` (backend en http://localhost:8000/docs) y abrir la web con `?mode=api`.
+Opcional: `python scripts/dev.py api` (backend en http://localhost:8000/docs) y abrir la web con `?mode=api`.
 
 <details><summary>Sin <code>make</code> (Windows)</summary>
 
@@ -85,7 +85,7 @@ La [guía de evaluación](JUDGING_GUIDE.md) incorpora el segundo PDF: cinco crit
 pipeline/   paquete Python `errante` (datos → imágenes → detección → ciencia → productos JSON/PNG) + CLI
 backend/    FastAPI `errante_api`: sirve productos + endpoints en vivo (IRSA, JPL)
 frontend/   Vite + React + TypeScript: home, blink viewer, candidatos, espectro, about
-shared/     JSON Schema generado del contrato (no editar a mano: `make schema`)
+shared/     JSON Schema generado del contrato (no editar a mano: `python scripts/dev.py schema`)
 data/demo/  datos SINTÉTICOS de ejemplo (commiteados)   data/products/: productos reales   data/cache/: descargas (ignorado)
 docs/ tasks/ notebooks/
 ```

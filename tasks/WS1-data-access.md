@@ -63,6 +63,22 @@ coordinar el cambio con `build.py` y registrar cada falla, sin inventar un produ
 - IRSA limita la concurrencia: nada de 50 hilos. TAP: una consulta a la vez.
 - Nada de FITS en git: todo va a `data/cache/`.
 
+## Hechos verificados (2026-11-14) — leelos antes de implementar
+
+Detalle y fuentes en [`docs/DATA.md`](../docs/DATA.md) §3.0.
+- **Búsqueda:** SIA2 en **VOTable** (1–4 s; el CSV viene roto) sobre `spherex_dr1` + `spherex_qr3` (`*_deep`
+  opcionales con `TIME`/`MAXREC`); TAP como fallback (8–19 s; la ADQL actual funciona). QR2 ya no está indexado.
+  Deduplicar por `(obs_id, detector)` y usar la key S3 que trae `cloud_access`: las versiones de pipeline cambian
+  por semana y detector, no armes rutas a mano.
+- **Tiempo:** `MJD-OBS` es el **inicio** de la exposición; usar `MJD-AVG` (o `(t_min + t_max)/2` en la búsqueda).
+- **Píxeles:** un cutout de IRSA pesa **~4 MB** mínimo (tabla EPSF entera) y tarda 4–15 s; sin solape da **422**.
+  Lo rápido es leer por **Range en S3** solo las filas del recorte (`IMAGE` float32 sin comprimir, ~0,4 MB en ~1 s
+  a 5′). IRSA **no** tiene CORS; S3 sí.
+- **WCS-WAVE:** la grilla depende del detector (D3 9×14, D4 13×20…): leer `TDIM`.
+- **`build.py`** corta en `max_frames=40` sobre resultados ordenados por tiempo → todo cae en la 1.ª temporada y
+  Barnard no se mueve. Elegir frames por temporada × detector. `frame_id` hoy sale del nombre del archivo de caché
+  (un hash): derivarlo de `obs_id` + detector.
+
 ## Prompt de arranque (pegalo en tu agente)
 
 > Sos el agente del workstream WS1 (acceso a datos SPHEREx) del repo Errante para NASA Space Apps 2026.
@@ -71,4 +87,4 @@ coordinar el cambio con `build.py` y registrar cada falla, sin inventar un produ
 > Empezá por la tarea WS1-1 y WS1-2: verificá la API TAP de IRSA con una consulta real (si no tenés red, decímelo
 > y prepará el código + un test con fixture para que yo lo corra), implementá `search_frames` respetando la
 > firma y el modelo `FrameRef`, con caché y reintentos. No inventes nombres de tablas ni columnas: verificá.
-> Corré `make check` y mostrame el diff antes de commitear.
+> Corré `python scripts/dev.py check` y mostrame el diff antes de commitear.
