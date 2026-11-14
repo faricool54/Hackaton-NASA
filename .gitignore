@@ -21,6 +21,11 @@ data/cache/
 # Real products: commit only curated, small showcase fields (see data/README.md)
 data/products/**/*.fits
 
+# Claude Code / agents: personal settings and worktrees stay local
+.claude/settings.local.json
+CLAUDE.local.md
+.claude/worktrees/
+
 # Env / secrets
 .env
 .env.*
