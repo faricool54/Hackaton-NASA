@@ -20,7 +20,7 @@ blanco no completa los cinco ensayos. Verificar valores es condición para anunc
 `pipeline/errante/systems/catalog.py`, `frontend/src/three/SystemScene.ts`.
 
 ## Estado actual
-- ✅ Contrato `SystemModel` (schema 0.3.0, con `Orbit.quality`), `Manifest.systems`, `GET /api/systems/{id}`, `errante systems`.
+- ✅ Contrato `SystemModel` (schema 0.2.1, con `Orbit.quality`), `Manifest.systems`, `GET /api/systems/{id}`, `errante systems`.
 - ✅ 5 sistemas de los objetivos de prueba (valores **tipeados a mano, sin verificar**) + 1 sintético ligado a
   `demo-ecliptic`.
 - ✅ `#/systems`, `#/system/<id>[/<cuerpo>]`: órbitas keplerianas animadas, colores por temperatura, texturas

@@ -76,7 +76,7 @@ pipeline/errante/systems/       (WS7)
   build.py     valida jerarquía (padres existen, sin ciclos) y escribe <root>/systems/<id>.json
        │  errante demo  → data/demo/systems/*.json      errante systems → data/products/systems/*.json
        ▼
-contrato: SystemModel (models.py, schema 0.3.0) · Manifest.systems · GET /api/systems/{id}
+contrato: SystemModel (models.py, schema 0.2.1) · Manifest.systems · GET /api/systems/{id}
        ▼
 frontend/src/three/             (WS7, three.js en un chunk aparte, carga diferida)
   orbits.ts       Kepler (posición en el tiempo, elipse), orden padre→hijo, variabilidad   [tests]

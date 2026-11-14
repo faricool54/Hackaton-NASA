@@ -2,7 +2,7 @@
 
 Fuente de verdad: [`pipeline/errante/models.py`](../pipeline/errante/models.py).
 Generado: [`shared/schema/*.schema.json`](../shared/schema/) (`make schema`). Espejo TS:
-[`frontend/src/api/types.ts`](../frontend/src/api/types.ts). Versión actual: **0.3.0** (0.2.0 agregó los sistemas 3D; 0.3.0 agregó `Orbit.quality`/`note`; ambos aditivos).
+[`frontend/src/api/types.ts`](../frontend/src/api/types.ts). Versión actual: **0.2.1** (0.2.0 agregó los sistemas 3D; 0.2.1 agregó `Orbit.quality`/`note`; ambos aditivos. **0.3.0** queda reservado para el contrato de datos reales de WS3).
 Ejemplos reales del formato: [`data/demo/`](../data/demo/).
 
 ## Archivos en disco (= lo que lee el frontend estático)
