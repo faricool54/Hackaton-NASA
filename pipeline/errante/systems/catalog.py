@@ -216,7 +216,7 @@ def epsilon_indi() -> SystemModel:
             radial_velocity_km_s=-40.43,
             epoch="J2016.0",  # Gaia DR3 reference epoch
         ),
-        field_id=None,  # TODO(WS3/WS7): add an epsilon-indi field to config/fields.toml
+        field_id="eps-indi-b",  # WS3 field centred on the unresolved Ba+Bb pair (A is ~402 arcsec west)
         bodies=[
             Body(
                 id="eps-indi-a",
@@ -416,7 +416,7 @@ def r_draconis() -> SystemModel:
             radial_velocity_km_s=-132.8,
             epoch="J2016.0",  # Gaia DR3 reference epoch
         ),
-        field_id=None,  # TODO(WS3/WS7): add an r-draconis field to config/fields.toml
+        field_id="r-draconis",  # WS3 field (config/fields.toml)
         bodies=[
             Body(
                 id="r-draconis",
@@ -486,7 +486,7 @@ def rw_aurigae() -> SystemModel:
             radial_velocity_km_s=15.0,
             epoch="J2016.0",  # Gaia DR3 reference epoch
         ),
-        field_id=None,  # TODO(WS3/WS7): add an rw-aurigae field to config/fields.toml
+        field_id="rw-aurigae",  # WS3 field (config/fields.toml)
         bodies=[
             Body(
                 id="rw-aur-a",
