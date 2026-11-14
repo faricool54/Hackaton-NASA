@@ -111,3 +111,39 @@ def test_rebuild_with_fewer_seasons_removes_stale_composite_pngs(monkeypatch, tm
     assert [c["id"] for c in stored["composites"]] == ["detectors_S0", "jhk_S0"]
     assert sorted(p.name for p in (fdir / "color").iterdir()) == ["detectors_S0.png", "jhk_S0.png"]
     assert np.isfinite(stored["composites"][0]["mjd_min"])
+
+
+def _jhk_archive(monkeypatch):
+    """Two seasons; the frame nearest each season's middle (ranked first) is never at J, H or Ks."""
+    frames = []
+    for s, base in enumerate((SEASON_0, SEASON_1)):
+        frames += [
+            frame(f"S{s}_D1", base + 1, det=1, lam=0.9, seed=10 * s + 1),
+            frame(f"S{s}_D6", base + 1, det=6, lam=4.7, seed=10 * s + 2),
+            frame(f"S{s}_D2_mid", base + 1, det=2, lam=1.45, seed=10 * s + 3),
+            frame(f"S{s}_D2_J", base, det=2, lam=1.25, seed=10 * s + 4),
+            frame(f"S{s}_D2_H", base + 2, det=2, lam=1.63, seed=10 * s + 5),
+            frame(f"S{s}_D3_mid", base + 1, det=3, lam=2.0, seed=10 * s + 6),
+            frame(f"S{s}_D3_K", base + 2, det=3, lam=2.17, seed=10 * s + 7),
+        ]
+    return install_archive(monkeypatch, frames)
+
+
+def test_jhk_topup_downloads_the_missing_bands_without_changing_the_blink_frames(monkeypatch, tmp_path):
+    _jhk_archive(monkeypatch)
+    plain = build_field(config(4), tmp_path / "plain")
+    assert [c for c in plain.composites if c.mode == "jhk"] == []
+    _, fetched = _jhk_archive(monkeypatch)
+    topped = build_field(config(4), tmp_path / "topped", jhk_topup=True)
+    jhk = [c for c in topped.composites if c.mode == "jhk"]
+    assert sorted(c.season for c in jhk) == [0, 1]
+    assert {f"S{s}_D2_J" for s in (0, 1)} <= set(fetched) and {f"S{s}_D3_K" for s in (0, 1)} <= set(fetched)
+    assert [f.id for f in topped.frames] == [f.id for f in plain.frames]  # the blink is unchanged
+
+
+def test_cli_build_tops_up_jhk_unless_asked_not_to(monkeypatch, tmp_path):
+    calls = []
+    monkeypatch.setattr(build, "build_field", lambda cfg, out, **kw: calls.append(kw["jhk_topup"]))
+    assert main(["build", "wise-0855", "--out", str(tmp_path)]) == 0
+    assert main(["build", "wise-0855", "--out", str(tmp_path), "--no-jhk-topup"]) == 0
+    assert calls == [True, False]

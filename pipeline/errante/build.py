@@ -403,7 +403,51 @@ def _pick_final(
     return sorted(final, key=lambda p: (p.mjd, p.detector)), references
 
 
-def _select_and_project(cfg: FieldConfig, grid, refs: list[FrameRef]) -> _Selection:
+JHK_TOPUP_PER_SEASON = 24  # extra D2/D3 cutouts per season at most, to find J/H/Ks wavelengths
+
+
+def _jhk_topup(
+    cfg: FieldConfig,
+    grid,
+    ranked: Mapping[GroupKey, list[FrameRef]],
+    vetted: list[_Projected],
+    tried: set[tuple[str, int]],
+) -> tuple[list[_Projected], list[tuple[FrameRef, str]], int]:
+    """Download more D2/D3 frames of the seasons whose pool misses J, H or Ks (2MASS-like composites).
+
+    The pool is ranked toward each detector's reference wavelength, so the J (1.25), H (1.65) and
+    Ks (2.17 um) wavelengths the ``jhk`` composite needs are often never downloaded (real fields:
+    3 of 17 seasons had them). A wavelength is only known after download, so the untried frames of the
+    relevant (season, D2/D3) groups are fetched, at most ``JHK_TOPUP_PER_SEASON`` per season. They join
+    the pool for the composites only: the blink frames do not change.
+    """
+    from .imaging.color import JHK_BANDS, JHK_TOLERANCE_UM
+
+    key_of = _key_of(ranked)
+    seasons = sorted({s for s, _ in ranked})
+    wanted_detectors = {"J": (2,), "H": (2, 3), "Ks": (3,)}
+    extra: list[FrameRef] = []
+    for season in seasons:
+        have = [
+            p.wavelength_um
+            for p in vetted
+            if p.wavelength_um is not None and key_of[(p.ref.obs_id, p.ref.detector)][0] == season
+        ]
+        missing = [
+            band for band, target in JHK_BANDS.values() if not any(abs(w - target) <= JHK_TOLERANCE_UM for w in have)
+        ]
+        if not missing:
+            continue
+        detectors = sorted({d for band in missing for d in wanted_detectors[band]})
+        candidates = [r for d in detectors for r in ranked.get((season, d), []) if (r.obs_id, r.detector) not in tried]
+        extra += candidates[:JHK_TOPUP_PER_SEASON]
+    if not extra:
+        return [], [], 0
+    more, skipped = _project(extra, cfg, grid)
+    return more, skipped, len(extra)
+
+
+def _select_and_project(cfg: FieldConfig, grid, refs: list[FrameRef], *, jhk_topup: bool = False) -> _Selection:
     """Plan, download a candidate pool (one replacement round), reject bad frames, pick the final frames."""
     ranked, order = plan_frames(refs)
     available = sum(len(members) for members in ranked.values())
@@ -427,6 +471,12 @@ def _select_and_project(cfg: FieldConfig, grid, refs: list[FrameRef]) -> _Select
     vetted = list(unique.values())
     final, references = _pick_final(vetted, ranked, cfg.max_frames)
     n_downloaded = n_tried - sum(why == DOWNLOAD_FAILED for _, why in skipped)
+    if jhk_topup:
+        tried = {(r.obs_id, r.detector) for r in [*pool, *spares]}
+        more, more_skipped, n_more = _jhk_topup(cfg, grid, ranked, vetted, tried)
+        known = {p.frame_id for p in vetted}
+        vetted += [p for p in more if p.frame_id not in known]  # composites only; final frames unchanged
+        n_downloaded += n_more - sum(why == DOWNLOAD_FAILED for _, why in more_skipped)
     return _Selection(final, skipped, n_downloaded, references, vetted)
 
 
@@ -523,11 +573,13 @@ def build_field(
     *,
     analyze: bool = False,
     overrides: Mapping[str, Any] | None = None,
+    jhk_topup: bool = False,
 ) -> SkyField:
     """Search, select, download, vet, reproject and render a field; optionally analyse it.
 
     ``overrides`` replaces FieldConfig values (``errante build --max-frames/--detectors``) and is
-    recorded in the provenance notes.
+    recorded in the provenance notes. ``jhk_topup`` downloads extra D2/D3 frames so the J/H/Ks
+    false-color composite exists in more seasons (on for ``errante build``, off for API jobs).
     """
     from .data import irsa
     from .imaging import grid as grid_mod
@@ -539,7 +591,7 @@ def build_field(
     # 1. WS1: which frames cover the field? WS2: spread a candidate pool over seasons x detectors,
     # download and vet it, then keep the frames that match in wavelength across seasons.
     result = irsa.search_frames(cfg.ra, cfg.dec, detectors=cfg.detectors, mjd_min=cfg.mjd_min, mjd_max=cfg.mjd_max)
-    sel = _select_and_project(cfg, grid, result.frames)
+    sel = _select_and_project(cfg, grid, result.frames, jhk_topup=jhk_topup)
     if not sel.frames:
         _raise_nothing_usable(cfg, sel.skipped)
 
