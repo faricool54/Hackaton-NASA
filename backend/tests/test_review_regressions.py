@@ -152,6 +152,23 @@ def test_truncated_png_rejected(tmp_path):
         validate_product(tmp_path, "broken")
 
 
+def test_recovery_removes_corrupt_publication_even_when_staging_is_damaged(tmp_path):
+    repo = JobRepository(tmp_path / "jobs/jobs.db")
+    job = enqueue(repo)
+    _, attempt = repo.claim_next("attempt", 1, datetime.now(UTC) + timedelta(seconds=60))
+    field_id = _field_id_for_job(job.id, attempt.id)
+    stage, products = tmp_path / "jobs/staging/attempt", tmp_path / "products"
+    _write_valid_product(stage / "products", field_id)
+    repo.mark_publishing(job.id, attempt.id, field_id, str(stage))
+    publish_job(staging_dir=stage, field_id=field_id, products_dir=products, repo=repo, job_id=job.id)
+    (products / "fields" / field_id / "frames/f0.png").write_bytes(b"corrupt")
+    (stage / "products/fields" / field_id / "field.json").unlink()
+    Supervisor(repo, tmp_path / "jobs", products)._recover()
+    assert repo.get(job.id).status == JobStatus.failed
+    assert not (products / "fields" / field_id).exists()
+    assert ProductStore(products).read_manifest().fields == []
+
+
 def test_incomplete_private_copy_never_replaces_public_product(tmp_path, monkeypatch):
     stage, public = tmp_path / "stage", tmp_path / "public"
     _write_valid_product(stage, "target")

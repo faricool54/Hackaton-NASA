@@ -4,7 +4,7 @@
 // Pixel convention for every x/y: PNG convention — origin at the TOP-LEFT pixel,
 // 0-based, x → right, y → DOWN, on the field's common north-up grid (east left).
 
-export const SCHEMA_VERSION = '0.2.1';
+export const SCHEMA_VERSION = '0.3.0';
 
 export type Release = 'dr1' | 'qr2' | 'qr3' | 'synthetic';
 export type ObjectType =

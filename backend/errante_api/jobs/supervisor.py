@@ -105,6 +105,12 @@ class Supervisor:
                 stage = Path(record["staging_dir"]).resolve()
                 if not stage.is_relative_to(self._jobs_dir / "staging"):
                     raise RuntimeError("Unowned recovery staging path") from None
+                if field_path(root, field_id).exists():
+                    with publication_lock(root):
+                        quarantine = root.parent / f".errante-recovery-{_new_id()}"
+                        quarantine.mkdir()
+                        os.replace(field_path(root, field_id), quarantine / field_id)
+                        AtomicProductStore(root).rebuild_manifest()
                 try:
                     validate_product(stage / "products", field_id)
                     if hashes(stage / "products", field_id) != expected_hashes:
@@ -112,12 +118,6 @@ class Supervisor:
                 except (ValueError, OSError):
                     self._repo.mark_failed(job.id, "failed", "verified recovery staging is unavailable")
                     continue
-                if field_path(root, field_id).exists():
-                    with publication_lock(root):
-                        quarantine = root.parent / f".errante-recovery-{_new_id()}"
-                        quarantine.mkdir()
-                        os.replace(field_path(root, field_id), quarantine / field_id)
-                        AtomicProductStore(root).rebuild_manifest()
                 try:
                     publish_job(staging_dir=stage, field_id=field_id, products_dir=root, repo=self._repo, job_id=job.id)
                 except Exception:
