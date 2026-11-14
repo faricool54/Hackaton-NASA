@@ -45,6 +45,7 @@ blanco no completa los cinco ensayos. Verificar valores es condición para anunc
 - [ ] **WS7-4 (P2) Pulido visual**: limb darkening y granulación en estrellas (shader simple), glow que respire en
   la Mira (R Dra) siguiendo la curva de luz, bandas/tormentas en gigantes, inclinación y anillos si hay datos,
   transición de cámara más cinematográfica, leyenda de escala. Lighthouse sin regresiones.
+  - [x] Cambiar el selector de velocidad del visor 3D por un slider accesible con el estilo del playback de frames.
 - [ ] **WS7-5 (P2) "Moverse por el espacio"**: vista de vecindario solar con `SpaceMotion` (paralaje, movimiento
   propio, velocidad radial): ver Barnard, WISE 0855 y Eps Indi moviéndose en 3D en miles de años, y por qué eso
   se ve como desplazamiento en las imágenes SPHEREx.
