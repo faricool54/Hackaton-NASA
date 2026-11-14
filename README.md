@@ -28,6 +28,8 @@ make web          # http://localhost:5173  (datos demo, sin backend)
 ```
 
 Opcional: `make api` (backend en http://localhost:8000/docs) y abrir la web con `?mode=api`.
+Vista previa remota (sesión en la nube, Codespaces, celular en la misma red): `VITE_ALLOW_ALL_HOSTS=1 make web`
+(Vite bloquea por defecto cualquier host que no sea `localhost`).
 
 <details><summary>Sin <code>make</code> (Windows)</summary>
 
