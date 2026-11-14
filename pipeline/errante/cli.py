@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -208,6 +209,13 @@ def cmd_systems(args: argparse.Namespace) -> int:
     return 0
 
 
+def _positive_int(text: str) -> int:
+    value = int(text)
+    if value < 1:
+        raise argparse.ArgumentTypeError(f"must be a positive integer, got {text}")
+    return value
+
+
 def cmd_build(args: argparse.Namespace) -> int:
     from .build import build_field, load_field_configs
 
@@ -215,14 +223,100 @@ def cmd_build(args: argparse.Namespace) -> int:
     if args.field_id not in cfgs:
         print(f"Unknown field '{args.field_id}'. Known: {sorted(cfgs)}", file=sys.stderr)
         return 2
+    overrides = {}
+    if args.max_frames is not None:
+        overrides["max_frames"] = args.max_frames
+    if args.detectors:
+        overrides["detectors"] = sorted(set(args.detectors))
     try:
-        build_field(cfgs[args.field_id], Path(args.out), analyze=args.analyze)
+        build_field(cfgs[args.field_id], Path(args.out), analyze=args.analyze, overrides=overrides)
     except NotImplementedError as e:
         print(f"Build stopped at a stage that is not implemented yet: {e}", file=sys.stderr)
         return 3
     except ValueError as e:
         print(f"Build failed: {e}", file=sys.stderr)
         return 2
+    return 0
+
+
+def cmd_compare(args: argparse.Namespace) -> int:
+    """Season coadds + flux-matched season differences of a built field (WS2-7)."""
+    from .imaging.compare import compare_field, load_from_cutouts
+    from .products import ProductStore
+
+    store = ProductStore(Path(args.dir))
+    if not store.has_field(args.field_id):
+        print(f"No built field '{args.field_id}' in {args.dir}; run `errante build` first.", file=sys.stderr)
+        return 2
+    field = store.read_field(args.field_id)
+    try:
+        meta = compare_field(field, store.field_dir(field.id), load_from_cutouts(field))
+    except NotImplementedError as e:
+        print(f"Compare stopped at a stage that is not implemented yet: {e}", file=sys.stderr)
+        return 3
+    except ValueError as e:
+        print(f"Compare failed: {e}", file=sys.stderr)
+        return 2
+    print(
+        f"{field.id}: {len(meta['coadds'])} season coadds and {len(meta['differences'])} differences in "
+        f"{store.field_dir(field.id) / 'compare'}"
+    )
+    return 0
+
+
+def _finite_json(value):
+    """NaN/inf -> None (strict JSON for the browser), recursively."""
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, dict):
+        return {k: _finite_json(v) for k, v in value.items()}
+    if isinstance(value, list | tuple):
+        return [_finite_json(v) for v in value]
+    return value
+
+
+def cmd_spectrum(args: argparse.Namespace) -> int:
+    """Forced photometry of one position on every SPHEREx exposure (WS2, for WS3-5)."""
+    from dataclasses import asdict
+
+    from .imaging.photometry import spectrum_at
+
+    pm = None
+    if args.pm_ra is not None or args.pm_dec is not None:
+        pm = (args.pm_ra or 0.0, args.pm_dec or 0.0, args.pm_epoch)
+    try:
+        res = spectrum_at(args.ra, args.dec, pm=pm, detectors=args.detector, max_frames=args.max_frames)
+    except NotImplementedError as e:
+        print(f"Spectrum stopped at a stage that is not implemented yet: {e}", file=sys.stderr)
+        return 3
+    except ValueError as e:
+        print(f"Spectrum failed: {e}", file=sys.stderr)
+        return 2
+    doc = {
+        "ra": res.ra,
+        "dec": res.dec,
+        "proper_motion": None if pm is None else {"pm_ra_masyr": pm[0], "pm_dec_masyr": pm[1], "epoch_mjd": pm[2]},
+        "notes": res.notes,
+        "failures": [{"frame_id": f, "reason": r} for f, r in res.failures],
+        "points": [asdict(pt) for pt in res.points],
+    }
+    text = json.dumps(_finite_json(doc), indent=2, allow_nan=False)
+    if args.out:
+        out = Path(args.out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(text + "\n", encoding="utf-8")
+    for note in res.notes:
+        print(note)
+    usable = [pt for pt in res.points if pt.usable]
+    for det in sorted({pt.detector for pt in usable}):
+        mine = [pt for pt in usable if pt.detector == det]
+        lam = [pt.wavelength_um for pt in mine]
+        flux = [pt.flux_mjy for pt in mine]
+        print(
+            f"D{det}: {len(mine)} points, {min(lam):.3f}-{max(lam):.3f} um, median flux {sorted(flux)[len(flux) // 2]:.3g} mJy"
+        )
+    if not args.out:
+        print(text)
     return 0
 
 
@@ -289,7 +383,35 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("field_id")
     s.add_argument("--out", default=str(settings.PRODUCTS_DIR))
     s.add_argument("--analyze", action="store_true", help="also run automatic detection and catalog matching")
+    s.add_argument(
+        "--max-frames", type=_positive_int, default=None, metavar="N", help="override max_frames of fields.toml"
+    )
+    s.add_argument(
+        "--detectors",
+        type=int,
+        nargs="+",
+        choices=range(1, 7),
+        default=None,
+        metavar="D",
+        help="override the detectors of fields.toml (1-6, several allowed)",
+    )
     s.set_defaults(func=cmd_build)
+
+    s = sub.add_parser("compare", help="season coadds and season differences of a built field (WS2-7)")
+    s.add_argument("field_id")
+    s.add_argument("--dir", default=str(settings.PRODUCTS_DIR))
+    s.set_defaults(func=cmd_compare)
+
+    s = sub.add_parser("spectrum", help="forced-photometry spectrum of a position on all SPHEREx exposures (WS2)")
+    s.add_argument("--ra", type=float, required=True)
+    s.add_argument("--dec", type=float, required=True)
+    s.add_argument("--pm-ra", type=float, default=None, help="proper motion in RA*cos(dec) [mas/yr]")
+    s.add_argument("--pm-dec", type=float, default=None, help="proper motion in Dec [mas/yr]")
+    s.add_argument("--pm-epoch", type=float, default=51544.5, help="epoch (MJD) of --ra/--dec [default J2000]")
+    s.add_argument("--detector", type=int, action="append")
+    s.add_argument("--max-frames", type=int, default=None)
+    s.add_argument("--out", default=None, help="write the full result (all points, flags) as JSON")
+    s.set_defaults(func=cmd_spectrum)
 
     args = p.parse_args(argv)
     return args.func(args)

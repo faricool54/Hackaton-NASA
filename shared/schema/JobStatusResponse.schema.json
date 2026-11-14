@@ -1,0 +1,69 @@
+{
+  "additionalProperties": false,
+  "description": "POST /api/jobs (202) and GET /api/jobs/{id} (200). Publication maps to running.",
+  "properties": {
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "error_detail": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Error Detail"
+    },
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "result_field_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Result Field Id"
+    },
+    "stage": {
+      "title": "Stage",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "queued",
+        "running",
+        "ready",
+        "failed",
+        "no_coverage",
+        "pipeline_not_ready"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "status",
+    "stage",
+    "created_at",
+    "updated_at"
+  ],
+  "title": "JobStatusResponse",
+  "type": "object"
+}
