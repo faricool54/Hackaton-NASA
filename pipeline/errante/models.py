@@ -25,7 +25,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-SCHEMA_VERSION = "0.3.0"
+SCHEMA_VERSION = "0.2.2"
 
 Release = Literal["dr1", "qr2", "qr3", "synthetic"]
 """SPHEREx data release a frame comes from (see docs/DATA.md)."""
@@ -216,9 +216,11 @@ class CompositeChannel(_Model):
 
     @model_validator(mode="after")
     def _check_wavelength_range(self) -> CompositeChannel:
-        lo, hi = self.wavelength_min_um, self.wavelength_max_um
+        lo, hi, mean = self.wavelength_min_um, self.wavelength_max_um, self.wavelength_um
         if lo is not None and hi is not None and lo > hi:
             raise ValueError(f"wavelength_min_um ({lo}) > wavelength_max_um ({hi})")
+        if mean is not None and lo is not None and hi is not None and not lo <= mean <= hi:
+            raise ValueError(f"wavelength_um ({mean}) outside [{lo}, {hi}]")
         return self
 
 
@@ -229,7 +231,7 @@ class Composite(_Model):
     wavelengths (see CompositeMode). It is NOT a true-color image and the UI must say so.
     """
 
-    id: str = Field(description="Unique within the field, e.g. 'detectors_S0'")
+    id: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]*$", description="Unique within the field, e.g. 'detectors_S0'")
     mode: CompositeMode = Field(
         description="detectors = whole SPHEREx detectors over the full 0.75-5.0 um range; jhk = 2MASS-like, "
         "exposures near J/H/Ks (~1.25/1.65/2.15 um). Blue = shortest, red = longest wavelengths."
@@ -238,8 +240,9 @@ class Composite(_Model):
     mjd_min: float = Field(description="Earliest mid-exposure MJD among the inputs [days]")
     mjd_max: float = Field(description="Latest mid-exposure MJD among the inputs [days]")
     image: str = Field(
-        description="RGB/RGBA PNG on the field grid, path relative to the field directory, "
-        "e.g. 'color/detectors_S0.png'"
+        pattern=r"\.png$",
+        description="RGB/RGBA PNG on the field grid, path relative to the field directory (no '..', no "
+        "absolute or Windows paths), e.g. 'color/detectors_S0.png'",
     )
     channels: list[CompositeChannel] = Field(
         min_length=3, max_length=3, description="Exactly three channels, in the order red, green, blue"
@@ -248,6 +251,17 @@ class Composite(_Model):
 
     @model_validator(mode="after")
     def _check_composite(self) -> Composite:
+        image = self.image
+        parts = image.split("/")
+        if (
+            "\\" in image
+            or image.startswith("/")
+            or (len(image) > 1 and image[1] == ":")
+            or ".." in parts
+            or "" in parts
+            or any(ch in image for ch in "?#")
+        ):
+            raise ValueError(f"image must be a relative path inside the field directory, got {image!r}")
         if self.mjd_min > self.mjd_max:
             raise ValueError(f"mjd_min ({self.mjd_min}) > mjd_max ({self.mjd_max})")
         colors = [c.color for c in self.channels]
@@ -273,7 +287,7 @@ class SkyField(_Model):
     composites: list[Composite] = Field(
         default_factory=list,
         description="Optional FALSE-COLOR infrared composites per observing season (infrared wavelengths mapped "
-        "to RGB, not true color). Empty when none were built; absent in products older than 0.3.0.",
+        "to RGB, not true color). Empty when none were built; absent in products older than 0.2.2.",
     )
 
     @model_validator(mode="after")

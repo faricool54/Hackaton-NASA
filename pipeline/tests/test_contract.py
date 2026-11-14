@@ -56,7 +56,7 @@ def test_field_id_must_be_slug():
         SkyField.model_validate(data)
 
 
-# --- False-color composites (contract 0.3.0) --------------------------------
+# --- False-color composites (contract 0.2.2) --------------------------------
 
 TYPES_TS = settings.REPO_ROOT / "frontend" / "src" / "api" / "types.ts"
 
@@ -96,7 +96,7 @@ def _demo_field_dict() -> dict:
 
 
 def test_field_without_composites_key_defaults_to_empty_list():
-    """Products written before 0.3.0 (no 'composites' key) stay valid and read as []."""
+    """Products written before 0.2.2 (no 'composites' key) stay valid and read as []."""
     data = _demo_field_dict()
     data.pop("composites", None)
     field = SkyField.model_validate(data)
@@ -177,3 +177,32 @@ def test_cli_validate_reports_missing_composite_image(tmp_path):
 
 def test_frontend_types_declare_the_same_schema_version():
     assert f"export const SCHEMA_VERSION = '{SCHEMA_VERSION}';" in TYPES_TS.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    "image",
+    ["../x.png", "/abs.png", "C:/x.png", "color\\x.png", "a/../../b.png", "color//x.png", "color/x.png?y=1", "x.jpg"],
+)
+def test_composite_image_must_stay_inside_the_field_directory(image):
+    from errante.models import Composite, CompositeChannel
+
+    def ch(color):
+        return CompositeChannel(
+            color=color, frame_ids=["a"], wavelength_um=1.0, wavelength_min_um=0.9, wavelength_max_um=1.1
+        )
+
+    with pytest.raises(ValueError):
+        Composite(id="detectors_S0", mode="detectors", season=0, mjd_min=1, mjd_max=2, image=image,
+                  channels=[ch("red"), ch("green"), ch("blue")])  # fmt: skip
+
+
+def test_composite_channel_mean_wavelength_must_lie_in_its_range_and_ids_are_slugs():
+    from errante.models import Composite, CompositeChannel
+
+    with pytest.raises(ValueError, match="outside"):
+        CompositeChannel(color="red", frame_ids=["a"], wavelength_um=2.0, wavelength_min_um=0.9, wavelength_max_um=1.1)
+    ch = [CompositeChannel(color=c, frame_ids=["a"]) for c in ("red", "green", "blue")]
+    ok = Composite(id="jhk_S1", mode="jhk", season=1, mjd_min=1, mjd_max=2, image="color/jhk_S1.png", channels=ch)
+    assert ok.image == "color/jhk_S1.png"
+    with pytest.raises(ValueError):
+        Composite(id="a/b", mode="jhk", season=1, mjd_min=1, mjd_max=2, image="color/jhk_S1.png", channels=ch)
