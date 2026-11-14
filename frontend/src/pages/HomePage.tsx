@@ -1,15 +1,20 @@
 import { useEffect, useState } from 'react';
-import { client } from '../api/client';
+import { ApiError, client } from '../api/client';
 import type { Manifest } from '../api/types';
 import { formatMjd, formatRaDec } from '../api/format';
 import { SyntheticBadge } from '../components/SyntheticBadge';
+import { SkyExplorer } from '../components/SkyExplorer';
 
 export function HomePage() {
   const [manifest, setManifest] = useState<Manifest | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [empty, setEmpty] = useState(false);
 
   useEffect(() => {
-    client.getManifest().then(setManifest).catch((e: Error) => setError(e.message));
+    client.getManifest().then(setManifest).catch((e: Error) => {
+      if (client.config.mode === 'api' && e instanceof ApiError && e.status === 404) setEmpty(true);
+      else setError(e.message);
+    });
   }, []);
 
   return (
@@ -19,20 +24,24 @@ export function HomePage() {
         <p>
           NASA's SPHEREx telescope maps the whole sky in 102 infrared colors, again and again. Comparing dates
           can reveal moving objects, nearby stars with proper motion, and changes in brightness. Explore the
-          labelled synthetic fields below while the real-image workflow is being developed.
+          sky map, choose a position, and build a sequence of real observations. Curated fields are also available below.
         </p>
         <p>
+          <a href={`${import.meta.env.BASE_URL}?mode=static&dataset=real#/`}>Browse the five real challenge fields →</a>
+          {' · '}
           <a href="#/systems">Explore illustrative 3D models of the challenge targets →</a>
         </p>
         {/* TODO(WS6): final copy, project name, call to action. TODO(WS5): coordinate/name search box (api mode). */}
       </section>
 
-      {error && <p className="error">Could not load data: {error}</p>}
-      {!manifest && !error && <p className="muted">Loading…</p>}
+      <SkyExplorer />
+      {error && <p className="error">Could not load curated fields: {error}</p>}
+      {empty && <p className="muted">No curated fields yet. Build your first sequence above.</p>}
+      {!manifest && !error && !empty && <p className="muted">Loading…</p>}
       {manifest && (
         <section>
           <h2>
-            Fields <SyntheticBadge synthetic={manifest.synthetic} />
+            Available sequences <SyntheticBadge synthetic={manifest.synthetic} />
           </h2>
           <div className="cards">
             {manifest.fields.map((f) => (
@@ -41,7 +50,7 @@ export function HomePage() {
                   <img src={client.fieldFileUrl(f.id, f.thumbnail)} alt="" className="thumb" loading="lazy" />
                 )}
                 <div className="card-body">
-                  <h3>{f.name}</h3>
+                  <h3>{f.id.startsWith('job-') ? `SPHEREx at ${formatRaDec(f.center.ra, f.center.dec)}` : f.name}</h3>
                   <p className="muted">{f.description}</p>
                   <p className="muted small">
                     {formatRaDec(f.center.ra, f.center.dec)} · {f.n_frames} frames · {f.n_candidates} candidates
