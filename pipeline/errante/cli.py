@@ -161,6 +161,46 @@ def cmd_build(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_spectrum(args: argparse.Namespace) -> int:
+    """Forced photometry of one position on every SPHEREx exposure (WS2, for WS3-5)."""
+    from dataclasses import asdict
+
+    from .imaging.photometry import spectrum_at
+
+    pm = None
+    if args.pm_ra is not None or args.pm_dec is not None:
+        pm = (args.pm_ra or 0.0, args.pm_dec or 0.0, args.pm_epoch)
+    try:
+        res = spectrum_at(args.ra, args.dec, pm=pm, detectors=args.detector, max_frames=args.max_frames)
+    except NotImplementedError as e:
+        print(f"Spectrum stopped at a stage that is not implemented yet: {e}", file=sys.stderr)
+        return 3
+    doc = {
+        "ra": res.ra,
+        "dec": res.dec,
+        "proper_motion": None if pm is None else {"pm_ra_masyr": pm[0], "pm_dec_masyr": pm[1], "epoch_mjd": pm[2]},
+        "notes": res.notes,
+        "failures": [{"frame_id": f, "reason": r} for f, r in res.failures],
+        "points": [asdict(pt) for pt in res.points],
+    }
+    text = json.dumps(doc, indent=2, allow_nan=False)
+    if args.out:
+        Path(args.out).write_text(text + "\n", encoding="utf-8")
+    for note in res.notes:
+        print(note)
+    usable = [pt for pt in res.points if pt.usable]
+    for det in sorted({pt.detector for pt in usable}):
+        mine = [pt for pt in usable if pt.detector == det]
+        lam = [pt.wavelength_um for pt in mine]
+        flux = [pt.flux_mjy for pt in mine]
+        print(
+            f"D{det}: {len(mine)} points, {min(lam):.3f}-{max(lam):.3f} um, median flux {sorted(flux)[len(flux) // 2]:.3g} mJy"
+        )
+    if not args.out:
+        print(text)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="errante", description="SPHEREx temporal sky explorer pipeline")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -210,6 +250,17 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--out", default=str(settings.PRODUCTS_DIR))
     s.add_argument("--analyze", action="store_true", help="also run automatic detection and catalog matching")
     s.set_defaults(func=cmd_build)
+
+    s = sub.add_parser("spectrum", help="forced-photometry spectrum of a position on all SPHEREx exposures (WS2)")
+    s.add_argument("--ra", type=float, required=True)
+    s.add_argument("--dec", type=float, required=True)
+    s.add_argument("--pm-ra", type=float, default=None, help="proper motion in RA*cos(dec) [mas/yr]")
+    s.add_argument("--pm-dec", type=float, default=None, help="proper motion in Dec [mas/yr]")
+    s.add_argument("--pm-epoch", type=float, default=51544.5, help="epoch (MJD) of --ra/--dec [default J2000]")
+    s.add_argument("--detector", type=int, action="append")
+    s.add_argument("--max-frames", type=int, default=None)
+    s.add_argument("--out", default=None, help="write the full result (all points, flags) as JSON")
+    s.set_defaults(func=cmd_spectrum)
 
     args = p.parse_args(argv)
     return args.func(args)

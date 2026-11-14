@@ -24,6 +24,11 @@
   `IMAGE − ZODI`, núcleos saturados y defectos reparados solo para mostrar). Validado en datos reales (abajo).
 - ✅ `build.py`: `select_frames` temporada × detector (temporadas ≤ 60 d), `frame_id = obs_id + 'D' + detector`,
   reemplazo de frames fallidos, `thumb.png`, error "descarga fallida" ≠ "sin cobertura".
+- ✅ `imaging/photometry.py` + `errante spectrum --ra --dec [--pm-ra --pm-dec]`: fotometría forzada en los píxeles
+  nativos de cada exposición (apertura r=2 px, cielo local, corrección de apertura por detector vs λ, errores de
+  VARIANCE, λ/Δλ de WCS-WAVE, flags). Base de WS3-5/WS4-8/WS5-12 (espectro en el panel de la visión).
+  Validado: estrella normal del campo de ε Ind vs 2MASS J/H/Ks = 1,025/1,058/1,062; WISE 0855 a 4,4–5 µm = 0,57 mJy
+  (W2 = 0,57 mJy). Las estrellas saturadas (Barnard) quedan marcadas `saturated`: no hay flujo confiable.
 - ⛔ `find_sources`, `static_sky`, `residuals`, `link_tracks`, `score_tracks`, `inject_mover`.
 
 ## Tareas
