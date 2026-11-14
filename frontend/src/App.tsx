@@ -6,6 +6,7 @@
 //   #/system/<id>[/<body>]   3D view of a system; a body id "enters" that body
 import { useEffect, useState } from 'react';
 import { client } from './api/client';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { AboutPage } from './pages/AboutPage';
 import { FieldPage } from './pages/FieldPage';
 import { HomePage } from './pages/HomePage';
@@ -47,6 +48,7 @@ export function App() {
           </span>
         </nav>
       </header>
+      <ErrorBoundary what="This page" key={`${page ?? ''}/${arg ?? ''}`}>
       {page === 'field' && arg ? (
         <FieldPage fieldId={arg} />
       ) : page === 'system' && arg ? (
@@ -58,6 +60,7 @@ export function App() {
       ) : (
         <HomePage />
       )}
+      </ErrorBoundary>
       <footer className="muted small">
         NASA Space Apps Challenge 2026 · Planet X and SPHEREx · SPHEREx data: NASA/JPL-Caltech/IPAC IRSA
       </footer>

@@ -25,7 +25,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-SCHEMA_VERSION = "0.2.0"
+SCHEMA_VERSION = "0.3.0"
 
 Release = Literal["dr1", "qr2", "qr3", "synthetic"]
 """SPHEREx data release a frame comes from (see docs/DATA.md)."""
@@ -213,6 +213,7 @@ BodyKind = Literal[
 ]
 AppearanceModel = Literal["star", "brown_dwarf", "rocky", "icy", "gas_giant", "disk", "mesh"]
 VariabilityKind = Literal["pulsation", "accretion", "eclipse", "rotation", "irregular"]
+OrbitQuality = Literal["fitted", "assumed", "hypothetical"]
 
 
 class Fact(_Model):
@@ -237,6 +238,13 @@ class Orbit(_Model):
     arg_periapsis_deg: float = Field(default=0.0, ge=0, lt=360)
     mean_anomaly_deg: float = Field(default=0.0, ge=0, lt=360, description="At epoch_mjd")
     epoch_mjd: float | None = Field(default=None, description="Epoch of mean_anomaly_deg; None = arbitrary phase")
+    quality: OrbitQuality = Field(
+        default="fitted",
+        description="fitted = published orbital solution; assumed = NOT fitted (e.g. circle at a projected "
+        "separation or a distance estimate); hypothetical = proposed object (e.g. Planet Nine). The UI marks "
+        "anything but 'fitted'.",
+    )
+    note: str | None = Field(default=None, description="Plain-language caveat about this orbit, shown in the UI")
 
 
 class Variability(_Model):

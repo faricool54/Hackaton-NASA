@@ -18,7 +18,7 @@
     "pm_ra_cosdec_mas_yr": 3966.7,
     "pm_dec_mas_yr": -2536.2,
     "radial_velocity_km_s": -40.4,
-    "epoch": "J2016.0"
+    "epoch": "J2000.0"
   },
   "field_id": null,
   "bodies": [
@@ -72,12 +72,14 @@
         "parent": "eps-indi-a",
         "semi_major_axis_au": 28.0,
         "period_days": 62076.0,
-        "eccentricity": 0.0,
+        "eccentricity": 0.4,
         "inclination_deg": 0.0,
         "ascending_node_deg": 0.0,
         "arg_periapsis_deg": 0.0,
         "mean_anomaly_deg": 0.0,
-        "epoch_mjd": null
+        "epoch_mjd": null,
+        "quality": "fitted",
+        "note": "Orientation (inclination ~104 deg, node, periastron) and phase not modelled."
       },
       "variability": null,
       "appearance": {
@@ -98,6 +100,13 @@
           "label": "Orbit size",
           "value": "~28",
           "unit": "AU",
+          "source": "Matthews et al. 2024 (Nature)",
+          "verified": false
+        },
+        {
+          "label": "Eccentricity",
+          "value": "~0.4 (+0.15/-0.18)",
+          "unit": null,
           "source": "Matthews et al. 2024 (Nature)",
           "verified": false
         },
@@ -130,7 +139,9 @@
         "ascending_node_deg": 0.0,
         "arg_periapsis_deg": 0.0,
         "mean_anomaly_deg": 0.0,
-        "epoch_mjd": null
+        "epoch_mjd": null,
+        "quality": "assumed",
+        "note": "Circle at the projected separation; period from Kepler's law. Not a fitted orbit."
       },
       "variability": null,
       "appearance": {
@@ -183,7 +194,9 @@
         "ascending_node_deg": 0.0,
         "arg_periapsis_deg": 0.0,
         "mean_anomaly_deg": 0.0,
-        "epoch_mjd": null
+        "epoch_mjd": null,
+        "quality": "fitted",
+        "note": null
       },
       "variability": null,
       "appearance": {
@@ -221,11 +234,12 @@
   "representation_note": "Model representation built from catalog parameters - not an image. Sizes and distances may be exaggerated for visibility.",
   "provenance": {
     "pipeline_version": "0.1.0",
-    "built_at": "2026-11-14T14:28:54.561109Z",
+    "built_at": "2026-11-14T15:09:55.680433Z",
     "synthetic": false,
     "data_releases": [],
     "notes": [
       "Parameters typed by hand as a starting point; NOT yet verified against catalogs (tasks/WS7-3d-systems.md, WS7-2).",
+      "Orbital and pulsation phases are arbitrary (no epoch): positions are not predictions for a real date.",
       "Simplified hierarchy: Ba orbits A and Bb orbits Ba (no barycenters)."
     ]
   }

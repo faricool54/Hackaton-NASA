@@ -72,11 +72,12 @@
   "representation_note": "Model representation built from catalog parameters - not an image. Sizes and distances may be exaggerated for visibility.",
   "provenance": {
     "pipeline_version": "0.1.0",
-    "built_at": "2026-11-14T14:28:54.561153Z",
+    "built_at": "2026-11-14T15:09:55.680530Z",
     "synthetic": false,
     "data_releases": [],
     "notes": [
-      "Parameters typed by hand as a starting point; NOT yet verified against catalogs (tasks/WS7-3d-systems.md, WS7-2)."
+      "Parameters typed by hand as a starting point; NOT yet verified against catalogs (tasks/WS7-3d-systems.md, WS7-2).",
+      "Orbital and pulsation phases are arbitrary (no epoch): positions are not predictions for a real date."
     ]
   }
 }

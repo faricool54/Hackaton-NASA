@@ -2,7 +2,7 @@
 
 Fuente de verdad: [`pipeline/errante/models.py`](../pipeline/errante/models.py).
 Generado: [`shared/schema/*.schema.json`](../shared/schema/) (`make schema`). Espejo TS:
-[`frontend/src/api/types.ts`](../frontend/src/api/types.ts). Versión actual: **0.2.0** (0.2.0 agregó los sistemas 3D, aditivo).
+[`frontend/src/api/types.ts`](../frontend/src/api/types.ts). Versión actual: **0.3.0** (0.2.0 agregó los sistemas 3D; 0.3.0 agregó `Orbit.quality`/`note`; ambos aditivos).
 Ejemplos reales del formato: [`data/demo/`](../data/demo/).
 
 ## Archivos en disco (= lo que lee el frontend estático)
@@ -45,6 +45,7 @@ Ejemplos reales del formato: [`data/demo/`](../data/demo/).
 - **Provenance.synthetic = true** ⇒ la UI DEBE mostrar el badge de datos sintéticos.
 - **SystemModel** (3D): unidades `radius_km`, `mass_kg`, `teff_k`, órbitas en AU/días/grados, `Orbit.parent` =
   `Body.id` del padre (`orbit = null` ⇒ cuerpo raíz en el origen), `epoch_mjd = null` ⇒ fase arbitraria.
+  `Orbit.quality`: `fitted` | `assumed` (no ajustada) | `hypothetical`; la UI marca todo lo que no sea `fitted`.
   `Fact.verified = false` ⇒ la UI marca el valor como "unverified". Siempre se muestra `representation_note`.
   `Manifest.systems` puede faltar en productos viejos (tratar como `[]`).
 

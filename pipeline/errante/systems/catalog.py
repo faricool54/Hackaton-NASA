@@ -36,6 +36,8 @@ M_JUP_KG = 1.898e27
 M_EARTH_KG = 5.972e24
 DAYS_PER_YEAR = 365.25
 
+PHASE_NOTE = "Orbital and pulsation phases are arbitrary (no epoch): positions are not predictions for a real date."
+
 UNVERIFIED_NOTE = (
     "Parameters typed by hand as a starting point; NOT yet verified against catalogs (tasks/WS7-3d-systems.md, WS7-2)."
 )
@@ -48,6 +50,13 @@ def kepler_period_days(a_au: float, total_mass_msun: float) -> float:
 
 def kepler_a_au(period_days: float, total_mass_msun: float) -> float:
     return (total_mass_msun * (period_days / DAYS_PER_YEAR) ** 2) ** (1 / 3)
+
+
+def _demo_field_center(field_id: str) -> SkyCoord:
+    from ..synthetic import DEMO_FIELDS
+
+    spec = next(s for s in DEMO_FIELDS if s.id == field_id)
+    return SkyCoord(ra=spec.ra, dec=spec.dec)
 
 
 def _fact(label: str, value: str, unit: str | None = None, source: str | None = None) -> Fact:
@@ -130,11 +139,11 @@ def barnards_star() -> SystemModel:
             pm_ra_cosdec_mas_yr=-801.6,
             pm_dec_mas_yr=10362.4,
             radial_velocity_km_s=-110.6,
-            epoch="J2016.0",
+            epoch="J2000.0",  # center is the J2000 position; WS7-2: switch both to Gaia DR3 J2016.0
         ),
         field_id="barnards-star",
         bodies=bodies,
-        provenance=_provenance(synthetic=False, notes=[UNVERIFIED_NOTE]),
+        provenance=_provenance(synthetic=False, notes=[UNVERIFIED_NOTE, PHASE_NOTE]),
     )
 
 
@@ -155,7 +164,7 @@ def epsilon_indi() -> SystemModel:
             pm_ra_cosdec_mas_yr=3966.7,
             pm_dec_mas_yr=-2536.2,
             radial_velocity_km_s=-40.4,
-            epoch="J2016.0",
+            epoch="J2000.0",  # center is the J2000 position; WS7-2: switch both to Gaia DR3 J2016.0
         ),
         field_id=None,  # TODO(WS3/WS7): add an epsilon-indi field to config/fields.toml
         bodies=[
@@ -186,11 +195,14 @@ def epsilon_indi() -> SystemModel:
                     parent="eps-indi-a",
                     semi_major_axis_au=28.0,
                     period_days=round(kepler_period_days(28.0, m_a), 0),
+                    eccentricity=0.40,
+                    note="Orientation (inclination ~104 deg, node, periastron) and phase not modelled.",
                 ),
                 appearance=Appearance(model="gas_giant"),
                 facts=[
                     _fact("Mass", "~6", "Jupiter masses", "Matthews et al. 2024 (Nature)"),
                     _fact("Orbit size", "~28", "AU", "Matthews et al. 2024 (Nature)"),
+                    _fact("Eccentricity", "~0.4 (+0.15/-0.18)", None, "Matthews et al. 2024 (Nature)"),
                     _fact("Temperature", "~275", "K", "Matthews et al. 2024 (Nature)"),
                 ],
             ),
@@ -208,6 +220,8 @@ def epsilon_indi() -> SystemModel:
                     parent="eps-indi-a",
                     semi_major_axis_au=1460.0,
                     period_days=round(kepler_period_days(1460.0, m_a + m_ba + m_bb), 0),
+                    quality="assumed",
+                    note="Circle at the projected separation; period from Kepler's law. Not a fitted orbit.",
                 ),
                 appearance=Appearance(model="brown_dwarf"),
                 facts=[
@@ -241,7 +255,7 @@ def epsilon_indi() -> SystemModel:
         ],
         provenance=_provenance(
             synthetic=False,
-            notes=[UNVERIFIED_NOTE, "Simplified hierarchy: Ba orbits A and Bb orbits Ba (no barycenters)."],
+            notes=[UNVERIFIED_NOTE, PHASE_NOTE, "Simplified hierarchy: Ba orbits A and Bb orbits Ba (no barycenters)."],
         ),
     )
 
@@ -253,7 +267,7 @@ def wise_0855() -> SystemModel:
     return SystemModel(
         id="wise-0855",
         name="WISE 0855−0714",
-        description="Challenge test target: the coldest known brown dwarf, about as cold as the North Pole.",
+        description="Challenge test target: the coldest known brown dwarf, around the freezing point of water.",
         tags=["test-target", "brown-dwarf", "proper-motion"],
         center=SkyCoord(ra=133.79513, dec=-7.24515),  # coordinates given in the challenge (older epoch)
         motion=SpaceMotion(
@@ -269,21 +283,28 @@ def wise_0855() -> SystemModel:
                 id="wise-0855",
                 name="WISE 0855−0714",
                 kind="brown_dwarf",
-                description="A free-floating ultra-cool brown dwarf with water clouds predicted in its atmosphere.",
+                description="A free-floating brown dwarf so cold that water could condense in its atmosphere.",
                 radius_km=1.0 * R_JUP_KM,
                 mass_kg=5.0 * M_JUP_KG,
                 teff_k=285,
                 spectral_type="Y4 (approx.)",
                 appearance=Appearance(model="brown_dwarf"),
                 facts=[
-                    _fact("Temperature", "~285", "K", "Luhman 2014; JWST spectra"),
-                    _fact("Distance", "~2.28", "pc", "Luhman & Esplin 2016"),
+                    _fact(
+                        "Temperature",
+                        "~250-300 (best fit 285)",
+                        "K",
+                        "Luhman et al. 2024, AJ 167, 5 (JWST); model dependent",
+                    ),
+                    _fact(
+                        "Distance", "~2.28", "pc", "Kirkpatrick et al. 2021, ApJS 253, 7 (parallax 439.0 +/- 2.4 mas)"
+                    ),
                     _fact("Mass", "3–10", "Jupiter masses", "literature (model dependent)"),
                     _fact("Proper motion", "~8.1", "arcsec/yr", "literature"),
                 ],
             )
         ],
-        provenance=_provenance(synthetic=False, notes=[UNVERIFIED_NOTE]),
+        provenance=_provenance(synthetic=False, notes=[UNVERIFIED_NOTE, PHASE_NOTE]),
     )
 
 
@@ -317,7 +338,7 @@ def r_draconis() -> SystemModel:
                 ],
             )
         ],
-        provenance=_provenance(synthetic=False, notes=[UNVERIFIED_NOTE]),
+        provenance=_provenance(synthetic=False, notes=[UNVERIFIED_NOTE, PHASE_NOTE]),
     )
 
 
@@ -371,6 +392,8 @@ def rw_aurigae() -> SystemModel:
                     parent="rw-aur-a",
                     semi_major_axis_au=200.0,
                     period_days=round(kepler_period_days(200.0, 2.3), 0),
+                    quality="assumed",
+                    note="Circle at the projected separation; period from Kepler's law. Not a fitted orbit.",
                 ),
                 appearance=Appearance(model="star"),
                 facts=[_fact("Projected separation", "~1.4 (~200 AU)", "arcsec", "literature")],
@@ -378,7 +401,11 @@ def rw_aurigae() -> SystemModel:
         ],
         provenance=_provenance(
             synthetic=False,
-            notes=[UNVERIFIED_NOTE, "The disk body has no orbit: the UI draws it centred on its host (rw-aur-a)."],
+            notes=[
+                UNVERIFIED_NOTE,
+                PHASE_NOTE,
+                "The disk body has no orbit: the UI draws it centred on its host (rw-aur-a).",
+            ],
         ),
     )
 
@@ -411,7 +438,7 @@ def demo_ecliptic_orbits() -> SystemModel:
         name="Demo: where the moving dots are",
         description="SYNTHETIC. 3D orbits for the candidates of the synthetic 'demo-ecliptic' field.",
         tags=["synthetic", "solar-system"],
-        center=SkyCoord(ra=180.0, dec=0.0),
+        center=_demo_field_center("demo-ecliptic"),
         field_id="demo-ecliptic",
         bodies=[
             Body(
@@ -431,20 +458,23 @@ def demo_ecliptic_orbits() -> SystemModel:
                 id="syn-2026-aa",
                 name="SYN 2026 AA (synthetic asteroid)",
                 kind="asteroid",
-                description="Synthetic main-belt asteroid matching candidate SYN-AST-1.",
+                description="Synthetic outer-belt asteroid matching candidate SYN-AST-1.",
                 radius_km=5.0,
                 orbit=Orbit(
                     parent="sun",
-                    semi_major_axis_au=2.9,
-                    period_days=round(kepler_period_days(2.9, 1.0), 1),
-                    eccentricity=0.12,
+                    semi_major_axis_au=3.8,
+                    period_days=round(kepler_period_days(3.8, 1.0), 1),
+                    eccentricity=0.05,
                     inclination_deg=8.0,
                     ascending_node_deg=40.0,
                     arg_periapsis_deg=110.0,
                 ),
                 appearance=Appearance(model="rocky"),
                 candidate_id="SYN-AST-1",
-                facts=[_fact("Candidate", "SYN-AST-1 (known, synthetic)")],
+                facts=[
+                    _fact("Candidate", "SYN-AST-1 (known, synthetic)"),
+                    _fact("Distance estimate", "~3.8", "AU", "pipeline (synthetic, opposition rate)"),
+                ],
             ),
             Body(
                 id="syn-tno-1",
@@ -456,6 +486,8 @@ def demo_ecliptic_orbits() -> SystemModel:
                     parent="sun",
                     semi_major_axis_au=42.2,
                     period_days=round(kepler_period_days(42.2, 1.0), 1),
+                    quality="assumed",
+                    note="Unconfirmed candidate: circle at the estimated distance, not a fitted orbit.",
                 ),
                 appearance=Appearance(model="icy"),
                 candidate_id="SYN-TNO-1",
@@ -467,7 +499,10 @@ def demo_ecliptic_orbits() -> SystemModel:
         ],
         provenance=_provenance(
             synthetic=True,
-            notes=["SYNTHETIC system for the synthetic demo field — NOT real objects."],
+            notes=[
+                "SYNTHETIC system for the synthetic demo field — NOT real objects.",
+                "Orbital phases are arbitrary (no epoch): positions are not predictions for the shown date.",
+            ],
         ),
     )
 

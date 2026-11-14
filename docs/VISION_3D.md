@@ -36,8 +36,10 @@ clickeables, transiciones suaves de cámara, panel lateral legible y que funcion
 - Cada dato de la ficha es un `Fact` con `source` y `verified`. Si no se verificó contra la fuente, la UI lo marca
   **"unverified"** y el sistema muestra el badge **"UNVERIFIED VALUES"**. Hoy **todos** los valores reales están
   tipeados a mano como punto de partida → WS7-2 los verifica.
-- Lo que no sabemos no se dibuja como si lo supiéramos: una órbita no ajustada (p. ej. un candidato
-  `unconfirmed` con solo una distancia estimada) se dibuja **en amarillo** como "assumed circular — not fitted".
+- Lo que no sabemos no se dibuja como si lo supiéramos: cada órbita declara `Orbit.quality`. `assumed` (no
+  ajustada: un círculo a la separación proyectada o a una distancia estimada) se dibuja **en amarillo** y la ficha
+  dice "assumed, not fitted"; `hypothetical` (p. ej. Planeta Nueve) en violeta. Las fases sin época son
+  arbitrarias: el visor muestra tiempo transcurrido, no una fecha "predicha".
 - Lo sintético sigue llevando el badge **SYNTHETIC DATA** (`provenance.synthetic`).
 - Simplificaciones explícitas: jerarquías sin baricentros (Epsilon Indi), variabilidad sinusoidal, radios
   estimados de planetas no transitantes. Cada una figura en `provenance.notes` o en la etiqueta del dato.
@@ -48,11 +50,11 @@ clickeables, transiciones suaves de cámara, panel lateral legible y que funcion
 |---|---|---|
 | **Barnard's Star** | enana roja + 4 planetas sub-Tierra (periodos 2.3–6.7 d); movimiento propio récord (~10.4″/año) | NASA Exoplanet Archive, Gaia DR3 |
 | **Epsilon Indi** | estrella K5V + gigante frío Ab (imagen directa JWST, ~28 AU) + binaria de enanas marrones Ba/Bb (~11 años) a ~1460 AU | NASA Exoplanet Archive, SIMBAD, literatura |
-| **WISE 0855−0714** | enana marrón aislada más fría conocida (~285 K); sin sistema → vista del cuerpo + su movimiento por el cielo | SIMBAD, Luhman 2014/2016 |
+| **WISE 0855−0714** | enana marrón aislada más fría conocida (~250–300 K); sin sistema → vista del cuerpo + su movimiento por el cielo | SIMBAD, Luhman et al. 2024 (JWST), Kirkpatrick et al. 2021 (paralaje) |
 | **R Draconis** | gigante roja Mira que pulsa cada ~245 d → animación de pulsación (tamaño/brillo) | AAVSO VSX / GCVS |
 | **RW Aurigae** | binaria joven A+B con disco alrededor de A; atenuaciones irregulares | SIMBAD, literatura |
 | Asteroides / TNOs del pipeline | órbita heliocéntrica real (elementos osculantes) + forma si existe | JPL SBDB, NASA 3D Resources, DAMIT |
-| Planeta Nueve (P1, opcional) | órbita **hipotética** (~400–800 AU) junto a Neptuno y TNOs extremos, marcada como hipótesis | Brown & Batygin 2021 |
+| Planeta Nueve (P1, opcional) | órbita **hipotética** (a ≈ 380 +140/−80 AU, perihelio ≈ 300 AU, i ≈ 16°, ~6 M⊕) junto a Neptuno y TNOs extremos, con `Orbit.quality = "hypothetical"` | Brown & Batygin 2021 (AJ 162, 219) |
 
 Lo que **no** sale de SPHEREx: las órbitas y parámetros físicos vienen de catálogos. SPHEREx aporta *dónde está y
 cómo se mueve en el cielo*, su **espectro 0.75–5 µm** y su variabilidad; la vista 3D lo pone en contexto.
@@ -66,7 +68,7 @@ pipeline/errante/systems/       (WS7)
   build.py     valida jerarquía (padres existen, sin ciclos) y escribe <root>/systems/<id>.json
        │  errante demo  → data/demo/systems/*.json      errante systems → data/products/systems/*.json
        ▼
-contrato: SystemModel (models.py, schema 0.2.0) · Manifest.systems · GET /api/systems/{id}
+contrato: SystemModel (models.py, schema 0.3.0) · Manifest.systems · GET /api/systems/{id}
        ▼
 frontend/src/three/             (WS7, three.js en un chunk aparte, carga diferida)
   orbits.ts       Kepler (posición en el tiempo, elipse), orden padre→hijo, variabilidad   [tests]
@@ -83,7 +85,7 @@ Modelo de datos (resumen; la fuente de verdad es `pipeline/errante/models.py`):
 - `SystemModel`: `id`, `name`, `center` (RA/Dec), `motion` (`SpaceMotion`: distancia, paralaje, movimiento propio,
   velocidad radial), `field_id` (campo SPHEREx), `bodies[]`, `representation_note`, `provenance`.
 - `Body`: `id`, `kind` (star, brown_dwarf, planet, asteroid, tno, disk…), `radius_km`, `mass_kg`, `teff_k`,
-  `spectral_type`, `orbit` (`Orbit`: padre, a, P, e, i, Ω, ω, M₀, época; `null` = cuerpo raíz), `variability`,
+  `spectral_type`, `orbit` (`Orbit`: padre, a, P, e, i, Ω, ω, M₀, época, `quality`, `note`; `null` = cuerpo raíz), `variability`,
   `appearance` (`star | brown_dwarf | rocky | icy | gas_giant | disk | mesh`, `mesh_url`), `facts[]`, `candidate_id`.
 
 ## Próximos pasos (ver tareas)

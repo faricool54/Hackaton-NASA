@@ -74,8 +74,10 @@ def cmd_systems(args: argparse.Namespace) -> int:
 
     store = ProductStore(Path(args.out))
     ids = write_systems(store, curated_systems())
-    store.rebuild_manifest()
+    manifest = store.rebuild_manifest()
     print(f"3D systems written to {store.root / 'systems'}: {ids}")
+    if not manifest.fields:
+        print("Note: no fields in this directory yet; the backend and web keep using the demo until one is built.")
     return 0
 
 
