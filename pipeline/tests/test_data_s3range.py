@@ -411,6 +411,69 @@ def test_read_range_retries_and_guards(monkeypatch):
     assert s3range.read_range("k", 10, 14) == b"klmn" and len(sess.ranges) == 2
 
 
+def test_read_tail_suffix_range(monkeypatch):
+    """One ``bytes=-N`` request returns the tail and the object size (from Content-Range)."""
+    monkeypatch.setattr(s3range.time, "sleep", lambda s: None)
+    sess = _Session([_Resp(503), _Resp(206, b"wxyz", {"Content-Range": "bytes 96-99/100"})])
+    monkeypatch.setattr(s3range, "_session", lambda: sess)
+    assert s3range.read_tail("k", 4) == (b"wxyz", 100) and sess.ranges == ["bytes=-4"] * 2
+    sess = _Session([_Resp(206, b"tiny", {"Content-Range": "bytes 0-3/4"})])  # object shorter than asked
+    monkeypatch.setattr(s3range, "_session", lambda: sess)
+    assert s3range.read_tail("k", 5760) == (b"tiny", 4)
+    for bad in (
+        _Resp(206, b"wx", {"Content-Range": "bytes 96-99/100"}),  # short body
+        _Resp(206, b"wxyz", {}),  # no Content-Range: the size is unknown
+        _Resp(206, b"wxyz", {"Content-Range": "bytes 90-93/100"}),  # not the tail
+    ):
+        monkeypatch.setattr(s3range, "_session", lambda bad=bad: _Session([bad] * s3range.RANGE_RETRIES))
+        with pytest.raises(OSError, match="suffix read failed"):
+            s3range.read_tail("k", 4)
+    monkeypatch.setattr(s3range, "_session", lambda: _Session([_Resp(200, b"whole file")]))
+    with pytest.raises(OSError, match="ignored the Range"):
+        s3range.read_tail("k", 4)
+    with pytest.raises(ValueError):
+        s3range.read_tail("k", 0)
+
+
+def test_session_loads_the_ca_bundle_once_and_keeps_verifying(monkeypatch):
+    """Stock requests re-parses the CA bundle on every new TLS connection (~0.2-0.7 s of CPU each, measured):
+    the adapter shares one pre-loaded SSLContext, still CERT_REQUIRED with hostname checks."""
+    import ssl
+
+    monkeypatch.delenv("REQUESTS_CA_BUNDLE", raising=False)
+    monkeypatch.delenv("CURL_CA_BUNDLE", raising=False)
+    adapter = s3range._adapter()
+    assert isinstance(adapter, s3range._PreloadedCAAdapter)
+    ctx = adapter._ssl_context
+    assert ctx.verify_mode == ssl.CERT_REQUIRED and ctx.check_hostname
+    assert ctx.cert_store_stats()["x509_ca"] > 50  # requests' default bundle, loaded once
+
+    class Pool:
+        ca_certs = ca_cert_dir = cert_reqs = None
+
+    pool = Pool()
+    adapter.cert_verify(pool, "https://nasa-irsa-spherex.s3.us-east-1.amazonaws.com/x", True, None)
+    assert pool.cert_reqs == "CERT_REQUIRED" and pool.ca_certs is None  # verified with the shared context
+    custom = Pool()
+    adapter.cert_verify(custom, "https://example.org/x", str(REAL_HEADER), None)  # a custom bundle path
+    assert custom.ca_certs == str(REAL_HEADER)  # stock behaviour for anything but the default bundle
+    monkeypatch.setenv("REQUESTS_CA_BUNDLE", str(REAL_HEADER))
+    assert type(s3range._adapter()) is requests.adapters.HTTPAdapter
+
+
+def test_parse_header_helper():
+    h = fits.Header([("XTENSION", "IMAGE"), ("BITPIX", -32), ("NAXIS", 0), ("EXTNAME", "X")])
+    raw = h.tostring().encode("ascii")
+    got, hlen = s3range.parse_header(raw + b"\0" * 100)
+    assert got["EXTNAME"] == "X" and hlen == 2880
+    assert s3range.parse_header(raw[:1600]) is None  # END not read yet
+    assert s3range.parse_header(b"") is None
+    with pytest.raises(ValueError, match="no FITS header"):
+        s3range.parse_header(b"\0" * 2880)
+    assert s3range.data_size(fits.Header([("BITPIX", -32), ("NAXIS", 2), ("NAXIS1", 3), ("NAXIS2", 2)])) == 24
+    assert s3range.padded(1) == 2880 and s3range.padded(2880) == 2880
+
+
 def test_read_range_retries_a_body_cut_mid_transfer(monkeypatch):
     """S3 closes the connection after the 206 status and half the body (requests raises
     ChunkedEncodingError, not ConnectionError): the read must be retried, not fail the frame."""
@@ -484,6 +547,22 @@ def test_real_directory(tmp_path, monkeypatch):
     assert (fl["ZCMPTYPE"].strip(), fl["ZTILE1"], fl["ZTILE2"]) == ("RICE_1", 2040, 1)
     assert d["WCS-WAVE"].header["TDIM3"] == "(2,9,14)"  # D3 grid is 9x14
     assert d.hdus[-1].end % 2880 == 0
+
+
+@pytest.mark.network
+@needs_network
+def test_real_tail_and_verified_tls():
+    tail, size = s3range.read_tail(BARNARD_KEY, 5760)
+    assert size % 2880 == 0 and tail.startswith(b"XTENSION= 'BINTABLE'") and b"WCS-WAVE" in tail[:2880]
+    assert s3range.read_range(BARNARD_KEY, size - 5760, size) == tail
+    adapter = s3range._session().adapters["https://"]
+    conns = [
+        c
+        for pool in adapter.poolmanager.pools._container.values()
+        for c in list(pool.pool.queue)
+        if c is not None and getattr(c, "sock", None) is not None
+    ]
+    assert conns and all(c.is_verified for c in conns)
 
 
 @pytest.mark.network
