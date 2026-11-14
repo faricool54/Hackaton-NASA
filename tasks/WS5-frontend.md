@@ -64,11 +64,23 @@ desplegable (`npm run build`) que también funciona contra el backend (`?mode=ap
 - Lenguaje: "unconfirmed" ≠ "discovery". Nada de "¡Encontramos el Planeta X!".
 - No agregues dependencias pesadas sin necesidad (Aladin por CDN on-demand está bien).
 
+## Hechos verificados (2026-11-14) — leelos antes de implementar
+
+- **CDS Estrasburgo está caído** (alasky, VizieR, la URL "latest" de Aladin): cargar **Aladin Lite 3.8.2 desde
+  jsdelivr**, HiPS desde espejos de IRSA/ESA y Gaia DR3 desde VizieR de **CfA** (tiene CORS). Detalle en
+  [`docs/DATA.md`](../docs/DATA.md) §3.0. IRSA no tiene CORS: búsquedas e imágenes reales vienen del backend.
+- **Los objetivos se mueven 1–2 px en total:** sin zoom pixelado, retícula, posición predicha por época y resta
+  de temporadas, en el video no se ve nada. Arrancar con **un detector** (no "all", que mezcla λ).
+- WISE 0855 está ~126″ al oeste de la coordenada del enunciado: FOV por defecto ≥ 8′.
+- `?mode=` ya se usa para `static`/`api` en `client.ts`: si el viewer necesita `mode=blink|diff`, renombrar uno.
+- Bugs vistos: el teclado (espacio/flechas) se captura en todo el documento; `FieldPage` no se remonta al cambiar
+  de campo (usar `key`); el blink monta todos los `<img>` sin precarga.
+
 ## Prompt de arranque
 
 > Sos el agente del workstream WS5 (frontend) del repo Errante para NASA Space Apps 2026. Leé `AGENTS.md`,
 > `docs/CONTRACT.md`, `docs/SCIENCE.md` §4 y `tasks/WS5-frontend.md`. Trabajá SOLO en `frontend/`. Corré
-> `make web` y mirá la app con los datos demo. Leé `docs/REQUIREMENTS.md` y `docs/VALIDATION.md`.
+> `python scripts/dev.py web` y mirá la app con los datos demo. Leé `docs/REQUIREMENTS.md` y `docs/VALIDATION.md`.
 > Empezá por WS5-7, WS5-1 y WS5-3 (coordenadas → secuencia estable, responsive). Usá los tipos de
 > `src/api/types.ts`; si necesitás un dato nuevo, proponelo como
 > PR `contract:` aparte. Verificá en el navegador (desktop y ancho de celular), corré `npm run build` y

@@ -1,36 +1,101 @@
-# Showcase fields for `errante build <id>`. WS3 curates this list, WS1 checks
-# that SPHEREx has enough epochs for each one (errante search --ra --dec).
-# Coordinates: ICRS degrees. Solar-system targets (track_object) need a JPL
-# ephemeris; stars/brown dwarfs need sourced astrometry propagated to each epoch.
-# R05 requires Barnard's Star, Epsilon Indi B, WISE 0855, RW Aurigae and R Draconis.
-# The three missing presets await verified coordinates/epochs (WS3-3); never
-# insert guessed positions. Existing presets are not completed validation runs.
-# See docs/VALIDATION.md for the evidence protocol and current status.
+# Showcase fields for `errante build <id>` ("golden fields": precomputed, also the demo's plan B).
+# WS3 curates this list, WS1 checks SPHEREx coverage (errante search --ra --dec). Facts: docs/SCIENCE.md §0.
+#
+# Rules:
+# - Coordinates: ICRS degrees. The 5 official test targets are centred on their position PROPAGATED (linear
+#   proper motion from J2000) to the MEAN EPOCH of their SPHEREx frames (DR1+QR3 SIA, 2026-11-14).
+# - Astrometry in the comments (J2000, pm, plx) comes from Sesame/SIMBAD at CfA, queried 2026-11-14
+#   (CDS Strasbourg was down). Reference epoch J2000.0, pm in mas/yr (pm_ra includes cos(dec)).
+# - FieldConfig (pipeline/errante/build.py) only accepts: id, name, ra, dec, size_deg, description, tags,
+#   detectors, mjd_min, mjd_max, max_frames, track_object. Anything else MUST stay in comments
+#   (pm/plx/epoch could move to the contract as an optional Field.target in a future version).
+# - R05 requires Barnard's Star, Epsilon Indi B, WISE 0855, RW Aurigae and R Draconis. These are development
+#   presets with sourced astrometry, NOT completed validation runs: see docs/VALIDATION.md (evidence protocol).
+# - size_deg >= 0.15 (~9') so the target never falls off the cutout.
+# - Careful: max_frames (default 40) currently keeps the FIRST frames by time (build.py), i.e. one season
+#   only. Do not rely on it until build.py selects frames per season x detector.
+# - Moving solar-system targets (track_object) must be re-centred with a JPL Horizons ephemeris at the
+#   observation dates; never hard-code them.
 
 [[field]]
 id = "barnards-star"
 name = "Barnard's Star"
-description = "Fastest-moving star in the sky (~10.4\"/yr). Sanity check: our pipeline must see it move between survey passes."
-# J2000 (269.452, +4.693) propagated with its proper motion to ~2025.5.
-ra = 269.4463
-dec = 4.7665
+description = "Official test target. Highest proper-motion star in the sky (~10.4\"/yr): ~1.9 SPHEREx pixels over the DR1+QR3 baseline."
+# J2000 269.45207696 +4.69336497 | pm (-801.551, +10362.394) mas/yr | plx 546.976 mas | M4V, K=4.5
+# Source: Sesame/SIMBAD CfA 2026-11-14. Mean epoch of SPHEREx data: MJD 61104 (2026.17).
+# SPHEREx: 358 frames (dr1 239 + qr3 119), 3 seasons; total shift 11.5" = 1.86 px in 1.10 yr.
+# Previous centre (269.4463, 4.7665) was the 2025.5 position; now centred on the mean epoch (~8" north).
+ra = 269.44623
+dec = 4.76870
 size_deg = 0.15
-tags = ["proper-motion", "validation"]
+tags = ["official-target", "proper-motion", "validation"]
+
+[[field]]
+id = "eps-indi-b"
+name = "Epsilon Indi B"
+description = "Official test target. Pair of T brown dwarfs (Ba+Bb, unresolved at 6.15\"/px) orbiting the bright star eps Ind A, ~402\" away. ~1.1 SPHEREx pixels of motion over the baseline."
+# J2000 331.04414659 -56.7828442 | pm (+3981.977, -2466.832) mas/yr | plx 270.658 mas (Gaia DR3) | T1V+T6V
+# Source: Sesame/SIMBAD CfA 2026-11-14 (SIMBAD has no separate Ba/Bb entries). Gaia DR3 6412596012146801152.
+# Mean epoch of SPHEREx data: MJD 61042 (2026.00).
+# SPHEREx: 460 frames in SIA (dr1 340 + qr3 120), 4 seasons; total shift 6.7" = 1.10 px in 1.44 yr.
+# D1/D4 almost empty in the first season (3 frames) and absent in the last one.
+# eps Ind A (J2000 330.84022 -56.78598) is ~402" WEST: outside this 0.15 deg box; size_deg >= 0.25 includes
+# it (useful to show GHOST/HALO contamination flags, at the cost of more bytes per frame).
+ra = 331.09665
+dec = -56.80066
+size_deg = 0.15
+tags = ["official-target", "brown-dwarf", "proper-motion"]
 
 [[field]]
 id = "wise-0855"
 name = "WISE 0855−0714"
-description = "Coldest known brown dwarf, ~2.3 pc away, high proper motion. Faint: good test of our limits."
-# Position at its ~2014 discovery epoch; moves ~8 arcsec/yr west. WS3: propagate (SIMBAD).
-ra = 133.795
-dec = -7.245
+description = "Official test target. Coldest known brown dwarf, ~2.3 pc away, ~8.2\"/yr. Extremely red (J=25, W2=13.7): look at the longest wavelengths. Only DR1 data so far: ~1.4 SPHEREx pixels of motion."
+# J2000 133.81890825 -7.247048 | pm (-8123.7, +673.2) mas/yr | plx 439.0 mas | Y2, J=25.0, H=23.8
+# Source: Sesame/SIMBAD CfA 2026-11-14. AllWISE: W1=16.23, W2=13.70 (Vega).
+# Mean epoch of SPHEREx data: MJD 61035 (2025.99).
+# Challenge coordinate 08h55m10.831s -7d14m42.53s = (133.79513, -7.24515) is the ~2010 position: at the mean
+# epoch the object is ~126" (~20 px) WEST of it (still inside this box). Old centre was that coordinate.
+# SPHEREx: 258 frames, ALL dr1 (0 in qr3), 3 seasons; total shift 8.3" = 1.36 px in 1.02 yr.
+# Probably only visible in D5/D6 coadds (INFERRED from magnitudes: measure before showcasing it).
+ra = 133.75980
+dec = -7.24219
 size_deg = 0.15
-tags = ["brown-dwarf", "proper-motion", "validation"]
+tags = ["official-target", "brown-dwarf", "proper-motion"]
 
+[[field]]
+id = "rw-aurigae"
+name = "RW Aurigae"
+description = "Official test target. T Tauri variable star: it does not move, it changes brightness. Compare season coadds or per-season spectra, not single exposures."
+# J2000 76.95652603 +30.40143817 | pm (+7.23, -20.33) mas/yr (Hipparcos) | plx 15.42 mas (Hipparcos);
+# Gaia DR3: RW Aur A plx 6.406 mas, pm (+2.641, -27.398); RW Aur B plx 5.454 mas | K1/5e+K5e, J=8.4, K=7.0
+# Source: Sesame/SIMBAD CfA 2026-11-14 (SIMBAD lists it as TT*, no period).
+# Mean epoch of SPHEREx data: MJD 61107 (2026.18). Ecliptic latitude +7.5 deg: asteroids may cross the field.
+# SPHEREx: 335 frames (dr1 226 + qr3 109), 3 seasons, ~18-19 frames per detector and season.
+ra = 76.95659
+dec = 30.40129
+size_deg = 0.15
+tags = ["official-target", "variable"]
+
+[[field]]
+id = "r-draconis"
+name = "R Draconis"
+description = "Official test target. Mira variable (period ~247 d) 8.6 deg from the north ecliptic pole: ~2,500 frames with nearly continuous coverage, the best light-curve case."
+# J2000 248.16761083 +66.75497942 | pm (-20.643, +6.149) mas/yr | plx 1.2509 mas | Mira, M4.5-6+e
+# Source: Sesame/SIMBAD CfA 2026-11-14; period 247.2 d (Gaia DR3 vari, SIMBAD mesVar).
+# Mean epoch of SPHEREx data: MJD 61115 (2026.20).
+# SPHEREx: 2493 frames (dr1 413 + dr1_deep 1225 + qr3 126 + qr3_deep 729); D2/D5 only ~89 each.
+# Heavy: build it with mjd_min/mjd_max or time bins, never all frames live.
+ra = 248.16723
+dec = 66.75502
+size_deg = 0.15
+tags = ["official-target", "variable", "deep-field"]
+
+# Deep fields: tens of thousands of frames per position (NEP: 29,402 in SIA dr1+dr1_deep+qr3+qr3_deep,
+# verified 2026-11-14; SEP not measured). Do NOT use live; only offline with mjd_min/mjd_max or time bins.
 [[field]]
 id = "nep-deep"
 name = "North ecliptic pole deep field"
-description = "SPHEREx deep field: many more epochs than the all-sky survey. Best place to blink."
+description = "SPHEREx deep field: many more epochs than the all-sky survey."
 ra = 270.0
 dec = 66.5607
 size_deg = 0.25
@@ -45,6 +110,5 @@ dec = -66.5607
 size_deg = 0.25
 tags = ["deep-field"]
 
-# TODO(WS3): add an ecliptic field with a bright known main-belt asteroid (pick
-# one with JPL SBIdent on a real frame), a field following Makemake or another
-# TNO (track_object = "136472"), and a field inside the Planet Nine region.
+# P2 (only if time allows): an ecliptic field with a bright known main-belt asteroid (pick it with JPL
+# SBIdent / SkyBoT on a real frame) to show motion within a season. DROP: Planet Nine region, TNO tracking.

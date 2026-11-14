@@ -66,7 +66,7 @@ errante search --ra 269.4463 --dec 4.7665
 errante build barnards-star               # primero: imágenes y metadatos
 errante build barnards-star --analyze     # opcional; análisis todavía contiene stubs
 errante validate --dir data/products
-make web                                 # abrir ?dataset=real
+python scripts/dev.py web                                 # abrir ?dataset=real
 ```
 
 **Bloqueo actual:** IRSA search, cutouts y reproyección siguen sin implementar. Separar las etapas elimina
@@ -141,3 +141,17 @@ No escribir campos propuestos en los JSON publicados hasta implementar su contra
 | I5 (P2) | Detección, JPL, distancias, límites e historia de Planeta X | Campo real y MVP estable |
 
 La aceptación de un hito se basa en comportamiento y evidencia, no en cantidad de módulos creados.
+
+## Restricciones verificadas (2026-11-14)
+
+Medidas en vivo; detalle en [`DATA.md`](DATA.md) §3.0.
+
+- **IRSA no envía CORS** → el navegador no puede buscar frames ni bajar cutouts: el flujo RA/Dec → video necesita
+  el backend como proxy (con caché en disco). **S3 sí tiene CORS y `Range`**: los píxeles pueden leerse por rangos
+  (desde el backend o, con más trabajo, desde el navegador).
+- **Búsqueda:** SIA2 en VOTable (1–4 s) mejor que TAP (8–19 s). **Píxeles:** lectura por Range en S3 (~1 s por
+  frame a 5′) mejor que cutouts de IRSA (~4 MB y 4–15 s cada uno). Cutouts = fallback.
+- **El "video" se arma por temporada × detector:** los objetivos tienen ~250–460 exposiciones en 3–4 temporadas
+  (R Dra ~2500), cada exposición en otra λ, y se mueven solo 1–2 px en total.
+- **Plan B de la demo:** campos precomputados de los 5 objetivos servidos estáticos si IRSA o S3 fallan.
+
