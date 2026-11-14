@@ -2,8 +2,9 @@
 
 import numpy as np
 import pytest
+from PIL import Image
 
-from errante.imaging.render import field_stretches
+from errante.imaging.render import field_stretches, save_png
 
 
 def sky(level: float, noise: float, seed: int, star: float = 0.0) -> np.ndarray:
@@ -39,6 +40,32 @@ def test_detectors_are_stretched_independently_and_empty_frames_do_not_crash():
     sq, sn, se = field_stretches([quiet, noisy, empty], [1, 4, 4])
     assert width(sn) > 5 * width(sq)
     assert (se.vmin, se.vmax) == (0.0, 1.0)
+
+
+def test_bad_pixels_do_not_set_the_contrast():
+    """Real case: Barnard's filled saturated core pushed every other star to near black."""
+    a = sky(1.0, 0.1, 7)
+    a[18:24, 18:24] = 5000.0  # filled core (36 px > the top 0.5 %), flagged bad
+    a[40, 40] += 20.0  # a normal star
+    bad = np.zeros_like(a, dtype=bool)
+    bad[18:24, 18:24] = True
+    (with_mask,) = field_stretches([a], [1], [bad])
+    (without,) = field_stretches([a], [1])
+    assert with_mask.vmax < 100 < without.vmax
+    assert (a[40, 40] - with_mask.vmin) / width(with_mask) > 0.2  # the star is clearly visible
+
+
+def test_no_data_is_transparent_not_black(tmp_path):
+    img = sky(1.0, 0.1, 8)
+    img[:10] = np.nan  # strip outside the cutout
+    (s,) = field_stretches([img], [2])
+    save_png(img, tmp_path / "a.png", s)
+    png = Image.open(tmp_path / "a.png")
+    assert png.mode == "LA"
+    alpha = np.asarray(png)[..., 1]
+    assert (alpha[:10] == 0).all() and (alpha[10:] == 255).all()
+    save_png(sky(1.0, 0.1, 9), tmp_path / "b.png", s)
+    assert Image.open(tmp_path / "b.png").mode == "L"  # complete frames stay plain grey
 
 
 def test_lengths_must_match():

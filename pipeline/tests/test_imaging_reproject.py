@@ -8,7 +8,7 @@ from astropy.wcs import WCS, Sip
 from errante.data.fits_io import SpherexImage
 from errante.imaging.flags import FLAG_BITS
 from errante.imaging.grid import make_grid, sky_to_png_xy
-from errante.imaging.reproject import bilinear_sample, fill_saturated, reproject_to_grid
+from errante.imaging.reproject import bilinear_sample, display_defects, repair_for_display, reproject_to_grid
 
 RA0, DEC0 = 269.45, 4.77
 PIXEL_DEG = 6.15 / 3600
@@ -146,17 +146,58 @@ def test_saturated_nan_core_is_shown_bright_but_stays_bad():
     core = data[ey - 1 : ey + 2, ex - 1 : ex + 2]
     assert np.isfinite(core).all() and core.max() > 50  # bright, not a black hole
     assert bad[ey - 1 : ey + 2, ex - 1 : ex + 2].any()
-    holes, _ = reproject_to_grid(img, grid, fill_saturated_cores=False)
+    holes, _ = reproject_to_grid(img, grid, repair_display=False)
     assert np.isnan(holes[ey - 1 : ey + 2, ex - 1 : ex + 2]).any()
 
 
-def test_fill_saturated_only_touches_flagged_nans():
-    px = np.array([[1.0, 2.0, 3.0], [4.0, np.nan, 6.0], [7.0, 8.0, np.nan]])
-    sat = np.array([[0, 0, 0], [0, 1, 0], [0, 0, 0]], dtype=bool)
-    out = fill_saturated(px, sat)
-    assert out[1, 1] == 8.0  # brightest finite neighbour
-    assert np.isnan(out[2, 2])  # NaN but not saturated: untouched
+def test_repair_core_gets_brightest_isolated_and_defects_get_median():
+    px = np.array(
+        [
+            [1.0, 2.0, 3.0, 1.0],
+            [4.0, np.nan, np.nan, 1.0],
+            [7.0, 8.0, 9.0, 1.0],
+            [1.0, 1.0, 1.0, np.nan],
+        ]
+    )
+    sat = np.isnan(px)  # [1,1]+[1,2] touch each other: a core. [3,3] is alone: a dead pixel.
+    out = repair_for_display(px, sat)
+    assert out[1, 1] == 9.0 and out[1, 2] == 9.0  # core -> brightest neighbour (lower bound)
+    assert out[3, 3] == 1.0  # isolated -> median of its finite neighbours, no bright speck
     assert np.isnan(px[1, 1])  # input not modified
+
+    hot = np.full((3, 3), 2.0)
+    hot[1, 1] = 900.0  # single-pixel defect with sky-level neighbours
+    fixed = repair_for_display(hot, np.zeros_like(hot, dtype=bool), defects=hot > 100)
+    assert fixed[1, 1] == 2.0
+
+
+def test_display_defects_spare_transient_and_saturation_wings():
+    b = FLAG_BITS
+    flags = np.array(
+        [
+            1 << b["NONFUNC"] | 1 << b["TRANSIENT"] | 1 << b["SUR_ERROR"],  # real-data defect spot
+            1 << b["PERSIST"],
+            1 << b["SUR_ERROR"] | 1 << b["OVERFLOW"],  # wing of a saturated star: keep
+            1 << b["TRANSIENT"],  # may be a mover: keep
+            1 << b["OUTLIER"] | 1 << b["SOURCE"],  # may be a mover: keep
+        ]
+    )
+    assert display_defects(flags).tolist() == [True, True, False, False, False]
+
+
+def test_defect_pixels_are_repaired_and_always_bad_even_with_custom_flags():
+    shape = (50, 70)
+    flags = np.zeros(shape, dtype=np.int32)
+    img = fake_image(stars=(), shape=shape, flags=flags)
+    w = img.wcs
+    dx, dy = (int(round(float(v))) for v in w.all_world2pix(RA0 + 5 * PIXEL_DEG, DEC0, 0))
+    img.data[dy, dx] += 1000.0  # bright single-pixel detector defect
+    img.flags[dy, dx] = 1 << FLAG_BITS["NONFUNC"]
+    grid = make_grid(RA0, DEC0, 0.05)
+    data, bad = reproject_to_grid(img, grid, bad_flags=("HOT",))  # custom set without NONFUNC
+    assert np.nanmax(data) < 1.0  # the speck is gone
+    ex, ey = (int(round(float(v))) for v in sky_to_png_xy(grid, RA0 + 5 * PIXEL_DEG, DEC0))
+    assert bad[ey - 1 : ey + 2, ex - 1 : ex + 2].any()  # but it is still reported as bad
 
 
 def test_bilinear_ignores_a_nan_neighbour_with_little_weight():

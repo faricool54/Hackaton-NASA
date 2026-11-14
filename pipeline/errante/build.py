@@ -26,11 +26,17 @@ FIELDS_TOML = Path(__file__).parent / "config" / "fields.toml"
 # SPHEREx revisits a position in blocks of days to weeks, ~6 months apart
 # (docs/DATA.md §3.0: "temporadas = bloques separados > 30 días").
 SEASON_GAP_DAYS = 30.0
+# Near the ecliptic poles coverage is almost continuous (R Draconis: one
+# 394-day block). Cap a "season" so frame selection samples the whole span;
+# the all-sky seasons of the five targets last 19-55 days and stay whole.
+MAX_SEASON_DAYS = 60.0
 # When the same exposure is listed in several releases, keep the most final one.
 RELEASE_PREFERENCE = {"dr1": 0, "qr3": 1, "qr2": 2, "synthetic": 3}
-# Frames whose reprojected grid is almost empty (target at a detector edge)
-# are useless in the blink.
-MIN_FINITE_FRACTION = 0.2
+# Frames whose reprojected grid is mostly empty (target near a detector edge)
+# are left out of the blink (they are replaced by another frame if possible).
+MIN_FINITE_FRACTION = 0.5
+
+GroupKey = tuple[int, int]  # (season, detector)
 
 
 @dataclass
@@ -54,15 +60,26 @@ def load_field_configs(path: Path = FIELDS_TOML) -> dict[str, FieldConfig]:
     return {f["id"]: FieldConfig(**f) for f in raw.get("field", [])}
 
 
-def season_index(mjds: list[float], gap_days: float = SEASON_GAP_DAYS) -> list[int]:
-    """0-based season of each MJD: a new season starts after a gap > ``gap_days``."""
+def season_index(
+    mjds: list[float], gap_days: float = SEASON_GAP_DAYS, max_span_days: float = MAX_SEASON_DAYS
+) -> list[int]:
+    """0-based season of each MJD.
+
+    A new season starts after a gap > ``gap_days`` or once the current season
+    already spans more than ``max_span_days`` (continuous deep-field coverage
+    becomes consecutive ~2-month bins).
+    """
     order = sorted(range(len(mjds)), key=lambda i: mjds[i])
     seasons = [0] * len(mjds)
-    current = 0
-    for prev, i in zip([None, *order], order, strict=False):
-        if prev is not None and mjds[i] - mjds[prev] > gap_days:
+    current, start, prev = 0, None, None
+    for i in order:
+        if prev is not None and (mjds[i] - prev > gap_days or mjds[i] - start > max_span_days):
             current += 1
+            start = None
+        if start is None:
+            start = mjds[i]
         seasons[i] = current
+        prev = mjds[i]
     return seasons
 
 
@@ -75,18 +92,19 @@ def _reference_wavelength(by_season: dict[int, list[FrameRef]]) -> float | None:
     return min(candidates, key=lambda c: sum(min(abs(w - c) for w in ws) for ws in known.values() if ws))
 
 
-def select_frames(refs: list[FrameRef], max_frames: int, gap_days: float = SEASON_GAP_DAYS) -> list[FrameRef]:
-    """Pick at most ``max_frames`` frames spread over every season x detector (WS2).
+def plan_frames(
+    refs: list[FrameRef], gap_days: float = SEASON_GAP_DAYS
+) -> tuple[dict[GroupKey, list[FrameRef]], list[GroupKey]]:
+    """Rank every candidate frame inside its (season, detector) group.
 
-    Keeping the first N frames by time shows a single season, where nothing
-    moves. Instead: drop duplicate exposures (same obs_id + detector), split
-    the epochs into seasons, and fill the budget round-robin so every
-    (season, detector) group gets one frame before any gets a second. Inside a
-    group, frames closest to a per-detector reference wavelength come first
-    (each exposure sees another wavelength through the linear variable filter,
-    so a star changes brightness without being variable: docs/SCIENCE.md §0.4);
-    without wavelengths, frames nearest the middle of the season come first.
-    Detectors that cover more seasons are filled first. Returned by time.
+    Returns ``(ranked, order)``: ``ranked[key]`` best-first, and ``order`` the
+    group visiting order (detectors covering more seasons first). Duplicate
+    exposures (same obs_id + detector in several releases) keep the most final
+    release. Inside a group, frames closest to a per-detector reference
+    wavelength come first (each exposure sees another wavelength through the
+    linear variable filter, so a star changes brightness without being
+    variable: docs/SCIENCE.md §0.4); without wavelengths, frames nearest the
+    middle of the season come first.
     """
     unique: dict[tuple[str, int], FrameRef] = {}
     for ref in refs:
@@ -95,15 +113,11 @@ def select_frames(refs: list[FrameRef], max_frames: int, gap_days: float = SEASO
         if kept is None or RELEASE_PREFERENCE.get(ref.release, 9) < RELEASE_PREFERENCE.get(kept.release, 9):
             unique[key] = ref
     pool = list(unique.values())
-    if max_frames <= 0 or not pool:
-        return []
-
-    seasons = season_index([r.mjd for r in pool], gap_days)
-    groups: dict[tuple[int, int], list[FrameRef]] = defaultdict(list)
-    for ref, season in zip(pool, seasons, strict=True):
+    groups: dict[GroupKey, list[FrameRef]] = defaultdict(list)
+    for ref, season in zip(pool, season_index([r.mjd for r in pool], gap_days), strict=True):
         groups[(season, ref.detector)].append(ref)
 
-    ranked: dict[tuple[int, int], list[FrameRef]] = {}
+    ranked: dict[GroupKey, list[FrameRef]] = {}
     for detector in sorted({d for _, d in groups}):
         by_season = {s: g for (s, d), g in groups.items() if d == detector}
         target = _reference_wavelength(by_season)
@@ -116,92 +130,169 @@ def select_frames(refs: list[FrameRef], max_frames: int, gap_days: float = SEASO
 
             ranked[(season, detector)] = sorted(members, key=rank)
 
-    n_seasons = defaultdict(int)
+    n_seasons: dict[int, int] = defaultdict(int)
     for _, detector in ranked:
         n_seasons[detector] += 1
     order = sorted(ranked, key=lambda k: (-n_seasons[k[1]], k[1], k[0]))
+    return ranked, order
 
+
+def _round_robin(ranked: dict[GroupKey, list[FrameRef]], order: list[GroupKey], budget: int) -> list[FrameRef]:
     picked: list[FrameRef] = []
     for depth in count():
         added = False
         for key in order:
-            if depth < len(ranked[key]) and len(picked) < max_frames:
+            if depth < len(ranked[key]) and len(picked) < budget:
                 picked.append(ranked[key][depth])
                 added = True
-        if not added or len(picked) >= max_frames:
+        if not added or len(picked) >= budget:
             break
-    return sorted(picked, key=lambda r: (r.mjd, r.detector))
+    return picked
+
+
+def select_frames(refs: list[FrameRef], max_frames: int, gap_days: float = SEASON_GAP_DAYS) -> list[FrameRef]:
+    """Pick at most ``max_frames`` frames spread over every season x detector (WS2).
+
+    Keeping the first N frames by time shows a single season, where nothing
+    moves. Instead the budget is filled round-robin over ``plan_frames``
+    groups, so every (season, detector) gets one frame before any gets a
+    second. Returned by time.
+    """
+    if max_frames <= 0:
+        return []
+    ranked, order = plan_frames(refs, gap_days)
+    return sorted(_round_robin(ranked, order, max_frames), key=lambda r: (r.mjd, r.detector))
+
+
+@dataclass
+class _Projected:
+    ref: FrameRef
+    frame_id: str
+    obs_id: str
+    detector: int
+    mjd: float
+    date_obs: str
+    data: np.ndarray
+    bad: np.ndarray
+
+
+def _project(refs: list[FrameRef], cfg: FieldConfig, grid) -> tuple[list[_Projected], list[tuple[FrameRef, str]]]:
+    """Download (WS1) and reproject (WS2) ``refs``; return (projected, [(ref, reason)])."""
+    from .data import cutouts, fits_io
+    from .imaging import reproject
+
+    paths = cutouts.fetch_cutouts(refs, cfg.ra, cfg.dec, size_arcmin=cfg.size_deg * 60 * 1.5)
+    if len(paths) != len(refs):
+        raise RuntimeError(
+            f"fetch_cutouts returned {len(paths)} paths for {len(refs)} frames; "
+            "expected one path (or None for a failed download) per frame, in order"
+        )
+    projected: list[_Projected] = []
+    skipped: list[tuple[FrameRef, str]] = []
+    for ref, path in zip(refs, paths, strict=True):
+        if path is None:
+            skipped.append((ref, "download failed"))
+            continue
+        img = fits_io.read_spherex(path)
+        data, bad = reproject.reproject_to_grid(img, grid)
+        if np.isfinite(data).mean() < MIN_FINITE_FRACTION:
+            skipped.append((ref, "target outside the cutout"))
+            continue
+        obs_id = img.obs_id or ref.obs_id
+        projected.append(
+            _Projected(ref, f"{obs_id}D{img.detector}", obs_id, img.detector, img.mjd, img.date_obs, data, bad)
+        )
+    return projected, skipped
 
 
 def build_field(cfg: FieldConfig, out: Path = settings.PRODUCTS_DIR, *, analyze: bool = False) -> SkyField:
-    from .data import cutouts, fits_io, irsa
+    from .data import irsa
     from .imaging import grid as grid_mod
-    from .imaging import render, reproject
+    from .imaging import render
 
     store = ProductStore(out)
     grid = grid_mod.make_grid(cfg.ra, cfg.dec, cfg.size_deg)
 
     # 1. WS1: which frames cover the field? WS2: spread them over seasons x detectors.
     result = irsa.search_frames(cfg.ra, cfg.dec, detectors=cfg.detectors, mjd_min=cfg.mjd_min, mjd_max=cfg.mjd_max)
-    refs = select_frames(result.frames, cfg.max_frames)
+    ranked, order = plan_frames(result.frames)
+    refs = _round_robin(ranked, order, cfg.max_frames) if cfg.max_frames > 0 else []
     if not refs:
         raise ValueError(f"No usable SPHEREx frames for field '{cfg.id}'; no products were published.")
-    # 2. WS1: download cutouts (a bit bigger than the field so reprojection has margins)
-    paths = cutouts.fetch_cutouts(refs, cfg.ra, cfg.dec, size_arcmin=cfg.size_deg * 60 * 1.5)
 
-    # 3. WS2: every frame onto the common grid first, so the stretch can be shared per detector.
-    projected = []
-    skipped: list[str] = []
-    seen_ids: set[str] = set()
-    for ref, path in zip(refs, paths, strict=True):
-        if path is None:  # download failed and was reported by WS1
-            skipped.append(f"{ref.obs_id}D{ref.detector}: no cutout")
-            continue
-        img = fits_io.read_spherex(path)
-        data, bad = reproject.reproject_to_grid(img, grid)
-        frame_id = f"{img.obs_id or ref.obs_id}D{img.detector}"
-        if frame_id in seen_ids:
-            continue
-        if np.isfinite(data).mean() < MIN_FINITE_FRACTION:
-            skipped.append(f"{frame_id}: target outside the cutout")
-            continue
-        seen_ids.add(frame_id)
-        projected.append((ref, img, frame_id, data, bad))
+    # 2. WS1 cutouts + WS2 common grid. One retry round: a skipped frame is
+    # replaced by the next-ranked frame of its (season, detector) group.
+    projected, skipped = _project(refs, cfg, grid)
+    if skipped:
+        used = {(r.obs_id, r.detector) for r in refs}
+        key_of = {(r.obs_id, r.detector): k for k, members in ranked.items() for r in members}
+        spares = []
+        for ref, _ in skipped:
+            key = key_of[(ref.obs_id, ref.detector)]
+            spare = next((r for r in ranked[key] if (r.obs_id, r.detector) not in used), None)
+            if spare is not None:
+                used.add((spare.obs_id, spare.detector))
+                spares.append(spare)
+        if spares:
+            more, still_skipped = _project(spares, cfg, grid)
+            projected += more
+            skipped += still_skipped
+    unique: dict[str, _Projected] = {}
+    for p in sorted(projected, key=lambda p: (p.mjd, p.detector)):
+        unique.setdefault(p.frame_id, p)
+    projected = list(unique.values())
+    reasons = "; ".join(f"{r.obs_id}D{r.detector}: {why}" for r, why in skipped)
     if not projected:
-        raise ValueError(f"No SPHEREx cutout of field '{cfg.id}' overlaps its grid; no products were published.")
+        if all(why == "target outside the cutout" for _, why in skipped):
+            raise ValueError(
+                f"No SPHEREx cutout of field '{cfg.id}' overlaps its grid; no products were published. ({reasons})"
+            )
+        # Failed downloads are retryable: this is NOT a 'no coverage' answer.
+        raise RuntimeError(
+            f"Could not obtain any SPHEREx cutout for field '{cfg.id}' ({reasons}); nothing was published."
+        )
 
-    stretches = render.field_stretches([p[3] for p in projected], [p[1].detector for p in projected])
+    # 3. WS2: one contrast per detector, then PNGs.
+    stretches = render.field_stretches(
+        [p.data for p in projected], [p.detector for p in projected], [p.bad for p in projected]
+    )
     frames: list[Frame] = []
     analysis_inputs: list[tuple[str, float, np.ndarray, np.ndarray]] = []
     field_dir = store.field_dir(cfg.id)
-    for (ref, img, frame_id, data, bad), stretch in zip(projected, stretches, strict=True):
-        rel = f"frames/{frame_id}.png"
-        render.save_png(data, field_dir / rel, stretch)
+    for p, stretch in zip(projected, stretches, strict=True):
+        rel = f"frames/{p.frame_id}.png"
+        render.save_png(p.data, field_dir / rel, stretch)
         frames.append(
             Frame(
-                id=frame_id,
-                obs_id=img.obs_id or ref.obs_id,
-                detector=img.detector,
-                mjd=img.mjd,
-                date_obs=datetime.fromisoformat(img.date_obs).replace(tzinfo=UTC),
-                wavelength_um=ref.wavelength_um,
+                id=p.frame_id,
+                obs_id=p.obs_id,
+                detector=p.detector,
+                mjd=p.mjd,
+                date_obs=datetime.fromisoformat(p.date_obs).replace(tzinfo=UTC),
+                wavelength_um=p.ref.wavelength_um,
                 bandwidth_um=None,
-                release=ref.release,
+                release=p.ref.release,
                 image=rel,
-                source_uri=ref.irsa_uri,
-                valid_fraction=float((~bad).mean()),
+                source_uri=p.ref.irsa_uri,
+                valid_fraction=float((~p.bad).mean()),
                 stretch=stretch,
             )
         )
         if analyze:
-            analysis_inputs.append((frame_id, img.mjd, data, bad))
+            analysis_inputs.append((p.frame_id, p.mjd, p.data, p.bad))
     _write_thumbnail(field_dir, frames)
 
     notes = [
-        "Automatic analysis has not completed." if analyze else "Automatic detection and catalog matching were not run."
+        "Automatic analysis has not completed."
+        if analyze
+        else "Automatic detection and catalog matching were not run.",
+        "Pixel values and stretch limits are IMAGE - ZODI (SPHEREx zodiacal model subtracted) in MJy/sr; "
+        "PNGs use an asinh mapping with the same contrast for every frame of a detector, and transparent "
+        "pixels mean no data. Saturated star cores and detector-defect pixels are filled from their neighbours "
+        "for display only; they count as invalid in valid_fraction.",
     ]
     if skipped:
-        notes.append(f"Skipped {len(skipped)} selected frame(s): " + "; ".join(skipped))
+        notes.append(f"Skipped {len(skipped)} frame(s): {reasons}")
     sky_field = SkyField(
         id=cfg.id,
         name=cfg.name,
@@ -214,7 +305,7 @@ def build_field(cfg: FieldConfig, out: Path = settings.PRODUCTS_DIR, *, analyze:
         provenance=Provenance(
             pipeline_version=__version__,
             built_at=datetime.now(UTC),
-            synthetic=False,
+            synthetic=any(f.release == "synthetic" for f in frames),
             data_releases=sorted({f.release for f in frames}),
             notes=notes,
         ),

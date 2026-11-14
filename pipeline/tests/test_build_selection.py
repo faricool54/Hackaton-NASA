@@ -125,3 +125,64 @@ def test_build_reprojects_real_wcs_frames_onto_one_grid(real_wcs_archive, tmp_pa
         assert png.shape == (field.grid.height_px, field.grid.width_px)
         peak = np.unravel_index(np.argmax(png), png.shape)
         assert abs(peak[0] - ey) <= 1 and abs(peak[1] - ex) <= 1  # same star, same pixel, both epochs
+
+
+def test_continuous_coverage_is_sampled_over_its_whole_span():
+    """R Draconis: 60790-60879 plus an almost continuous 60916-61310 block (docs/DATA.md §3.0)."""
+    refs = [ref(f"a{d}_{i}", d, 60790.0 + i) for d in (1, 4) for i in range(0, 90, 2)]
+    refs += [ref(f"b{d}_{i}", d, 60916.0 + i) for d in (1, 4) for i in range(0, 395, 2)]
+    picked = select_frames(refs, 40)
+    late = [r.mjd for r in picked if r.mjd >= 60916.0]
+    assert max(late) - min(late) > 300  # not a few days around the block's midpoint
+    for d in (1, 4):
+        mjds = [r.mjd for r in picked if r.detector == d]
+        assert max(mjds) - min(mjds) > 30  # passes the batch validation
+
+
+def test_season_cap_keeps_the_short_survey_seasons_whole():
+    barnard_like = [60903.0 + i for i in range(0, 47, 3)] + [61110.0 + i for i in range(0, 56, 3)]
+    assert sorted(set(season_index(barnard_like))) == [0, 1]
+
+
+def _archive(monkeypatch, n=3, missing=(), synthetic=False, wrong_length=False):
+    images = {
+        f"OBS{i}": fake_image(obs_id=f"2026W1{i}_1A_000{i}_1", mjd=60903.0 + 200 * (i % 2) + i, rotation_deg=10 * i)
+        for i in range(n)
+    }
+    refs = [ref(k, 1, img.mjd, "synthetic" if synthetic else "dr1") for k, img in images.items()]
+    monkeypatch.setattr(irsa, "search_frames", lambda *a, **kw: SearchResult(
+        center=SkyCoord(ra=RA0, dec=DEC0), radius_deg=0, frames=refs))  # fmt: skip
+
+    def fetch(frames, *a, **kw):
+        paths = [None if f.obs_id in missing else Path(f"{f.obs_id}.fits") for f in frames]
+        return paths[:-1] if wrong_length else paths
+
+    monkeypatch.setattr(cutouts, "fetch_cutouts", fetch)
+    monkeypatch.setattr(fits_io, "read_spherex", lambda path: images[Path(path).stem])
+    return FieldConfig(id="t-field", name="T", ra=RA0, dec=DEC0, size_deg=0.05, max_frames=2)
+
+
+def test_a_failed_download_is_replaced_by_the_next_frame_of_its_group(monkeypatch, tmp_path):
+    cfg = _archive(monkeypatch, n=4, missing=("OBS1",))  # OBS1 and OBS3 share (season 1, D1)
+    field = build_field(cfg, tmp_path)
+    assert [f.obs_id for f in field.frames] == ["2026W10_1A_0000_1", "2026W13_1A_0003_1"]
+    assert any("OBS1D1: download failed" in n for n in field.provenance.notes)
+
+
+def test_all_downloads_failing_is_an_error_not_no_coverage(monkeypatch, tmp_path):
+    cfg = _archive(monkeypatch, missing=("OBS0", "OBS1", "OBS2"))
+    with pytest.raises(RuntimeError, match="Could not obtain any SPHEREx cutout") as err:
+        build_field(cfg, tmp_path)
+    assert "no products" not in str(err.value).lower()  # backend maps that phrase to no_coverage
+    assert not ProductStore(tmp_path).manifest_path.exists()
+
+
+def test_fetch_cutouts_must_return_one_entry_per_frame(monkeypatch, tmp_path):
+    cfg = _archive(monkeypatch, wrong_length=True)
+    with pytest.raises(RuntimeError, match="one path"):
+        build_field(cfg, tmp_path)
+
+
+def test_synthetic_frames_are_labelled_synthetic(monkeypatch, tmp_path):
+    cfg = _archive(monkeypatch, synthetic=True)
+    assert build_field(cfg, tmp_path).provenance.synthetic is True
