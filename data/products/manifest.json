@@ -1,6 +1,6 @@
 {
   "schema_version": "0.2.1",
-  "generated_at": "2026-11-14T17:52:02.302348Z",
+  "generated_at": "2026-11-14T18:54:24.248091Z",
   "synthetic": false,
   "fields": [
     {
@@ -20,8 +20,99 @@
       "n_frames": 40,
       "n_candidates": 0,
       "mjd_range": [
-        60908.642174167,
-        61281.662087234
+        60908.642840356,
+        61281.662753423
+      ],
+      "thumbnail": "thumb.png",
+      "synthetic": false
+    },
+    {
+      "id": "eps-indi-b",
+      "name": "Epsilon Indi B",
+      "description": "Official test target. Pair of T brown dwarfs (Ba+Bb, unresolved at 6.15\"/px) orbiting the bright star eps Ind A, ~402\" away. ~1.1 SPHEREx pixels of motion over the baseline.",
+      "tags": [
+        "official-target",
+        "brown-dwarf",
+        "proper-motion"
+      ],
+      "center": {
+        "ra": 331.09665,
+        "dec": -56.80066
+      },
+      "size_deg": 0.15,
+      "n_frames": 40,
+      "n_candidates": 0,
+      "mjd_range": [
+        60790.26312899,
+        61313.507952659
+      ],
+      "thumbnail": "thumb.png",
+      "synthetic": false
+    },
+    {
+      "id": "r-draconis",
+      "name": "R Draconis",
+      "description": "Official test target. Mira variable (period ~247 d) 8.6 deg from the north ecliptic pole: ~2,500 frames with nearly continuous coverage, the best light-curve case.",
+      "tags": [
+        "official-target",
+        "variable",
+        "deep-field"
+      ],
+      "center": {
+        "ra": 248.16723,
+        "dec": 66.75502
+      },
+      "size_deg": 0.15,
+      "n_frames": 40,
+      "n_candidates": 0,
+      "mjd_range": [
+        60828.126855703,
+        61232.444951999
+      ],
+      "thumbnail": "thumb.png",
+      "synthetic": false
+    },
+    {
+      "id": "rw-aurigae",
+      "name": "RW Aurigae",
+      "description": "Official test target. T Tauri variable star: it does not move, it changes brightness. Compare season coadds or per-season spectra, not single exposures.",
+      "tags": [
+        "official-target",
+        "variable"
+      ],
+      "center": {
+        "ra": 76.95659,
+        "dec": 30.40129
+      },
+      "size_deg": 0.15,
+      "n_frames": 40,
+      "n_candidates": 0,
+      "mjd_range": [
+        60920.978031166,
+        61298.129857486
+      ],
+      "thumbnail": "thumb.png",
+      "synthetic": false
+    },
+    {
+      "id": "wise-0855",
+      "name": "WISE 0855−0714",
+      "description": "Official test target. Coldest known brown dwarf, ~2.3 pc away, ~8.2\"/yr. Extremely red (J=25, W2=13.7): look at the longest wavelengths. Only DR1 data so far: ~1.4 SPHEREx pixels of motion.",
+      "tags": [
+        "official-target",
+        "brown-dwarf",
+        "proper-motion"
+      ],
+      "center": {
+        "ra": 133.7598,
+        "dec": -7.24219
+      },
+      "size_deg": 0.15,
+      "n_frames": 40,
+      "n_candidates": 0,
+      "mjd_range": [
+        60800.70069465,
+        61172.175970113
       ],
       "thumbnail": "thumb.png",
       "synthetic": false
