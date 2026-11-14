@@ -10,11 +10,17 @@ from __future__ import annotations
 
 import io
 import os
+import re
+import threading
+import time
 import warnings
+from concurrent.futures import ThreadPoolExecutor
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import numpy as np
 import pytest
+import requests
 from astropy.io import fits
 from astropy.wcs import WCS
 
@@ -218,6 +224,23 @@ def test_box_rule_matches_real_irsa_cutouts():
         s3range.patch_box(h, 266.5516089, 3.7885772, 0.5)
 
 
+def test_box_ties_break_like_irsa():
+    """Centers within ~1e-4 px of a box-edge tie: IBE sees ra/dec as '%.7f' text, so must we.
+
+    Full-precision (ra, dec) of detector pixels (-0.5, -0.5), (2039.5, 2039.5) and (-300, 1000)
+    of the same DR1 D3 file, with the boxes IBE cut for them on 2026-11-14. Without rounding
+    to 7 decimals the box was off by one pixel in each case.
+    """
+    h = fits.Header.fromtextfile(REAL_HEADER)
+    measured = [
+        (266.6965181635169, 5.487312459045988, 5, (0, 24, 0, 23)),
+        (269.9986876068837, 1.684944635871196, 5, (2015, 2039, 2016, 2039)),
+        (266.0915705279688, 3.8225308122590413, 70, (0, 40, 659, 1341)),
+    ]
+    for ra, dec, size, box in measured:
+        assert s3range.patch_box(h, ra, dec, size) == box, (ra, dec, size)
+
+
 def test_flags_unavailable_when_tiles_are_not_rows(monkeypatch, tmp_path):
     blob, planes = make_l2(flags_tile_rows=16)
     key = "dr1/level2/x/v/3/level2_2025W01_1A_0001_1D3_spx_v.fits"
@@ -283,6 +306,64 @@ def test_fetch_patches_aligned_cached_and_reports_failures(monkeypatch, tmp_path
     assert [f.s3_key for f, _ in ei.value.failures] == ["dr1/missing.fits"]
 
 
+def test_concurrent_reads_of_one_key_walk_once_and_never_fail(l2, monkeypatch):
+    """16 threads on one key (different positions, then duplicate frames): one directory walk,
+    one patch read per distinct patch, and no failed frame (on Windows, concurrent os.replace on
+    the same cache file used to raise PermissionError [WinError 5])."""
+    key, _, planes, fake = l2
+    walks: list[str] = []
+    real_walk = s3range._walk
+
+    def slow_walk(k, reader):
+        walks.append(k)
+        time.sleep(0.05)  # widen the race window
+        return real_walk(k, reader)
+
+    monkeypatch.setattr(s3range, "_walk", slow_walk)
+    positions = [_sky(20.0 + 15 * i, 30.0 + 8 * i) for i in range(16)]
+    with ThreadPoolExecutor(16) as pool:
+        imgs = list(pool.map(lambda p: s3range.read_patch(key, *p, 2.0), positions))
+    assert walks == [key]
+    for img in imgs:
+        x0, x1, y0, y1 = img.extra["bbox"]
+        np.testing.assert_array_equal(img.data, planes["IMAGE"][y0 : y1 + 1, x0 : x1 + 1])
+
+    for run in range(5):  # the same frame 16 times in one batch
+        calls = fake.calls
+        results, failures = s3range.fetch_patches_report([_frame(key)] * 16, *positions[run], 3.0 + run)
+        assert failures == [] and len({p for _, p in results}) == 1
+        assert fake.calls - calls <= 5  # IMAGE, VARIANCE, ZODI, FLAGS descriptors + heap: once
+    assert walks == [key]
+    assert not list(settings.CACHE_DIR.rglob("*.part"))
+
+
+def test_cache_write_failures_never_fail_a_read(l2, monkeypatch):
+    """Caches are optional: a failing os.replace (Windows sharing violation) must not fail a frame."""
+    key, _, planes, _ = l2
+    monkeypatch.setattr(s3range.time, "sleep", lambda s: None)
+
+    def denied(src, dst):
+        raise PermissionError(13, "Access is denied", str(dst))
+
+    monkeypatch.setattr(s3range.os, "replace", denied)
+    ra, dec = _sky(150.0, 100.0)
+    img = s3range.read_patch(key, ra, dec, 2.0)  # the directory cannot be cached: still fine
+    x0, x1, y0, y1 = img.extra["bbox"]
+    np.testing.assert_array_equal(img.data, planes["IMAGE"][y0 : y1 + 1, x0 : x1 + 1])
+    assert not s3range._dir_cache_path(key).exists()
+    with pytest.raises(PermissionError):  # nobody wrote the patch: a real failure, reported
+        s3range.fetch_patch(_frame(key), ra, dec, 2.0)
+
+    def lost_race(src, dst):  # another process wrote the same file first and still has it open
+        Path(dst).write_bytes(Path(src).read_bytes())
+        raise PermissionError(13, "Access is denied", str(dst))
+
+    monkeypatch.setattr(s3range.os, "replace", lost_race)
+    path = s3range.fetch_patch(_frame(key), ra, dec, 2.0)
+    np.testing.assert_array_equal(fits_io.read_spherex(path).data, img.data)
+    assert not list(settings.CACHE_DIR.rglob("*.part"))  # temp files are always cleaned up
+
+
 class _Resp:
     def __init__(self, status: int, body: bytes = b"", headers: dict | None = None):
         self.status_code, self.content, self.headers = status, body, headers or {}
@@ -326,6 +407,64 @@ def test_read_range_retries_and_guards(monkeypatch):
     monkeypatch.setattr(s3range, "_session", lambda: _Session([_Resp(503)] * s3range.RANGE_RETRIES))
     with pytest.raises(OSError, match="failed after"):
         s3range.read_range("k", 0, 10)
+    # a 206 for the wrong range is never returned as if it were the requested bytes
+    sess = _Session([_Resp(206, b"abcd", {"Content-Range": "bytes 0-3/100"}), _Resp(206, b"klmn", {})])
+    monkeypatch.setattr(s3range, "_session", lambda: sess)
+    assert s3range.read_range("k", 10, 14) == b"klmn" and len(sess.ranges) == 2
+
+
+def test_read_range_retries_a_body_cut_mid_transfer(monkeypatch):
+    """S3 closes the connection after the 206 status and half the body (requests raises
+    ChunkedEncodingError, not ConnectionError): the read must be retried, not fail the frame."""
+    body = bytes(range(256)) * 120
+    hits: list[str] = []
+
+    class Handler(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
+        def do_GET(self):
+            a, b = (int(v) for v in re.match(r"bytes=(\d+)-(\d+)", self.headers["Range"]).groups())
+            part = body[a : b + 1]
+            hits.append(self.headers["Range"])
+            self.send_response(206)
+            self.send_header("Content-Length", str(len(part)))
+            self.send_header("Content-Range", f"bytes {a}-{b}/{len(body)}")
+            self.end_headers()
+            if len(hits) == 1:  # first answer: half the promised bytes, then hang up
+                self.wfile.write(part[: len(part) // 2])
+                self.wfile.flush()
+                self.close_connection = True
+                return
+            self.wfile.write(part)
+
+        def log_message(self, *args):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    session = requests.Session()
+    session.trust_env = False  # never route 127.0.0.1 through a proxy from the environment
+    try:
+        monkeypatch.setattr(settings, "S3_HTTPS", f"http://127.0.0.1:{server.server_address[1]}")
+        monkeypatch.setattr(s3range, "_session", lambda: session)
+        monkeypatch.setattr(s3range.time, "sleep", lambda s: None)
+        assert s3range.read_range("dr1/x.fits", 1000, 21000) == body[1000:21000]
+        assert hits == ["bytes=1000-20999"] * 2
+    finally:
+        session.close()
+        server.shutdown()
+        server.server_close()
+
+
+def test_header_without_end_is_bounded():
+    """A corrupt header with no END card fails after a bounded read, not at EOF of a 60 MB file."""
+    blob = b"SIMPLE  =                    T" + b" " * 50 + b"COMMENT " + b"x" * 72
+    blob += b"COMMENT " * (8 * 1024 * 1024 // 8)
+    fake = FakeS3({"k": blob})
+    with pytest.raises(ValueError, match="END"):
+        s3range.hdu_directory("k", reader=fake, use_cache=False)
+    assert fake.bytes <= s3range.MAX_HEADER_BYTES + 12 * 2880
 
 
 # --- live ------------------------------------------------------------------------

@@ -59,7 +59,7 @@ from astropy.wcs.utils import proj_plane_pixel_scales
 
 from .. import settings
 from ..models import FrameRef
-from .cutouts import FetchError, NoOverlap, fetch_report
+from .cutouts import TRANSIENT_BODY_ERRORS, FetchError, KeyedLocks, NoOverlap, fetch_report
 from .fits_io import SpherexImage
 from .s3 import irsa_uri_to_s3_key
 
@@ -86,6 +86,10 @@ MAX_PARALLEL_S3 = int(os.environ.get("ERRANTE_MAX_PARALLEL_S3", "16"))
 """S3 is not IRSA: 16 parallel Range readers are fine (measured; IRSA needs <= 6-8)."""
 DIR_CACHE_VERSION = 1
 RANGE_RETRIES = 4
+MAX_HEADER_BYTES = 360 * BLOCK
+"""~1 MB. Real L2 headers are <= ~30 KB; a header with no END card within this is corrupt."""
+REPLACE_RETRIES = 5
+"""os.replace attempts: on Windows it fails while another thread/process has the target open."""
 
 RangeReader = Callable[[str, int, int], bytes]
 """``reader(s3_key, start, stop) -> bytes[start:stop]`` of the object (shorter at EOF, b"" past it)."""
@@ -93,6 +97,10 @@ RangeReader = Callable[[str, int, int], bytes]
 _DTYPES = {8: ">u1", 16: ">i2", 32: ">i4", 64: ">i8", -32: ">f4", -64: ">f8"}
 _CRPIX = re.compile(r"^CRPIX([12])([A-Z]?)$")
 _TFORM_P = re.compile(r"^1?([PQ])[A-Z](\(\d+\))?$")
+_CONTENT_RANGE = re.compile(r"^bytes\s+(\d+)-(\d+)/(\d+|\*)$")
+_TRANSIENT = (requests.ConnectionError, requests.Timeout, *TRANSIENT_BODY_ERRORS)
+"""Network failures worth retrying. A body cut after the 206 status line raises
+ChunkedEncodingError, which is NOT a ConnectionError: it must be listed explicitly."""
 
 
 def _pad(n: int) -> int:
@@ -118,25 +126,29 @@ def _session() -> requests.Session:
         return _SESSION
 
 
-def _content_range_total(value: str | None) -> int | None:
-    if not value or "/" not in value:
-        return None
-    total = value.rsplit("/", 1)[1].strip()
-    return int(total) if total.isdigit() else None
+def _content_range(value: str | None) -> tuple[int | None, int | None]:
+    """(first byte, total object size) of a Content-Range header; None where unknown."""
+    m = _CONTENT_RANGE.match((value or "").strip())
+    if not m:
+        return None, None
+    return int(m[1]), None if m[3] == "*" else int(m[3])
 
 
 def read_range(key: str, start: int, stop: int) -> bytes:
     """Bytes [start, stop) of ``s3://nasa-irsa-spherex/<key>`` via anonymous HTTPS Range.
 
-    Retries 5xx/429/timeouts with backoff; returns b"" past the end of the object (416)
-    and a short read only at EOF. Refuses a 200 (whole-object) answer instead of
-    silently downloading 60+ MB.
+    Retries 5xx/429, timeouts, dropped connections and bodies cut mid-transfer with
+    backoff; returns b"" past the end of the object (416) and a short read only at EOF.
+    Refuses a 200 (whole-object) answer instead of silently downloading 60+ MB, and a 206
+    for a range that does not start at ``start``.
     """
     if stop <= start:
         return b""
     url = f"{settings.S3_HTTPS}/{key.lstrip('/')}"
     last: Exception | None = None
     for attempt in range(RANGE_RETRIES):
+        if attempt:
+            time.sleep(0.5 * 2 ** (attempt - 1))
         try:
             with _session().get(
                 url, headers={"Range": f"bytes={start}-{stop - 1}"}, stream=True, timeout=settings.HTTP_TIMEOUT_S
@@ -144,8 +156,11 @@ def read_range(key: str, start: int, stop: int) -> bytes:
                 if r.status_code == 416:
                     return b""
                 if r.status_code == 206:
+                    first, total = _content_range(r.headers.get("Content-Range"))
+                    if first is not None and first != start:
+                        last = OSError(f"asked for bytes from {start}, got {r.headers.get('Content-Range')}")
+                        continue
                     data = r.content
-                    total = _content_range_total(r.headers.get("Content-Range"))
                     if len(data) == stop - start or (total is not None and start + len(data) == total):
                         return data
                     last = OSError(f"short read: {len(data)} of {stop - start} bytes")
@@ -156,9 +171,8 @@ def read_range(key: str, start: int, stop: int) -> bytes:
                 else:
                     r.raise_for_status()  # 403/404: retrying won't help
                     raise OSError(f"unexpected HTTP {r.status_code} for {url}")
-        except (requests.ConnectionError, requests.Timeout) as e:
+        except _TRANSIENT as e:
             last = e
-        time.sleep(0.5 * 2**attempt)
     raise OSError(f"S3 range read failed after {RANGE_RETRIES} attempts: {key} [{start}:{stop})") from last
 
 
@@ -260,7 +274,7 @@ def _read_header(
     """(header, header length incl. padding, raw bytes from ``offset``) or None at EOF.
 
     ``buf`` = bytes already read starting at ``offset`` (saves a request when the
-    previous read reached this far).
+    previous read reached this far). Gives up after MAX_HEADER_BYTES without an END card.
     """
     while True:
         end = _find_end(buf)
@@ -268,11 +282,14 @@ def _read_header(
             hlen = _pad(end + CARD)
             if len(buf) >= hlen:
                 return fits.Header.fromstring(buf[:hlen].decode("ascii")), hlen, buf
-        more = reader(key, offset + len(buf), offset + len(buf) + chunk)
+        elif len(buf) >= MAX_HEADER_BYTES:
+            raise ValueError(f"no END card in the first {len(buf)} bytes of the header at byte {offset} of {key}")
+        want = min(chunk, max(BLOCK, MAX_HEADER_BYTES - len(buf)))
+        more = reader(key, offset + len(buf), offset + len(buf) + want)
         if not more:
             if not buf:
                 return None
-            raise ValueError(f"truncated FITS header at byte {offset} of {key}")
+            raise ValueError(f"truncated FITS header (no END card) at byte {offset} of {key}")
         buf += more
         chunk = max(chunk, len(buf))
 
@@ -319,7 +336,11 @@ def _walk(key: str, reader: RangeReader) -> HduDirectory:
 
 _mem: OrderedDict[tuple[str, str], HduDirectory] = OrderedDict()
 _mem_lock = threading.Lock()
-_MEM_MAX = 512
+_MEM_MAX = 128
+"""Each directory holds ~0.4 MB of parsed astropy Headers: 128 is ~50 MB in a long-lived
+process. Evicted entries come back from the disk cache (one JSON read, no network)."""
+_dir_locks = KeyedLocks()
+_patch_locks = KeyedLocks()
 
 
 def _dir_cache_path(key: str) -> Path:
@@ -327,36 +348,73 @@ def _dir_cache_path(key: str) -> Path:
     return settings.CACHE_DIR / "s3range" / "dir" / h[:2] / f"{h}.json"
 
 
-def _atomic_write(path: Path, data: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
+def _atomic_write(path: Path, data: bytes, *, best_effort: bool = False) -> bool:
+    """Write ``data`` to ``path`` via a unique temp file + os.replace (readers never see a partial file).
+
+    On Windows os.replace raises PermissionError while another thread or process has
+    ``path`` open or is replacing it: retried briefly, then raised, unless ``best_effort``
+    (optional caches), where any OSError just returns False. The temp file never survives.
+    """
     tmp = path.with_name(f"{path.name}.{uuid.uuid4().hex[:8]}.part")
-    tmp.write_bytes(data)
-    tmp.replace(path)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp.write_bytes(data)
+        for attempt in range(REPLACE_RETRIES):
+            try:
+                os.replace(tmp, path)
+                return True
+            except PermissionError:
+                if attempt == REPLACE_RETRIES - 1:
+                    raise
+                time.sleep(0.05 * (attempt + 1))
+    except OSError:
+        if best_effort:
+            return False
+        raise
+    finally:
+        try:
+            tmp.unlink(missing_ok=True)  # nothing left after a successful replace
+        except OSError:
+            pass
+    return False
+
+
+def _cached_directory(mkey: tuple[str, str], key: str) -> HduDirectory | None:
+    with _mem_lock:
+        if mkey in _mem:
+            _mem.move_to_end(mkey)
+            return _mem[mkey]
+    try:
+        d = json.loads(_dir_cache_path(key).read_text(encoding="ascii"))
+        if d.get("version") == DIR_CACHE_VERSION and d.get("key") == key:
+            directory = HduDirectory.from_json(d)
+            _remember(mkey, directory)
+            return directory
+    except (ValueError, KeyError, OSError):
+        pass  # missing, corrupt or unreadable cache entry: (re)build it
+    return None
 
 
 def hdu_directory(key: str, reader: RangeReader | None = None, use_cache: bool = True) -> HduDirectory:
-    """Headers and byte offsets of every HDU of an S3 object (memory + disk cached by key)."""
+    """Headers and byte offsets of every HDU of an S3 object (memory + disk cached by key).
+
+    Thread-safe: concurrent calls for one key walk the file once and share the result.
+    The disk cache is best effort: failing to write it never fails the read.
+    """
+    if not use_cache:
+        return _walk(key, _resolve(reader))
     mkey = (str(settings.CACHE_DIR), key)
-    if use_cache:
-        with _mem_lock:
-            if mkey in _mem:
-                _mem.move_to_end(mkey)
-                return _mem[mkey]
-        path = _dir_cache_path(key)
-        if path.exists():
-            try:
-                d = json.loads(path.read_text(encoding="ascii"))
-                if d.get("version") == DIR_CACHE_VERSION and d.get("key") == key:
-                    directory = HduDirectory.from_json(d)
-                    _remember(mkey, directory)
-                    return directory
-            except (ValueError, KeyError, OSError):
-                pass  # corrupt cache entry: rebuild it
-    directory = _walk(key, _resolve(reader))
-    if use_cache:
-        _atomic_write(_dir_cache_path(key), json.dumps(directory.to_json()).encode("ascii"))
+    hit = _cached_directory(mkey, key)
+    if hit is not None:
+        return hit
+    with _dir_locks.hold(mkey):
+        hit = _cached_directory(mkey, key)  # another thread may have walked it while we waited
+        if hit is not None:
+            return hit
+        directory = _walk(key, _resolve(reader))
+        _atomic_write(_dir_cache_path(key), json.dumps(directory.to_json()).encode("ascii"), best_effort=True)
         _remember(mkey, directory)
-    return directory
+        return directory
 
 
 def _remember(mkey: tuple[str, str], directory: HduDirectory) -> None:
@@ -382,9 +440,14 @@ def patch_box(header: fits.Header, ra: float, dec: float, size_arcmin: float) ->
     Same rule as the IRSA cutout service (verified on real cutouts, docs at module top),
     using the full TAN-SIP WCS of ``header``. Raises :class:`NoOverlap` if the box misses
     the detector or (ra, dec) cannot be projected onto it.
+
+    (ra, dec) are first rounded to 7 decimals, exactly as ``cutouts.cutout_url`` sends them
+    to IBE, so a center within ~1e-4 px of a box-edge tie breaks the same way (verified
+    live on 3 tie cases, see tests).
     """
     if size_arcmin <= 0:
         raise ValueError("size_arcmin must be > 0")
+    ra, dec = float(f"{ra:.7f}"), float(f"{dec:.7f}")
     wcs = _celestial_wcs(header)
     nx_full, ny_full = int(header["NAXIS1"]), int(header["NAXIS2"])
     with warnings.catch_warnings():
@@ -683,13 +746,30 @@ def patch_path(s3_key: str, ra: float, dec: float, size_arcmin: float) -> Path:
     )
 
 
+def _usable(path: Path) -> bool:
+    try:
+        return path.stat().st_size > 0
+    except OSError:
+        return False
+
+
 def fetch_patch(frame: FrameRef, ra: float, dec: float, size_arcmin: float) -> Path:
-    """Patch of one frame as a small MEF on disk (cached); raises NoOverlap/OSError/ValueError."""
+    """Patch of one frame as a small MEF on disk (cached); raises NoOverlap/OSError/ValueError.
+
+    Concurrent calls for the same patch (duplicate frames in a batch) read it once.
+    """
     key = _frame_key(frame)
     dest = patch_path(key, ra, dec, size_arcmin)
-    if dest.exists() and dest.stat().st_size > 0:
-        return dest
-    return write_patch_fits(read_patch(key, ra, dec, size_arcmin), dest)
+    with _patch_locks.hold(str(dest)):
+        if _usable(dest):
+            return dest
+        img = read_patch(key, ra, dec, size_arcmin)
+        try:
+            return write_patch_fits(img, dest)
+        except OSError:
+            if _usable(dest):  # another process wrote this same patch first and still has it open
+                return dest
+            raise
 
 
 def fetch_patches_report(

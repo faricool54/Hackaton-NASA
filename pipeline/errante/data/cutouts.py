@@ -13,16 +13,22 @@ Verified live (2026-11-14, docs/DATA.md §3.0):
     CRPIXn of the primary WCS and of the alternates 'A' and 'W' are shifted by the
     offset; no LTV1/LTV2 keywords are written;
   * no overlap with the detector -> HTTP 422 ("Arrays do not overlap.");
-  * transient HTTP 502/503 ("Server busy", Retry-After: 5) under load: retry;
+  * transient HTTP 502/503 ("Server busy", Retry-After: 5) under load, and bodies cut
+    mid-transfer (requests' ChunkedEncodingError): retry;
   * orientation is the native detector one (NOT north-up) -> reproject (WS2);
   * IRSA throttles parallel requests: keep <= settings.MAX_PARALLEL_DOWNLOADS threads.
 """
 
 from __future__ import annotations
 
+import os
 import shutil
-from collections.abc import Callable
+import threading
+import time
+import uuid
+from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from pathlib import Path
 
 import requests
@@ -34,6 +40,42 @@ from . import cache
 IBE_PREFIX = "ibe/data/spherex/"
 CUTOUT_RETRIES = 5
 """Attempts per cutout; ``cache.cached_download`` backs off 1, 2, 4, 8 s between them."""
+BODY_RETRIES = 3
+"""Attempts when the connection breaks mid-body (``cache.cached_download`` only retries
+5xx and connection/timeout errors; a cut body surfaces as ChunkedEncodingError)."""
+TRANSIENT_BODY_ERRORS = (requests.exceptions.ChunkedEncodingError, requests.exceptions.ContentDecodingError)
+"""Raised by requests while reading a body the server cut short: transient, worth a retry."""
+
+
+class KeyedLocks:
+    """One lock per key, created on demand and dropped once nobody holds or waits on it.
+
+    Used to run at most one fetch per URL / cache file at a time inside this process
+    (duplicate frames in a batch, or a live request racing a build).
+    """
+
+    def __init__(self) -> None:
+        self._guard = threading.Lock()
+        self._locks: dict[object, list] = {}  # key -> [lock, holders + waiters]
+
+    @contextmanager
+    def hold(self, key: object) -> Iterator[None]:
+        with self._guard:
+            entry = self._locks.get(key)
+            if entry is None:
+                entry = self._locks[key] = [threading.Lock(), 0]
+            entry[1] += 1
+        try:
+            with entry[0]:
+                yield
+        finally:
+            with self._guard:
+                entry[1] -= 1
+                if entry[1] == 0:
+                    del self._locks[key]
+
+
+_url_locks = KeyedLocks()
 
 
 class NoOverlap(ValueError):
@@ -52,6 +94,9 @@ class FetchError(RuntimeError):
         first = failures[0][1] if failures else ""
         super().__init__(f"{len(failures)} of {len(results) + len(failures)} frames failed (first: {first})")
 
+    def __reduce__(self):  # picklable across process pools despite the 2-argument __init__
+        return (type(self), (self.results, self.failures))
+
 
 def frame_irsa_uri(frame: FrameRef) -> str:
     """Relative IBE path of a frame ('ibe/data/spherex/<release>/level2/...')."""
@@ -67,33 +112,63 @@ def cutout_url(irsa_uri: str, ra: float, dec: float, size_arcmin: float) -> str:
     return f"{base}?center={ra:.7f},{dec:.7f}&size={size_arcmin:g}arcmin"
 
 
+def _download(url: str, what: str) -> Path:
+    """``cache.cached_download`` plus retries for bodies cut mid-transfer; 422 -> NoOverlap."""
+    for attempt in range(BODY_RETRIES):
+        try:
+            return cache.cached_download(url, suffix=".fits", retries=CUTOUT_RETRIES)
+        except requests.HTTPError as e:
+            if e.response is not None and e.response.status_code == 422:
+                raise NoOverlap(f"no overlap with {what}") from e
+            raise
+        except TRANSIENT_BODY_ERRORS as e:
+            if attempt == BODY_RETRIES - 1:
+                raise RuntimeError(f"IBE download kept breaking mid-transfer ({BODY_RETRIES} attempts): {url}") from e
+            time.sleep(2**attempt)
+    raise AssertionError("unreachable")
+
+
+def _copy_atomic(src: Path, dest: Path) -> None:
+    """Copy via a unique temp file + os.replace, so a partial copy is never left as ``dest``."""
+    tmp = dest.with_name(f"{dest.name}.{uuid.uuid4().hex[:8]}.part")
+    try:
+        shutil.copyfile(src, tmp)
+        os.replace(tmp, dest)
+    except OSError:
+        if not dest.exists():  # e.g. another process copied the same cutout and holds it open (Windows)
+            raise
+    finally:
+        try:
+            tmp.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
 def fetch_cutout(frame: FrameRef, ra: float, dec: float, size_arcmin: float, out_dir: Path | None = None) -> Path:
     """Download one IBE cutout (cached in settings.CACHE_DIR) and return the local FITS path.
 
     Raises :class:`NoOverlap` on HTTP 422, ``requests.HTTPError`` on other 4xx and
-    ``RuntimeError`` once the retries for 5xx/timeouts are exhausted. With ``out_dir``
-    the cached file is also copied there under a readable name.
+    ``RuntimeError`` once the retries for 5xx/timeouts/cut bodies are exhausted. With
+    ``out_dir`` the cached file is also copied there under a readable name. Concurrent
+    calls for the same cutout download it once (``cache.cached_download`` writes a fixed
+    ``.part`` name per URL, so two downloads of one URL must never overlap).
     """
     url = cutout_url(frame_irsa_uri(frame), ra, dec, size_arcmin)
-    try:
-        path = cache.cached_download(url, suffix=".fits", retries=CUTOUT_RETRIES)
-    except requests.HTTPError as e:
-        if e.response is not None and e.response.status_code == 422:
-            raise NoOverlap(f"no overlap with {frame.obs_id}D{frame.detector} at ({ra}, {dec})") from e
-        raise
-    with open(path, "rb") as fh:
-        magic = fh.read(9)
-    if magic != b"SIMPLE  =":
-        path.unlink(missing_ok=True)  # an HTML error page with status 200 must not poison the cache
-        raise RuntimeError(f"IBE returned something that is not FITS for {url}")
-    if out_dir is None:
-        return path
-    out_dir.mkdir(parents=True, exist_ok=True)
-    stem = Path(frame_irsa_uri(frame)).stem
-    dest = out_dir / f"{stem}_{ra:.5f}_{dec:+.5f}_{size_arcmin:g}am.fits"
-    if not dest.exists():
-        shutil.copyfile(path, dest)
-    return dest
+    with _url_locks.hold(url):
+        path = _download(url, f"{frame.obs_id}D{frame.detector} at ({ra}, {dec})")
+        with open(path, "rb") as fh:
+            magic = fh.read(9)
+        if magic != b"SIMPLE  =":
+            path.unlink(missing_ok=True)  # an HTML error page with status 200 must not poison the cache
+            raise RuntimeError(f"IBE returned something that is not FITS for {url}")
+        if out_dir is None:
+            return path
+        out_dir.mkdir(parents=True, exist_ok=True)
+        stem = Path(frame_irsa_uri(frame)).stem
+        dest = out_dir / f"{stem}_{ra:.5f}_{dec:+.5f}_{size_arcmin:g}am.fits"
+        if not dest.exists():
+            _copy_atomic(path, dest)
+        return dest
 
 
 def fetch_report(

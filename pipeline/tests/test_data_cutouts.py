@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import os
+import pickle
+import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import numpy as np
@@ -107,6 +110,52 @@ def test_non_fits_answer_is_not_cached(fake_http):
         cutouts.fetch_cutout(_frame(), *BARNARD, 5.0)
     url = cutouts.cutout_url(cutouts.frame_irsa_uri(_frame()), *BARNARD, 5.0)
     assert not cache.cache_path(url, ".fits").exists()
+
+
+class _CutResp(_Resp):
+    """A 200 whose body breaks mid-transfer (what requests raises for an IncompleteRead)."""
+
+    def iter_content(self, n):
+        yield self.body[:10]
+        raise requests.exceptions.ChunkedEncodingError("Connection broken: IncompleteRead")
+
+
+def test_body_cut_mid_transfer_is_retried(fake_http, monkeypatch):
+    script, calls = fake_http
+    monkeypatch.setattr(cutouts.time, "sleep", lambda s: None)
+    script += [_CutResp(200, _fits_bytes()), _Resp(200, _fits_bytes())]
+    path = cutouts.fetch_cutout(_frame(), *BARNARD, 5.0)
+    assert len(calls) == 2 and fits.getdata(path, "IMAGE").shape == (3, 3)
+    script += [_CutResp(200, _fits_bytes())] * cutouts.BODY_RETRIES
+    with pytest.raises(RuntimeError, match="mid-transfer"):
+        cutouts.fetch_cutout(_frame(), *BARNARD, 7.0)
+
+
+def test_concurrent_requests_for_one_cutout_download_once(fake_http, monkeypatch, tmp_path):
+    """Duplicate frames in one batch: one download (cache.cached_download uses a fixed .part
+    name per URL, so two concurrent downloads of one URL would write into the same file)."""
+    script, calls = fake_http
+    body = _fits_bytes()
+    scripted_get = cache.requests.get
+
+    def slow_get(url, stream, timeout):
+        time.sleep(0.05)  # widen the race window
+        return scripted_get(url, stream=stream, timeout=timeout)
+
+    monkeypatch.setattr(cache.requests, "get", slow_get)
+    script.append(_Resp(200, body))
+    with ThreadPoolExecutor(8) as pool:
+        paths = list(
+            pool.map(lambda _: cutouts.fetch_cutout(_frame(), *BARNARD, 5.0, out_dir=tmp_path / "o"), range(8))
+        )
+    assert len(calls) == 1 and len(set(paths)) == 1 and paths[0].read_bytes() == body
+    assert not list((tmp_path / "o").glob("*.part"))
+
+
+def test_fetch_error_survives_pickle(tmp_path):
+    err = FetchError([(_frame(), tmp_path / "a.fits")], [(_frame("dr1/b.fits"), "NoOverlap: x")])
+    back = pickle.loads(pickle.dumps(err))
+    assert (back.results, back.failures, str(back)) == (err.results, err.failures, str(err))
 
 
 def test_batch_is_aligned_and_reports_failures(monkeypatch, tmp_path):
