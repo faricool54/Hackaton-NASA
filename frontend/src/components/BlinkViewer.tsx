@@ -28,30 +28,21 @@ export function BlinkViewer({ field, frames, imageUrl, candidates, known, select
   const [playing, setPlaying] = useState(true);
   const [intervalMs, setIntervalMs] = useState(700);
   const [showOverlays, setShowOverlays] = useState(true);
+  const [loaded, setLoaded] = useState<Record<string, 'ready' | 'error'>>({});
+  const [retry, setRetry] = useState(0);
 
   const n = frames.length;
   const current = frames[Math.min(index, n - 1)];
+  const failed = frames.filter((f) => loaded[f.id] === 'error').length;
+  const remaining = frames.filter((f) => !loaded[f.id]).length;
 
   useEffect(() => setIndex(0), [frames]);
 
   useEffect(() => {
-    if (!playing || n < 2) return;
+    if (!playing || n < 2 || remaining || failed) return;
     const t = setInterval(() => setIndex((i) => (i + 1) % n), intervalMs);
     return () => clearInterval(t);
-  }, [playing, intervalMs, n]);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement)?.tagName === 'INPUT') return;
-      if (e.key === ' ') {
-        e.preventDefault();
-        setPlaying((p) => !p);
-      } else if (e.key === 'ArrowRight') setIndex((i) => (i + 1) % n);
-      else if (e.key === 'ArrowLeft') setIndex((i) => (i - 1 + n) % n);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [n]);
+  }, [playing, intervalMs, n, remaining, failed]);
 
   // --- custom scrubber ---
   const trackRef = useRef<HTMLDivElement>(null);
@@ -98,16 +89,27 @@ export function BlinkViewer({ field, frames, imageUrl, candidates, known, select
   const r = Math.max(2.5, w / 40);
 
   return (
-    <div className="blink">
+    <div className="blink" tabIndex={0} aria-label="Time sequence player" onKeyDown={(e) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('input, select, textarea, button, [contenteditable="true"], [role="slider"]')) return;
+      if (e.key === ' ') { e.preventDefault(); setPlaying((p) => !p); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); setPlaying(false); setIndex((i) => (i + 1) % n); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); setPlaying(false); setIndex((i) => (i - 1 + n) % n); }
+    }}>
+      {remaining > 0 && <p role="status" className="muted small">Loading sequence images… {n - remaining}/{n}</p>}
+      {failed > 0 && <p role="alert" className="error">{failed} image(s) could not load. Playback is paused.
+        {' '}<button onClick={() => { setLoaded({}); setRetry((r) => r + 1); }}>Retry images</button></p>}
       <div className="blink-stage" style={{ aspectRatio: `${w} / ${h}` }}>
         {frames.map((f, i) => (
           <img
-            key={f.id}
-            src={imageUrl(f)}
+            key={`${f.id}/${retry}`}
+            src={`${imageUrl(f)}${retry ? `?retry=${retry}` : ''}`}
             alt={`SPHEREx frame ${f.id}`}
             className="blink-frame"
             style={{ visibility: i === index ? 'visible' : 'hidden' }}
             draggable={false}
+            onLoad={() => setLoaded((s) => ({ ...s, [f.id]: 'ready' }))}
+            onError={() => setLoaded((s) => ({ ...s, [f.id]: 'error' }))}
           />
         ))}
         {showOverlays && (
@@ -156,6 +158,8 @@ export function BlinkViewer({ field, frames, imageUrl, candidates, known, select
         <div className="blink-caption">
           <strong>{formatMjd(current.mjd)}</strong> · D{current.detector}
           {current.wavelength_um ? ` · λ ${current.wavelength_um.toFixed(3)} µm` : ` · ${DETECTOR_BANDS[current.detector]}`}
+          {' · '}{current.release.toUpperCase()}
+          {loaded[current.id] === 'error' && ' · IMAGE UNAVAILABLE'}
         </div>
       </div>
 
@@ -177,8 +181,8 @@ export function BlinkViewer({ field, frames, imageUrl, candidates, known, select
           aria-valuenow={index}
           tabIndex={0}
           onKeyDown={(e) => {
-            if (e.key === 'ArrowRight') { e.preventDefault(); setIndex((i) => Math.min(i + 1, n - 1)); }
-            if (e.key === 'ArrowLeft')  { e.preventDefault(); setIndex((i) => Math.max(i - 1, 0)); }
+            if (e.key === 'ArrowRight') { e.preventDefault(); setPlaying(false); setIndex((i) => Math.min(i + 1, n - 1)); }
+            if (e.key === 'ArrowLeft')  { e.preventDefault(); setPlaying(false); setIndex((i) => Math.max(i - 1, 0)); }
           }}
         >
           <div className="scrubber-track">

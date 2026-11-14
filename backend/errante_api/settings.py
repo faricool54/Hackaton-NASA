@@ -27,12 +27,17 @@ class Settings:
     live_cache_ttl_s: float = 300
     live_max_concurrent: int = 2
     live_cache_entries: int = 128
+    enable_jobs: bool = False
+    jobs_dir: Path = field(default_factory=lambda: core.CACHE_DIR / "jobs")
 
     def __post_init__(self) -> None:
         self.data_dir = Path(self.data_dir).resolve()
         self.live_cache_dir = Path(self.live_cache_dir).resolve()
+        self.jobs_dir = Path(self.jobs_dir).resolve()
         if self.live_cache_dir.is_relative_to(self.data_dir):
             raise ValueError("API cache must be outside the public data directory")
+        if self.enable_jobs and self.jobs_dir.is_relative_to(self.data_dir):
+            raise ValueError("Job state must be outside the public data directory")
         self.cors_origins = [origin.strip() for origin in self.cors_origins if origin.strip()]
         for value in (self.live_timeout_s, self.live_cache_ttl_s):
             if not math.isfinite(value) or value <= 0:
@@ -43,9 +48,10 @@ class Settings:
     @classmethod
     def from_env(cls) -> Settings:
         """ERRANTE_DATA_DIR wins; else real products if they have fields; else the synthetic demo."""
+        enabled = os.environ.get("ERRANTE_ENABLE_JOBS", "").lower() in ("1", "true", "yes")
         if os.environ.get("ERRANTE_DATA_DIR"):
             data_dir = Path(os.environ["ERRANTE_DATA_DIR"]).resolve()
-        elif has_real_fields(core.PRODUCTS_DIR):
+        elif enabled or has_real_fields(core.PRODUCTS_DIR):
             data_dir = core.PRODUCTS_DIR
         else:
             data_dir = core.DEMO_DIR
@@ -58,4 +64,6 @@ class Settings:
             live_cache_ttl_s=float(os.environ.get("ERRANTE_API_CACHE_TTL_S", "300")),
             live_max_concurrent=int(os.environ.get("ERRANTE_API_MAX_CONCURRENT", "2")),
             live_cache_entries=int(os.environ.get("ERRANTE_API_CACHE_ENTRIES", "128")),
+            enable_jobs=enabled,
+            jobs_dir=Path(os.environ.get("ERRANTE_JOBS_DIR", core.CACHE_DIR / "jobs")),
         )

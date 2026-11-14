@@ -5,12 +5,21 @@ recorded on 2026-11-14 and trimmed to 14 of its 358 rows (header and FIELDs unto
 fixtures/ws1/barnard_tap_from_sia.csv is NOT a recorded TAP answer: IRSA TAP returned 502 or hung
 for the whole session on 2026-11-14, so it holds the same 14 real rows (uri, t_min/t_max,
 bandpass, collection) in the CSV layout of ``irsa.build_query``'s SELECT, with planeid left empty.
-TODO(WS1): re-record it from a real TAP answer once TAP is back.
+TODO(WS1): re-record it from a real TAP answer once TAP is back. Tried again 2026-11-14 19:16-19:54 UTC:
+every TAP query on the spherex tables hung (the fallback point query 2x200 s, TOP 5 on spherex.plane and
+spherex.obscore 240 s, a non-spatial query by artifact uri 2x200 s, even `SELECT TOP 1 planeid FROM
+spherex.plane` > 90 s) or got a fast 502, while TAP_SCHEMA answered in 0.5 s. One thing was learnt:
+INTERSECTS(CIRCLE(...), p.poly) is rejected at once as unsupported ADQL; INTERSECTS(p.poly, CIRCLE(...)) is not.
+
+Search snapshots: the committed data/index/search/<field-id>.json files (errante snapshot-search, live SIA
+2026-11-14) are checked for schema/size and replayed offline; the generator itself is tested on the fixture.
+The autouse fixture turns snapshots off, so the older tests keep seeing IRSA failures as errors.
 """
 
 from __future__ import annotations
 
 import json
+import math
 import time
 from pathlib import Path
 
@@ -63,6 +72,7 @@ class FakeIRSA:
 
 @pytest.fixture(autouse=True)
 def _isolated(monkeypatch, tmp_path):
+    monkeypatch.setattr(irsa, "SNAPSHOT_DIR", None)  # committed snapshots off unless a test enables them
     monkeypatch.setattr(settings, "CACHE_DIR", tmp_path / "cache")
     monkeypatch.setattr(settings, "IRSA_COLLECTIONS", ("spherex_dr1", "spherex_qr3"))
     monkeypatch.setattr(settings, "SEARCH_ATTEMPTS", 3)
@@ -284,7 +294,9 @@ def test_falls_back_to_tap_on_bad_sia_answers(monkeypatch, bad_sia):
 
 def test_tap_radius_uses_intersects():
     q = irsa.build_query(RA, DEC, radius_deg=0.05, collections=["spherex_dr1"])
-    assert "INTERSECTS(CIRCLE('ICRS', 269.44623000, 4.76870000, 0.05), p.poly)" in q
+    # Column first: IRSA TAP rejects INTERSECTS(CIRCLE(...), p.poly) as "unsupported ADQL" (live, 2026-11-14).
+    assert "INTERSECTS(p.poly, CIRCLE('ICRS', 269.44623000, 4.76870000, 0.05))" in q
+    assert "INTERSECTS(CIRCLE" not in q
     # Old call form still works.
     assert "p.energy_bandpassname = 'SPHEREx-D3'" in irsa.build_query(RA, DEC, 3)
 
@@ -661,3 +673,540 @@ def test_tap_queries_run_one_at_a_time(monkeypatch):
         t.join(timeout=10)
     assert len(results) == 3 and all(len(rows) == 14 for rows, _ in results)
     assert peak == 1
+
+
+# --------------------------------------------------------------------------- search snapshots (IRSA outage)
+
+OFFICIAL = ("barnards-star", "eps-indi-b", "wise-0855", "rw-aurigae", "r-draconis")
+SNAPSHOT_MAX_BYTES = 200_000  # per committed file (gzip-free JSON)
+IRSA_DOWN = {"sia": [FakeResponse(502)], "tap": [requests.ReadTimeout("tap hangs")]}
+
+
+def _make_snapshot(monkeypatch, directory: Path, radius_deg: float = 0.1, field_id: str = "barnards-star") -> Path:
+    """A snapshot generated from the real SIA fixture (14 Barnard frames) through fetch_snapshot."""
+    install(monkeypatch, sia=[ok(SIA_XML)])
+    doc = irsa.fetch_snapshot(
+        field_id, RA, DEC, name="Barnard's Star", radius_deg=radius_deg, rounds=1, pause_s=0, tile_radius_deg=10.0
+    )
+    return irsa.write_snapshot(doc, irsa.snapshot_path(field_id, directory))
+
+
+@pytest.fixture
+def snapdir(monkeypatch, tmp_path) -> Path:
+    directory = tmp_path / "snapshots"
+    _make_snapshot(monkeypatch, directory)
+    monkeypatch.setattr(irsa, "SNAPSHOT_DIR", directory)
+    return directory
+
+
+def _unit(ra: float, dec: float):
+    import numpy as np
+
+    r, d = np.radians(ra), np.radians(dec)
+    return np.array([np.cos(d) * np.cos(r), np.cos(d) * np.sin(r), np.sin(d)])
+
+
+def _inside_convex(footprint, ra: float, dec: float) -> bool:
+    """Independent check: a point is inside a convex spherical polygon iff it is on one side of every edge plane."""
+    import numpy as np
+
+    vs = [_unit(footprint[i], footprint[i + 1]) for i in range(0, len(footprint), 2)]
+    p = _unit(ra, dec)
+    signs = [np.sign(np.dot(np.cross(vs[i], vs[(i + 1) % len(vs)]), p)) for i in range(len(vs))]
+    return all(s > 0 for s in signs) or all(s < 0 for s in signs)
+
+
+def test_fetch_snapshot_document(monkeypatch, tmp_path):
+    fake = install(monkeypatch, sia=[ok(SIA_XML)])
+    doc = irsa.fetch_snapshot("barnards-star", RA, DEC, name="Barnard's Star", rounds=1, pause_s=0)
+    assert doc["kind"] == irsa.SNAPSHOT_KIND and doc["format"] == irsa.SNAPSHOT_FORMAT
+    assert doc["columns"] == list(irsa.SNAPSHOT_COLUMNS)
+    assert doc["center"] == {"ra": RA, "dec": DEC} and doc["radius_deg"] == irsa.SNAPSHOT_RADIUS_DEG
+    assert doc["collections"] == ["spherex_dr1", "spherex_qr3"]
+    prov = doc["provenance"]
+    assert prov["service"] == "sia" and prov["url"] == settings.IRSA_SIA
+    # 0.1 deg is covered by 7 SIA circles of 0.055 deg (the fake answers the same 14 rows to each).
+    assert len(prov["queries"]) == 7 and prov["rows_returned"] == 7 * 14
+    assert prov["rows"] == prov["distinct_files"] == len(doc["rows"]) == 14
+    assert prov["rows_by_collection"] == {"spherex_dr1": 10, "spherex_qr3": 4}
+    assert sum(prov["rows_by_detector"].values()) == 14 and prov["duplicate_rows"] == 0
+    assert prov["rows_outside_disk"] == prov["rows_without_footprint"] == 0
+    assert prov["queried_utc"] == prov["queries"][0]["queried_utc"] and prov["queried_utc"].endswith("Z")
+    assert prov["mjd_range"][0] < prov["mjd_range"][1]
+    # The centre point search is run live too and matches the offline replay.
+    check = prov["point_check"]
+    assert check["rows_live"] == check["rows_replayed"] == 14 and not check["only_live"] and not check["only_replayed"]
+    sia = [dict(c["params"])["POS"] for c in fake.calls]
+    assert sia[0] == "CIRCLE 269.44623000 4.76870000 0.055" and len(sia) == 8
+    assert all(pos.endswith(" 0.055") for pos in sia[:7])
+    assert sia[7] == "CIRCLE 269.44623000 4.76870000 0.000277777778"
+    assert [q["pos"] for q in prov["queries"]] == sia[:7]
+    key = "dr1/level2/2025W33_2C/l2b-v27-2026-228/6/level2_2025W33_2C_0321_1D6_spx_l2b-v27-2026-228.fits"
+    _, t_min, t_max, ci, footprint = next(r for r in doc["rows"] if r[0] == key)
+    assert (t_min, t_max, doc["collections"][ci]) == (60902.864715, 60902.866047, "spherex_dr1")
+    assert footprint == [266.698183, 5.47247, 270.177338, 5.149486, 269.997314, 1.660075, 266.501171, 1.990435]
+
+    # Written with one row per line, and read back to the same FrameRefs as the SIA answer.
+    path = irsa.write_snapshot(doc, tmp_path / "barnards-star.json")
+    text = path.read_text(encoding="utf-8")
+    assert text.count("\n    [") == 14 and "\r" not in text
+    snap = irsa.load_snapshot(path)
+    sia_rows, _ = irsa.parse_sia_votable(SIA_XML)
+    assert [s.row for s in snap.rows] == irsa.dedupe_rows(sia_rows)[0]
+    assert snap.queried_utc == prov["queried_utc"] and snap.service == "sia"
+
+
+def test_fetch_snapshot_refuses_truncated_answers_and_dead_irsa(monkeypatch):
+    install(monkeypatch, sia=[ok(_overflow_votable())])
+    with pytest.raises(irsa.SearchError, match="truncated"):
+        irsa.fetch_snapshot("barnards-star", RA, DEC, rounds=1, pause_s=0)
+    fake = install(monkeypatch, sia=[FakeResponse(502)])
+    with pytest.raises(irsa.SearchError, match="after 2 rounds") as exc:
+        irsa.fetch_snapshot("barnards-star", RA, DEC, rounds=2, pause_s=0)
+    assert exc.value.is_outage
+    assert fake.count(settings.IRSA_SIA) == 2 * settings.SEARCH_ATTEMPTS
+    with pytest.raises(ValueError):
+        irsa.fetch_snapshot("../evil", RA, DEC)
+
+
+def test_snapshot_point_check_failure_is_recorded(monkeypatch):
+    # The radius query answers, the point query does not: the snapshot is still valid, the check says why.
+    install(monkeypatch, sia=[ok(SIA_XML), FakeResponse(502)])
+    doc = irsa.fetch_snapshot("barnards-star", RA, DEC, rounds=1, pause_s=0, tile_radius_deg=10.0)
+    assert len(doc["rows"]) == 14
+    assert "error" in doc["provenance"]["point_check"] and doc["provenance"]["point_check"]["rows_replayed"] == 14
+
+
+def test_snapshot_never_used_while_irsa_answers(monkeypatch, snapdir):
+    fake = install(monkeypatch, sia=[ok(SIA_XML)])
+    rep = irsa.search_frames_report(RA, DEC)
+    assert rep.service == "sia" and not rep.stale and not rep.from_cache and rep.warnings == []
+    assert fake.count(settings.IRSA_TAP_SYNC) == 0
+    # TAP answering after SIA failed is a live answer too.
+    install(monkeypatch, sia=[FakeResponse(502)], tap=[ok(TAP_CSV)])
+    rep = irsa.search_frames_report(RA, DEC, use_cache=False)
+    assert rep.service == "tap" and not rep.stale
+
+
+def test_snapshot_answers_when_sia_and_tap_fail(monkeypatch, snapdir, caplog):
+    install(monkeypatch, **IRSA_DOWN)
+    with caplog.at_level("WARNING", logger="errante.data.irsa"):
+        rep = irsa.search_frames_report(RA, DEC)
+    assert rep.service == "snapshot" and rep.stale and rep.from_cache and not rep.overflow
+    assert len(rep.result.frames) == 14
+    sia_rows, _ = irsa.parse_sia_votable(SIA_XML)
+    assert rep.result.frames == [r.ref for r in irsa.dedupe_rows(sia_rows)[0]]
+    assert rep.errors and "IRSA frame search failed" in rep.errors[0]
+    (note,) = rep.warnings
+    assert "committed search snapshot 'barnards-star'" in note and "SIA answer of 20" in note
+    assert "frames published after that date are missing" in note
+    assert "committed search snapshot" in caplog.text
+    assert not (settings.CACHE_DIR / "queries").exists()  # a snapshot answer is never cached
+    # build.py and the backend call search_frames (SearchResult only): same frames.
+    assert irsa.search_frames(RA, DEC) == rep.result
+
+
+def test_snapshot_applies_detector_mjd_and_collection_filters(monkeypatch, snapdir):
+    install(monkeypatch, sia=[ok(SIA_XML)])
+    every = irsa.search_frames(RA, DEC, use_cache=False)
+    install(monkeypatch, **IRSA_DOWN)
+    rep = irsa.search_frames_report(RA, DEC, detectors=[3, 6], mjd_min=61100, mjd_max=61300)
+    expected = [f for f in every.frames if f.detector in (3, 6) and 61100 <= f.mjd <= 61300]
+    assert rep.service == "snapshot" and rep.result.frames == expected and len(expected) == 4
+    # Overlap semantics like SIA TIME: a bound inside an exposure keeps it.
+    first = every.frames[0]
+    rep = irsa.search_frames_report(RA, DEC, mjd_min=first.mjd, mjd_max=first.mjd)
+    assert {(f.obs_id, f.detector) for f in rep.result.frames} == {
+        (f.obs_id, f.detector) for f in every.frames if f.obs_id == first.obs_id
+    }
+    # A subset of the snapshotted collections is served; a collection it lacks is not.
+    rep = irsa.search_frames_report(RA, DEC, collections=["spherex_qr3"])
+    assert (
+        rep.service == "snapshot" and {f.release for f in rep.result.frames} == {"qr3"} and len(rep.result.frames) == 4
+    )
+    with pytest.raises(irsa.SearchError):
+        irsa.search_frames(RA, DEC, collections=["spherex_dr1", "spherex_dr1_deep"])
+
+
+def test_snapshot_not_used_far_away_or_beyond_its_disk(monkeypatch, snapdir):
+    install(monkeypatch, sia=[requests.ReadTimeout("sia slow")], tap=[FakeResponse(502)])
+    with pytest.raises(irsa.SearchError) as exc:
+        irsa.search_frames(RA + 1.0, DEC)  # 1 deg away: no snapshot covers it
+    assert isinstance(exc.value.__cause__, requests.Timeout) and exc.value.is_outage  # the original error
+    # Inside the 0.1 deg disk: served. A search circle that pokes out of it: not served.
+    assert irsa.search_frames_report(RA, DEC + 0.09).service == "snapshot"
+    assert irsa.search_frames_report(RA, DEC + 0.05, radius_deg=0.04).service == "snapshot"
+    with pytest.raises(irsa.SearchError):
+        irsa.search_frames(RA, DEC + 0.05, radius_deg=0.06)
+    with pytest.raises(irsa.SearchError):
+        irsa.search_frames(RA, DEC + 0.11)
+
+
+def test_snapshot_replay_follows_the_footprints(monkeypatch, tmp_path):
+    # A wide (2 deg) snapshot of the 14 fixture frames, queried 1 deg away: only frames covering the point.
+    directory = tmp_path / "wide"
+    _make_snapshot(monkeypatch, directory, radius_deg=2.0)
+    monkeypatch.setattr(irsa, "SNAPSHOT_DIR", directory)
+    snap = irsa.load_snapshot(irsa.snapshot_path("barnards-star", directory))
+    install(monkeypatch, **IRSA_DOWN)
+    seen = set()
+    for dra, ddec in [(1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), (0.0, -1.0), (0.7, 0.7), (-1.2, -1.2)]:
+        ra, dec = RA + dra, DEC + ddec
+        rep = irsa.search_frames_report(ra, dec)
+        expected = {(s.row.ref.obs_id, s.row.ref.detector) for s in snap.rows if _inside_convex(s.footprint, ra, dec)}
+        assert {(f.obs_id, f.detector) for f in rep.result.frames} == expected
+        seen.add(len(expected))
+    assert min(seen) < 14 and max(seen) > 0  # the footprints really select frames
+
+
+def _expired_cached_search(monkeypatch) -> None:
+    """A real (fixture) SIA answer for (RA, DEC) in the search cache, 3 days old (TTL: 1 day)."""
+    install(monkeypatch, sia=[ok(SIA_XML)])
+    irsa.search_frames(RA, DEC, detectors=None)
+    (path,) = (settings.CACHE_DIR / "queries").glob("search_*.json")
+    doc = json.loads(path.read_text(encoding="utf-8"))
+    doc["created"] = time.time() - 3 * 86400
+    path.write_text(json.dumps(doc), encoding="utf-8")
+
+
+def test_stale_cache_beats_snapshot_and_no_cache_means_no_snapshot(monkeypatch, snapdir):
+    _expired_cached_search(monkeypatch)
+    install(monkeypatch, **IRSA_DOWN)
+    rep = irsa.search_frames_report(RA, DEC)
+    assert rep.stale and rep.service == "sia" and rep.warnings == []  # the expired cache, not the snapshot
+    # use_cache=False (CLI --no-cache, live checks): live or nothing, unless the snapshot is asked for.
+    with pytest.raises(irsa.SearchError):
+        irsa.search_frames_report(RA, DEC, use_cache=False)
+    assert irsa.search_frames_report(RA, DEC, use_cache=False, use_snapshot=True).service == "snapshot"
+    with pytest.raises(irsa.SearchError):
+        irsa.search_frames_report(RA, DEC, use_snapshot=False, mjd_min=1)  # no cache for this key either
+
+
+# The shipped settings.py defaults (the autouse fixture makes retries instant) and the backend's default
+# ERRANTE_API_TIMEOUT_S (errante_api.settings.Settings.live_timeout_s): the backend answers HTTP 504 after it.
+SHIPPED_BUDGET = {
+    "SEARCH_ATTEMPTS": 4,
+    "SEARCH_BACKOFF_S": 1.0,
+    "SIA_TIMEOUT_S": 30.0,
+    "TAP_TIMEOUT_S": 60.0,
+    "SEARCH_DEADLINE_S": 60.0,
+    "SEARCH_FALLBACK_DEADLINE_S": 20.0,
+}
+API_TIMEOUT_S = 30.0
+
+
+def _outage_http(clock: FakeClock, calls: list, sia, tap):
+    """IRSA down: each service hangs until its read timeout ('hang') or answers that HTTP status at once."""
+
+    def fake_http(method, url, *, params=None, data=None, timeout):
+        calls.append((url, timeout))
+        mode = sia if url == settings.IRSA_SIA else tap
+        if mode == "hang":
+            clock.now += timeout
+            raise requests.ReadTimeout(f"{url} hung {timeout} s")
+        return FakeResponse(mode)
+
+    return fake_http
+
+
+def _outage(monkeypatch, sia, tap) -> tuple[FakeClock, list]:
+    for name, value in SHIPPED_BUDGET.items():
+        monkeypatch.setattr(settings, name, value)
+    clock, calls = FakeClock(), []
+    monkeypatch.setattr(irsa, "time", clock)
+    monkeypatch.setattr(irsa, "_http", _outage_http(clock, calls, sia, tap))
+    return clock, calls
+
+
+# 2026-11-14: SIA answered bursts of fast 502s or hung; TAP hung on every spherex query for hours.
+@pytest.mark.parametrize(("sia", "tap"), [(502, "hang"), ("hang", "hang"), ("hang", 502)])
+@pytest.mark.parametrize("fallback", ["snapshot", "expired cache"])
+def test_fallback_answers_before_the_api_gives_up(monkeypatch, snapdir, sia, tap, fallback):
+    # Review 2026-11-14: SIA 502 + TAP hang used the whole 60 s SEARCH_DEADLINE_S before the snapshot
+    # answered, so /api/search (30 s) returned 504. With a fallback in hand the search budget is capped.
+    if fallback == "expired cache":
+        monkeypatch.setattr(irsa, "SNAPSHOT_DIR", None)
+        _expired_cached_search(monkeypatch)
+    clock, calls = _outage(monkeypatch, sia, tap)
+    t0 = clock.now
+    rep = irsa.search_frames_report(RA, DEC)
+    assert rep.stale and rep.service == ("snapshot" if fallback == "snapshot" else "sia")
+    assert len(rep.result.frames) == 14
+    assert clock.now - t0 <= settings.SEARCH_FALLBACK_DEADLINE_S < API_TIMEOUT_S - 5
+    assert {url for url, _ in calls} == {settings.IRSA_SIA, settings.IRSA_TAP_SYNC}  # IRSA still got its chance
+
+
+def test_fallback_budget_applies_only_with_a_fallback(monkeypatch, snapdir):
+    clock, _ = _outage(monkeypatch, 502, "hang")
+    # Far from every snapshot and nothing cached: IRSA keeps the whole SEARCH_DEADLINE_S.
+    t0 = clock.now
+    with pytest.raises(irsa.SearchError):
+        irsa.search_frames(RA + 1.0, DEC)
+    assert 50.0 < clock.now - t0 <= 60.0
+    # use_cache=False (live checks) never falls back, so it is not capped either.
+    t0 = clock.now
+    with pytest.raises(irsa.SearchError):
+        irsa.search_frames(RA, DEC, use_cache=False)
+    assert 50.0 < clock.now - t0 <= 60.0
+    # SEARCH_FALLBACK_DEADLINE_S = 0 switches the cap off; a smaller SEARCH_DEADLINE_S wins over it.
+    monkeypatch.setattr(settings, "SEARCH_FALLBACK_DEADLINE_S", 0.0)
+    t0 = clock.now
+    assert irsa.search_frames_report(RA, DEC).service == "snapshot"
+    assert 50.0 < clock.now - t0 <= 60.0
+    monkeypatch.setattr(settings, "SEARCH_FALLBACK_DEADLINE_S", 20.0)
+    monkeypatch.setattr(settings, "SEARCH_DEADLINE_S", 12.0)
+    t0 = clock.now
+    assert irsa.search_frames_report(RA, DEC).service == "snapshot"
+    assert clock.now - t0 <= 12.0
+
+
+def test_shipped_search_budget_fits_the_backend_timeout():
+    import dataclasses
+    import os
+
+    env = {"SIA_TIMEOUT_S": "ERRANTE_SIA_TIMEOUT_S", "TAP_TIMEOUT_S": "ERRANTE_TAP_TIMEOUT_S"}
+    env |= {"SEARCH_DEADLINE_S": "ERRANTE_SEARCH_DEADLINE_S"}
+    env |= {"SEARCH_FALLBACK_DEADLINE_S": "ERRANTE_SEARCH_FALLBACK_DEADLINE_S"}
+    for name, var in env.items():  # SHIPPED_BUDGET mirrors settings.py (unless this shell overrides it)
+        if var not in os.environ:
+            assert getattr(settings, name) == SHIPPED_BUDGET[name], name
+    api = pytest.importorskip("errante_api.settings")
+    (field,) = [f for f in dataclasses.fields(api.Settings) if f.name == "live_timeout_s"]
+    assert field.default == API_TIMEOUT_S  # if WS4 lowers it, lower SEARCH_FALLBACK_DEADLINE_S too
+
+
+def _with_qr3_copy(xml: bytes) -> bytes:
+    """The SIA fixture plus a qr3 copy of its first (dr1) row: one obs_id + detector in two collections."""
+    start = xml.index(b"<TR>")
+    end = xml.index(b"</TR>", start) + len(b"</TR>")
+    row = xml[start:end]
+    assert row.count(b"dr1/level2/") == 2 and row.count(b"spherex_dr1") == 2  # obs_collection, publisher DID
+    copy = row.replace(b"dr1/level2/", b"qr3/level2/").replace(b"spherex_dr1", b"spherex_qr3")
+    return xml[:end] + b"\n" + copy + xml[end:]
+
+
+def test_snapshot_keeps_every_collection_row(monkeypatch, tmp_path):
+    # Review 2026-11-14: the snapshot was deduplicated over dr1+qr3 (DR1 wins) BEFORE the replay filtered by
+    # collection, so a qr3-only search during an outage lost frames that live SIA on qr3 returns.
+    xml = _with_qr3_copy(SIA_XML)
+    install(monkeypatch, sia=[ok(xml)])
+    live_both = irsa.search_frames_report(RA, DEC, use_cache=False)
+    assert live_both.n_duplicates == 1 and len(live_both.result.frames) == 14
+    doc = irsa.fetch_snapshot("barnards-star", RA, DEC, rounds=1, pause_s=0, tile_radius_deg=10.0)
+    assert len(doc["rows"]) == doc["provenance"]["rows"] == 15 and doc["provenance"]["duplicate_rows"] == 1
+    check = doc["provenance"]["point_check"]
+    assert check["rows_live"] == check["rows_replayed"] == 14 and not check["only_live"]
+    directory = tmp_path / "dup"
+    irsa.write_snapshot(doc, irsa.snapshot_path("barnards-star", directory))
+    monkeypatch.setattr(irsa, "SNAPSHOT_DIR", directory)
+    install(monkeypatch, **IRSA_DOWN)
+    rep = irsa.search_frames_report(RA, DEC)
+    assert rep.service == "snapshot" and rep.result.frames == live_both.result.frames and rep.n_duplicates == 1
+    rep = irsa.search_frames_report(RA, DEC, collections=["spherex_qr3"])
+    assert rep.service == "snapshot" and len(rep.result.frames) == 5 and rep.n_duplicates == 0
+    (dup,) = [f for f in rep.result.frames if (f.obs_id, f.detector) == ("2025W33_2C_0321_1", 6)]
+    assert dup.release == "qr3" and dup.s3_key.startswith("qr3/level2/")
+
+
+def test_missing_snapshot_dir_is_logged_once(monkeypatch, tmp_path, caplog):
+    # A deploy that does not ship data/index/search (or a non-editable install) silently lost the fallback.
+    missing = tmp_path / "not-shipped"
+    monkeypatch.setattr(irsa, "SNAPSHOT_DIR", missing)
+    install(monkeypatch, **IRSA_DOWN)
+    with caplog.at_level("WARNING", logger="errante.data.irsa"):
+        for _ in range(3):
+            with pytest.raises(irsa.SearchError):
+                irsa.search_frames(RA, DEC)
+    assert caplog.text.count(f"Search snapshot directory {missing} does not exist") == 1
+    assert "ERRANTE_SEARCH_SNAPSHOTS" in caplog.text
+    caplog.clear()
+    monkeypatch.setattr(irsa, "SNAPSHOT_DIR", None)  # switched off on purpose: nothing to report
+    with caplog.at_level("WARNING", logger="errante.data.irsa"), pytest.raises(irsa.SearchError):
+        irsa.search_frames(RA, DEC)
+    assert "Search snapshot directory" not in caplog.text
+
+
+def test_cli_search_labels_a_snapshot_answer(monkeypatch, snapdir, capsys):
+    install(monkeypatch, **IRSA_DOWN)
+    assert cli_main(["search", "--ra", str(RA), "--dec", str(DEC)]) == 0
+    err = capsys.readouterr().err
+    assert "14 frames via committed SNAPSHOT (IRSA unavailable)" in err and "EXPIRED" not in err
+    assert "WARNING: IRSA unavailable: frames come from the committed search snapshot 'barnards-star'" in err
+
+
+def test_broken_snapshot_files_are_ignored(monkeypatch, snapdir, caplog):
+    (snapdir / "corrupt.json").write_text("{not json", encoding="utf-8")
+    good = json.loads((snapdir / "barnards-star.json").read_text(encoding="utf-8"))
+    (snapdir / "future.json").write_text(json.dumps(good | {"format": 99}), encoding="utf-8")
+    (snapdir / "notes.json").write_text(json.dumps({"hello": "world"}), encoding="utf-8")
+    bad_row = good | {"rows": [["not/a/level2/key.fits", 1.0, 2.0, 0, [0, 0, 1, 0, 1, 1]]]}
+    (snapdir / "bad-row.json").write_text(json.dumps(bad_row), encoding="utf-8")
+    install(monkeypatch, **IRSA_DOWN)
+    with caplog.at_level("WARNING", logger="errante.data.irsa"):
+        rep = irsa.search_frames_report(RA, DEC)
+    assert rep.service == "snapshot" and len(rep.result.frames) == 14
+    assert [s.path.name for s in irsa.list_snapshots(snapdir)] == ["barnards-star.json"]
+    for name in ("corrupt.json", "future.json", "notes.json", "bad-row.json"):
+        assert name in caplog.text
+
+
+def test_snapshot_dir_from_environment(monkeypatch, tmp_path):
+    monkeypatch.setenv("ERRANTE_SEARCH_SNAPSHOTS", "0")
+    assert irsa._snapshot_dir_from_env() is None
+    monkeypatch.setenv("ERRANTE_SEARCH_SNAPSHOTS", str(tmp_path))
+    assert irsa._snapshot_dir_from_env() == tmp_path.resolve()
+    monkeypatch.delenv("ERRANTE_SEARCH_SNAPSHOTS")
+    assert irsa._snapshot_dir_from_env() == irsa.DEFAULT_SNAPSHOT_DIR == settings.REPO_ROOT / "data/index/search"
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("POLYGON ICRS 1 2 3 4 5 6 1 2", (1.0, 2.0, 3.0, 4.0, 5.0, 6.0)),
+        ("polygon 1 2 3 4 5 6", (1.0, 2.0, 3.0, 4.0, 5.0, 6.0)),
+        ("POLYGON ICRS 1.23456789 2 3 4 5 6 7 8", (1.234568, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0)),
+        ("POLYGON ICRS 1 2 3 4", None),
+        ("POLYGON ICRS 1 2 3 4 5", None),
+        ("CIRCLE ICRS 1 2 3", None),
+        ("POLYGON ICRS 1 2 3 4 5 6 UNION", None),
+        ("", None),
+        (None, None),
+    ],
+)
+def test_parse_s_region(text, expected):
+    assert irsa.parse_s_region(text) == expected
+
+
+@pytest.mark.parametrize(("ra", "dec"), [(RA, DEC), (0.01, -56.8), (248.16723, 66.75502), (123.0, 89.95)])
+def test_snapshot_tiles_cover_the_disk(ra, dec):
+    import random
+
+    tiles = irsa.snapshot_tiles(ra, dec, 0.1)
+    assert len(tiles) == 7 and tiles[0] == (round(ra, 8), round(dec, 8))
+    assert all(irsa.angular_separation_deg(ra, dec, t_ra, t_dec) < 0.1 for t_ra, t_dec in tiles)
+    rng = random.Random(42)
+    for _ in range(2000):  # random points of the disk (gnomonic offsets), each within a tile radius of a tile
+        r, a = 0.1 * math.sqrt(rng.random()), rng.uniform(0, 2 * math.pi)
+        p_ra, p_dec = _offset(ra, dec, r, a)
+        assert min(irsa.angular_separation_deg(p_ra, p_dec, t_ra, t_dec) for t_ra, t_dec in tiles) <= 0.055 + 1e-9
+    assert irsa.snapshot_tiles(ra, dec, 0.05) == [(ra, dec)]
+    assert len(irsa.snapshot_tiles(ra, dec, 0.2)) == 31  # lattice rings at 0, 0.095, 0.165, 0.19, 0.252 deg
+
+
+def _offset(ra: float, dec: float, dist_deg: float, bearing: float) -> tuple[float, float]:
+    d0, delta = math.radians(dec), math.radians(dist_deg)
+    d = math.asin(math.sin(d0) * math.cos(delta) + math.cos(d0) * math.sin(delta) * math.cos(bearing))
+    a = math.radians(ra) + math.atan2(
+        math.sin(bearing) * math.sin(delta) * math.cos(d0), math.cos(delta) - math.sin(d0) * math.sin(d)
+    )
+    return math.degrees(a) % 360.0, math.degrees(d)
+
+
+def test_footprint_geometry():
+    square = (359.5, -0.5, 0.5, -0.5, 0.5, 0.5, 359.5, 0.5)  # 1 deg box across RA = 0
+    assert irsa.footprint_hits(square, 0.0, 0.0)
+    assert irsa.footprint_hits(square, 359.6, 0.4) and irsa.footprint_hits(square, 0.4, -0.4)
+    assert not irsa.footprint_hits(square, 0.6, 0.0) and not irsa.footprint_hits(square, 180.0, 0.0)
+    # A circle that reaches an edge touches the polygon (edge at RA 0.5, 0.1 deg away).
+    assert not irsa.footprint_hits(square, 0.6, 0.0, radius_deg=0.09)
+    assert irsa.footprint_hits(square, 0.6, 0.0, radius_deg=0.11)
+    # Edges are great circles: near the pole they bulge poleward of the straight RA/Dec line.
+    polar = (0.0, 80.0, 90.0, 80.0, 180.0, 80.0, 270.0, 80.0)  # contains the pole
+    assert irsa.footprint_hits(polar, 123.0, 89.9) and irsa.footprint_hits(polar, 45.0, 85.0)
+    north_edge = (10.0, 60.0, 50.0, 60.0, 50.0, 55.0, 10.0, 55.0)
+    assert irsa.footprint_hits(north_edge, 30.0, 61.0)  # above dec 60 at mid RA, still inside
+    assert not irsa.footprint_hits(north_edge, 30.0, 62.5)
+    assert irsa.angular_separation_deg(359.9, 0.0, 0.1, 0.0) == pytest.approx(0.2)
+    assert irsa.angular_separation_deg(10.0, 89.0, 190.0, 89.0) == pytest.approx(2.0)
+
+
+@pytest.mark.parametrize("field_id", OFFICIAL)
+def test_committed_snapshot_files(field_id):
+    from errante.build import load_field_configs
+
+    cfg = load_field_configs()[field_id]
+    path = irsa.snapshot_path(field_id, irsa.DEFAULT_SNAPSHOT_DIR)
+    assert path.exists(), f"missing {path}: run `errante snapshot-search {field_id}`"
+    assert path.stat().st_size < SNAPSHOT_MAX_BYTES
+    doc = json.loads(path.read_text(encoding="utf-8"))
+    snap = irsa.load_snapshot(path)
+    prov = doc["provenance"]
+    assert snap.field_id == field_id and snap.name == cfg.name
+    assert snap.collections == ("spherex_dr1", "spherex_qr3")  # wide survey only (no deep fields)
+    assert snap.service == "sia" and prov["url"] == settings.IRSA_SIA
+    assert prov["queried_utc"].startswith("2026-") and prov["queried_utc"].endswith("Z")
+    assert prov["rows"] == len(doc["rows"]) == len(snap.rows) and prov["rows_without_footprint"] == 0
+    assert sum(prov["rows_by_collection"].values()) == sum(prov["rows_by_detector"].values()) == len(snap.rows)
+    # One row per S3 file; an (obs_id, detector) in two collections is deduplicated by the replay. The files
+    # committed on 2026-11-14 were deduplicated when written ('duplicates_removed': 0 in all five, same rows).
+    assert len({s.row.ref.s3_key for s in snap.rows}) == len(snap.rows)
+    keys = [(s.row.ref.obs_id, s.row.ref.detector) for s in snap.rows]
+    assert len(keys) - len(set(keys)) == prov.get("duplicate_rows", prov.get("duplicates_removed"))
+    assert all(s.row.ref.irsa_uri == f"ibe/data/spherex/{s.row.ref.s3_key}" for s in snap.rows)
+    assert all(s.t_min <= s.row.ref.mjd <= s.t_max for s in snap.rows)
+    # The field centre in fields.toml (what build.py searches) is inside the disk, with margin for clicks.
+    assert snap.covers(cfg.ra, cfg.dec, irsa.MIN_RADIUS_DEG, ("spherex_dr1", "spherex_qr3"))
+    assert irsa.angular_separation_deg(snap.ra, snap.dec, cfg.ra, cfg.dec) < snap.radius_deg / 2
+    # The replay at the centre equals the live point search recorded at generation time.
+    check = prov["point_check"]
+    replay = snap.frames(snap.ra, snap.dec, irsa.MIN_RADIUS_DEG)
+    assert "error" not in check and check["rows_live"] == check["rows_replayed"] == len(replay) > 200
+    assert check["only_live"] == [] and check["only_replayed"] == []
+
+
+def test_committed_snapshots_keep_build_and_backend_working_offline(monkeypatch):
+    from errante.build import load_field_configs
+
+    monkeypatch.setattr(irsa, "SNAPSHOT_DIR", irsa.DEFAULT_SNAPSHOT_DIR)
+    install(monkeypatch, **IRSA_DOWN)
+    cfgs = load_field_configs()
+    for fid in OFFICIAL:
+        cfg = cfgs[fid]
+        rep = irsa.search_frames_report(
+            cfg.ra, cfg.dec, detectors=cfg.detectors, mjd_min=cfg.mjd_min, mjd_max=cfg.mjd_max
+        )
+        assert rep.service == "snapshot" and rep.stale and fid in rep.warnings[0]
+        assert len(rep.result.frames) > 200 and {f.detector for f in rep.result.frames} == {1, 2, 3, 4, 5, 6}
+    # A deep-field search is not covered by the wide-survey snapshots.
+    with pytest.raises(irsa.SearchError):
+        irsa.search_frames(
+            cfgs["r-draconis"].ra, cfgs["r-draconis"].dec, collections=irsa.settings.IRSA_DEEP_COLLECTIONS
+        )
+
+
+def test_cli_snapshot_search(monkeypatch, tmp_path, capsys):
+    install(monkeypatch, sia=[ok(SIA_XML)])
+    out = tmp_path / "snaps"
+    argv = ["snapshot-search", "barnards-star", "--out", str(out), "--rounds", "1", "--pause", "0"]
+    assert cli_main(argv) == 0
+    captured = capsys.readouterr()
+    assert "barnards-star: 14 frames within 0.1 deg (spherex_dr1, spherex_qr3) via SIA" in captured.out
+    assert "point check OK" in captured.out
+    assert irsa.load_snapshot(out / "barnards-star.json").field_id == "barnards-star"
+
+    assert cli_main(["snapshot-search", "--out", str(out)]) == 2  # neither an id nor --all
+    assert cli_main(["snapshot-search", "barnards-star", "--all", "--out", str(out)]) == 2
+    assert cli_main(["snapshot-search", "no-such-field", "--out", str(out)]) == 2
+    capsys.readouterr()
+
+    # --all walks the five official targets; IRSA down -> nothing written, exit 1.
+    fake = install(monkeypatch, sia=[FakeResponse(502)])
+    assert cli_main(["snapshot-search", "--all", "--out", str(tmp_path / "none"), "--rounds", "1", "--pause", "0"]) == 1
+    err = capsys.readouterr().err
+    assert all(f"{fid}: snapshot NOT written" in err for fid in OFFICIAL)
+    assert not (tmp_path / "none").exists()
+    assert fake.count(settings.IRSA_SIA) == 5 * settings.SEARCH_ATTEMPTS
+
+
+@pytest.mark.parametrize("point_answer", ["502", "empty"])
+def test_cli_snapshot_search_exits_1_when_the_point_check_fails(monkeypatch, tmp_path, capsys, point_answer):
+    # Review 2026-11-14: the file was written with exit 0 although test_committed_snapshot_files rejects it.
+    point = FakeResponse(502) if point_answer == "502" else ok(_empty_votable())
+    install(monkeypatch, sia=[ok(SIA_XML)] * 7 + [point])  # 7 tiles answer, the centre point search does not
+    out = tmp_path / "snaps"
+    argv = ["snapshot-search", "barnards-star", "--out", str(out), "--rounds", "1", "--pause", "0"]
+    assert cli_main(argv) == 1
+    err = capsys.readouterr().err
+    assert ("point check NOT run" if point_answer == "502" else "WARNING point check: live 0 vs replayed 14") in err
+    assert "barnards-star.json fails CI (test_committed_snapshot_files)" in err
+    assert irsa.load_snapshot(out / "barnards-star.json").field_id == "barnards-star"  # written, for inspection

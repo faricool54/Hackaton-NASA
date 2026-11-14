@@ -19,13 +19,13 @@ The internal "publishing" state is collapsed to "running" in responses.
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Literal
+import sqlite3
 
 from fastapi import APIRouter, HTTPException, Path, Request
-from pydantic import BaseModel, Field
 
-from ..jobs.errors import InvalidRequest, QueueFull
+from errante.models import JobStatusResponse, JobSubmitRequest
+
+from ..jobs.errors import InvalidRequest, JobNotFound, QueueFull
 from ..jobs.types import Job, JobRequest, JobStatus
 
 router = APIRouter(tags=["jobs"])
@@ -40,49 +40,6 @@ _PUBLIC_STATUS = {
     JobStatus.no_coverage: "no_coverage",
     JobStatus.pipeline_not_ready: "pipeline_not_ready",
 }
-
-PublicStatus = Literal["queued", "running", "ready", "failed", "no_coverage", "pipeline_not_ready"]
-
-
-# ---------------------------------------------------------------------------
-# Request / response models
-# ---------------------------------------------------------------------------
-
-
-class JobSubmitRequest(BaseModel):
-    """Body for POST /api/jobs."""
-
-    ra: float = Field(..., description="Right ascension (ICRS degrees, [0, 360))")
-    dec: float = Field(..., description="Declination (ICRS degrees, [-90, 90])")
-    size_deg: float = Field(
-        default=0.25,
-        description="Field side length in degrees ([0.01, 0.5])",
-    )
-    detectors: list[int] = Field(
-        default_factory=list,
-        description="SPHEREx detector numbers to include (1–6); empty = all",
-    )
-    mjd_min: float | None = Field(default=None, description="Earliest frame epoch (MJD)")
-    mjd_max: float | None = Field(default=None, description="Latest frame epoch (MJD)")
-    max_frames: int = Field(
-        default=40,
-        description="Maximum number of frames to include ([2, 120])",
-    )
-
-
-class JobStatusResponse(BaseModel):
-    """Response for both POST /api/jobs and GET /api/jobs/{id}."""
-
-    id: str
-    status: PublicStatus
-    stage: str
-    created_at: datetime
-    updated_at: datetime
-    # Set when status == "ready"
-    result_field_id: str | None = None
-    # Set when status == "failed"
-    error_detail: str | None = None
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -108,7 +65,15 @@ def _job_to_response(job: Job) -> JobStatusResponse:
         created_at=job.created_at,
         updated_at=job.updated_at,
         result_field_id=job.result_field_id,
-        error_detail=job.error_detail,
+        error_detail=(
+            "No SPHEREx coverage for these parameters."
+            if job.status == JobStatus.no_coverage
+            else "The requested pipeline capability is unavailable."
+            if job.status == JobStatus.pipeline_not_ready
+            else "The build failed. Retry later or change the request."
+            if job.error_detail
+            else None
+        ),
     )
 
 
@@ -149,7 +114,10 @@ def submit_job(body: JobSubmitRequest, request: Request) -> JobStatusResponse:
         raise HTTPException(
             status_code=429,
             detail=f"Build queue is full: {exc}. Retry after a moment.",
+            headers={"Retry-After": "2"},
         ) from exc
+    except sqlite3.DatabaseError as exc:
+        raise HTTPException(503, "Job storage is temporarily unavailable.", headers={"Retry-After": "2"}) from exc
 
     return _job_to_response(job)
 
@@ -168,7 +136,9 @@ def get_job(
     engine = _engine(request)
     try:
         job = engine.service.get(job_id)
-    except Exception as exc:
+    except JobNotFound as exc:
         raise HTTPException(status_code=404, detail=f"Job not found: {job_id!r}") from exc
+    except sqlite3.DatabaseError as exc:
+        raise HTTPException(503, "Job storage is temporarily unavailable.", headers={"Retry-After": "2"}) from exc
 
     return _job_to_response(job)

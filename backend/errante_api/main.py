@@ -18,7 +18,6 @@ GET /data/...                         static files (frame PNGs, thumbnails)
 from __future__ import annotations
 
 import logging
-import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -43,14 +42,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # Job engine: only start when explicitly enabled via env var so the
     # default dev server doesn't spin up background threads unexpectedly.
-    _enable_jobs = os.environ.get("ERRANTE_ENABLE_JOBS", "").lower() in ("1", "true", "yes")
+    _enable_jobs = settings.enable_jobs
+    if _enable_jobs:
+        settings.data_dir.mkdir(parents=True, exist_ok=True)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         if _enable_jobs:
             from .jobs.engine import JobEngine
 
-            engine = JobEngine.from_env()
+            engine = JobEngine(jobs_dir=settings.jobs_dir, products_dir=settings.data_dir)
             engine.start()
             app.state.job_engine = engine
             log.info("job engine started")
@@ -73,7 +74,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
-        allow_methods=["GET"],
+        allow_methods=["GET", "POST"],
         allow_headers=["*"],
     )
     app.state.store = PublicProductStore(settings.data_dir)
