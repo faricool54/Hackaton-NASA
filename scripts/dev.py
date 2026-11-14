@@ -12,6 +12,7 @@ use ONE command on every OS:
     demo           regenerate synthetic demo data (data/demo)
     schema         regenerate shared/schema from pipeline/errante/models.py
     validate       validate data/demo (and data/products if present)
+    build-fields   build/validate/publish the five official fields (requires WS1/WS2)
     api            backend on http://localhost:8000 (docs at /docs)
     web            frontend on http://localhost:5173
     test           python + frontend tests
@@ -130,6 +131,10 @@ def validate() -> None:
         run(exe("errante"), "validate", "--dir", "data/products")
 
 
+def build_fields() -> None:
+    run(exe("python"), str(ROOT / "scripts" / "build_fields.py"))
+
+
 def api() -> None:
     port = os.environ.get("API_PORT", "8000")  # two agents on one machine: API_PORT=8001
     run(
@@ -199,6 +204,7 @@ TASKS = {
     "demo": demo,
     "schema": schema,
     "validate": validate,
+    "build-fields": build_fields,
     "api": api,
     "web": web,
     "test": test,

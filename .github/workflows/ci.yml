@@ -43,8 +43,8 @@ jobs:
       - run: pip install -e "pipeline[dev]" -e "backend[dev]"
       - name: Lint
         run: |
-          ruff check pipeline backend
-          ruff format --check pipeline backend
+          ruff check pipeline backend scripts
+          ruff format --check pipeline backend scripts
       - name: Contract (schema up to date)
         run: errante schema --check
       - name: Demo data valid
@@ -68,3 +68,22 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build production API
+        run: docker build -f backend/Dockerfile -t errante-api .
+      - name: Start production API
+        run: docker run -d --name api-smoke -p 8000:8000 errante-api
+      - name: Smoke test
+        run: |
+          curl --fail --retry 15 --retry-connrefused --retry-delay 1 http://127.0.0.1:8000/api/health
+          curl --fail http://127.0.0.1:8000/api/manifest
+      - name: Container logs
+        if: failure()
+        run: docker logs api-smoke
+      - name: Stop container
+        if: always()
+        run: docker rm -f api-smoke
