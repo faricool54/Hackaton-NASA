@@ -1,5 +1,9 @@
 # Datos SPHEREx: hechos verificados
 
+> Ver también [RECON_SPHEREX.md](RECON_SPHEREX.md): relevamiento del 2026-11-14 con endpoints probados en vivo
+> (SIA/TAP sin CORS → proxy; S3 con CORS y Range → píxeles directo al navegador), colecciones DR1 + QR3 y tiempos medidos.
+> Es un insumo a re-verificar: lo que se confirme se pasa a este archivo con fecha y método.
+
 Regla: cada hecho dice **cómo** y **cuándo** se verificó. Si descubrís algo nuevo o algo de acá está mal,
 corregilo en un PR (`ws1: docs/DATA.md ...`). Etiquetas: ✅ verificado sobre datos reales · 📄 según documentación
 (sin verificar por nosotros) · ❓ abierto.

@@ -74,6 +74,7 @@ La [guía de evaluación](JUDGING_GUIDE.md) incorpora el segundo PDF: cinco crit
 - [docs/VALIDATION.md](../docs/VALIDATION.md) — protocolo para los cinco objetos, resultados y evidencia
 - [docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md) — arquitectura y flujo de datos
 - [docs/CONTRACT.md](../docs/CONTRACT.md) — formato de datos/API entre pipeline, backend y frontend
+- [docs/RECON_SPHEREX.md](../docs/RECON_SPHEREX.md) — **relevamiento técnico** del 2026-11-14 (endpoints probados, CORS, colecciones DR1/QR3, LVF, objetos de prueba con coordenadas propagadas, arquitecturas)
 - [docs/DATA.md](../docs/DATA.md) — **hechos verificados** sobre los datos SPHEREx (S3, FITS, flags, IRSA)
 - [docs/SCIENCE.md](../docs/SCIENCE.md) — física necesaria: velocidades, paralaje, límites, encuadre honesto
 - [docs/WORKFLOW.md](../docs/WORKFLOW.md) — git, PRs, cómo usar los agentes, cronograma del hackatón
