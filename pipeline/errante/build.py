@@ -7,18 +7,56 @@ to opt into those stages; the image products survive an analysis failure.
 
 from __future__ import annotations
 
+import dataclasses
+import shutil
 import tomllib
+from collections import Counter, defaultdict
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from itertools import count
 from pathlib import Path
+from typing import Any, TypeVar
 
 import numpy as np
 
 from . import __version__, settings
-from .models import CandidateList, Frame, KnownObjectList, Provenance, SkyCoord, SkyField
+from .models import CandidateList, Frame, FrameRef, KnownObjectList, Provenance, SkyCoord, SkyField
 from .products import ProductStore
 
 FIELDS_TOML = Path(__file__).parent / "config" / "fields.toml"
+
+# SPHEREx revisits a position in blocks of days to weeks, ~6 months apart
+# (docs/DATA.md §3.0: "temporadas = bloques separados > 30 días").
+SEASON_GAP_DAYS = 30.0
+# Near the ecliptic poles coverage is almost continuous (R Draconis: one
+# 394-day block). Cap a "season" so frame selection samples the whole span;
+# the all-sky seasons of the five targets last 19-55 days and stay whole.
+MAX_SEASON_DAYS = 60.0
+# When the same exposure is listed in several releases, keep the most final one.
+RELEASE_PREFERENCE = {"dr1": 0, "qr3": 1, "qr2": 2, "synthetic": 3}
+# Frames whose reprojected grid is mostly empty (target near a detector edge)
+# are left out of the blink (they are replaced by another frame if possible).
+MIN_FINITE_FRACTION = 0.5
+# The wavelength a frame sees at the target (linear variable filter) is only
+# known once the file is read (WCS-WAVE), so the build downloads up to
+# POOL_FACTOR x max_frames candidates and keeps the best-matching max_frames.
+POOL_FACTOR = 2
+# A frame whose IMAGE - ZODI robust scatter (1.4826 * MAD) exceeds this many
+# times the noise its VARIANCE plane predicts carries a background artefact.
+# Measured 2026-11-14 on the 200 golden frames of the five targets (40 each,
+# 13.5' cutouts): good frames 1.04-8.6x (median 1.9x, 99th percentile 8.6x,
+# the worst being R Draconis' own saturated halo in D1); the two frames with a
+# large background step were 19.6x (WISE 0855, 2025W19_1B_0241_4D1) and 45.5x
+# (eps Indi B, 2025W17_4B_0468_1D1).
+MAX_NOISE_RATIO = 15.0
+MAD_TO_SIGMA = 1.4826
+DOWNLOAD_FAILED = "download failed"
+OUTSIDE_CUTOUT = "target outside the cutout"
+BAD_FRAME = "bad frame"
+
+GroupKey = tuple[int, int]  # (season, detector)
+_T = TypeVar("_T")
 
 
 @dataclass
@@ -42,50 +80,454 @@ def load_field_configs(path: Path = FIELDS_TOML) -> dict[str, FieldConfig]:
     return {f["id"]: FieldConfig(**f) for f in raw.get("field", [])}
 
 
-def build_field(cfg: FieldConfig, out: Path = settings.PRODUCTS_DIR, *, analyze: bool = False) -> SkyField:
-    from .data import cutouts, fits_io, irsa
-    from .imaging import grid as grid_mod
-    from .imaging import render, reproject
+def apply_overrides(cfg: FieldConfig, overrides: Mapping[str, Any] | None) -> tuple[FieldConfig, str | None]:
+    """``cfg`` with ``overrides`` applied (e.g. from ``errante build --max-frames``) and a provenance note.
 
-    store = ProductStore(out)
-    grid = grid_mod.make_grid(cfg.ra, cfg.dec, cfg.size_deg)
+    Returns ``(cfg, None)`` unchanged when there is nothing to override. Unknown keys raise ``ValueError``.
+    """
+    if not overrides:
+        return cfg, None
+    known = {f.name for f in dataclasses.fields(FieldConfig)}
+    unknown = sorted(set(overrides) - known)
+    if unknown:
+        raise ValueError(f"Unknown FieldConfig override(s): {unknown}")
 
-    # 1. WS1: which frames cover the field?
-    result = irsa.search_frames(cfg.ra, cfg.dec, detectors=cfg.detectors, mjd_min=cfg.mjd_min, mjd_max=cfg.mjd_max)
-    refs = result.frames[: cfg.max_frames]
-    if not refs:
-        raise ValueError(f"No usable SPHEREx frames for field '{cfg.id}'; no products were published.")
-    # 2. WS1: download cutouts (a bit bigger than the field so reprojection has margins)
+    def shown(value: Any) -> str:
+        return "all" if value is None else str(value)
+
+    changes = ", ".join(f"{k}={shown(v)} (fields.toml: {shown(getattr(cfg, k))})" for k, v in sorted(overrides.items()))
+    return dataclasses.replace(cfg, **overrides), f"Built with overrides: {changes}."
+
+
+def season_index(
+    mjds: list[float], gap_days: float = SEASON_GAP_DAYS, max_span_days: float = MAX_SEASON_DAYS
+) -> list[int]:
+    """0-based season of each MJD.
+
+    A new season starts after a gap > ``gap_days`` or once the current season
+    already spans more than ``max_span_days`` (continuous deep-field coverage
+    becomes consecutive ~2-month bins).
+    """
+    order = sorted(range(len(mjds)), key=lambda i: mjds[i])
+    seasons = [0] * len(mjds)
+    current, start, prev = 0, None, None
+    for i in order:
+        if prev is not None and (mjds[i] - prev > gap_days or mjds[i] - start > max_span_days):
+            current += 1
+            start = None
+        if start is None:
+            start = mjds[i]
+        seasons[i] = current
+        prev = mjds[i]
+    return seasons
+
+
+def _reference_wavelength(
+    by_season: Mapping[int, Sequence[float | None]], per_season: Mapping[int, int] | None = None
+) -> float | None:
+    """Wavelength that every season can match best (minimises the summed mismatch).
+
+    ``by_season`` maps a season to the wavelengths of its frames (None = unknown). ``per_season`` says
+    how many frames each season will show (default 1): a season's mismatch is summed over its that-many
+    closest frames, so a reference that only one frame per season can match does not win when two or
+    three are shown (real eps Indi B pool: D3 spread 651 -> 525 nm, D6 477 -> 405 nm).
+    """
+    known = {s: [w for w in ws if w is not None] for s, ws in by_season.items()}
+    candidates = sorted({w for ws in known.values() for w in ws})
+    if not candidates:
+        return None
+    take = per_season or {}
+
+    def mismatch(c: float) -> float:
+        return sum(sum(sorted(abs(w - c) for w in ws)[: take.get(s, 1)]) for s, ws in known.items())
+
+    return min(candidates, key=mismatch)
+
+
+def _rank(
+    wavelength: float | None, target: float | None, mjd: float, mid: float, obs_id: str
+) -> tuple[float, float, str]:
+    """Sort key inside a (season, detector) group: wavelength match, then season middle; unknown last."""
+    dw = abs(wavelength - target) if target is not None and wavelength is not None else np.inf
+    return (dw, abs(mjd - mid), obs_id)
+
+
+def _middle(mjds: Sequence[float]) -> float:
+    return (min(mjds) + max(mjds)) / 2
+
+
+def _group_order(keys: Sequence[GroupKey]) -> list[GroupKey]:
+    """Group visiting order: detectors covering more seasons first, then by detector and season."""
+    n_seasons: dict[int, int] = defaultdict(int)
+    for _, detector in keys:
+        n_seasons[detector] += 1
+    return sorted(keys, key=lambda k: (-n_seasons[k[1]], k[1], k[0]))
+
+
+def plan_frames(
+    refs: list[FrameRef], gap_days: float = SEASON_GAP_DAYS
+) -> tuple[dict[GroupKey, list[FrameRef]], list[GroupKey]]:
+    """Rank every candidate frame inside its (season, detector) group.
+
+    Returns ``(ranked, order)``: ``ranked[key]`` best-first, and ``order`` the
+    group visiting order (detectors covering more seasons first). Duplicate
+    exposures (same obs_id + detector in several releases) keep the most final
+    release. Inside a group, frames closest to a per-detector reference
+    wavelength come first (each exposure sees another wavelength through the
+    linear variable filter, so a star changes brightness without being
+    variable: docs/SCIENCE.md §0.4); without wavelengths, frames nearest the
+    middle of the season come first.
+    """
+    unique: dict[tuple[str, int], FrameRef] = {}
+    for ref in refs:
+        key = (ref.obs_id, ref.detector)
+        kept = unique.get(key)
+        if kept is None or RELEASE_PREFERENCE.get(ref.release, 9) < RELEASE_PREFERENCE.get(kept.release, 9):
+            unique[key] = ref
+    pool = list(unique.values())
+    groups: dict[GroupKey, list[FrameRef]] = defaultdict(list)
+    for ref, season in zip(pool, season_index([r.mjd for r in pool], gap_days), strict=True):
+        groups[(season, ref.detector)].append(ref)
+
+    ranked: dict[GroupKey, list[FrameRef]] = {}
+    for detector in sorted({d for _, d in groups}):
+        by_season = {s: g for (s, d), g in groups.items() if d == detector}
+        target = _reference_wavelength({s: [r.wavelength_um for r in g] for s, g in by_season.items()})
+        for season, members in by_season.items():
+            mid = _middle([r.mjd for r in members])
+            ranked[(season, detector)] = sorted(
+                members, key=lambda r, mid=mid: _rank(r.wavelength_um, target, r.mjd, mid, r.obs_id)
+            )
+    return ranked, _group_order(list(ranked))
+
+
+def _round_robin(ranked: Mapping[GroupKey, Sequence[_T]], order: list[GroupKey], budget: int) -> list[_T]:
+    picked: list[_T] = []
+    for depth in count():
+        added = False
+        for key in order:
+            if depth < len(ranked[key]) and len(picked) < budget:
+                picked.append(ranked[key][depth])
+                added = True
+        if not added or len(picked) >= budget:
+            break
+    return picked
+
+
+def select_frames(refs: list[FrameRef], max_frames: int, gap_days: float = SEASON_GAP_DAYS) -> list[FrameRef]:
+    """Pick at most ``max_frames`` frames spread over every season x detector (WS2).
+
+    Keeping the first N frames by time shows a single season, where nothing
+    moves. Instead the budget is filled round-robin over ``plan_frames``
+    groups, so every (season, detector) gets one frame before any gets a
+    second. Returned by time.
+    """
+    if max_frames <= 0:
+        return []
+    ranked, order = plan_frames(refs, gap_days)
+    return sorted(_round_robin(ranked, order, max_frames), key=lambda r: (r.mjd, r.detector))
+
+
+@dataclass
+class _Projected:
+    ref: FrameRef
+    frame_id: str
+    obs_id: str
+    detector: int
+    mjd: float
+    date_obs: str
+    data: np.ndarray
+    bad: np.ndarray
+    wavelength_um: float | None = None
+    bandwidth_um: float | None = None
+
+
+def _wavelength_at_centre(img, cfg: FieldConfig) -> tuple[float | None, float | None]:
+    """(wavelength, bandwidth) [um] at the field centre from the frame's WCS-WAVE table (WS1).
+
+    The contract defines ``Frame.wavelength_um`` at the field centre. For the
+    five targets the centre is the target at the mean epoch of its frames; a
+    mover is at most ~1-2 px away at any epoch (D3 changes ~0.4 nm per px, far
+    below the ~10-40 nm bandwidth). None when the file has no WCS-WAVE table.
+    """
+    lookup = getattr(img, "wavelength_at", None)  # test doubles may not have it
+    found = lookup(cfg.ra, cfg.dec) if lookup is not None else None
+    return found if found is not None else (None, None)
+
+
+def noise_ratio(img) -> float | None:
+    """Robust scatter of IMAGE - ZODI in units of the noise its VARIANCE plane predicts.
+
+    ``1.4826 * MAD(IMAGE - ZODI) / sqrt(median(VARIANCE))`` over the native
+    pixels that are finite, have VARIANCE > 0 and carry no
+    ``imaging.flags.DEFAULT_BAD`` bit. Stars, even a saturated one with a
+    large halo, barely move it (the MAD ignores whatever touches less than
+    about half of the pixels); a background step or ramp across the cutout
+    inflates it. A step that splits the cutout far from half and half is
+    under-measured. None without a VARIANCE plane (or with no usable pixel).
+    """
+    from .imaging.flags import DEFAULT_BAD, bad_pixel_mask
+
+    variance = getattr(img, "variance", None)  # test doubles may not have it
+    if variance is None:
+        return None
+    pixels = np.asarray(img.data_minus_zodi, dtype=np.float64)
+    variance = np.asarray(variance, dtype=np.float64)
+    if pixels.shape != variance.shape:
+        return None
+    usable = np.isfinite(pixels) & np.isfinite(variance) & (variance > 0)
+    flags = getattr(img, "flags", None)
+    if flags is not None and np.shape(flags) == pixels.shape:
+        usable &= ~bad_pixel_mask(np.asarray(flags), DEFAULT_BAD)
+    if not usable.any():
+        return None
+    values = pixels[usable]
+    sigma = MAD_TO_SIGMA * float(np.median(np.abs(values - np.median(values))))
+    return sigma / float(np.sqrt(np.median(variance[usable])))
+
+
+def _project(refs: list[FrameRef], cfg: FieldConfig, grid) -> tuple[list[_Projected], list[tuple[FrameRef, str]]]:
+    """Download (WS1), vet and reproject (WS2) ``refs``; return (projected, [(ref, reason)])."""
+    from .data import cutouts, fits_io
+    from .imaging import reproject
+
     paths = cutouts.fetch_cutouts(refs, cfg.ra, cfg.dec, size_arcmin=cfg.size_deg * 60 * 1.5)
-
-    frames: list[Frame] = []
-    analysis_inputs: list[tuple[str, float, np.ndarray, np.ndarray]] = []
+    if len(paths) != len(refs):
+        raise RuntimeError(
+            f"fetch_cutouts returned {len(paths)} paths for {len(refs)} frames; "
+            "expected one path (or None for a failed download) per frame, in order"
+        )
+    projected: list[_Projected] = []
+    skipped: list[tuple[FrameRef, str]] = []
     for ref, path in zip(refs, paths, strict=True):
+        if path is None:
+            skipped.append((ref, DOWNLOAD_FAILED))
+            continue
         img = fits_io.read_spherex(path)
-        # 3. WS2: common grid + PNG
+        ratio = noise_ratio(img)
+        if ratio is not None and ratio > MAX_NOISE_RATIO:
+            skipped.append((ref, f"{BAD_FRAME}: noise {ratio:.1f}x VARIANCE"))
+            continue
         data, bad = reproject.reproject_to_grid(img, grid)
-        frame_id = path.stem.removeprefix("level2_")
-        rel = f"frames/{frame_id}.png"
-        stretch = render.save_png(data, store.field_dir(cfg.id) / rel)
+        if np.isfinite(data).mean() < MIN_FINITE_FRACTION:
+            skipped.append((ref, OUTSIDE_CUTOUT))
+            continue
+        obs_id = img.obs_id or ref.obs_id
+        wavelength, bandwidth = _wavelength_at_centre(img, cfg)
+        projected.append(
+            _Projected(
+                ref,
+                f"{obs_id}D{img.detector}",
+                obs_id,
+                img.detector,
+                img.mjd,
+                img.date_obs,
+                data,
+                bad,
+                wavelength if wavelength is not None else ref.wavelength_um,
+                bandwidth,
+            )  # fmt: skip
+        )
+    return projected, skipped
+
+
+@dataclass
+class _Selection:
+    frames: list[_Projected]  # final frames, by time
+    skipped: list[tuple[FrameRef, str]]
+    n_downloaded: int  # candidate cutouts obtained (pool + replacements)
+    reference_um: dict[int, float | None]  # per-detector reference wavelength
+
+
+def _key_of(ranked: Mapping[GroupKey, list[FrameRef]]) -> dict[tuple[str, int], GroupKey]:
+    return {(r.obs_id, r.detector): k for k, members in ranked.items() for r in members}
+
+
+def _spares(
+    ranked: Mapping[GroupKey, list[FrameRef]], used_refs: list[FrameRef], skipped: list[tuple[FrameRef, str]]
+) -> list[FrameRef]:
+    """Next unused frame of the (season, detector) group of every skipped frame."""
+    used = {(r.obs_id, r.detector) for r in used_refs}
+    key_of = _key_of(ranked)
+    spares = []
+    for ref, _ in skipped:
+        key = key_of[(ref.obs_id, ref.detector)]
+        spare = next((r for r in ranked[key] if (r.obs_id, r.detector) not in used), None)
+        if spare is not None:
+            used.add((spare.obs_id, spare.detector))
+            spares.append(spare)
+    return spares
+
+
+def _pick_final(
+    projected: list[_Projected], ranked: Mapping[GroupKey, list[FrameRef]], max_frames: int
+) -> tuple[list[_Projected], dict[int, float | None]]:
+    """Keep ``max_frames`` of the projected pool: same colour across seasons, spread round-robin.
+
+    Per detector, the reference is the measured wavelength every season can
+    match best with the number of frames round-robin will give it
+    (``_reference_wavelength``); each (season, detector) group is ranked by
+    ``|wavelength - reference|`` then distance to the season middle, frames
+    with an unknown wavelength last. Returned by time, with the reference of
+    every detector that keeps frames.
+    """
+    key_of = _key_of(ranked)
+    groups: dict[GroupKey, list[_Projected]] = defaultdict(list)
+    for p in projected:
+        groups[key_of[(p.ref.obs_id, p.ref.detector)]].append(p)
+    order = _group_order(list(groups))
+    quota = Counter(_round_robin({k: [k] * len(g) for k, g in groups.items()}, order, max_frames))
+    references: dict[int, float | None] = {}
+    chosen: dict[GroupKey, list[_Projected]] = {}
+    for detector in sorted({d for _, d in groups}):
+        by_season = {s: g for (s, d), g in groups.items() if d == detector}
+        target = _reference_wavelength(
+            {s: [p.wavelength_um for p in g] for s, g in by_season.items()},
+            {s: quota[(s, detector)] for s in by_season},
+        )
+        if any(quota[(s, detector)] for s in by_season):
+            references[detector] = target
+        for season, members in by_season.items():
+            mid = _middle([r.mjd for r in ranked[(season, detector)]])
+            chosen[(season, detector)] = sorted(
+                members, key=lambda p, mid=mid: _rank(p.wavelength_um, target, p.mjd, mid, p.ref.obs_id)
+            )
+    final = _round_robin(chosen, order, max_frames)
+    return sorted(final, key=lambda p: (p.mjd, p.detector)), references
+
+
+def _select_and_project(cfg: FieldConfig, grid, refs: list[FrameRef]) -> _Selection:
+    """Plan, download a candidate pool (one replacement round), reject bad frames, pick the final frames."""
+    ranked, order = plan_frames(refs)
+    available = sum(len(members) for members in ranked.values())
+    pool = _round_robin(ranked, order, min(POOL_FACTOR * cfg.max_frames, available)) if cfg.max_frames > 0 else []
+    if not pool:
+        raise ValueError(f"No usable SPHEREx frames for field '{cfg.id}'; no products were published.")
+
+    # WS1 cutouts + WS2 common grid. One retry round: a skipped frame is
+    # replaced by the next-ranked frame of its (season, detector) group.
+    projected, skipped = _project(pool, cfg, grid)
+    n_tried = len(pool)
+    spares = _spares(ranked, pool, skipped) if skipped else []
+    if spares:
+        more, still_skipped = _project(spares, cfg, grid)
+        projected += more
+        skipped += still_skipped
+        n_tried += len(spares)
+    unique: dict[str, _Projected] = {}
+    for p in sorted(projected, key=lambda p: (p.mjd, p.detector)):
+        unique.setdefault(p.frame_id, p)
+    final, references = _pick_final(list(unique.values()), ranked, cfg.max_frames)
+    n_downloaded = n_tried - sum(why == DOWNLOAD_FAILED for _, why in skipped)
+    return _Selection(final, skipped, n_downloaded, references)
+
+
+def _skip_reasons(skipped: list[tuple[FrameRef, str]]) -> str:
+    return "; ".join(f"{r.obs_id}D{r.detector}: {why}" for r, why in skipped)
+
+
+def _raise_nothing_usable(cfg: FieldConfig, skipped: list[tuple[FrameRef, str]]) -> None:
+    reasons = _skip_reasons(skipped)
+    if all(why == OUTSIDE_CUTOUT for _, why in skipped):
+        raise ValueError(
+            f"No SPHEREx cutout of field '{cfg.id}' overlaps its grid; no products were published. ({reasons})"
+        )
+    if all(why != DOWNLOAD_FAILED for _, why in skipped):
+        raise ValueError(
+            f"Every SPHEREx frame of field '{cfg.id}' was rejected; no products were published. ({reasons})"
+        )
+    # Failed downloads are retryable: this is NOT a 'no coverage' answer.
+    raise RuntimeError(f"Could not obtain any SPHEREx cutout for field '{cfg.id}' ({reasons}); nothing was published.")
+
+
+def _selection_note(sel: _Selection, max_frames: int) -> str:
+    n_bad = sum(why.startswith(BAD_FRAME) for _, why in sel.skipped)
+    refs = ", ".join(f"D{d} {w:.3f} um" for d, w in sorted(sel.reference_um.items()) if w is not None)
+    return (
+        f"Frame selection: downloaded {sel.n_downloaded} candidate frame(s) (up to {POOL_FACTOR} x "
+        f"max_frames={max_frames}) and kept {len(sel.frames)}, spread round-robin over seasons x detectors; "
+        "inside each (season, detector) the frames whose wavelength at the field centre is closest to a "
+        f"per-detector reference ({refs or 'no wavelength known'}) come first, then those nearest the season "
+        f"middle; frames without a known wavelength rank last. Rejected {n_bad} bad frame(s) whose "
+        f"IMAGE - ZODI robust scatter exceeds {MAX_NOISE_RATIO:g}x the noise of their VARIANCE plane "
+        "(background steps)."
+    )
+
+
+def _render(cfg: FieldConfig, store: ProductStore, projected: list[_Projected]) -> list[Frame]:
+    """WS2: one contrast per detector, then one PNG per final frame and the thumbnail."""
+    from .imaging import render
+
+    stretches = render.field_stretches(
+        [p.data for p in projected], [p.detector for p in projected], [p.bad for p in projected]
+    )
+    frames: list[Frame] = []
+    field_dir = store.field_dir(cfg.id)
+    for p, stretch in zip(projected, stretches, strict=True):
+        rel = f"frames/{p.frame_id}.png"
+        render.save_png(p.data, field_dir / rel, stretch)
         frames.append(
             Frame(
-                id=frame_id,
-                obs_id=img.obs_id,
-                detector=img.detector,
-                mjd=img.mjd,
-                date_obs=datetime.fromisoformat(img.date_obs).replace(tzinfo=UTC),
-                wavelength_um=ref.wavelength_um,
-                bandwidth_um=None,
-                release=ref.release,
+                id=p.frame_id,
+                obs_id=p.obs_id,
+                detector=p.detector,
+                mjd=p.mjd,
+                date_obs=datetime.fromisoformat(p.date_obs).replace(tzinfo=UTC),
+                wavelength_um=p.wavelength_um,
+                bandwidth_um=p.bandwidth_um,
+                release=p.ref.release,
                 image=rel,
-                source_uri=ref.irsa_uri,
-                valid_fraction=float((~bad).mean()),
+                source_uri=p.ref.irsa_uri,
+                valid_fraction=float((~p.bad).mean()),
                 stretch=stretch,
             )
         )
-        if analyze:
-            analysis_inputs.append((frame_id, img.mjd, data, bad))
+    _write_thumbnail(field_dir, frames)
+    return frames
 
+
+def build_field(
+    cfg: FieldConfig,
+    out: Path = settings.PRODUCTS_DIR,
+    *,
+    analyze: bool = False,
+    overrides: Mapping[str, Any] | None = None,
+) -> SkyField:
+    """Search, select, download, vet, reproject and render a field; optionally analyse it.
+
+    ``overrides`` replaces FieldConfig values (``errante build --max-frames/--detectors``) and is
+    recorded in the provenance notes.
+    """
+    from .data import irsa
+    from .imaging import grid as grid_mod
+
+    cfg, override_note = apply_overrides(cfg, overrides)
+    store = ProductStore(out)
+    grid = grid_mod.make_grid(cfg.ra, cfg.dec, cfg.size_deg)
+
+    # 1. WS1: which frames cover the field? WS2: spread a candidate pool over seasons x detectors,
+    # download and vet it, then keep the frames that match in wavelength across seasons.
+    result = irsa.search_frames(cfg.ra, cfg.dec, detectors=cfg.detectors, mjd_min=cfg.mjd_min, mjd_max=cfg.mjd_max)
+    sel = _select_and_project(cfg, grid, result.frames)
+    if not sel.frames:
+        _raise_nothing_usable(cfg, sel.skipped)
+
+    # 2. WS2: PNGs of the final frames only.
+    frames = _render(cfg, store, sel.frames)
+    notes = [
+        "Automatic analysis has not completed."
+        if analyze
+        else "Automatic detection and catalog matching were not run.",
+        "Pixel values and stretch limits are IMAGE - ZODI (SPHEREx zodiacal model subtracted) in MJy/sr; "
+        "PNGs use an asinh mapping with the same contrast for every frame of a detector, and transparent "
+        "pixels mean no data. Saturated star cores and detector-defect pixels are filled from their neighbours "
+        "for display only; they count as invalid in valid_fraction.",
+        _selection_note(sel, cfg.max_frames),
+    ]
+    if sel.skipped:
+        notes.append(f"Skipped {len(sel.skipped)} frame(s): {_skip_reasons(sel.skipped)}")
+    if override_note:
+        notes.append(override_note)
     sky_field = SkyField(
         id=cfg.id,
         name=cfg.name,
@@ -98,13 +540,9 @@ def build_field(cfg: FieldConfig, out: Path = settings.PRODUCTS_DIR, *, analyze:
         provenance=Provenance(
             pipeline_version=__version__,
             built_at=datetime.now(UTC),
-            synthetic=False,
+            synthetic=any(f.release == "synthetic" for f in frames),
             data_releases=sorted({f.release for f in frames}),
-            notes=[
-                "Automatic analysis has not completed."
-                if analyze
-                else "Automatic detection and catalog matching were not run."
-            ],
+            notes=notes,
         ),
     )
     store.write_field(sky_field)
@@ -113,21 +551,45 @@ def build_field(cfg: FieldConfig, out: Path = settings.PRODUCTS_DIR, *, analyze:
     store.rebuild_manifest()
 
     if analyze:
-        from .detect import linking, scoring, sources
-        from .science import known_objects
-
-        all_sources = []
-        for frame_id, mjd, data, bad in analysis_inputs:
-            all_sources += sources.find_sources(data, bad, frame_id, mjd)
-        tracks = linking.link_tracks(all_sources)
-        cands = scoring.score_tracks(tracks, cfg.id)
-        known = []
-        for fr in frames:
-            known += known_objects.objects_in_frame(cfg.ra, cfg.dec, cfg.size_deg, fr.mjd)
-        cands = known_objects.crossmatch(cands, known)
-        store.write_candidates(CandidateList(field_id=cfg.id, candidates=cands))
-        store.write_known(KnownObjectList(field_id=cfg.id, objects=known))
-        sky_field.provenance.notes = ["Automatic detection and catalog matching completed."]
-        store.write_field(sky_field)
-        store.rebuild_manifest()
+        _analyze(cfg, store, sky_field, sel.frames, notes)
     return sky_field
+
+
+def _analyze(
+    cfg: FieldConfig, store: ProductStore, sky_field: SkyField, projected: list[_Projected], notes: list[str]
+) -> None:
+    """Opt-in detection, linking, scoring and catalog matching (the viewable field is already written)."""
+    from .detect import linking, scoring, sources
+    from .science import known_objects
+
+    all_sources = []
+    for p in projected:
+        all_sources += sources.find_sources(p.data, p.bad, p.frame_id, p.mjd)
+    tracks = linking.link_tracks(all_sources)
+    cands = scoring.score_tracks(tracks, cfg.id)
+    known = []
+    for fr in sky_field.frames:
+        known += known_objects.objects_in_frame(cfg.ra, cfg.dec, cfg.size_deg, fr.mjd)
+    cands = known_objects.crossmatch(cands, known)
+    store.write_candidates(CandidateList(field_id=cfg.id, candidates=cands))
+    store.write_known(KnownObjectList(field_id=cfg.id, objects=known))
+    sky_field.provenance.notes = ["Automatic detection and catalog matching completed.", *notes[1:]]
+    store.write_field(sky_field)
+    store.rebuild_manifest()
+
+
+def _write_thumbnail(field_dir: Path, frames: list[Frame]) -> None:
+    """thumb.png = the middle epoch of the detector that covers the most seasons."""
+    if not frames:
+        return
+    by_detector: dict[int, list[Frame]] = defaultdict(list)
+    for fr in frames:
+        by_detector[fr.detector].append(fr)
+
+    def coverage(det: int) -> tuple[int, int, int]:
+        mjds = [f.mjd for f in by_detector[det]]
+        return (max(season_index(mjds)) + 1, len(mjds), -det)
+
+    best = sorted(by_detector[max(by_detector, key=coverage)], key=lambda f: f.mjd)
+    chosen = best[len(best) // 2]
+    shutil.copyfile(field_dir / chosen.image, field_dir / "thumb.png")

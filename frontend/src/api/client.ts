@@ -12,6 +12,9 @@ import type {
   Manifest,
   SearchResult,
   SystemModel,
+  JobSubmitRequest,
+  JobStatusResponse,
+  ResolvedRegion,
 } from './types';
 
 export type DataMode = 'static' | 'api';
@@ -45,9 +48,20 @@ export class ApiError extends Error {
 export function createClient(config: ClientConfig = envConfig()) {
   const { mode, apiBase, staticBase } = config;
 
-  async function getJson<T>(url: string): Promise<T> {
-    const res = await fetch(url);
-    if (!res.ok) throw new ApiError(`${res.status} ${res.statusText} — ${url}`, res.status);
+  async function getJson<T>(url: string, init?: RequestInit): Promise<T> {
+    const res = await fetch(url, init);
+    if (!res.ok) {
+      let detail = `${res.status} ${res.statusText}`;
+      try {
+        const body = await res.json();
+        if (typeof body.detail === 'string') detail = body.detail;
+        else if (Array.isArray(body.detail)) {
+          detail = body.detail.map((e: { loc?: string[]; msg?: string }) =>
+            `${e.loc?.slice(1).join('.') ?? 'Request'}: ${e.msg ?? 'invalid value'}`).join('; ');
+        }
+      } catch { /* Non-JSON proxy errors still have an HTTP status. */ }
+      throw new ApiError(detail, res.status);
+    }
     return (await res.json()) as T;
   }
 
@@ -90,6 +104,21 @@ export function createClient(config: ClientConfig = envConfig()) {
     getKnown: (id: string) => getJson<KnownObjectList>(resourceUrl('known', id)),
     systemUrl,
     getSystem: (id: string) => getJson<SystemModel>(systemUrl(id)),
+
+    async resolveName(name: string, signal?: AbortSignal): Promise<ResolvedRegion> {
+      if (mode !== 'api') throw new ApiError('Name lookup requires live API mode.', 0);
+      return getJson<ResolvedRegion>(`${apiBase}/api/resolve-name?${new URLSearchParams({ name })}`, { signal });
+    },
+    async submitJob(body: JobSubmitRequest, signal?: AbortSignal): Promise<JobStatusResponse> {
+      if (mode !== 'api') throw new ApiError('Arbitrary coordinates require live API mode.', 0);
+      return getJson<JobStatusResponse>(`${apiBase}/api/jobs`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal,
+      });
+    },
+    async getJob(id: string, signal?: AbortSignal): Promise<JobStatusResponse> {
+      if (mode !== 'api') throw new ApiError('Jobs require live API mode.', 0);
+      return getJson<JobStatusResponse>(`${apiBase}/api/jobs/${encodeURIComponent(id)}`, { signal });
+    },
 
     /** Live archive search — only in api mode (WS1+WS4). */
     async searchArchive(ra: number, dec: number): Promise<SearchResult> {

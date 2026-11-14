@@ -25,6 +25,7 @@ def write_test_field(root, field_id):
         frame.detector = 1
         frame.mjd = 61000 + 100 * i
         frame.source_uri = "test-double-only"
+        frame.release = "dr1"  # Fixture exercising the real-product validation branch.
         path = store.field_dir(field_id) / frame.image
         path.parent.mkdir(parents=True, exist_ok=True)
         Image.new("L", (field.grid.width_px, field.grid.height_px)).save(path)

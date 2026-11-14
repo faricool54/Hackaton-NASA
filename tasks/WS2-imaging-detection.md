@@ -17,17 +17,31 @@
 ## Estado actual
 - ✅ `grid.py`: grilla común TAN norte-arriba, conversiones sky↔PNG (testeado).
 - ✅ `flags.py`: bits reales de DR1, máscara de píxeles malos (SOURCE no es malo).
-- ✅ `render.py`: PNG 8 bits con stretch asinh robusto.
+- ✅ `render.py`: PNG 8 bits asinh; `field_stretches` = mismo contraste por detector dentro del campo, anclado al
+  cielo de cada frame y sin píxeles malos; sin datos (NaN) → PNG gris+alfa transparente.
 - ✅ `synthetic.add_gaussian` (reutilizable para inyección).
-- ⛔ `reproject_to_grid`, `find_sources`, `static_sky`, `residuals`, `link_tracks`, `score_tracks`, `inject_mover`.
+- ✅ `reproject.py`: `reproject_to_grid` (TAN-SIP → grilla norte-arriba, bilineal numpy, máscara por vecino + peso,
+  `IMAGE − ZODI`, núcleos saturados y defectos reparados solo para mostrar). Validado en datos reales (abajo).
+- ✅ `build.py`: `select_frames` temporada × detector (temporadas ≤ 60 d), `frame_id = obs_id + 'D' + detector`,
+  reemplazo de frames fallidos, `thumb.png`, error "descarga fallida" ≠ "sin cobertura".
+- ✅ `imaging/compare.py` + `errante compare <id>`: coadds por temporada × detector y restas temporada − temporada
+  con escala de flujo ajustada en estrellas del campo (WS2-7). `detect/difference.py`: `static_sky`, `residuals`.
+- ✅ `imaging/photometry.py` + `errante spectrum --ra --dec [--pm-ra --pm-dec]`: fotometría forzada en los píxeles
+  nativos de cada exposición (apertura r=2 px, cielo local, corrección de apertura por detector vs λ, errores de
+  VARIANCE, λ/Δλ de WCS-WAVE, flags). Base de WS3-5/WS4-8/WS5-12 (espectro en el panel de la visión).
+  Validado: estrella normal del campo de ε Ind vs 2MASS J/H/Ks = 1,025/1,058/1,062; WISE 0855 a 4,4–5 µm = 0,57 mJy
+  (W2 = 0,57 mJy). Las estrellas saturadas (Barnard) quedan marcadas `saturated`: no hay flujo confiable.
+- ⛔ `find_sources`, `link_tracks`, `score_tracks`, `inject_mover`.
 
 ## Tareas
 
-- [ ] **WS2-1 (P0) `reproject_to_grid`** con `reproject.reproject_interp` (extra `science`), WCS completo con SIP,
+- [x] **WS2-1 (P0) `reproject_to_grid`** con `reproject.reproject_interp` (extra `science`), WCS completo con SIP,
   máscara de flags reproyectada con vecino más cercano, NaN fuera del cutout, orientación PNG.
   *Acepta:* test con una imagen sintética con WCS rotado: una estrella cae en el x/y esperado ±0.3 px.
-- [ ] **WS2-2 (P0) Render consistente por campo.** Restar `ZODI`; stretch común por detector dentro de un campo
-  (que el blink no "parpadee" en brillo por la normalización); opcional WebP.
+  ✅ Hecho sin el paquete `reproject` (misma matemática con numpy + astropy, así corre en CI sin el extra `science`).
+  Tests en `test_imaging_reproject.py`; en datos reales Barnard cae a 0,10–0,20 px (mediana) de su posición predicha.
+- [x] **WS2-2 (P0) Render consistente por campo.** Restar `ZODI`; stretch común por detector dentro de un campo
+  (que el blink no "parpadee" en brillo por la normalización); opcional WebP (pendiente).
 - [ ] **WS2-3 (P2) `find_sources`** (photutils) sobre imagen sin fondo, con SNR desde `VARIANCE`.
   *Acepta:* fixture de imágenes en unidades físicas con verdad de referencia; no calcular SNR desde PNGs.
 - [ ] **WS2-4 (P2) `link_tracks`** para asteroides dentro de una visita (horas): pares primer/último frame →
@@ -38,9 +52,13 @@
 - [ ] **WS2-6 (P2) Inyección-recuperación** (`inject.py`): plantar movers en frames **reales**, grilla de
   flujo × velocidad, tabla de eficiencia → `data/products/limits.json` (proponer modelo a WS4/WS5 vía PR
   `contract:`). Es la base de la página "¿Qué tan lejos podemos ver?".
-- [ ] **WS2-7 (P1, C03) Restas de épocas**: permitir A−B y opcionalmente `frame − cielo_estático`.
+- [~] **WS2-7 (P1, C03) Restas de épocas**: permitir A−B y opcionalmente `frame − cielo_estático`.
   WCS, PSF, fondo, unidades, máscara y λ compatibles; propagar errores y guardar entradas de la operación.
   Exponer PNG y metadatos con contrato aditivo coordinado con WS4/WS5.
+  🟡 Hecho en el pipeline: `errante compare <id>` escribe `compare/coadd_*.png`, `compare/diff_*.png` (naranja = más
+  brillante ahora, cian = antes, damero = sin datos) y `compare/compare.json` **provisional** (fuera del contrato).
+  En el campo real de Barnard la resta de un año muestra el dipolo norte en los 6 detectores. Falta: contrato aditivo
+  (`contract:`, WS3) y la capa en la UI (WS5); restas por frame individual y λ emparejada (`wavelength_at` ya está en main, #23/#25).
 - [ ] **WS2-8 (P0, R05) Validación visual/astrométrica entre pasadas.** Ayudar a WS3 con Barnard,
   Epsilon Indi B y WISE 0855; comprobar registro de fondo, épocas y desplazamiento/incertidumbre.
   Para RW Aurigae/R Draconis, garantizar render consistente; el brillo científico se mide desde FITS.
@@ -63,6 +81,20 @@
 - Cutouts pueden venir no cuadrados con NaN en bordes.
 
 ## Hechos verificados (2026-11-14) — leelos antes de implementar
+
+**WS2 en datos reales** (12 cutouts IBE de Barnard: DR1 temporada 2 + QR3 temporada 3, 6 detectores; script manual
+porque `search_frames`/`fetch_cutouts` siguen en stub):
+- El núcleo saturado de Barnard viene **NaN** con `OVERFLOW|SUR_ERROR|SOURCE|BLOOM`: sin rellenar sale un agujero negro.
+- Píxeles sueltos `NONFUNC`/`PERSIST`/`SUR_ERROR` (sin `OVERFLOW`) llegan a cientos–miles de MJy/sr con vecinos de cielo,
+  cambian entre épocas y en el blink parecen movers de 1–2 px: se reparan con la mediana de vecinos (siguen en `bad`).
+  Los píxeles muertos NaN también traen `OVERFLOW`: los aislados van a mediana, solo los núcleos (≥ 2 px) a máximo.
+- Si el contraste se calcula con el núcleo relleno, el resto de las estrellas sale casi negro: el stretch ignora `bad`.
+- La resta temporada 3 − temporada 2 muestra el dipolo norte de Barnard en los 6 detectores (~0,7 px en 5 meses).
+- `em_min`/`em_max` de SIA son el rango del **detector entero**, no la λ en la posición: para elegir frames por λ hace
+  falta `wavelength_at` (WS1). Sin λ, la selección usa el centro de cada temporada.
+- SIA de `spherex_dr1` devolvió **HTTP 502** de forma intermitente (temporada 1 de Barnard nunca respondió en ~15 intentos);
+  `spherex_qr3` respondió bien. TAP sync tardó > 240 s. Reintentos con backoff son obligatorios en WS1.
+- El header trae `MJD-AVG` (ej. 61281.65977 vs `MJD-OBS` 61281.65910): `read_spherex` todavía usa `MJD-OBS` (WS1).
 
 - **El video tiene que ser por temporada × detector (coadds), no por exposición:** cada exposición mide otra λ
   (filtro lineal variable) y la misma estrella cambia de brillo sin ser variable. Ver [`docs/SCIENCE.md`](../docs/SCIENCE.md) §0.4.

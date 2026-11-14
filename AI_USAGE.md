@@ -19,6 +19,42 @@ OpenAI Codex assisted with:
 Machine-readable metadata: [docs/submission/ai-usage.json](docs/submission/ai-usage.json).
 The public application also discloses development assistance on its About page.
 
+## Claude Code assistance (November 14, 2026)
+
+Claude Code (Anthropic) assisted team member faricool54 (workstream WS1) with:
+
+- **Collaboration infrastructure:** task runner, ownership guard, CI job and agent permissions (#2). Documentation
+  of verified SPHEREx data facts (#3, #24).
+- **WS1 code:** frame search, S3 Range patches with an IBE cutout fallback, per-pixel wavelength and mid-exposure
+  time (#21–#23).
+  - AI agents implemented each part, other AI agents reviewed it adversarially, and the result was
+    integration-tested on real SPHEREx data.
+  - Human review of this code is pending.
+- **Validation of the five challenge targets:** records for four targets in `docs/validation/` (Epsilon Indi B,
+  WISE 0855, RW Aurigae, R Draconis).
+  - AI agents measured the real SPHEREx FITS files, and separate AI agents re-measured the key numbers with
+    their own code.
+  - The figures are plots drawn by code the agents wrote from real SPHEREx data, not generated images.
+  - Human review of these records is pending; Barnard's Star has no record yet.
+
+## Origin of the product vision (November 14, 2026)
+
+Team member faricool54 stated the product vision recorded in [docs/VISION.md](docs/VISION.md):
+
+- an interactive map of the real SPHEREx sky with search by name or coordinates;
+- clicking a point opens the real SPHEREx time sequence, the spectrum, and a realistic 3D model built only from
+  measurements.
+
+Claude had earlier drafted a different product outline. The team rejected it and stated this vision instead.
+Claude's role was limited to:
+
+- checking feasibility against the data and services, including a live test of Aladin Lite with the IRSA SPHEREx
+  HiPS;
+- restating the vision as requirements;
+- writing the document.
+
+This records what happened in that session; team review of this record is pending.
+
 ## Imported 3D contribution
 
 The integrated commit `cb19f8cd44bb6e91a875c534a5196d522187ac8d` declares Claude assistance in its
@@ -53,3 +89,15 @@ This statement covers observed work, not every asset a contributor might add lat
   not replace attribution in the project.
 
 No unreviewed attribution, originality or eligibility claim is made by this draft.
+
+## WS4 review and frontend integration (November 14, 2026)
+
+At rpccp's request, OpenAI Codex reviewed and repaired job concurrency, publication/recovery, served/build
+roots, browser CORS and child-process supervision; formalized the additive 0.3.0 job/resolver contract; and
+connected the map, coordinate/name input, polling, sharing and real-image playback. Real browser testing
+found and fixed Sesame's colon-formatted coordinates. Local tests included three 40-frame real builds,
+desktop/mobile playback and shared-link restoration. These checks do not establish R05 scientific recovery.
+
+Component metadata: [backend/ai-usage.json](backend/ai-usage.json),
+[frontend/ai-usage.json](frontend/ai-usage.json). Human review remains pending. No AI-generated sky imagery
+or new physical measurements were used; Aladin, IRSA and ESA imagery retain their source credits.

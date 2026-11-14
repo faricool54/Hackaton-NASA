@@ -16,54 +16,24 @@ import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
-from tempfile import NamedTemporaryFile, mkdtemp
-
-from PIL import Image
+from tempfile import mkdtemp
 
 from errante import settings
 from errante.build import load_field_configs
 from errante.models import SkyField
-from errante.products import ProductStore
+
+from .publication import AtomicProductStore, publish_field, validate_product  # noqa: F401 (compatibility export)
 
 TARGETS = ("barnards-star", "eps-indi-b", "wise-0855", "rw-aurigae", "r-draconis")
 
 
-class AtomicProductStore(ProductStore):
-    @staticmethod
-    def _write(path, model):
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = None
-        try:
-            with NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent, delete=False) as f:
-                temporary = Path(f.name)
-                f.write(model.model_dump_json(indent=2) + "\n")
-            os.replace(temporary, path)
-        finally:
-            if temporary is not None:
-                temporary.unlink(missing_ok=True)
-        return path
-
-
 def validate_field(root: Path, field_id: str) -> SkyField:
-    field = ProductStore(root).read_field(field_id)
-    if field.id != field_id or field.provenance.synthetic or len(field.frames) < 2:
-        raise ValueError("Expected a non-synthetic field with at least two frames")
+    field = validate_product(root, field_id)
     if not any(
         len(mjds := [f.mjd for f in field.frames if f.detector == detector]) >= 2 and max(mjds) - min(mjds) > 30
         for detector in range(1, 7)
     ):
         raise ValueError("No detector spans two seasons (>30 days); check WS1/WS2 epoch selection")
-    directory = (root / "fields" / field_id).resolve()
-    if not directory.is_relative_to(root.resolve()):
-        raise ValueError("Field escapes the staging root")
-    for frame in field.frames:
-        image = (directory / frame.image).resolve()
-        if not image.is_relative_to(directory) or not image.is_file() or not frame.source_uri:
-            raise ValueError("Missing image/provenance or image outside the field directory")
-        with Image.open(image) as png:
-            if png.format != "PNG" or png.size != (field.grid.width_px, field.grid.height_px):
-                raise ValueError("Expected a PNG on the declared field grid")
-            png.verify()
     return field
 
 
@@ -88,7 +58,6 @@ def build_fields(out: Path, targets=TARGETS, timeout_s: float = 900) -> dict:
             report["fields"].append(item)
             # Same filesystem as the destination, but outside the public root.
             stage = Path(mkdtemp(prefix=".errante-build-", dir=out.parent)).resolve()
-            preserve_stage = False
             try:
                 try:
                     child = subprocess.run(
@@ -102,41 +71,17 @@ def build_fields(out: Path, targets=TARGETS, timeout_s: float = 900) -> dict:
                         item["error"] = "pipeline_not_ready" if child.returncode == 3 else "build_failed"
                         continue
                     field = validate_field(stage, field_id)
-                    destination = out / "fields" / field_id
-                    if not destination.resolve().is_relative_to(out):
-                        raise ValueError("Field destination escapes the product root")
-                    destination.parent.mkdir(parents=True, exist_ok=True)
-                    source = stage / "fields" / field_id
-                    backup = stage / "previous"
-                    installed = False
-                    try:
-                        if destination.exists():
-                            os.replace(destination, backup)
-                        os.replace(source, destination)
-                        installed = True
-                        AtomicProductStore(out).rebuild_manifest()
-                    except BaseException:
-                        try:
-                            if installed:
-                                os.replace(destination, source)
-                            if backup.exists():
-                                os.replace(backup, destination)
-                        except OSError as error:
-                            # Never delete the previous product if restore itself fails.
-                            preserve_stage = True
-                            item["recovery_dir"] = str(stage)
-                            raise RuntimeError("Publication rollback failed; retain recovery_dir for repair") from error
-                        raise
+                    publish_field(stage, field_id, out, replace=True)
                     item.update(status="ready", n_frames=len(field.frames))
                 except subprocess.TimeoutExpired:
                     item["error"] = "timeout"
                 except Exception as error:
                     item.update(error="validation_or_publication_failed", detail=str(error))
+                    if hasattr(error, "recovery_dir"):
+                        item["recovery_dir"] = str(error.recovery_dir)
             finally:
-                if not preserve_stage:
-                    # mkdtemp returned an owned child of the explicitly selected parent.
-                    assert stage.is_relative_to(out.parent) and stage.name.startswith(".errante-build-")
-                    shutil.rmtree(stage)
+                assert stage.is_relative_to(out.parent) and stage.name.startswith(".errante-build-")
+                shutil.rmtree(stage)
         return report
     finally:
         lock.unlink(missing_ok=True)

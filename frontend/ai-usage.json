@@ -1,0 +1,11 @@
+{
+  "updated_on": "2026-11-14",
+  "tool": "OpenAI Codex",
+  "scope": "Authorized WS5 integration: SPHEREx map, coordinate/name form, jobs client/polling, shared links, playback loading/errors and tests",
+  "affected_paths": ["frontend/src/", "frontend/public/sky-map.html", "frontend/README.md", "tasks/WS5-frontend.md"],
+  "external_assets": ["Aladin Lite 3.8.2 GPL-3 via jsdelivr", "IRSA SPHEREx DR1 HiPS", "ESA AllWISEColor HiPS"],
+  "generated_media": [],
+  "scientific_R05_validation": false,
+  "human_review": "pending",
+  "repository_disclosure": "AI_USAGE.md"
+}

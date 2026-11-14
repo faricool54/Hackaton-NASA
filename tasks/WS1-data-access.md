@@ -17,41 +17,56 @@ El camino crítico termina en imágenes visibles; catálogos y detección no son
 ## Estado actual
 - ✅ `s3.py`: listado anónimo del bucket, parseo de nombres (`parse_key`), semanas por release.
 - ✅ `cache.py`: descarga con caché en disco y reintentos.
-- ✅ `fits_io.read_spherex`: lee IMAGE/FLAGS/VARIANCE/ZODI + WCS + MJD-OBS.
-- ⛔ `irsa.search_frames`, `cutouts.fetch_cutout(s)`, `fits_io.wavelength_at`: stubs.
+- ✅ `fits_io.read_spherex`: lee IMAGE/FLAGS/VARIANCE/ZODI + WCS; con #23, tiempo de mitad de exposición.
+- 🔄 En PR (2026-11-14, faricool54 + Claude): #21 `irsa.search_frames` + `epochs.py`, #22 `s3range.py` +
+  `cutouts.fetch_cutouts` (S3 primero, IBE de respaldo, `None` por frame fallido), #23 `fits_io.wavelength_at`.
+  Juntos con el #16 de WS2, `errante build barnards-star` ya produce un campo real (40 frames, 22 s).
 
 ## Tareas
 
-- [ ] **WS1-1 (P0, R02/C08) Verificar consultas IRSA desde tu máquina.** Las páginas y notebooks ya son
+- [x] **WS1-1 (P0, R02/C08) Verificar consultas IRSA desde tu máquina.** ✅ DATA.md §3.0–§3.1. Las páginas y notebooks ya son
   accesibles (DATA.md §7); eso no verifica consultas ni descargas. Corré la consulta TAP de `irsa.ADQL_FRAMES_AT_POSITION`
   para Barnard's Star (269.4463, 4.7665). Anotá en `docs/DATA.md` §3: tablas/colecciones vigentes (¿cómo se llaman
   en **DR1**?), columnas, cuánto tarda, cuántos frames hay por detector y rango de fechas.
   *Acepta:* sección de DATA.md actualizada con ✅ y fecha.
-- [ ] **WS1-2 (P0) `search_frames`.** Implementar con `requests` (TAP sync CSV) o `astroquery`. Filtros por
+- [x] **WS1-2 (P0) `search_frames`.** ✅ #21 (falta probar en vivo el fallback TAP). Implementar con `requests` (TAP sync CSV) o `astroquery`. Filtros por
   detector y MJD. Parsear `uri` → `FrameRef` (obs_id y detector desde el nombre del archivo con `s3.parse_key`,
   release desde la ruta, `s3_key` con `irsa_uri_to_s3_key`). Caché en disco del resultado (clave = query).
   *Acepta:* `errante search --ra 269.4463 --dec 4.7665` imprime un `SearchResult` válido; test `network` pasa;
   test offline con un CSV de ejemplo guardado en `pipeline/tests/fixtures/`.
-- [ ] **WS1-3 (P0) `fetch_cutout(s)`.** URL con `cutout_url`, descarga cacheada (`cache.cached_download`),
+- [x] **WS1-3 (P0) `fetch_cutout(s)`.** ✅ #22 (20 cutouts de 10′ en ~10 s por S3). URL con `cutout_url`, descarga cacheada (`cache.cached_download`),
   `ThreadPoolExecutor(settings.MAX_PARALLEL_DOWNLOADS)`, reintentos, y **reporte de fallas sin abortar todo**.
   *Acepta:* bajar 20 cutouts de 10′ de Barnard en < 2 min; segunda corrida instantánea (caché).
-- [ ] **WS1-4 (P0) Primer campo real con WS2.** Junto a WS2, lograr que `errante build barnards-star` llegue
+- [x] **WS1-4 (P0) Primer campo real con WS2.** ✅ Los cinco campos reales están publicados (WS2 #17). Cuatro
+  están validados en `docs/validation/` (#36); falta el registro de Barnard. Junto a WS2, lograr que `errante build barnards-star` llegue
   hasta los PNG (I1 en `docs/ARCHITECTURE.md`). *Acepta:* el blink muestra frames reales en `?dataset=real`
   sin `--analyze`; luego repetir cobertura y descargas para los cinco blancos de `docs/VALIDATION.md`,
   con reporte de épocas y fallas.
-- [ ] **WS1-5 (P0 para R05; P1 para C02) `wavelength_at`.** Longitud de onda central y ancho de banda en (ra, dec) desde `WCS-WAVE`,
+- [x] **WS1-5 (P0 para R05; P1 para C02) `wavelength_at`.** ✅ #23 (falta que `build.py`, de WS2, llene
+  `Frame.wavelength_um` con `img.wavelength_at`). Longitud de onda central y ancho de banda en (ra, dec) desde `WCS-WAVE`,
   funcionando también en cutouts. Rellenar `Frame.wavelength_um`. *Acepta:* test contra un valor conocido.
-- [ ] **WS1-6 (P0, R02/R05) Elegir épocas buenas.** Agrupar por visita y detector/λ compatible; seleccionar
+- [ ] **WS1-6 (P0, R02/R05) Elegir épocas buenas.** 🔄 Deduplicación en #21 y `epochs.select_per_season`;
+  la selección del build la hace WS2 en #16. Agrupar por visita y detector/λ compatible; seleccionar
   línea de base útil para movimiento propio y variables. No truncar siempre a los primeros `max_frames`.
   Eliminar reprocesados duplicados; registrar cobertura insuficiente y selección temporal en la evidencia.
-- [ ] **WS1-7 (P2) Fallback S3.** Si IRSA está caído: buscar por semana en S3 + lectura por rangos HTTP del
+- [ ] **WS1-7 (P2) Fallback S3.** 🔄 Los píxeles ya salen de S3 (#22). Snapshots de búsqueda de los cinco blancos (#43):
+  la demo sobrevive a una caída de IRSA. Falta buscar sin IRSA en un punto arbitrario (HpxFinder solo indexa tiles del cubo). Si IRSA está caído: buscar por semana en S3 + lectura por rangos HTTP del
   header para ver si el campo cae en el archivo (lento, pero independiente de IRSA).
-- [ ] **WS1-8 (P2) HiPS DR1.** Investigar `dr1/hips5_cube/` y si IRSA publica un HiPS de imagen usable en
-  Aladin Lite (le sirve a WS5).
+- [x] **WS1-8 (P2) HiPS DR1.** ✅ Aladin Lite dibuja el cubo DR1 de IRSA (`docs/VISION.md`), y `cube_spectrum`
+  da el espectro de cualquier posición desde los tiles en S3 (#42).
 - [ ] **WS1-9 (P1, C01) Actualización de releases.** Descubrir/configurar colecciones, registrar release y
   versión de procesamiento, refrescar consultas y separar claves de caché por versión. La documentación
   consultada ya enumera `spherex_dr1`, `spherex_dr1_deep`, `spherex_qr3`, `spherex_qr3_deep` (DATA.md §3);
   verificar respuesta real antes de usarlas. *Acepta:* incorporar nuevas épocas sin cambiar la UI ni duplicar OBSID.
+
+**Visión (14/11, [`docs/VISION.md`](../docs/VISION.md)):**
+
+- [ ] **WS1-10 (P0/P1) Todas las exposiciones de un punto.** `errante.data.point.point_series` + `errante point`:
+  stamps de cada exposición en (ra, dec) con λ y tiempo, materia prima del video, el espectro y la curva de luz del panel.
+  🔄 Implementado y revisado; PR en curso.
+- [x] **WS1-11 (P1) Espectro rápido de cualquier punto.** ✅ #42 (`cube_spectrum`, `errante cube-spectrum`).
+- [x] **WS1-12 (P0) La demo sobrevive a una caída de IRSA.** ✅ #43 (snapshots de los cinco blancos y fallback
+  antes del timeout de la API). Sin fallback, un punto arbitrario sigue dependiendo de IRSA (timeout del backend: WS4).
 
 **C04/C07:** `fetch_cutouts` debe recibir el FOV validado por WS4, preservar WCS, flags, VARIANCE y ZODI,
 y devolver una asociación inequívoca frame→resultado. Saltar descargas no puede desalinear `refs` y `paths`;
@@ -59,7 +74,7 @@ coordinar el cambio con `build.py` y registrar cada falla, sin inventar un produ
 
 ## Gotchas
 - Nombres de colecciones/tablas cambian entre releases (qr2 → qr3 → dr1). No hardcodees sin verificar.
-- No uses el header `DATE` (es la fecha del archivo). Usá `MJD-OBS`.
+- No uses el header `DATE` (es la fecha del archivo). Usá `MJD-AVG`/`DATE-AVG` (mitad de la exposición).
 - IRSA limita la concurrencia: nada de 50 hilos. TAP: una consulta a la vez.
 - Nada de FITS en git: todo va a `data/cache/`.
 
