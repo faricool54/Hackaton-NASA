@@ -54,6 +54,13 @@
           "verified": true
         },
         {
+          "label": "Distance",
+          "value": "156.1",
+          "unit": "pc",
+          "source": "Gaia DR3 parallax of B (6.406 ± 0.044 mas), adopted for the system by Kurtovic et al. 2024",
+          "verified": true
+        },
+        {
           "label": "Mass (dynamical)",
           "value": "1.24",
           "unit": "solar masses",
@@ -233,7 +240,7 @@
   "representation_note": "3D model drawn from published catalog and literature values (each fact shows its source) - not an image. Sizes and distances may be exaggerated for visibility.",
   "provenance": {
     "pipeline_version": "0.1.0",
-    "built_at": "2026-11-14T17:41:23.387439Z",
+    "built_at": "2026-11-14T18:15:21.326328Z",
     "synthetic": false,
     "data_releases": [],
     "notes": [

@@ -116,6 +116,7 @@ def barnards_star() -> SystemModel:
             radius_km=0.185 * R_SUN_KM,
             mass_kg=0.162 * M_SUN_KG,
             teff_k=3195,
+            rotation_period_hours=145 * 24,  # Toledo-Padrón et al. 2019: 145 ± 15 d
             spectral_type="M4V",
             appearance=Appearance(model="star"),
             facts=[
@@ -126,6 +127,12 @@ def barnards_star() -> SystemModel:
                 _vfact("Distance", "1.828", "pc", f"{gaia} (parallax 546.976 ± 0.040 mas)"),
                 _vfact("Proper motion", "10.39", "arcsec/yr", gaia),
                 _vfact("Radial velocity", "−110.47 ± 0.13", "km/s", gaia),
+                _vfact(
+                    "Rotation period",
+                    "145 ± 15",
+                    "days",
+                    "Toledo-Padrón et al. 2019, MNRAS 488, 5145 (activity indices + 15 yr of photometry)",
+                ),
             ],
         )
     ]
@@ -291,7 +298,12 @@ def epsilon_indi() -> SystemModel:
                 facts=[
                     _vfact("Spectral type", "T1", None, f"SIMBAD; {chen}"),
                     _vfact("Mass", "66.92 ± 0.36", "Jupiter masses", chen),
-                    _vfact("Temperature", "~1300", "K", "King et al. 2010, as adopted by Chen et al. 2022"),
+                    _vfact(
+                        "Temperature (model-dependent)",
+                        "~1300",
+                        "K",
+                        "King et al. 2010 (evolutionary models), adopted by Chen et al. 2022",
+                    ),
                     _vfact(
                         "Separation from A",
                         "~1460 (projected)",
@@ -320,7 +332,12 @@ def epsilon_indi() -> SystemModel:
                 facts=[
                     _vfact("Spectral type", "T6", None, f"SIMBAD; {chen}"),
                     _vfact("Mass", "53.25 ± 0.29", "Jupiter masses", chen),
-                    _vfact("Temperature", "~900", "K", "King et al. 2010, as adopted by Chen et al. 2022"),
+                    _vfact(
+                        "Temperature (model-dependent)",
+                        "~900",
+                        "K",
+                        "King et al. 2010 (evolutionary models), adopted by Chen et al. 2022",
+                    ),
                     _vfact("Orbital period around Ba", "11.0197 ± 0.0076", "years", chen),
                     _vfact("Orbit size", "2.406", "AU", chen),
                     _vfact("Eccentricity", "0.540", None, chen),
@@ -501,6 +518,12 @@ def rw_aurigae() -> SystemModel:
                 appearance=Appearance(model="star"),
                 facts=[
                     _vfact("Type", "Classical T Tauri star", None, "SIMBAD; AAVSO VSX"),
+                    _vfact(
+                        "Distance",
+                        "156.1",
+                        "pc",
+                        "Gaia DR3 parallax of B (6.406 ± 0.044 mas), adopted for the system by Kurtovic et al. 2024",
+                    ),
                     _vfact("Mass (dynamical)", "1.24", "solar masses", f"{kurtovic}, gas disk rotation"),
                     _vfact("Temperature", "4900", "K", "Testi et al. 2022, A&A 663, A98"),
                     _vfact("Visual range (A+B)", "9.2–13.6", "mag (V)", "AAVSO VSX"),

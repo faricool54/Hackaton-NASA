@@ -30,7 +30,7 @@
       "mass_kg": 3.22218e+29,
       "teff_k": 3195.0,
       "spectral_type": "M4V",
-      "rotation_period_hours": null,
+      "rotation_period_hours": 3480.0,
       "orbit": null,
       "variability": null,
       "appearance": {
@@ -87,6 +87,13 @@
           "value": "−110.47 ± 0.13",
           "unit": "km/s",
           "source": "Gaia DR3 4472832130942575872",
+          "verified": true
+        },
+        {
+          "label": "Rotation period",
+          "value": "145 ± 15",
+          "unit": "days",
+          "source": "Toledo-Padrón et al. 2019, MNRAS 488, 5145 (activity indices + 15 yr of photometry)",
           "verified": true
         }
       ],
@@ -344,7 +351,7 @@
   "representation_note": "3D model drawn from published catalog and literature values (each fact shows its source) - not an image. Sizes and distances may be exaggerated for visibility.",
   "provenance": {
     "pipeline_version": "0.1.0",
-    "built_at": "2026-11-14T16:18:25.188120Z",
+    "built_at": "2026-11-14T18:15:21.325334Z",
     "synthetic": false,
     "data_releases": [],
     "notes": [

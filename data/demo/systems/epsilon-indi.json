@@ -201,10 +201,10 @@
           "verified": true
         },
         {
-          "label": "Temperature",
+          "label": "Temperature (model-dependent)",
           "value": "~1300",
           "unit": "K",
-          "source": "King et al. 2010, as adopted by Chen et al. 2022",
+          "source": "King et al. 2010 (evolutionary models), adopted by Chen et al. 2022",
           "verified": true
         },
         {
@@ -263,10 +263,10 @@
           "verified": true
         },
         {
-          "label": "Temperature",
+          "label": "Temperature (model-dependent)",
           "value": "~900",
           "unit": "K",
-          "source": "King et al. 2010, as adopted by Chen et al. 2022",
+          "source": "King et al. 2010 (evolutionary models), adopted by Chen et al. 2022",
           "verified": true
         },
         {
@@ -297,7 +297,7 @@
   "representation_note": "3D model drawn from published catalog and literature values (each fact shows its source) - not an image. Sizes and distances may be exaggerated for visibility.",
   "provenance": {
     "pipeline_version": "0.1.0",
-    "built_at": "2026-11-14T17:41:23.387439Z",
+    "built_at": "2026-11-14T18:15:21.325334Z",
     "synthetic": false,
     "data_releases": [],
     "notes": [
