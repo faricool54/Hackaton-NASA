@@ -955,6 +955,34 @@ def test_to_spherex_image_follows_the_subimage_convention(fake, tmp_path):
     assert fake.calls - calls == 2 and fake.tails - tails == 1
 
 
+def test_ws2_photometry_on_point_stamps_matches_the_cutout_from_box_15(fake, tmp_path):
+    """Review S8: WS2's forced photometry (imaging.photometry.measure, #31) runs on to_spherex_image stamps and
+    gives the cutout's numbers once the stamp holds its 4-7 px sky annulus (box_px >= 15); 11 px cuts the ring."""
+    from errante.imaging import photometry
+
+    key = _key("2025W33_2C_0321_1")
+    fake.objects[key], _ = make_l2(seed=4)
+    ra, dec = _sky(20.3, 99.6)  # columns < 40 carry no flag bits: every annulus pixel is usable
+    ref = fits_io.read_spherex(s3range.write_patch_fits(s3range.read_patch(key, ra, dec, 3.0), tmp_path / "p.fits"))
+    want = photometry.measure(ref, ra, dec, correction=1.0)
+    assert want.flux_mjy is not None and want.sky_mjy_sr is not None and want.wavelength_um is not None
+    for box in (15, 21):
+        s = point.read_point_sample(_frame(key), ra, dec, box)
+        got = photometry.measure(point.to_spherex_image(s), ra, dec, correction=1.0)
+        assert (got.flux_mjy, got.flux_err_mjy, got.sky_mjy_sr) == pytest.approx(
+            (want.flux_mjy, want.flux_err_mjy, want.sky_mjy_sr), rel=1e-9
+        )
+        assert (got.wavelength_um, got.bandwidth_um) == pytest.approx(
+            (want.wavelength_um, want.bandwidth_um), abs=1e-12
+        )
+        assert got.flags == want.flags and (got.mjd, got.obs_id, got.detector) == (want.mjd, want.obs_id, want.detector)
+        assert (got.x + s.x0, got.y + s.y0) == pytest.approx(
+            (want.x + ref.header["PATCH_X0"], want.y + ref.header["PATCH_Y0"]), abs=1e-6
+        )
+    small = photometry.measure(point.to_spherex_image(point.read_point_sample(_frame(key), ra, dec, 11)), ra, dec)
+    assert small.sky_mjy_sr != pytest.approx(want.sky_mjy_sr, rel=1e-6)  # truncated sky ring: another sky
+
+
 def test_to_spherex_image_without_flags_or_wave_table(fake):
     key = _key("2025W33_2C_0321_1")
     blob, _ = make_l2()
