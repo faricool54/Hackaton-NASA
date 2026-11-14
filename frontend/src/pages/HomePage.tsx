@@ -17,13 +17,12 @@ export function HomePage() {
       <section className="hero">
         <h1>Watch the infrared sky change</h1>
         <p>
-          NASA's SPHEREx telescope maps the whole sky in 102 infrared colors, again and again. Stars stay put.
-          Asteroids, distant icy worlds and nearby cold brown dwarfs move. Pick a patch of sky, blink between
-          observations taken at different times, and see what wanders — the same way astronomers hunt for a
-          hypothetical Planet X.
+          NASA's SPHEREx telescope maps the whole sky in 102 infrared colors, again and again. Comparing dates
+          can reveal moving objects, nearby stars with proper motion, and changes in brightness. Explore the
+          labelled synthetic fields below while the real-image workflow is being developed.
         </p>
         <p>
-          <a href="#/systems">Or step inside the objects we track: explore them as 3D systems →</a>
+          <a href="#/systems">Explore illustrative 3D models of the challenge targets →</a>
         </p>
         {/* TODO(WS6): final copy, project name, call to action. TODO(WS5): coordinate/name search box (api mode). */}
       </section>

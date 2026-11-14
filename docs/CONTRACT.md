@@ -16,7 +16,8 @@ Ejemplos reales del formato: [`data/demo/`](../data/demo/).
 <root>/fields/<id>/thumb.png              miniatura
 <root>/systems/<id>.json                  SystemModel      modelo 3D de un sistema/objeto (WS7)
 ```
-`<root>` = `data/demo` (sintético) o `data/products` (real).
+`<root>` = `data/demo` o `data/products`. El nombre del directorio no prueba verificación ni origen real:
+leer `Provenance.synthetic`, notas y `Fact.verified`. Un SystemModel es un modelo, no una imagen SPHEREx.
 
 ## API (backend)
 
@@ -47,6 +48,26 @@ Ejemplos reales del formato: [`data/demo/`](../data/demo/).
   `Body.id` del padre (`orbit = null` ⇒ cuerpo raíz en el origen), `epoch_mjd = null` ⇒ fase arbitraria.
   `Fact.verified = false` ⇒ la UI marca el valor como "unverified". Siempre se muestra `representation_note`.
   `Manifest.systems` puede faltar en productos viejos (tratar como `[]`).
+
+## Campo visible sin análisis automático
+
+`errante build <id>` publica `Field`, imágenes, manifest y listas vacías compatibles de `CandidateList` y
+`KnownObjectList`. `Provenance.notes` aclara que no se ejecutó detección/cruce. **Vacío no significa búsqueda
+negativa si el análisis no se ejecutó.** `--analyze` opta por esas etapas una vez guardado el campo básico.
+Esta separación no cambia `SCHEMA_VERSION` ni agrega campos al contrato actual.
+
+## Extensiones diseñadas, todavía sin contrato publicado
+
+WS4-10 coordina, en cambios aditivos versionados, lo necesario para:
+
+- R03/C04: solicitud por RA/Dec/FOV/filtros, caché, job ID y estados/progreso/error/sin cobertura.
+- C01/C07: versión de procesamiento, selección de épocas, cobertura y flags de contaminación con significado.
+- C02/C03: coadds y suma/resta con miembros, pesos/método, fechas, bandas, máscaras y unidades.
+- C02: espectro en una posición elegida, independiente de candidatos, con λ/ancho, flujo/error y fecha.
+- C05: contexto Gaia DR3/WISE con catálogo/misión, época, propagación y procedencia.
+
+Estos puntos son **diseño pendiente**, no nuevas rutas API ni campos que el frontend pueda consumir hoy.
+La URL propuesta de exploración está en ARCHITECTURE.md; la restauración de coordenadas aún no existe.
 
 ## Cómo cambiar el contrato
 

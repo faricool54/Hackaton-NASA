@@ -1,5 +1,5 @@
 ## Workstream
-<!-- WS1 / WS2 / WS3 / WS4 / WS5 / WS6 / contract -->
+<!-- WS1 / WS2 / WS3 / WS4 / WS5 / WS6 / WS7 / contract -->
 
 ## Qué cambia
 <!-- 1-3 líneas. Link a la tarea: tasks/WSx-...md#WSx-N -->

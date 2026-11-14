@@ -4,6 +4,11 @@
 ver su sistema animado (órbitas, pulsaciones) y **entrar a cada planeta/estrella** con su ficha de datos. Buen
 diseño y representación fiel a los datos, siempre etiquetada como modelo.
 
+**Alcance y prioridad:** extensión **P2 del equipo**, no requisito R01–R05 ni sustituto de imágenes reales.
+Aplican las guías de entrega/evaluación en `docs/SUBMISSION_GUIDE.md` y `docs/JUDGING_GUIDE.md`: parámetros
+con fuente y verificación, atribución SI, medios/permisos y textos públicos en inglés. Un modelo de cada
+blanco no completa los cinco ensayos. Verificar valores es condición para anunciarlos como medidos.
+
 **Tus rutas:** `pipeline/errante/systems/`, `frontend/src/three/`, `frontend/src/components/SystemViewer.tsx`,
 `frontend/src/components/BodyPanel.tsx`, `frontend/src/pages/SystemsPage.tsx`, `frontend/src/pages/SystemPage.tsx`,
 `data/demo/systems/` (regenerado con `make demo`), `docs/VISION_3D.md`.
@@ -25,21 +30,22 @@ diseño y representación fiel a los datos, siempre etiquetada como modelo.
 
 ## Tareas
 
-- [ ] **WS7-1 (P0) Integración con el flujo principal**: que desde un candidato/objeto conocido del blink se pueda
+- [ ] **WS7-1 (P2) Integración con el flujo principal**: que desde un candidato/objeto conocido del blink se pueda
   ir a su cuerpo 3D (`Body.candidate_id`; coordinar con WS5 para el botón en `CandidatePanel`) y agregar campos
   `epsilon-indi`, `r-draconis`, `rw-aurigae` a `config/fields.toml` (con WS3) para que todos los sistemas
-  tengan su campo SPHEREx.
-- [ ] **WS7-2 (P0) Verificar valores**: implementar `sources.exoplanet_archive_system` y `sources.simbad_star`
+  tengan su campo SPHEREx. Los presets/ensayos de esos blancos son P0 de WS3-3/9 y se pueden completar sin 3D;
+  no copiar coordenadas del catálogo ilustrativo sin fuente/época/propagación verificadas.
+- [ ] **WS7-2 (P2; requisito para afirmar valores verificados) Verificar valores**: implementar `sources.exoplanet_archive_system` y `sources.simbad_star`
   (tests `network`), reemplazar los valores de `catalog.py` y poner `verified=True` **solo** en lo comprobado,
   con la fuente exacta (tabla/URL/paper). Corregir lo que esté mal. Criterio: badge "UNVERIFIED VALUES"
   desaparece en los sistemas verificados.
-- [ ] **WS7-3 (P1) Asteroides reales**: `sources.sbdb_orbit` → para cada candidato `known` de un campo real, crear
+- [ ] **WS7-3 (P2) Asteroides reales**: `sources.sbdb_orbit` → para cada candidato `known` de un campo real, crear
   un sistema heliocéntrico (Sol + Tierra + Júpiter + el asteroide) con su órbita real y la posición en la fecha
   de cada frame. Mostrar "dónde estaba la Tierra/SPHEREx cuando lo vio".
-- [ ] **WS7-4 (P1) Pulido visual**: limb darkening y granulación en estrellas (shader simple), glow que respire en
+- [ ] **WS7-4 (P2) Pulido visual**: limb darkening y granulación en estrellas (shader simple), glow que respire en
   la Mira (R Dra) siguiendo la curva de luz, bandas/tormentas en gigantes, inclinación y anillos si hay datos,
   transición de cámara más cinematográfica, leyenda de escala. Lighthouse sin regresiones.
-- [ ] **WS7-5 (P1) "Moverse por el espacio"**: vista de vecindario solar con `SpaceMotion` (paralaje, movimiento
+- [ ] **WS7-5 (P2) "Moverse por el espacio"**: vista de vecindario solar con `SpaceMotion` (paralaje, movimiento
   propio, velocidad radial): ver Barnard, WISE 0855 y Eps Indi moviéndose en 3D en miles de años, y por qué eso
   se ve como desplazamiento en las imágenes SPHEREx.
 - [ ] **WS7-6 (P2) Modelos de forma**: `appearance.model = "mesh"` + `mesh_url` (glTF) con `GLTFLoader`; fuentes:
@@ -56,6 +62,9 @@ diseño y representación fiel a los datos, siempre etiquetada como modelo.
 - three.js se carga solo en las páginas 3D (dynamic import). No agregar React Three Fiber u otras capas sin
   justificarlo en el PR.
 - Cambios a `SystemModel` = cambio de contrato (`contract:` PR, `make schema`, `types.ts`).
+- La escena no fija posiciones/épocas para construir campos reales hasta verificarlas con WS3. Un radio
+  exagerado, color aproximado, fase arbitraria o variabilidad ilustrativa deben seguir identificados como tales.
+- Los agentes/roles no son integrantes adicionales: la sede local admite como máximo seis personas.
 
 ## Prompt de arranque
 

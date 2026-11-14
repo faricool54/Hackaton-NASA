@@ -20,13 +20,14 @@ export function SystemsPage() {
       <section className="hero">
         <h1>Explore the objects in 3D</h1>
         <p>
-          SPHEREx shows these objects as dots that move or change brightness. Here you can step inside: see each system
-          as a 3D model built from catalog measurements, watch its orbits and pulsations play out, and click any star,
-          planet or brown dwarf to learn about it.
+          Explore illustrative models of the challenge targets and a synthetic example. The current presets use
+          hand-entered parameters that have not yet been verified against catalogs. Watch model orbits and
+          pulsations, or select a body to inspect its facts, sources and verification status.
         </p>
         <p className="muted small">
           These are model representations, not images: sizes are exaggerated and distances can be compressed so
-          everything fits on screen.
+          everything fits on screen. A model of a target does not establish that it has been observed or validated
+          in SPHEREx images.
         </p>
       </section>
       {error && <p className="error">Could not load data: {error}</p>}

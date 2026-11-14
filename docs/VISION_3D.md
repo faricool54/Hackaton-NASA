@@ -4,6 +4,12 @@
 > modelos 3D de los 5 objetivos de prueba del reto + un sistema sintético. Tareas en
 > [tasks/WS7-3d-systems.md](../tasks/WS7-3d-systems.md).
 
+**Extensión P2**, posterior al recorrido obligatorio RA/Dec → imágenes reales → animación y ensayos.
+Las guías de entrega y evaluación exigen evidencia, honestidad y atribución: `REQUIREMENTS.md`,
+`SUBMISSION_GUIDE.md` y `JUDGING_GUIDE.md`. La galería ya existe, pero no valida R02/R05 ni aporta por sí
+misma integración real de datos NASA para Relevance. El código llegó en la contribución WS7; parámetros
+de catálogo y procedencia completa siguen pendientes de revisión.
+
 ## La idea
 
 SPHEREx muestra los objetos como **puntitos** que se mueven o cambian de brillo entre imágenes. Eso es lo que
@@ -42,20 +48,22 @@ clickeables, transiciones suaves de cámara, panel lateral legible y que funcion
 - Simplificaciones explícitas: jerarquías sin baricentros (Epsilon Indi), variabilidad sinusoidal, radios
   estimados de planetas no transitantes. Cada una figura en `provenance.notes` o en la etiqueta del dato.
 
-## Qué permiten los datos (por objetivo de prueba)
+## Qué representan los presets actuales (sin validar científicamente)
 
 | Objetivo | Qué se puede modelar | Fuente para verificar (WS7-2) |
 |---|---|---|
-| **Barnard's Star** | enana roja + 4 planetas sub-Tierra (periodos 2.3–6.7 d); movimiento propio récord (~10.4″/año) | NASA Exoplanet Archive, Gaia DR3 |
-| **Epsilon Indi** | estrella K5V + gigante frío Ab (imagen directa JWST, ~28 AU) + binaria de enanas marrones Ba/Bb (~11 años) a ~1460 AU | NASA Exoplanet Archive, SIMBAD, literatura |
-| **WISE 0855−0714** | enana marrón aislada más fría conocida (~285 K); sin sistema → vista del cuerpo + su movimiento por el cielo | SIMBAD, Luhman 2014/2016 |
-| **R Draconis** | gigante roja Mira que pulsa cada ~245 d → animación de pulsación (tamaño/brillo) | AAVSO VSX / GCVS |
+| **Barnard's Star** | estrella y compañeros planetarios ilustrativos; existencia/parámetros del preset a contrastar | NASA Exoplanet Archive, Gaia DR3 |
+| **Epsilon Indi** | estrella, compañero planetario y componentes Ba/Bb con jerarquía simplificada; distinguir B de A | NASA Exoplanet Archive, SIMBAD, literatura |
+| **WISE 0855−0714** | cuerpo aislado ilustrativo; temperatura, masa y astrometría sin verificar | SIMBAD, literatura identificada en cada ficha |
+| **R Draconis** | modelo de pulsación, no curva de luz SPHEREx medida | AAVSO VSX / GCVS |
 | **RW Aurigae** | binaria joven A+B con disco alrededor de A; atenuaciones irregulares | SIMBAD, literatura |
 | Asteroides / TNOs del pipeline | órbita heliocéntrica real (elementos osculantes) + forma si existe | JPL SBDB, NASA 3D Resources, DAMIT |
-| Planeta Nueve (P1, opcional) | órbita **hipotética** (~400–800 AU) junto a Neptuno y TNOs extremos, marcada como hipótesis | Brown & Batygin 2021 |
+| Planeta Nueve (P2, opcional) | órbita **hipotética**, parámetros y fuente a revisar antes de mostrar | literatura citada y verificada antes de usar |
 
 Lo que **no** sale de SPHEREx: las órbitas y parámetros físicos vienen de catálogos. SPHEREx aporta *dónde está y
 cómo se mueve en el cielo*, su **espectro 0.75–5 µm** y su variabilidad; la vista 3D lo pone en contexto.
+En la versión actual esos productos SPHEREx reales aún no se generaron. Las fuentes de la tabla son
+destinos de verificación, no constancia de una consulta ya realizada ni evidencia de parámetros correctos.
 
 ## Cómo está armado
 

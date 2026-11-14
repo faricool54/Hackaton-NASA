@@ -47,7 +47,7 @@ footer { text-align: center; padding: 24px 16px; }
 .status-injected { color: var(--injected); }
 
 .field-layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 20px; }
-@media (max-width: 860px) { .field-layout { grid-template-columns: 1fr; } }
+@media (max-width: 860px) { .field-layout { grid-template-columns: minmax(0, 1fr); } }
 .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
 select, button, input { font: inherit; color: inherit; }
 select, button { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; cursor: pointer; }

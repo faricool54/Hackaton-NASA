@@ -1,14 +1,15 @@
-# WS3 · Ciencia: objetos conocidos, distancia, espectros y Planeta X
+# WS3 · Ciencia: cinco blancos, variabilidad, espectros y contexto
 
-**Objetivo:** que cada candidato tenga contexto científico confiable: ¿es un objeto conocido?, ¿a qué distancia
-aproximada está?, ¿qué espectro tiene?, ¿cómo se compara con lo que sería un Planeta X? Y elegir los **campos
-de demostración** que mejor cuentan la historia.
+**Objetivo:** validar los cinco objetos del enunciado, tanto movimiento como variabilidad, con identidad,
+épocas y evidencia confiables. Después agregar espectros/contexto; Planeta X y candidatos son ampliaciones.
+
+**Cobertura:** R05, C02/C05 y recursos de comparación. Leer `docs/VALIDATION.md` y `docs/REQUIREMENTS.md`.
 
 **Tus rutas:** `pipeline/errante/science/` · `pipeline/errante/config/fields.toml` · `pipeline/tests/test_science_*.py`
 · `notebooks/ws3_*` · `docs/SCIENCE.md` (revisión científica).
 
-**Recibís:** `Candidate` (WS2), frames con MJD. **Entregás:** `KnownObject[]` por campo, `crossmatch` (status
-`known` + `known_match`), `DistanceEstimate`, `SpectrumPoint[]`, región del Planeta Nueve, campos curados.
+**Recibís:** frames con MJD, WCS, λ y calidad. **Entregás primero:** cinco identidades/presets verificados
+y registros de validación; luego espectros/contexto. `Candidate`/cruce/distancia/Planeta X son entregables P2.
 
 **Leé primero:** `docs/SCIENCE.md` (todo), `pipeline/errante/science/*.py`, `docs/DATA.md` §5.
 
@@ -19,26 +20,40 @@ de demostración** que mejor cuentan la historia.
 
 ## Tareas
 
-- [ ] **WS3-1 (P0) `objects_in_frame`** con SkyBoT (más simple) o JPL SBIdent; caché; devuelve `KnownObject`
+- [ ] **WS3-1 (P2) `objects_in_frame`** con SkyBoT (más simple) o JPL SBIdent; caché; devuelve `KnownObject`
   con posición en esa época (x/y con `imaging.grid.sky_to_png_xy`). *Acepta:* test `network` en un campo
   eclíptico real devuelve asteroides con magnitud.
-- [ ] **WS3-2 (P0) `crossmatch`**: separación mediana por frame ≤ ~15″ → `status='known'`, `known_match`.
-- [ ] **WS3-3 (P0) Campos curados** en `fields.toml`: (a) un campo eclíptico con un asteroide brillante
-  conocido observado por SPHEREx (buscarlo con SBIdent sobre frames reales de WS1), (b) Makemake u otro TNO
-  (`track_object`, posición desde Horizons a la fecha de las observaciones), (c) Barnard / WISE 0855 (movimiento
-  propio, propagar posición), (d) un campo profundo NEP/SEP, (e) un campo dentro de la región del Planeta Nueve.
-  *Acepta:* para cada uno, WS1 confirma ≥ 3 épocas útiles.
-- [ ] **WS3-4 (P1) Distancia con geometría real**: velocidad aparente esperada vs distancia para órbitas
+- [ ] **WS3-2 (P2) `crossmatch`**: separación mediana por frame ≤ ~15″ → `status='known'`, `known_match`.
+- [ ] **WS3-3 (P0, R05) Cinco blancos obligatorios** en `fields.toml` y evidencia según `docs/VALIDATION.md`:
+  **Barnard's Star, Epsilon Indi B, WISE 0855, RW Aurigae y R Draconis**. Resolver identidad/componentes,
+  fuente/época de coordenadas y propagación; no confundir Epsilon Indi B con A ni exigir resolver Ba/Bb.
+  Con WS1 seleccionar épocas y bandas útiles; documentar los cinco intentos incluso sin señal/cobertura.
+  Presets de asteroides, TNOs y región de Planeta X quedan P2; los campos profundos pueden servir para desarrollo.
+- [ ] **WS3-4 (P2) Distancia con geometría real**: velocidad aparente esperada vs distancia para órbitas
   circulares dada la posición/velocidad de la Tierra (astropy `get_body_barycentric_posvel`) o de SPHEREx
   (header `X_SC…`), apuntado y fecha; invertir para estimar r con rango. Reemplaza `opposition_rate` en el pipeline.
-- [ ] **WS3-5 (P1) Espectros**: `candidate_spectrum` (fotometría de apertura en el FITS, MJy/sr → mJy con
-  `OMEGA_MEDIAN`, errores de `VARIANCE`) + `color_class` con advertencias. Validar con estrellas/asteroides conocidos.
-- [ ] **WS3-6 (P1) Región del Planeta Nueve** (`planet_nine_search_region`) desde el paper (citado) para el mapa
+- [ ] **WS3-5 (P1, C02) Espectros en una posición elegida**, haya o no candidato automático. Fotometría
+  de apertura/PSF en FITS, MJy/sr → mJy con ángulo sólido, errores de VARIANCE, λ/ancho de WCS-WAVE y fechas.
+  `candidate_spectrum` puede reutilizar el servicio; clasificaciones son opcionales. No mezclar variabilidad
+  temporal con forma espectral sin advertencia. Validar con una referencia y conectar WS4-8/WS5-12.
+- [ ] **WS3-6 (P2) Región del Planeta Nueve** (`planet_nine_search_region`) desde el paper (citado) para el mapa
   del cielo de WS5, y `detectability()` para un widget "¿Lo vería SPHEREx?" usando los límites de WS2-6.
-- [ ] **WS3-7 (P1) Revisión científica** de todos los textos de la UI y del pitch (WS6): nada exagerado,
+- [ ] **WS3-7 (P0) Revisión científica** de todos los textos de la UI y del pitch (WS6): nada exagerado,
   números con fuente.
+  S10 (Validity/Relevance): recorrido real reproducible, usabilidad y NASA como núcleo, con evidencia de
+  WCS/épocas/bandas/calidad y cinco ensayos. Completar con WS6 JUDGING_REVIEW.md; no convertir mocks,
+  simulaciones o confianza de candidatos en nota 1–5 del proyecto.
 - [ ] **WS3-8 (P2) Ephemeris overlay**: posiciones predichas de objetos conocidos en todos los frames (ya
   soportado por `KnownObject.positions`) para que la UI muestre "dónde debería estar" vs "dónde lo vimos".
+- [ ] **WS3-9 (P0, R05) Variables RW Aurigae y R Draconis.** Construir comparación de brillo a λ
+  compatible, con incertidumbre, fondo/PSF, saturación y mezcla de componentes controlados. Conservar flujo
+  real y fechas; mismo detector no garantiza misma λ. Reportar resultado positivo, negativo o inconcluso.
+- [ ] **WS3-10 (P1, C05) Contexto Gaia DR3/WISE.** Verificar catálogo, versión y condiciones de uso;
+  propagar astrometría Gaia a épocas SPHEREx cuando haya datos. Exponer misión, banda, fecha y procedencia
+  para WS5-4; no asumir que Gaia cubre enanas marrones débiles ni presentar WISE como SPHEREx.
+- [ ] **WS3-11 (P2) Evaluar recursos CSA/CADC/NEOSSat.** Revisar página de misión, acceso CADC,
+  tutorial y dataset del enunciado, licencias y posibles comparaciones. Decisión escrita con fuentes;
+  cualquier adaptador futuro conserva misión y procedencia separadas y no bloquea SPHEREx.
 
 ## Gotchas
 - SPHEREx está en órbita baja: para asteroides cercanos usá la posición de la nave (no geocéntrica).
@@ -49,7 +64,7 @@ de demostración** que mejor cuentan la historia.
 
 > Sos el agente del workstream WS3 (ciencia) del repo Errante para NASA Space Apps 2026. Leé `AGENTS.md`,
 > `docs/SCIENCE.md`, `docs/DATA.md`, `docs/CONTRACT.md` y `tasks/WS3-science.md`. Trabajá SOLO en
-> `pipeline/errante/science/`, `pipeline/errante/config/fields.toml` y sus tests. Empezá por WS3-1 y WS3-2
-> (SkyBoT/JPL SBIdent con caché, tests offline con respuestas guardadas + tests `network`). No inventes
+> `pipeline/errante/science/`, `pipeline/errante/config/fields.toml` y sus tests. Empezá por WS3-3 y WS3-9,
+> siguiendo `docs/VALIDATION.md`; JPL/SkyBoT son posteriores al MVP. No inventes
 > coordenadas ni parámetros orbitales: obtenelos de los servicios o papers y citá la fuente. Corré `make check`
 > y mostrame el diff antes de commitear.

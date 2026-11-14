@@ -1,0 +1,52 @@
+{
+  "document_version": "1.2",
+  "updated_on": "2026-11-14",
+  "status": "draft_requires_team_review",
+  "scope": "Verified assistance in the current Codex session; not a complete repository authorship audit",
+  "tool": "OpenAI Codex",
+  "known_uses": [
+    "Repository, challenge statement and supplied submission/judging guide review",
+    "Reference-link accessibility checks",
+    "Documentation, requirements, technical planning and task-priority revisions",
+    "Optional-analysis build and CLI implementation with regression tests",
+    "Draft submission text, demo outline and public attribution text"
+  ],
+  "known_affected_code": [
+    "pipeline/errante/build.py",
+    "pipeline/errante/cli.py",
+    "pipeline/tests/test_build.py",
+    "frontend/src/pages/AboutPage.tsx",
+    "frontend/src/pages/HomePage.tsx",
+    "frontend/src/pages/SystemsPage.tsx"
+  ],
+  "imported_contributions": [
+    {
+      "commit": "cb19f8cd44bb6e91a875c534a5196d522187ac8d",
+      "tool_declared_by_commit": "Claude",
+      "scope": "3D systems, procedural rendering, catalog presets, contracts, API and tests",
+      "attribution_basis": "Author/co-author declaration in the imported commit metadata",
+      "scientific_parameter_verification": "pending",
+      "full_authorship_audit": "pending"
+    }
+  ],
+  "descriptive_disclosure": "AI_USAGE.md",
+  "demo_data": {
+    "origin": "Numerical simulations produced by errante.synthetic",
+    "real_spherex_observations": false,
+    "image_model_generation_established": false,
+    "generator_authorship_audit": "pending"
+  },
+  "new_ai_generated_media_in_this_session": [],
+  "reference_pdf_modified": false,
+  "reference_documents": [
+    "docs/references/NASA Space Apps Challenge.pdf",
+    "docs/references/NASA Space Apps Challenge Judging & Awards Guide.pdf"
+  ],
+  "idea_origin_review": "pending_team_confirmation",
+  "human_review": "Team review and approval remain pending",
+  "remaining_inventory": [
+    "Original scaffold and generator provenance",
+    "Other AI tools and contributor work",
+    "Any later images, video, audio, code or data assets"
+  ]
+}

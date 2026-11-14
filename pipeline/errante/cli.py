@@ -87,15 +87,18 @@ def cmd_build(args: argparse.Namespace) -> int:
         print(f"Unknown field '{args.field_id}'. Known: {sorted(cfgs)}", file=sys.stderr)
         return 2
     try:
-        build_field(cfgs[args.field_id], Path(args.out))
+        build_field(cfgs[args.field_id], Path(args.out), analyze=args.analyze)
     except NotImplementedError as e:
         print(f"Build stopped at a stage that is not implemented yet: {e}", file=sys.stderr)
         return 3
+    except ValueError as e:
+        print(f"Build failed: {e}", file=sys.stderr)
+        return 2
     return 0
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(prog="errante", description="SPHEREx moving-object pipeline")
+    p = argparse.ArgumentParser(prog="errante", description="SPHEREx temporal sky explorer pipeline")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     s = sub.add_parser("demo", help="write the synthetic demo dataset")
@@ -124,6 +127,7 @@ def main(argv: list[str] | None = None) -> int:
     s = sub.add_parser("build", help="build real products for a field in config/fields.toml")
     s.add_argument("field_id")
     s.add_argument("--out", default=str(settings.PRODUCTS_DIR))
+    s.add_argument("--analyze", action="store_true", help="also run automatic detection and catalog matching")
     s.set_defaults(func=cmd_build)
 
     args = p.parse_args(argv)

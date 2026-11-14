@@ -3,6 +3,9 @@
 **Objetivo:** dado un punto del cielo, encontrar todas las exposiciones SPHEREx que lo cubren y traer recortes
 (cutouts) chicos y cacheados, listos para que WS2 los reproyecte.
 
+**Cobertura:** R02/R03/R05, C01/C02/C04/C07/C08 (`docs/REQUIREMENTS.md`).
+El camino crítico termina en imágenes visibles; catálogos y detección no son dependencias.
+
 **Tus rutas:** `pipeline/errante/data/` · `pipeline/tests/test_data_*.py` · `notebooks/ws1_*` · `docs/DATA.md`
 (compartido: agregá hechos verificados) · `pipeline/errante/cli.py` (`search`) en coordinación.
 
@@ -19,7 +22,8 @@
 
 ## Tareas
 
-- [ ] **WS1-1 (P0) Verificar IRSA desde tu máquina.** Corré a mano la consulta TAP de `irsa.ADQL_FRAMES_AT_POSITION`
+- [ ] **WS1-1 (P0, R02/C08) Verificar consultas IRSA desde tu máquina.** Las páginas y notebooks ya son
+  accesibles (DATA.md §7); eso no verifica consultas ni descargas. Corré la consulta TAP de `irsa.ADQL_FRAMES_AT_POSITION`
   para Barnard's Star (269.4463, 4.7665). Anotá en `docs/DATA.md` §3: tablas/colecciones vigentes (¿cómo se llaman
   en **DR1**?), columnas, cuánto tarda, cuántos frames hay por detector y rango de fechas.
   *Acepta:* sección de DATA.md actualizada con ✅ y fecha.
@@ -32,15 +36,26 @@
   `ThreadPoolExecutor(settings.MAX_PARALLEL_DOWNLOADS)`, reintentos, y **reporte de fallas sin abortar todo**.
   *Acepta:* bajar 20 cutouts de 10′ de Barnard en < 2 min; segunda corrida instantánea (caché).
 - [ ] **WS1-4 (P0) Primer campo real con WS2.** Junto a WS2, lograr que `errante build barnards-star` llegue
-  hasta los PNG (I1 en `docs/ARCHITECTURE.md`). *Acepta:* el blink muestra frames reales en `?dataset=real`.
-- [ ] **WS1-5 (P1) `wavelength_at`.** Longitud de onda central y ancho de banda en (ra, dec) desde `WCS-WAVE`,
+  hasta los PNG (I1 en `docs/ARCHITECTURE.md`). *Acepta:* el blink muestra frames reales en `?dataset=real`
+  sin `--analyze`; luego repetir cobertura y descargas para los cinco blancos de `docs/VALIDATION.md`,
+  con reporte de épocas y fallas.
+- [ ] **WS1-5 (P0 para R05; P1 para C02) `wavelength_at`.** Longitud de onda central y ancho de banda en (ra, dec) desde `WCS-WAVE`,
   funcionando también en cutouts. Rellenar `Frame.wavelength_um`. *Acepta:* test contra un valor conocido.
-- [ ] **WS1-6 (P1) Elegir épocas buenas.** Helper que agrupe frames por "visita" (clusters en tiempo) y
-  detector, para que WS2 elija conjuntos con buena línea de base (horas, días, 6 meses).
+- [ ] **WS1-6 (P0, R02/R05) Elegir épocas buenas.** Agrupar por visita y detector/λ compatible; seleccionar
+  línea de base útil para movimiento propio y variables. No truncar siempre a los primeros `max_frames`.
+  Eliminar reprocesados duplicados; registrar cobertura insuficiente y selección temporal en la evidencia.
 - [ ] **WS1-7 (P2) Fallback S3.** Si IRSA está caído: buscar por semana en S3 + lectura por rangos HTTP del
   header para ver si el campo cae en el archivo (lento, pero independiente de IRSA).
 - [ ] **WS1-8 (P2) HiPS DR1.** Investigar `dr1/hips5_cube/` y si IRSA publica un HiPS de imagen usable en
   Aladin Lite (le sirve a WS5).
+- [ ] **WS1-9 (P1, C01) Actualización de releases.** Descubrir/configurar colecciones, registrar release y
+  versión de procesamiento, refrescar consultas y separar claves de caché por versión. La documentación
+  consultada ya enumera `spherex_dr1`, `spherex_dr1_deep`, `spherex_qr3`, `spherex_qr3_deep` (DATA.md §3);
+  verificar respuesta real antes de usarlas. *Acepta:* incorporar nuevas épocas sin cambiar la UI ni duplicar OBSID.
+
+**C04/C07:** `fetch_cutouts` debe recibir el FOV validado por WS4, preservar WCS, flags, VARIANCE y ZODI,
+y devolver una asociación inequívoca frame→resultado. Saltar descargas no puede desalinear `refs` y `paths`;
+coordinar el cambio con `build.py` y registrar cada falla, sin inventar un producto completo.
 
 ## Gotchas
 - Nombres de colecciones/tablas cambian entre releases (qr2 → qr3 → dr1). No hardcodees sin verificar.

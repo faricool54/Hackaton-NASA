@@ -1,7 +1,9 @@
 # WS2 · Imágenes y detección de objetos en movimiento
 
 **Objetivo:** convertir cutouts SPHEREx en (a) PNGs alineados norte-arriba en una grilla común para el blink y
-(b) una lista de **candidatos que se mueven**, con puntaje y motivos; y medir qué tan débil/lento podemos detectar.
+(b) productos opcionales de comparación. La detección automática y sus límites vienen después del visor real.
+
+**Cobertura:** R02/R04/R05, C02/C03/C07/C08. Orden: grilla/render → ensayos → operaciones → detección.
 
 **Tus rutas:** `pipeline/errante/imaging/` · `pipeline/errante/detect/` · `pipeline/tests/test_imaging_*.py`,
 `test_detect_*.py` · `notebooks/ws2_*` · `pipeline/errante/build.py` (coordinar con WS1).
@@ -26,22 +28,32 @@
   *Acepta:* test con una imagen sintética con WCS rotado: una estrella cae en el x/y esperado ±0.3 px.
 - [ ] **WS2-2 (P0) Render consistente por campo.** Restar `ZODI`; stretch común por detector dentro de un campo
   (que el blink no "parpadee" en brillo por la normalización); opcional WebP.
-- [ ] **WS2-3 (P0) `find_sources`** (photutils) sobre imagen sin fondo, con SNR desde `VARIANCE`.
-  *Acepta:* en `data/demo` recupera > 90 % de las estrellas brillantes y los movers del demo.
-- [ ] **WS2-4 (P0) `link_tracks`** para asteroides dentro de una visita (horas): pares primer/último frame →
+- [ ] **WS2-3 (P2) `find_sources`** (photutils) sobre imagen sin fondo, con SNR desde `VARIANCE`.
+  *Acepta:* fixture de imágenes en unidades físicas con verdad de referencia; no calcular SNR desde PNGs.
+- [ ] **WS2-4 (P2) `link_tracks`** para asteroides dentro de una visita (horas): pares primer/último frame →
   predicción en frames intermedios → tolerancia ~1 px. Excluir fuentes estáticas.
   *Acepta:* en `demo-ecliptic` encuentra SYN-AST-1 y SYN-TNO-1 y no reporta estrellas.
-- [ ] **WS2-5 (P0) `score_tracks`** → `Candidate` (`status='unconfirmed'`, `artifact` si es de 1 frame o toca
+- [ ] **WS2-5 (P2) `score_tracks`** → `Candidate` (`status='unconfirmed'`, `artifact` si es de 1 frame o toca
   flags malos, con `notes` en lenguaje simple). Usar `science.motion.motion_from_detections`.
-- [ ] **WS2-6 (P1) Inyección-recuperación** (`inject.py`): plantar movers en frames **reales**, grilla de
+- [ ] **WS2-6 (P2) Inyección-recuperación** (`inject.py`): plantar movers en frames **reales**, grilla de
   flujo × velocidad, tabla de eficiencia → `data/products/limits.json` (proponer modelo a WS4/WS5 vía PR
   `contract:`). Es la base de la página "¿Qué tan lejos podemos ver?".
-- [ ] **WS2-7 (P1) Capa de diferencia**: PNG de `frame − cielo_estático` por frame (`frames/<id>.diff.png`;
-  agregar campo opcional `Frame.diff_image` vía PR `contract:`).
-- [ ] **WS2-8 (P1) Movimiento propio entre pasadas** (estrellas cercanas / enanas marrones): comparar posiciones
-  entre visitas separadas por meses. Validar con Barnard's Star (~10″/año ≈ 1.7 px/año).
+- [ ] **WS2-7 (P1, C03) Restas de épocas**: permitir A−B y opcionalmente `frame − cielo_estático`.
+  WCS, PSF, fondo, unidades, máscara y λ compatibles; propagar errores y guardar entradas de la operación.
+  Exponer PNG y metadatos con contrato aditivo coordinado con WS4/WS5.
+- [ ] **WS2-8 (P0, R05) Validación visual/astrométrica entre pasadas.** Ayudar a WS3 con Barnard,
+  Epsilon Indi B y WISE 0855; comprobar registro de fondo, épocas y desplazamiento/incertidumbre.
+  Para RW Aurigae/R Draconis, garantizar render consistente; el brillo científico se mide desde FITS.
+  No depende de implementar `link_tracks`. Evidencia según `docs/VALIDATION.md`.
 - [ ] **WS2-9 (P2) Shift-and-stack** a lo largo de velocidades hipotéticas para objetos lentos y débiles
   (demo educativa del método de búsqueda del Planeta X).
+- [ ] **WS2-10 (P1, C02/C03) Sumas y coadds por detector.** Alinear y combinar por detector y visita,
+  con pesos derivados de VARIANCE, máscara/coverage y lista de miembros. Mantener separados los seis detectores;
+  no borrar la secuencia temporal al sumar todas las épocas. Mostrar λ efectiva/rango y método de combinación.
+  Validar el cambio de SNR en una fuente estable y preservar originales para comparar.
+- [ ] **WS2-11 (P1, C07) Resumen de calidad.** Flags de contaminación y cobertura por frame/recorte,
+  significado y política de máscara. SOURCE no implica contaminación; OUTLIER/TRANSIENT requieren contexto.
+  Ausencia de flags se declara desconocida, no limpia. Coordinar contrato con WS4-10 y panel con WS5-10.
 
 ## Gotchas
 - La misma estrella cambia de brillo entre frames porque **cambia la longitud de onda**: compará posiciones,
@@ -54,7 +66,7 @@
 
 > Sos el agente del workstream WS2 (imágenes y detección) del repo Errante para NASA Space Apps 2026. Leé
 > `AGENTS.md`, `docs/SCIENCE.md`, `docs/DATA.md` §2, `docs/CONTRACT.md` y `tasks/WS2-imaging-detection.md`.
-> Trabajá SOLO en `pipeline/errante/imaging/`, `pipeline/errante/detect/` y sus tests. Empezá por WS2-3, WS2-4
-> y WS2-5 usando `data/demo` como banco de pruebas (las posiciones verdaderas están en `candidates.json`), y en
-> paralelo WS2-1 con imágenes sintéticas con WCS rotado. Librerías pesadas se importan dentro de las funciones
+> Trabajá SOLO en `pipeline/errante/imaging/`, `pipeline/errante/detect/` y sus tests. Leé también
+> `docs/REQUIREMENTS.md` y `docs/VALIDATION.md`. Empezá por WS2-1 y WS2-2: cerrar un campo real visible
+> sin análisis automático. Después WS2-8 y las consideraciones de comparación. Librerías pesadas se importan dentro de las funciones
 > (extra `science`). Corré `make check` y mostrame el diff antes de commitear.
