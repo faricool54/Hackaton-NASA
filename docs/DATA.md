@@ -39,10 +39,11 @@ corregilo en un PR (`ws1: docs/DATA.md ...`). Etiquetas: ✅ verificado sobre da
 | 3 | `VARIANCE` | 2040×2040 float32, (MJy/sr)² |
 | 4 | `ZODI` | 2040×2040 float32, modelo zodiacal (restalo vos: `IMAGE - ZODI`) |
 | 5 | `EPSF` | PSF efectiva (tabla). En QR viejos se llamaba `PSF` |
-| 6 | `WCS-WAVE` | tabla de búsqueda de longitud de onda por píxel: grilla **9×9** en DR1 (11×11 en QR según docs) |
+| 6 | `WCS-WAVE` | tabla de búsqueda de longitud de onda por píxel; la grilla depende del detector (✅ §3.1) |
 
-Header de `IMAGE` (claves útiles): `MJD-OBS` (✅ **inicio** de la exposición, no el medio), `MJD-AVG` (✅ **mitad** de la exposición — **usar este**;
-fallback `MJD-OBS + XPOSURE/2/86400`), `MJD-END`, `DATE-OBS`,
+Header de `IMAGE` (claves útiles): `MJD-OBS` = `MJD-BEG` (✅ **inicio** de la exposición, no el medio), `MJD-AVG`
+(✅ **mitad** de la exposición — **usar este**, con `DATE-AVG`; fallback `(MJD-OBS + MJD-END)/2`, después
+`MJD-OBS + XPOSURE/2/86400`, ~0,8 s temprano porque `XPOSURE` < `MJD-END − MJD-OBS`), `MJD-END`, `DATE-OBS`,
 `DETECTOR` (1–3 SWIR, 4–6 MWIR), `OBSID`, `BUNIT`, `PSF_FWHM` (ej. 7.53″ en D1), WCS `RA---TAN-SIP`
 (usar astropy `WCS(header)`, incluye distorsión SIP), `OMEGA_MEDIAN` (ángulo sólido del píxel ≈ 37.9 arcsec²
 → píxel ≈ 6.15″), posición de la nave `X_SC/Y_SC/Z_SC` [km, geocéntrico] y velocidades `VX_SC…`,
@@ -82,7 +83,7 @@ Consultas reales con `curl`/Python el 2026-11-14. Estos hechos **corrigen** lo q
 |---|---|
 | CORS | IRSA (TAP, SIA, archivos IBE, cutouts, datalink) **no** envía `Access-Control-Allow-Origin` → el navegador no puede consultarlo: hace falta backend/proxy. El bucket S3 **sí** (ACAO `*`, `Range` permitido) y el HiPS SPHEREx de IRSA también. |
 | Colecciones | `spherex_dr1` (945 725 frames), `spherex_dr1_deep` (233 681), `spherex_qr3` (362 124), `spherex_qr3_deep` (86 700). **QR2 ya no está indexado** (sigue en S3). Una colección inexistente devuelve un VOTable vacío **sin error**: no hardcodear nombres sin probarlos. |
-| SIA2 | 1–4 s por consulta. Pedir **VOTable**: el CSV viene **roto** (la columna `cloud_access` lleva JSON sin comillas). Trae `access_url`, `cloud_access.aws.key` (key S3), `s_region`, `t_min`/`t_max`, `em_min`/`em_max`. `MAXREC` y `TIME` funcionan. |
+| SIA2 | 1–4 s por consulta (2,6–9,3 s el 14/11 por la tarde). Pedir **VOTable**: el CSV viene **roto** (la columna `cloud_access` lleva JSON sin comillas). Trae `access_url`, `cloud_access.aws.key` (key S3), `s_region`, `t_min`/`t_max`, `em_min`/`em_max`. `MAXREC` y `TIME` funcionan. |
 | TAP | 8–19 s. Tablas: `spherex.obscore`, `observation`, `plane`, `artifact`, `provenance_input`. La ADQL de `errante.data.irsa` (plane JOIN artifact + `CONTAINS`) **funciona**. JOIN obscore+plane falla (`st_covers`). |
 | Cutouts IBE | Devuelven los 7 HDUs con la tabla **EPSF entera**: **~4 MB mínimo** aunque pidas 5′, 4–15 s cada uno. Sin solape → **HTTP 422** (no 500). 503 transitorios: reintentar. |
 | Lectura por Range en S3 | `IMAGE` es float32 **sin comprimir**: se leen solo las filas del recorte (5′ ≈ 0,4 MB en ~1 s; header por Range + `astropy.io.fits.Header.fromstring`). `FLAGS` está comprimido RICE_1 con tiles de 1 fila (hay que leer el heap). Usar `requests` con `Range`; la receta con fsspec no está probada. |
@@ -104,6 +105,50 @@ Consultas reales con `curl`/Python el 2026-11-14. Estos hechos **corrigen** lo q
 Centros propagados, movimiento esperado (1–2 px en total) y método para variables: [`SCIENCE.md`](SCIENCE.md) §0.
 Campos profundos: el NEP tiene ~29 400 frames (dr1 + deep + qr3 + qr3_deep): nunca en vivo.
 
+### 3.1 Verificado al implementar WS1 (2026-11-14) ✅
+
+Medido en vivo por los agentes de WS1 (PRs #21 búsqueda, #22 píxeles, #23 longitud de onda) y por una revisión
+independiente de cada rama. Corrige o amplía §3.0.
+
+**Búsqueda (SIA2/TAP)**
+
+| Tema | Hecho verificado |
+|---|---|
+| VOTable de SIA2 | Los `FIELD` tienen `ID="col_N"`: con astropy hay que usar `to_table(use_names_over_ids=True)` (si no, `access_url` no aparece como nombre). Antes del `RESOURCE type="results"` viene un `RESOURCE type="meta"` sin tabla. |
+| Filas | `obs_id` **sin** sufijo de detector (`2026W33_2A_0594_4`); `energy_bandpassname` = `SPHEREx-D<n>`; todo `science`, `image`, nivel de calibración 2; exposiciones de ~115 s. `em_min`/`em_max` están en **metros**. `(t_min + t_max)/2` = `MJD-AVG` del header con error < 0,03 s. |
+| Detectores por exposición | Un punto del cielo cae en un solo par dicroico por exposición (D1/D4, D2/D5 o D3/D6) → como mucho 2 filas por `obs_id` en una posición. |
+| Colecciones deep | Usan el layout normal de S3: `spherex_dr1_deep` → `dr1/level2/...`, `spherex_qr3_deep` → `qr3/level2/...`. Solo la colección distingue wide de deep. |
+| Versiones de pipeline | Barnard: **17** versiones distintas (`l2b-v27-2026-228` … `-268`), una con otra forma: `l2b_retry-v27-2026-230`. Otra razón para no armar rutas a mano. |
+| Truncado | SIA marca `QUERY_STATUS=OVERFLOW` al llegar a `MAXREC` (probado con R Dra deep, `MAXREC=200`). TAP sync también respeta `MAXREC`, pero su CSV **no** trae estado: hay que comparar el conteo con `MAXREC`. |
+| Esquema TAP | Existen `spherex.plane.time_bounds_upper`, `spherex.observation.collection` y `obsid` (vía `TAP_SCHEMA`). ❓ La consulta de fallback con JOIN a `observation` + `INTERSECTS(CIRCLE)` no pudo correrse en vivo (ver caída). |
+| Caída de IRSA (14/11) | Desde ~13:40 ART: SIA respondía ~50 % de 502 rápidos (después ~1 de cada 12); TAP sync/async no respondió en ~2 h (502 o cuelgues de 120–180 s en toda consulta espacial; `TAP_SCHEMA` sí en ~1 s; un job async quedó `QUEUED` > 520 s). **IBE y S3 siguieron funcionando.** Por eso la búsqueda tiene caché con respaldo vencido y los píxeles salen de S3. |
+
+**Píxeles (S3 por Range y cutouts IBE)**
+
+| Tema | Hecho verificado |
+|---|---|
+| Caja de un cutout IBE | `n = round(size / escala)` píxeles por eje (puede no ser cuadrada: 97×98 a 10′), primer píxel `ceil(xc − n/2)` en base 0, recortada al detector. IBE recibe el centro como texto `%.7f`: para reproducir la caja exacta en un empate hay que redondear ra/dec a 7 decimales. Verificado en 5 cutouts reales + casos de borde. |
+| WCS de un cutout IBE | Desplaza `CRPIXn`, `CRPIXnA` **y** `CRPIXnW` juntos; no escribe `LTV1/LTV2`. La WCS alternativa `A` es `LINEAR` = píxel 0-based del detector completo. FLAGS vuelve como `ImageHDU` int32 **sin comprimir**. WCS-WAVE se copia byte a byte. |
+| Layout del archivo | El inicio de los datos de `IMAGE` **varía**: byte 28800 en archivos D1/D2, 25920 en D3–D6 → nunca fijar offsets. Ejemplo D3: FLAGS con heap `PCOUNT`=7 966 999 y `TFORM1 1PB(5166)`; EPSF 3 947 152 B (451 filas); WCS-WAVE es el último HDU (2880 + 2880 B). |
+| Patch S3 = cutout IBE | Leyendo solo las filas del recorte (más los descriptores y el heap de FLAGS) y desplazando las `CRPIXn<key>`, el resultado es **bit a bit idéntico** al cutout IBE (IMAGE, FLAGS, VARIANCE, ZODI y headers). Verificado en Barnard (D1/D5/D6, 5′ y 10′), WISE 0855 (D1–D6), R Dra (incluido un recorte contra el borde) y un archivo qr2. |
+| Costos por frame | Patch S3: 5′ ≈ 1,4 MB y 0,4–0,7 s con el directorio de HDUs cacheado (1,5 MB, 11 requests y ~3,5 s en frío); 10′ ≈ 2,8 MB y 0,5–2 s; en disco 120 KB (5′) / 235 KB (10′). Se leen filas completas de 2040 px (8160 B por fila y plano); S3 no acepta multi-range. Cutout IBE: 4,0–4,2 MB y 5–11 s. |
+| Lote | 20 frames de Barnard a 10′: S3 ≈ 10 s contra IBE ≈ 29 s (6 hilos); 4,6 MB contra 82 MB en disco; segunda corrida 0,01 s. |
+| Clientes HTTP | Un cuerpo cortado a mitad de la transferencia llega en `requests` como `ChunkedEncodingError`, que **no** es `ConnectionError`: reintentarlo explícitamente. En Windows, `os.replace` concurrente sobre el mismo destino da `PermissionError [WinError 5]`: candado por key o tolerarlo. |
+
+**Longitud de onda (WCS-WAVE) y tiempo**
+
+| Tema | Hecho verificado |
+|---|---|
+| Layout de WCS-WAVE | Una fila con columnas `X` (nX), `Y` (nY) y `VALUES` con `TDIM3=(2,nX,nY)` → numpy `(nY, nX, 2)` = (λ, Δλ). Los nodos son píxeles **1-based del detector completo**. Claves `W` del header: `CTYPEnW='WAVE-TAB'`, `CRPIXnW=CRVALnW=1` en archivos completos, `PS1_0W='WCS-WAVE'`, `PV1_3W=1` (λ), `PV2_3W=2` (Δλ). Grillas confirmadas: D1 9×9, D2 11×11, D3 9×14, D4 13×20, D5 11×11, D6 9×9. |
+| SIP | astropy pega la distorsión SIP celeste a **todas** las WCS alternativas (`W` y `A`). Si no se quita (`sip=None`), λ se corre 8 nm en Barnard y hasta 14,7 nm en el D3, y la `A` también queda mal. |
+| Rango de las tablas | Las tablas pasan 10–25 nm los bordes de banda nominales: D1 0,7349–1,1263 · D2 1,0859–1,6677 · D3 1,6163–2,4391 · D4 2,3980–3,8629 · D5 3,7984–4,4426 · D6 4,4018–5,0246 µm. Gradiente a lo largo de y: 0,19 / 0,28 / 0,39 / 0,70 / 0,31 / 0,30 nm por píxel (D1…D6). |
+| λ en Barnard (2026.2) | D1 0,750 · D2 1,379 · D3 2,308 · D4 2,782 · D5 4,151 · D6 4,894 µm (un frame por detector); 18 frames en total coinciden con el método del tutorial (< 2e-15 µm) y el archivo completo da el mismo λ que su cutout. |
+| Tiempo | `MJD-AVG − MJD-OBS` = 57,56 s en todos los headers vistos; `MJD-AVG` = `(MJD-OBS + MJD-END)/2`; `XPOSURE` = 113,58 s < `MJD-END − MJD-OBS` (115,1 s) < `TELAPSE` (118,19 s). `errante` publica `Frame.mjd` = `MJD-AVG` y `Frame.date_obs` = `DATE-AVG` (mismo instante). |
+
+**Integración (2026-11-14):** `errante build barnards-star` con los tres PRs de WS1 + el #16 de WS2 dio 40 frames
+reales (6 detectores, 3 temporadas: 14/13/13) en **22 s**, todos desde S3 (0 fallbacks a IBE, 18 MB de caché), y
+`errante validate` OK.
+
 - **TAP** (ADQL, sync, CSV): `https://irsa.ipac.caltech.edu/TAP/sync?REQUEST=doQuery&LANG=ADQL&FORMAT=csv&QUERY=...`
   Tablas documentadas: `spherex.plane` (`planeid`, `time_bounds_lower` [MJD], `poly`, `energy_bandpassname` =
   `'SPHEREx-D1'…'SPHEREx-D6'`) y `spherex.artifact` (`uri`, `planeid`). Consulta tipo en
@@ -120,13 +165,14 @@ Campos profundos: el NEP tiene ~29 400 frames (dr1 + deep + qr3 + qr3_deep): nun
   (usar ≤ 6–8 hilos, reintentos con backoff, no paralelizar consultas TAP).
 - Variación de longitud de onda: cada exposición mide **una longitud de onda distinta en cada punto del
   detector** (filtro lineal variable). Calcularla en la posición del objeto con `WCS-WAVE`
-  (`WCS(header, fobj=hdul, key="W")` según el tutorial) — ❓ verificar en cutouts.
+  (`WCS(header, fobj=hdul, key="W")` según el tutorial) — ✅ verificado en archivos completos, cutouts IBE y
+  patches S3; detalle en §3.1.
 
 **Actualización documental 2026-11-14:** se leyeron los [notebooks SPHEREx](https://caltech-ipac.github.io/irsa-tutorials/spherex/)
 y la [introducción](https://caltech-ipac.github.io/irsa-tutorials/spherex-intro/). Enumeran `spherex_dr1`,
 `spherex_dr1_deep`, `spherex_qr3` y `spherex_qr3_deep`; recomiendan DR1/QR3 sobre QR2. Esta comprobación
 es **📄 documentación**, no una consulta SIA ejecutada ni una descarga validada por nosotros.
-La guía muestra WCS espectral `key="W"` con `sip = None`; comprobarlo sobre nuestros cutouts sigue pendiente.
+La guía muestra WCS espectral `key="W"` con `sip = None`: ✅ comprobado sobre nuestros cutouts (§3.1).
 
 ## 4. Instrumento y survey 📄
 
@@ -151,7 +197,8 @@ La guía muestra WCS espectral `key="W"` con `sip = None`; comprobarlo sobre nue
 ## 6. Abierto ❓
 
 - ✅ Resuelto: colecciones y tablas reales, `irsa_uri` ↔ key S3 (§3.0).
-- Tamaño máximo de cutout y límites de tasa.
+- Tamaño máximo de cutout y límites de tasa (S3: 16 lecturas en paralelo anduvieron bien; IRSA: ≤ 6–8).
+- ❓ Fallback TAP de la búsqueda (JOIN `observation` + `INTERSECTS`) sin probar en vivo: TAP estuvo caído el 14/11.
 - Política de cita/redistribución para publicar PNGs derivados (incluir créditos siempre).
 - HiPS: ✅ IRSA publica el cubo SPHEREx DR1 (102 canales, orden 5, con CORS); los HiPS QR2 de CDS dan 404 por el
   incidente. ❓ Que Aladin Lite renderice ese cubo no está probado.

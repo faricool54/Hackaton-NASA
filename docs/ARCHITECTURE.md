@@ -154,4 +154,6 @@ Medidas en vivo; detalle en [`DATA.md`](DATA.md) §3.0.
 - **El "video" se arma por temporada × detector:** los objetivos tienen ~250–460 exposiciones en 3–4 temporadas
   (R Dra ~2500), cada exposición en otra λ, y se mueven solo 1–2 px en total.
 - **Plan B de la demo:** campos precomputados de los 5 objetivos servidos estáticos si IRSA o S3 fallan.
+- **Hosting:** ofertas gratuitas de Space Apps (dominio GoDaddy, Google Cloud/Firebase, Azure) y para qué
+  podrían servirnos: [`HOSTING_OFFERS.md`](HOSTING_OFFERS.md).
 

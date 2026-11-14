@@ -1,0 +1,15 @@
+uri,planeid,time_bounds_lower,time_bounds_upper,energy_bandpassname,collection
+ibe/data/spherex/dr1/level2/2025W33_2C/l2b-v27-2026-228/6/level2_2025W33_2C_0321_1D6_spx_l2b-v27-2026-228.fits,,60902.864715,60902.866047,SPHEREx-D6,spherex_dr1
+ibe/data/spherex/dr1/level2/2025W33_2C/l2b-v27-2026-228/3/level2_2025W33_2C_0321_1D3_spx_l2b-v27-2026-228.fits,,60902.864715,60902.866047,SPHEREx-D3,spherex_dr1
+ibe/data/spherex/dr1/level2/2025W34_2B/l2b-v27-2026-229/2/level2_2025W34_2B_0090_4D2_spx_l2b-v27-2026-229.fits,,60908.981929,60908.983261,SPHEREx-D2,spherex_dr1
+ibe/data/spherex/dr1/level2/2025W34_2B/l2b-v27-2026-229/5/level2_2025W34_2B_0090_4D5_spx_l2b-v27-2026-229.fits,,60908.981929,60908.983261,SPHEREx-D5,spherex_dr1
+ibe/data/spherex/dr1/level2/2025W35_1A/l2b-v27-2026-230/1/level2_2025W35_1A_0432_4D1_spx_l2b-v27-2026-230.fits,,60914.212530,60914.213863,SPHEREx-D1,spherex_dr1
+ibe/data/spherex/dr1/level2/2025W35_1A/l2b-v27-2026-230/4/level2_2025W35_1A_0432_4D4_spx_l2b-v27-2026-230.fits,,60914.212530,60914.213863,SPHEREx-D4,spherex_dr1
+ibe/data/spherex/dr1/level2/2026W11_1A/l2b-v27-2026-232/4/level2_2026W11_1A_0430_2D4_spx_l2b-v27-2026-232.fits,,61110.091403,61110.092735,SPHEREx-D4,spherex_dr1
+ibe/data/spherex/dr1/level2/2026W11_1A/l2b-v27-2026-232/1/level2_2026W11_1A_0430_2D1_spx_l2b-v27-2026-232.fits,,61110.091403,61110.092735,SPHEREx-D1,spherex_dr1
+ibe/data/spherex/dr1/level2/2026W19_1A/l2b-v27-2026-245/6/level2_2026W19_1A_0403_1D6_spx_l2b-v27-2026-245.fits,,61165.082972,61165.084304,SPHEREx-D6,spherex_dr1
+ibe/data/spherex/dr1/level2/2026W19_1A/l2b-v27-2026-245/3/level2_2026W19_1A_0403_1D3_spx_l2b-v27-2026-245.fits,,61165.082972,61165.084304,SPHEREx-D3,spherex_dr1
+ibe/data/spherex/qr3/level2/2026W33_2A/l2b-v27-2026-241/3/level2_2026W33_2A_0594_4D3_spx_l2b-v27-2026-241.fits,,61268.630812,61268.632144,SPHEREx-D3,spherex_qr3
+ibe/data/spherex/qr3/level2/2026W33_2A/l2b-v27-2026-241/6/level2_2026W33_2A_0594_4D6_spx_l2b-v27-2026-241.fits,,61268.630812,61268.632144,SPHEREx-D6,spherex_qr3
+ibe/data/spherex/qr3/level2/2026W39_1A/l2b-v27-2026-268/2/level2_2026W39_1A_0371_1D2_spx_l2b-v27-2026-268.fits,,61305.628021,61305.629353,SPHEREx-D2,spherex_qr3
+ibe/data/spherex/qr3/level2/2026W39_1A/l2b-v27-2026-268/5/level2_2026W39_1A_0371_1D5_spx_l2b-v27-2026-268.fits,,61305.628021,61305.629353,SPHEREx-D5,spherex_qr3
