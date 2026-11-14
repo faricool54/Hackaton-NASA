@@ -28,7 +28,13 @@ We therefore map (ra, dec) -> (tile, pixel) with HEALPix itself (pure numpy, bel
     both 0-based. Checked against the tiles' own HPX WCS on 17 tiles covering all 12 base
     faces (4000 points each, 0 mismatches) and on 80 isolated Gaia stars (G 10.5-12.5) in 10
     fields incl. both poles and the RA=0/180 seams: the predicted pixel is the brightest in 88 %
-    of star-planes, flux centroid 0.15 px (median) from the star.
+    of star-planes, flux centroid 0.15 px (median) from the star, with no systematic direction
+    (mean signed offset (-0.007, +0.002) +- 0.012 px over 144 star-planes, Gaia propagated to 2026.0).
+
+What this cube is: IRSA's HiPS ``properties`` describe it as "SPHEREx DR1 all-sky data cube for
+visualization". It is a static coadd resampled to 12.88" pixels, with no time axis and no
+uncertainty extension. Integrated fluxes of a faint field star agree with AllWISE W2 to ~10 %, but
+treat it as a quick-look spectrum: science-grade fluxes and variability come from the L2 exposures.
 
 Planes 50 and 51 (D3 channel 17 and D4 channel 1, the dichroic channels) are all-NaN on
 purpose (``BLANKCH`` in the primary header, and the HiPS ``properties``). Plane k belongs to
@@ -41,22 +47,27 @@ finished spectra under ``CACHE_DIR/cube/spectra`` (a fixed release: entries neve
 tile is read *speculatively*: its headers and the pixels at the offsets of :data:`DR1_LAYOUT` are
 requested in one parallel round and the pixels are kept only if the headers match that layout.
 If S3 fails, the same bytes are read from the IRSA HiPS copy (byte-identical, verified).
+
+Failure and load behaviour: every Range request has a short timeout (:data:`CUBE_TIMEOUT`); the
+first request of a spectrum that fails for good stops the others; each source (S3, then IRSA) gets
+:data:`CUBE_DEADLINE_S` in total. All calls in the process share one thread pool per source (at most
+:data:`CUBE_PARALLEL` requests in flight per source), and concurrent cold calls for one tile read
+its headers once. Do not call :func:`cube_spectrum` from inside those pools.
 """
 
 from __future__ import annotations
 
 import hashlib
-import io
 import json
 import math
 import os
 import re
 import threading
 import time
-import warnings
 from collections import OrderedDict
-from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor
+from collections.abc import Callable, Iterator
+from concurrent.futures import FIRST_EXCEPTION, ThreadPoolExecutor, wait
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -66,7 +77,7 @@ from astropy.io import fits
 
 from .. import settings
 from . import s3range
-from .cutouts import TRANSIENT_BODY_ERRORS, KeyedLocks
+from .cutouts import TRANSIENT_BODY_ERRORS
 from .s3range import HduDirectory, HduInfo, RangeReader
 
 __all__ = [
@@ -74,8 +85,11 @@ __all__ = [
     "CUBE_ORDER",
     "CUBE_PREFIX",
     "DR1_LAYOUT",
+    "DR1_PREFIX",
+    "MIN_APERTURE_COVERAGE",
     "N_PLANES",
     "TILE_WIDTH",
+    "CubeReadAborted",
     "CubeSpectrum",
     "CubeTile",
     "TilePixel",
@@ -94,12 +108,35 @@ __all__ = [
     "wavelength_table",
 ]
 
-CUBE_PREFIX = os.environ.get("ERRANTE_CUBE_PREFIX", "dr1/hips5_cube/hips_20261026").strip("/")
-"""S3 prefix of the DR1 cube release (key = <prefix>/Norder5/Dir<d>/Npix<n>_cube.fits)."""
+
+def _env_int(name: str, default: int, lo: int, hi: int) -> int:
+    """Integer setting from the environment, clamped to [lo, hi]; a malformed value means the default."""
+    try:
+        value = int(os.environ.get(name, "").strip() or default)
+    except ValueError:
+        return default
+    return min(max(value, lo), hi)
+
+
+def _env_float(name: str, default: float, lo: float, hi: float) -> float:
+    """Float setting from the environment, clamped to [lo, hi]; a malformed or non-finite value means the default."""
+    try:
+        value = float(os.environ.get(name, "").strip() or default)
+    except ValueError:
+        return default
+    return min(max(value, lo), hi) if math.isfinite(value) else default
+
+
+DR1_PREFIX = "dr1/hips5_cube/hips_20261026"
+"""S3 prefix of the DR1 cube, the release IRSA's HiPS copy mirrors (byte-identical, checked 2026-11-14)."""
+CUBE_PREFIX = os.environ.get("ERRANTE_CUBE_PREFIX", DR1_PREFIX).strip().strip("/") or DR1_PREFIX
+"""S3 prefix of the cube release read (key = <prefix>/Norder5/Dir<d>/Npix<n>_cube.fits)."""
 IRSA_CUBE_BASE = os.environ.get(
     "ERRANTE_CUBE_IRSA_BASE", f"{settings.IRSA_BASE}/data/hips/SPHEREx/spherex_allsky_cube"
 ).rstrip("/")
 """IRSA copy of the same FITS tiles (byte-identical to S3, Range + CORS). Used as fallback."""
+IRSA_BASE_FROM_ENV = bool(os.environ.get("ERRANTE_CUBE_IRSA_BASE", "").strip())
+"""With a non-DR1 ``ERRANTE_CUBE_PREFIX``, the IRSA fallback is used only if its base is set explicitly."""
 CUBE_ORDER = 5
 TILE_WIDTH = 512
 N_PLANES = 102
@@ -107,16 +144,35 @@ BLANK_PLANES = (50, 51)
 """Default when the primary header has no BLANKCH card: D3 ch17 and D4 ch1 (dichroic)."""
 CHANNELS_PER_DETECTOR = 17
 MAX_APERTURE_PX = 10
-CUBE_PARALLEL = int(os.environ.get("ERRANTE_CUBE_PARALLEL", "32"))
-"""Concurrent Range requests for one spectrum (102 planes x up to 3 extensions). Measured from a
-Windows laptop in Buenos Aires (2026-11-14): each round of requests on open connections takes
-~0.2-0.25 s, but opening a connection costs ~65 ms *serialised* (64 new connections: ~4.2 s, 16:
-~1.5 s) and S3 closes idle keep-alive connections in < 20 s. So sporadic clicks pay the connection
-cost again: 32 balances it (~2.5-3 s cold vs ~0.9 s on warm connections; 64: ~4.4 s / ~0.5 s).
-Near S3 (the deploy host) both terms are much smaller. The shared S3 session pools 64 connections."""
-RESULT_CACHE_VERSION = 1
+MIN_APERTURE_COVERAGE = 0.5
+"""An aperture plane is valid only if its centre pixel has data AND at least this fraction of the
+aperture's pixels (after clipping at the tile edge) has data. A saturated star is a NaN hole: the
+mean of the ring around it underestimates the star, so it is never reported as a valid point."""
+CUBE_PARALLEL = _env_int("ERRANTE_CUBE_PARALLEL", 32, 1, 128)
+"""Range requests in flight per source, shared by all calls in the process (one spectrum needs
+102 planes x up to 3 extensions). Measured from a Windows laptop in Buenos Aires (2026-11-14):
+each round of requests on open connections takes ~0.2-0.25 s, but opening a connection costs
+~65 ms *serialised* (64 new connections: ~4.2 s, 16: ~1.5 s) and S3 closes idle keep-alive
+connections in < 20 s. So sporadic clicks pay the connection cost again: 32 balances it (~2.5-3 s
+cold vs ~0.9 s on warm connections; 64: ~4.4 s / ~0.5 s). Near S3 (the deploy host) both terms
+are much smaller. The module's HTTP session pools up to 128 connections per host."""
+_READ_TIMEOUT_S = _env_float("ERRANTE_CUBE_TIMEOUT_S", 10.0, 0.5, 300.0)
+CUBE_TIMEOUT: tuple[float, float] = (min(5.0, _READ_TIMEOUT_S), _READ_TIMEOUT_S)
+"""(connect, read) timeout of one cube Range request [s]: the requests are 4 B - 64 KB, so a server
+that stays silent this long is down for our purpose (settings.HTTP_TIMEOUT_S, 120 s, is for big files)."""
+CUBE_DEADLINE_S = _env_float("ERRANTE_CUBE_DEADLINE_S", 20.0, 1.0, 3600.0)
+"""Total time one source (S3, then IRSA) gets for one spectrum before the next source is tried."""
+RESULT_CACHE_VERSION = 2
+"""2: aperture validity needs the centre pixel and MIN_APERTURE_COVERAGE (v1 results are ignored)."""
 RANGE_RETRIES = 4
+RANGE_BACKOFF_S = 0.5
+"""Pause before the 2nd, 3rd, 4th attempt of a request: 1x, 2x, 4x this."""
 FITS_BLOCK = 2880
+NOTE_VISUALIZATION = (
+    "Quick-look spectrum: IRSA describes this cube as 'for visualization' (HiPS properties). It is a static "
+    'DR1 coadd resampled to 12.9" pixels, with no time axis and no uncertainties; use the L2 exposures '
+    "(forced photometry) for science-grade fluxes and for variability."
+)
 
 _DTYPES = {8: ">u1", 16: ">i2", 32: ">i4", 64: ">i8", -32: ">f4", -64: ">f8"}
 _BLANKCH = re.compile(r"D(\d)\s*:\s*(\d+)")
@@ -343,44 +399,74 @@ def cube_tile(npix: int, order: int = CUBE_ORDER) -> CubeTile:
     return CubeTile(order, int(npix), tile_key(npix, order))
 
 
-# --- HTTP Range on any URL (IRSA fallback) -------------------------------------------
+# --- HTTP Range (S3 and the IRSA copy) ------------------------------------------------
 
 _session_lock = threading.Lock()
 _SESSION: requests.Session | None = None
+_CONTENT_RANGE = re.compile(r"^bytes\s+(\d+)-(\d+)/(\d+|\*)$")
+_TRANSIENT = (requests.ConnectionError, requests.Timeout, *TRANSIENT_BODY_ERRORS)
+_tls = threading.local()  # .attempt: the _Attempt whose reader runs in this thread, if any
+
+
+class CubeReadAborted(OSError):
+    """A cube read stopped early: another request of the same spectrum failed, or its deadline passed."""
 
 
 def _session() -> requests.Session:
+    """The module's pooled session (S3 + IRSA), separate from s3range's: cube clicks and L2 patch
+    reads do not compete for one connection pool."""
     global _SESSION
     with _session_lock:
         if _SESSION is None:
             s = requests.Session()
-            adapter = requests.adapters.HTTPAdapter(pool_connections=2, pool_maxsize=64)
+            adapter = requests.adapters.HTTPAdapter(pool_connections=2, pool_maxsize=128)
             s.mount("https://", adapter)
             s.mount("http://", adapter)
             _SESSION = s
         return _SESSION
 
 
-def read_url_range(url: str, start: int, stop: int) -> bytes:
+def _content_range(value: str | None) -> tuple[int | None, int | None]:
+    """(first byte, total size) of a Content-Range header; None where unknown."""
+    m = _CONTENT_RANGE.match((value or "").strip())
+    if not m:
+        return None, None
+    return int(m[1]), None if m[3] == "*" else int(m[3])
+
+
+def read_url_range(url: str, start: int, stop: int, *, timeout=None, retries: int = RANGE_RETRIES) -> bytes:
     """Bytes [start, stop) of ``url`` with an HTTP Range request (retries 5xx/429/network errors).
 
-    Refuses a 200 answer (the server ignored Range: a cube tile is 321 MB).
+    Same checks as ``s3range.read_range``: refuses a 200 answer (the server ignored Range: a cube
+    tile is 321 MB) and a 206 that does not start at ``start``; b"" past the end (416); a short
+    read only at the end of the file. ``timeout`` defaults to :data:`CUBE_TIMEOUT`. Inside
+    :func:`cube_spectrum` the retries stop early (:class:`CubeReadAborted`) once that spectrum's
+    read was aborted or ran out of time.
     """
     if stop <= start:
         return b""
+    attempt_ctx: _Attempt | None = getattr(_tls, "attempt", None)
     last: Exception | None = None
-    for attempt in range(RANGE_RETRIES):
+    for attempt in range(max(1, int(retries))):
         if attempt:
-            time.sleep(0.5 * 2 ** (attempt - 1))
+            delay = RANGE_BACKOFF_S * 2 ** (attempt - 1)
+            if attempt_ctx is not None:
+                attempt_ctx.pause(delay)
+            else:
+                time.sleep(delay)
         try:
             with _session().get(
-                url, headers={"Range": f"bytes={start}-{stop - 1}"}, stream=True, timeout=settings.HTTP_TIMEOUT_S
+                url, headers={"Range": f"bytes={start}-{stop - 1}"}, stream=True, timeout=timeout or CUBE_TIMEOUT
             ) as r:
                 if r.status_code == 416:
                     return b""
                 if r.status_code == 206:
+                    first, total = _content_range(r.headers.get("Content-Range"))
+                    if first is not None and first != start:
+                        last = OSError(f"asked for bytes from {start}, got {r.headers.get('Content-Range')} ({url})")
+                        continue
                     data = r.content
-                    if len(data) == stop - start:
+                    if len(data) == stop - start or (total is not None and start + len(data) == total):
                         return data
                     last = OSError(f"short read: {len(data)} of {stop - start} bytes from {url}")
                 elif r.status_code == 200:
@@ -388,15 +474,115 @@ def read_url_range(url: str, start: int, stop: int) -> bytes:
                 elif r.status_code >= 500 or r.status_code == 429:
                     last = requests.HTTPError(f"HTTP {r.status_code} for {url}", response=r)
                 else:
-                    r.raise_for_status()
+                    r.raise_for_status()  # 403/404: retrying won't help
                     raise OSError(f"unexpected HTTP {r.status_code} for {url}")
-        except (requests.ConnectionError, requests.Timeout, *TRANSIENT_BODY_ERRORS) as e:
+        except _TRANSIENT as e:
             last = e
-    raise OSError(f"range read failed after {RANGE_RETRIES} attempts: {url} [{start}:{stop})") from last
+    raise OSError(f"range read failed after {max(1, int(retries))} attempts: {url} [{start}:{stop})") from last
+
+
+def _s3_reader(key: str, start: int, stop: int) -> bytes:
+    return read_url_range(f"{settings.S3_HTTPS}/{key.lstrip('/')}", start, stop)
 
 
 def _irsa_reader(key: str, start: int, stop: int) -> bytes:
     return read_url_range(irsa_url_for_key(key), start, stop)
+
+
+def _irsa_fallback_allowed() -> bool:
+    """IRSA hosts one copy of the cube: the DR1 tiles of :data:`DR1_PREFIX`. Reading it for another
+    ``ERRANTE_CUBE_PREFIX`` would silently mix releases, unless ``ERRANTE_CUBE_IRSA_BASE`` names the
+    matching IRSA copy."""
+    return CUBE_PREFIX == DR1_PREFIX or IRSA_BASE_FROM_ENV
+
+
+class _Attempt:
+    """The reads of one spectrum from one source: counts requests and bytes, enforces a deadline,
+    and stops every request of the spectrum once one has failed for good (thread-safe)."""
+
+    def __init__(self, reader: RangeReader, source: str, deadline_s: float | None = None):
+        self.reader = reader
+        self.source = source
+        self.deadline_s = CUBE_DEADLINE_S if deadline_s is None else float(deadline_s)
+        self.deadline = time.monotonic() + self.deadline_s
+        self.requests = 0
+        self.bytes = 0
+        self._lock = threading.Lock()
+        self._stop = threading.Event()
+        self._why = ""
+
+    def remaining(self) -> float:
+        return self.deadline - time.monotonic()
+
+    def abort(self, why: str) -> None:
+        with self._lock:
+            if not self._stop.is_set():
+                self._why = why
+                self._stop.set()
+
+    def check(self) -> None:
+        """Raise :class:`CubeReadAborted` if this read was aborted or is out of time."""
+        if not self._stop.is_set() and self.remaining() <= 0:
+            self.abort(f"no complete answer within {self.deadline_s:g} s")
+        if self._stop.is_set():
+            raise CubeReadAborted(f"stopped: {self._why}")
+
+    def pause(self, seconds: float) -> None:
+        """Backoff sleep that ends (raising) as soon as the read is aborted or runs out of time."""
+        self._stop.wait(max(0.0, min(seconds, self.remaining())))
+        self.check()
+
+    def __call__(self, key: str, start: int, stop: int) -> bytes:
+        self.check()
+        outer = getattr(_tls, "attempt", None)
+        _tls.attempt = self
+        try:
+            data = self.reader(key, start, stop)
+        finally:
+            _tls.attempt = outer
+        with self._lock:
+            self.requests += 1
+            self.bytes += len(data)
+        return data
+
+
+_pools: dict[tuple[str, int], ThreadPoolExecutor] = {}
+_pools_lock = threading.Lock()
+
+
+def _executor(source: str) -> ThreadPoolExecutor:
+    """Thread pool of one source, shared by every call: at most CUBE_PARALLEL requests in flight per
+    source in the whole process, however many spectra are requested at once; requests hanging on S3
+    never hold back the IRSA fallback."""
+    size = max(1, int(CUBE_PARALLEL))
+    with _pools_lock:
+        pool = _pools.get((source, size))
+        if pool is None:
+            pool = _pools[(source, size)] = ThreadPoolExecutor(max_workers=size, thread_name_prefix=f"cube-{source}")
+        return pool
+
+
+def _run(jobs: dict, attempt: _Attempt) -> dict:
+    """Run ``jobs`` (name -> callable) on the source's shared pool; all results, or raise.
+
+    The first failure (or the deadline) aborts the attempt: queued jobs are cancelled and running
+    ones stop at their next request or retry, so a broken source costs seconds, not minutes.
+    """
+    if not jobs:
+        return {}
+    pool = _executor(attempt.source)
+    futures = {name: pool.submit(fn) for name, fn in jobs.items()}
+    done, pending = wait(futures.values(), timeout=max(0.0, attempt.remaining()), return_when=FIRST_EXCEPTION)
+    errors = [f.exception() for f in done if not f.cancelled() and f.exception() is not None]
+    if errors or pending:
+        attempt.abort(str(errors[0]) if errors else f"no complete answer within {attempt.deadline_s:g} s")
+        for f in pending:
+            f.cancel()
+        root = next((e for e in errors if not isinstance(e, CubeReadAborted)), errors[0] if errors else None)
+        if root is not None:
+            raise root
+        raise CubeReadAborted(f"no complete answer within {attempt.deadline_s:g} s")
+    return {name: f.result() for name, f in futures.items()}
 
 
 # --- tile headers ---------------------------------------------------------------------
@@ -459,10 +645,38 @@ def _check_cube(d: HduDirectory) -> HduDirectory:
     return d
 
 
+class _TileLocks:
+    """One lock per tile, created on demand (like cutouts.KeyedLocks, plus an acquire timeout so a
+    caller waiting for another call's header read still respects its own deadline)."""
+
+    def __init__(self) -> None:
+        self._guard = threading.Lock()
+        self._locks: dict[object, list] = {}  # key -> [lock, holders + waiters]
+
+    @contextmanager
+    def hold(self, key: object, timeout: float | None = None) -> Iterator[bool]:
+        with self._guard:
+            entry = self._locks.get(key)
+            if entry is None:
+                entry = self._locks[key] = [threading.Lock(), 0]
+            entry[1] += 1
+        got = False
+        try:
+            got = entry[0].acquire() if timeout is None else entry[0].acquire(timeout=max(0.0, timeout))
+            yield got
+        finally:
+            if got:
+                entry[0].release()
+            with self._guard:
+                entry[1] -= 1
+                if entry[1] == 0:
+                    del self._locks[key]
+
+
 _dirs: OrderedDict[tuple[str, str], HduDirectory] = OrderedDict()
 _dirs_lock = threading.Lock()
 _DIRS_MAX = 256
-_dir_locks = KeyedLocks()
+_tile_locks = _TileLocks()
 
 
 def _dir_path(key: str) -> Path:
@@ -471,17 +685,18 @@ def _dir_path(key: str) -> Path:
 
 
 def _cached_directory(key: str) -> HduDirectory | None:
-    """Memory, then disk; never touches the network."""
+    """Memory, then disk (same format and version check as s3range's cache); never touches the network."""
     mkey = (str(settings.CACHE_DIR), key)
     with _dirs_lock:
         if mkey in _dirs:
             _dirs.move_to_end(mkey)
             return _dirs[mkey]
     try:
-        d = HduDirectory.from_json(json.loads(_dir_path(key).read_text(encoding="ascii")))
-    except (OSError, ValueError, KeyError, TypeError):
-        return None
-    if d.key != key:
+        raw = json.loads(_dir_path(key).read_text(encoding="ascii"))
+        if raw.get("version") != s3range.DIR_CACHE_VERSION or raw.get("key") != key:
+            return None
+        d = HduDirectory.from_json(raw)
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
         return None
     _remember_directory(d, write=False)
     return d
@@ -503,21 +718,26 @@ def tile_directory(key: str, reader: RangeReader | None = None, use_cache: bool 
 
     A tile of a fixed release never changes, so the cache (memory + ``CACHE_DIR/cube/dir``) has no
     expiry. A miss walks the file header by header with ``s3range.hdu_directory`` (4 sequential
-    Range requests, ~92 KB). Raises ValueError if the file is not a (planes, w, w) cube.
+    Range requests, ~92 KB). The default reader is the cube's S3 reader (short timeouts). Raises
+    ValueError if the file is not a (planes, w, w) cube.
     """
     if use_cache:
         hit = _cached_directory(key)
         if hit is not None:
             return hit
-    with _dir_locks.hold((str(settings.CACHE_DIR), key)):
+    with _tile_locks.hold((str(settings.CACHE_DIR), key)):
         if use_cache:
             hit = _cached_directory(key)
             if hit is not None:
                 return hit
-        d = _check_cube(s3range.hdu_directory(key, reader=reader or s3range.read_range, use_cache=False))
+        d = _walk_directory(key, reader or _s3_reader)
         if use_cache:
             _remember_directory(d)
         return d
+
+
+def _walk_directory(key: str, reader: RangeReader) -> HduDirectory:
+    return _check_cube(s3range.hdu_directory(key, reader=reader, use_cache=False))
 
 
 def _template_infos(layout: Layout) -> dict[str, HduInfo]:
@@ -592,18 +812,51 @@ def _directory_from_chunks(key: str, layout: Layout, chunks: dict[tuple[int, int
     return d if layout_of(d) == layout and not scaled else None
 
 
+_TFORM = re.compile(r"^\s*(\d*)([LXBIJKAEDCMPQ])")
+_TFORM_BYTES = {"L": 1, "B": 1, "A": 1, "I": 2, "J": 4, "K": 8, "E": 4, "D": 8, "C": 8, "M": 16, "P": 8, "Q": 16}
+_TFORM_DTYPE = {"B": ">u1", "I": ">i2", "J": ">i4", "K": ">i8", "E": ">f4", "D": ">f8"}
+
+
+def _bintable_first_row(info: HduInfo, raw: bytes) -> dict[str, np.ndarray]:
+    """Numeric columns of the first row of a FITS binary table, decoded with numpy from the raw HDU
+    bytes (header + data). No astropy.io.fits.open and no warnings filter: safe from many threads."""
+    h = info.header
+    if str(h.get("XTENSION", "")).strip() != "BINTABLE" or int(h.get("NAXIS2", 0)) < 1:
+        raise ValueError(f"{info.name} is not a binary table with rows")
+    width = int(h["NAXIS1"])
+    start = info.data_offset - info.header_offset
+    row = raw[start : start + width]
+    if len(row) != width:
+        raise ValueError(f"{info.name}: first row truncated")
+    out: dict[str, np.ndarray] = {}
+    pos = 0
+    for i in range(1, int(h["TFIELDS"]) + 1):
+        m = _TFORM.match(str(h[f"TFORM{i}"]))
+        if m is None:
+            raise ValueError(f"{info.name}: unsupported TFORM{i} {h[f'TFORM{i}']!r}")
+        rep, code = int(m[1] or 1), m[2]
+        size = (rep + 7) // 8 if code == "X" else rep * _TFORM_BYTES[code]
+        if code in _TFORM_DTYPE and pos + size <= width:
+            col = np.frombuffer(row, dtype=_TFORM_DTYPE[code], count=rep, offset=pos).astype(np.float64)
+            scale, zero = float(h.get(f"TSCAL{i}", 1.0)), float(h.get(f"TZERO{i}", 0.0))
+            out[str(h.get(f"TTYPE{i}", f"COL{i}")).strip()] = col * scale + zero
+        pos += size
+    if pos != width:
+        raise ValueError(f"{info.name}: TFORMs give {pos} bytes per row, NAXIS1 = {width}")
+    return out
+
+
 def wavelength_table(directory: HduDirectory) -> tuple[np.ndarray, np.ndarray]:
     """(wavelength_um, bandwidth_um) per plane, ordered by plane, from the tile's WCS-WAVE table."""
-    if not directory.wcs_wave:
+    info = directory.get("WCS-WAVE")
+    if not directory.wcs_wave or info is None:
         raise ValueError(f"{directory.key}: no WCS-WAVE extension")
-    blob = fits.PrimaryHDU().header.tostring().encode("ascii") + directory.wcs_wave
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        with fits.open(io.BytesIO(blob), memmap=False) as hl:
-            row = hl[1].data[0]
-            plane = np.ravel(np.asarray(row["PLANE"], dtype=np.int64))
-            wl = np.ravel(np.asarray(row["WAVELENGTHS"], dtype=np.float64))
-            bw = np.ravel(np.asarray(row["BANDWIDTHS"], dtype=np.float64))
+    cols = _bintable_first_row(info, directory.wcs_wave)
+    try:
+        plane = np.rint(cols["PLANE"]).astype(np.int64)
+        wl, bw = cols["WAVELENGTHS"], cols["BANDWIDTHS"]
+    except KeyError as e:
+        raise ValueError(f"{directory.key}: WCS-WAVE has no column {e}") from None
     n = int(directory["IMAGE"].header["NAXIS3"])
     if not (len(plane) == len(wl) == len(bw) == n) or sorted(plane.tolist()) != list(range(1, n + 1)):
         raise ValueError(f"{directory.key}: WCS-WAVE does not list planes 1..{n}")
@@ -625,21 +878,6 @@ def blank_planes(primary: fits.Header, n_planes: int = N_PLANES) -> tuple[int, .
 
 
 # --- pixel reads ----------------------------------------------------------------------
-
-
-class _Counter:
-    def __init__(self, reader: RangeReader):
-        self.reader = reader
-        self.requests = 0
-        self.bytes = 0
-        self._lock = threading.Lock()
-
-    def __call__(self, key: str, start: int, stop: int) -> bytes:
-        data = self.reader(key, start, stop)
-        with self._lock:
-            self.requests += 1
-            self.bytes += len(data)
-        return data
 
 
 def _read_span(
@@ -673,6 +911,25 @@ def _aperture(x: int, y: int, r: int, w: int) -> tuple[int, int, int, int, np.nd
     return x0, x1, y0, y1, mask, int(mask.sum()) < full
 
 
+def _plane_values(
+    vals: np.ndarray, hits: np.ndarray | None, mask: np.ndarray, cy: int, cx: int, aperture_px: int, min_used: int
+) -> tuple[float, int, bool]:
+    """(flux, n_used, centre_ok) of one plane of the aperture box ``vals``.
+
+    A pixel is used if it is inside ``mask``, finite and (when NHITS was read) NHITS > 0. The flux is
+    NaN unless the centre pixel is used and at least ``min_used`` pixels are: the centre value for a
+    single pixel, else the mean of the used pixels.
+    """
+    good = mask & np.isfinite(vals)
+    if hits is not None:
+        good &= hits > 0
+    n_used = int(good.sum())
+    centre_ok = bool(good[cy, cx])
+    if not centre_ok or n_used < min_used:
+        return math.nan, n_used, centre_ok
+    return (float(vals[good].mean()) if aperture_px else float(vals[cy, cx])), n_used, centre_ok
+
+
 # --- result ---------------------------------------------------------------------------
 
 
@@ -686,10 +943,15 @@ class CubeSpectrum:
 
     ``flux[k]`` is the plane-k value of the pixel containing (ra, dec) in ``unit`` (BUNIT,
     MJy/sr), or, with ``aperture_px > 0``, the mean over the pixels within that radius whose
-    value is finite and NHITS > 0 (no background subtraction). ``valid[k]`` is False for
-    blank planes (50, 51), NaN values and pixels with no input data. Integrated flux
-    density of an aperture: ``flux * n_used * pixel_sr * 1e6`` Jy (HEALPix pixels are
-    equal-area; still no background subtraction or aperture correction).
+    value is finite and NHITS > 0 (no background subtraction). ``core_valid[k]``: the centre
+    pixel has data. ``valid[k]`` (``flux`` is NaN where it is False) needs ``core_valid[k]``, a
+    non-blank plane (not 50, 51) and, for an aperture, ``n_used[k] >= min_used``
+    (:data:`MIN_APERTURE_COVERAGE` of the ``n_pixels`` in the clipped aperture): the ring around
+    a saturated star's NaN hole is never reported as the star. Integrated flux density of an
+    aperture: ``flux * n_used * pixel_sr * 1e6`` Jy (HEALPix pixels are equal-area; still no
+    background subtraction or aperture correction). ``source`` is where the bytes were read
+    (s3, irsa or custom); a result-cache hit keeps it and sets ``timings["from_cache"]``.
+    IRSA labels this cube "for visualization": a quick-look spectrum (see the module docs).
     """
 
     ra: float
@@ -714,6 +976,8 @@ class CubeSpectrum:
     source: str = "s3"
     timings: dict = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)
+    core_valid: np.ndarray | None = None
+    min_used: int = 1
 
     @property
     def detector(self) -> np.ndarray:
@@ -744,7 +1008,9 @@ class CubeSpectrum:
             "bandwidth_um": [round(float(v), 6) for v in self.bandwidth_um],
             "flux": _nan_to_none(self.flux.astype(float)),
             "valid": [bool(v) for v in self.valid],
+            "core_valid": None if self.core_valid is None else [bool(v) for v in self.core_valid],
             "n_used": [int(v) for v in self.n_used],
+            "min_used": self.min_used,
             "nhits": None if self.nhits is None else [int(v) for v in self.nhits],
             "flags": None if self.flags is None else [int(v) for v in self.flags],
             "detector": [int(v) for v in self.detector],
@@ -790,6 +1056,8 @@ class CubeSpectrum:
             source=d.get("source", "s3"),
             timings=dict(d.get("timings", {})),
             notes=list(d.get("notes", [])),
+            core_valid=None if d.get("core_valid") is None else np.asarray(d["core_valid"], dtype=bool),
+            min_used=int(d.get("min_used", 1)),
         )
 
 
@@ -847,14 +1115,16 @@ def cube_spectrum(
     reads the number of input samples per plane and pixel (twice the requests; NaN <=> NHITS == 0
     on 3.55 M pixel-planes checked, so it adds the count, not validity); ``with_flags`` reads the
     coadded FLAGS bits of the centre pixel. ``reader`` replaces the S3 Range reader
-    (tests); with the default reader, an S3 failure is retried once against the byte-identical
-    IRSA copy when ``fallback`` is true. Raises ValueError for bad input, OSError when no
-    copy of the tile can be read.
+    (tests); with the default reader, an S3 failure (or no complete answer within
+    :data:`CUBE_DEADLINE_S`) is retried once against the byte-identical IRSA copy when
+    ``fallback`` is true and the release is the DR1 one IRSA serves. ``ra`` may be given in
+    [-180, 360]. Raises ValueError for bad input, OSError when no copy of the tile can be read
+    or the bytes read are not a DR1-like cube tile.
     """
     t0 = time.perf_counter()
     ra, dec = float(ra), float(dec)
-    if not (math.isfinite(ra) and math.isfinite(dec)) or abs(dec) > 90.0:
-        raise ValueError(f"invalid position ({ra}, {dec})")
+    if not (math.isfinite(ra) and math.isfinite(dec)) or abs(dec) > 90.0 or not -180.0 <= ra <= 360.0:
+        raise ValueError(f"invalid position ({ra}, {dec}): need -180 <= ra <= 360 and |dec| <= 90 [deg]")
     ra %= 360.0
     aperture_px = int(aperture_px)
     if not 0 <= aperture_px <= MAX_APERTURE_PX:
@@ -870,22 +1140,30 @@ def cube_spectrum(
             hit.timings = {**hit.timings, "from_cache": True, "total_s": round(time.perf_counter() - t0, 4)}
             return hit
 
-    attempts: list[tuple[str, RangeReader]] = [("custom", reader) if reader is not None else ("s3", s3range.read_range)]
-    if reader is None and fallback:
+    attempts: list[tuple[str, RangeReader]] = [("custom", reader) if reader is not None else ("s3", _s3_reader)]
+    if reader is None and fallback and _irsa_fallback_allowed():
         attempts.append(("irsa", _irsa_reader))
     errors: list[str] = []
     for source, rd in attempts:
         try:
-            spec = _cube_spectrum_from(tile, tp, ra, dec, aperture_px, with_nhits, with_flags, rd, t0)
+            spec = _cube_spectrum_from(tile, tp, ra, dec, aperture_px, with_nhits, with_flags, rd, source, t0)
+        except ValueError as e:  # input was checked above: these bytes are not a DR1-like cube tile
+            errors.append(f"{source}: malformed tile: {e}")
+            continue
         except OSError as e:
             errors.append(f"{source}: {e}")
             continue
         spec.source = source
+        if use_cache:
+            _write_json(rpath, spec.to_dict())  # before the note below: a past outage is not cached
         if errors:
             spec.notes.append(f"read from {source} after: {'; '.join(errors)}")
-        if use_cache:
-            _write_json(rpath, spec.to_dict())
         return spec
+    if reader is None and fallback and not _irsa_fallback_allowed():
+        errors.append(
+            f"IRSA fallback disabled: ERRANTE_CUBE_PREFIX={CUBE_PREFIX!r} is not the DR1 release IRSA serves "
+            "(set ERRANTE_CUBE_IRSA_BASE to the matching IRSA copy)"
+        )
     raise OSError(f"cube tile {tile.npix} unreadable: {'; '.join(errors)}")
 
 
@@ -913,12 +1191,28 @@ def _pixel_jobs(
     return jobs
 
 
-def _run(jobs: dict) -> dict:
-    if not jobs:
-        return {}
-    with ThreadPoolExecutor(max_workers=max(1, min(CUBE_PARALLEL, len(jobs)))) as pool:
-        futures = {name: pool.submit(fn) for name, fn in jobs.items()}
-        return {name: f.result() for name, f in futures.items()}
+def _speculate(tile: CubeTile, tp: TilePixel, aperture_px: int, with_nhits: bool, with_flags: bool, att: _Attempt):
+    """Cold tile: request the headers AND the pixels at the :data:`DR1_LAYOUT` offsets in one parallel
+    round. Returns (directory or None, pixels keyed like :func:`_pixel_jobs`, header requests); the
+    pixels count only if the headers read back match the layout exactly."""
+    tinfos = _template_infos(DR1_LAYOUT)
+    tw, tn = int(tinfos["IMAGE"].header["NAXIS1"]), int(tinfos["IMAGE"].header["NAXIS3"])
+    jobs: dict = {}
+    if tw == tp.width:
+        x0, x1, y0, y1, _, _ = _aperture(tp.x, tp.y, aperture_px, tw)
+        jobs = _pixel_jobs(
+            tile.key, tinfos, tn, BLANK_PLANES, (x0, x1, y0, y1), (tp.x, tp.y), with_nhits, with_flags, att
+        )
+    chunks = _header_chunks(DR1_LAYOUT)
+    for a, b in chunks:
+        jobs[("HEADER", a, b)] = lambda a=a, b=b: att(tile.key, a, b)
+    out = _run(jobs, att)
+    spec_dir = _directory_from_chunks(
+        tile.key, DR1_LAYOUT, {(k[1], k[2]): v for k, v in out.items() if k[0] == "HEADER"}
+    )
+    if spec_dir is None:
+        return None, {}, len(chunks)
+    return _check_cube(spec_dir), {k: v for k, v in out.items() if k[0] != "HEADER"}, len(chunks)
 
 
 def _cube_spectrum_from(
@@ -930,47 +1224,36 @@ def _cube_spectrum_from(
     with_nhits: bool,
     with_flags: bool,
     reader: RangeReader,
+    source: str,
     t0: float,
 ) -> CubeSpectrum:
-    rd = _Counter(reader)
+    att = _Attempt(reader, source)
     got: dict = {}
-    d = _cached_directory(tile.key)
     mode = "cached-headers"
     header_requests = 0
-    if d is None and SPECULATE:
-        # Cold tile: request the headers AND the pixels at the template offsets in one parallel
-        # round; keep the pixels only if the headers read back match the template exactly.
-        mode = "speculative"
-        tinfos = _template_infos(DR1_LAYOUT)
-        tw, tn = int(tinfos["IMAGE"].header["NAXIS1"]), int(tinfos["IMAGE"].header["NAXIS3"])
-        x0, x1, y0, y1, _, _ = _aperture(tp.x, tp.y, aperture_px, tw)
-        jobs: dict = {}
-        if tw == tp.width:
-            jobs = _pixel_jobs(
-                tile.key, tinfos, tn, BLANK_PLANES, (x0, x1, y0, y1), (tp.x, tp.y), with_nhits, with_flags, rd
-            )
-        chunks = _header_chunks(DR1_LAYOUT)
-        header_requests = len(chunks)
-        for a, b in chunks:
-            jobs[("HEADER", a, b)] = lambda a=a, b=b: rd(tile.key, a, b)
-        out = _run(jobs)
-        spec_dir = _directory_from_chunks(
-            tile.key, DR1_LAYOUT, {(k[1], k[2]): v for k, v in out.items() if k[0] == "HEADER"}
-        )
-        if spec_dir is not None:
-            d = _check_cube(spec_dir)
-            _remember_directory(d)
-            got = {k: v for k, v in out.items() if k[0] != "HEADER"}
-        else:
-            mode = "speculation-missed"
-    t_header = time.perf_counter()
+    d = _cached_directory(tile.key)
     if d is None:
-        before = rd.requests
-        d = tile_directory(tile.key, reader=rd)
-        header_requests += rd.requests - before
-        if mode == "cached-headers":
-            mode = "walk"
-        t_header = time.perf_counter()
+        # One call per tile reads its headers; concurrent calls wait (within their own deadline)
+        # and then find them in the cache.
+        with _tile_locks.hold((str(settings.CACHE_DIR), tile.key), att.remaining()) as locked:
+            if not locked:
+                att.check()
+                raise CubeReadAborted(f"no complete answer within {att.deadline_s:g} s (tile headers busy)")
+            d = _cached_directory(tile.key)
+            if d is None and SPECULATE:
+                mode = "speculative"
+                d, got, header_requests = _speculate(tile, tp, aperture_px, with_nhits, with_flags, att)
+                if d is None:
+                    mode = "speculation-missed"
+            if d is None:
+                before = att.requests
+                d = _walk_directory(tile.key, att)
+                header_requests += att.requests - before
+                if mode == "cached-headers":
+                    mode = "walk"
+            if mode != "cached-headers":
+                _remember_directory(d)
+    t_header = time.perf_counter()
 
     img = d["IMAGE"]
     w = int(img.header["NAXIS1"])
@@ -982,46 +1265,46 @@ def _cube_spectrum_from(
     x0, x1, y0, y1, mask, clipped = _aperture(tp.x, tp.y, aperture_px, w)
     cy, cx = tp.y - y0, tp.x - x0
     infos = {name: d[name] for name in ("IMAGE", "NHITS", "FLAGS") if d.get(name) is not None}
-    needed = _pixel_jobs(tile.key, infos, n, blanks, (x0, x1, y0, y1), (tp.x, tp.y), with_nhits, with_flags, rd)
+    needed = _pixel_jobs(tile.key, infos, n, blanks, (x0, x1, y0, y1), (tp.x, tp.y), with_nhits, with_flags, att)
     got = {k: v for k, v in got.items() if k in needed}
-    got.update(_run({k: fn for k, fn in needed.items() if k not in got}))
+    got.update(_run({k: fn for k, fn in needed.items() if k not in got}, att))
     t_pixels = time.perf_counter()
 
+    n_pixels = int(mask.sum())
+    min_used = max(1, math.ceil(MIN_APERTURE_COVERAGE * n_pixels)) if aperture_px else 1
     flux = np.full(n, np.nan)
     n_used = np.zeros(n, dtype=int)
+    core_valid = np.zeros(n, dtype=bool)
     nhits = np.zeros(n, dtype=int) if with_nhits and "NHITS" in infos else None
     flags = np.zeros(n, dtype=int) if with_flags and "FLAGS" in infos else None
     for k in range(n):
-        vals = got[("IMAGE", k)].astype(float)
-        good = mask & np.isfinite(vals)
         hits = got.get(("NHITS", k))
         if hits is not None:
-            good &= hits > 0
             nhits[k] = int(hits[cy, cx])
         if ("FLAGS", k) in got:
             flags[k] = int(got[("FLAGS", k)][0, 0])
-        n_used[k] = int(good.sum())
+        f, n_used[k], core_valid[k] = _plane_values(
+            got[("IMAGE", k)].astype(float), hits, mask, cy, cx, aperture_px, min_used
+        )
         if k in blanks:
-            continue
-        if aperture_px and n_used[k]:
-            flux[k] = float(vals[good].mean())
-        elif not aperture_px and good[cy, cx]:
-            flux[k] = float(vals[cy, cx])
+            core_valid[k] = False
+        else:
+            flux[k] = f
     valid = np.isfinite(flux)
-    valid[list(blanks)] = False
-    flux[~valid] = np.nan
 
-    notes = ["Static DR1 coadd (mean over the survey): no time information; use the L2 exposures for variability."]
-    core_lost = [k for k in range(n) if k not in blanks and not np.isfinite(got[("IMAGE", k)][cy, cx])]
+    notes = [NOTE_VISUALIZATION]
+    core_lost = [k for k in range(n) if k not in blanks and not core_valid[k]]
     if core_lost:
         notes.append(
             f"{len(core_lost)} planes have no input samples at the centre pixel (NaN, NHITS = 0): typical of a "
-            "saturated bright star, whose core the coadd rejects."
-            + (
-                " Those planes are invalid; an aperture (aperture_px > 0) averages the pixels around it."
-                if not aperture_px
-                else ""
-            )
+            "saturated bright star, whose core the coadd rejects. Those planes are invalid with or without an "
+            "aperture (the ring around a rejected core underestimates the source): use the L2 exposures."
+        )
+    thin = [k for k in range(n) if core_valid[k] and n_used[k] < min_used]
+    if thin:
+        notes.append(
+            f"{len(thin)} planes invalid: fewer than {min_used} of the {n_pixels} aperture pixels have data "
+            f"(minimum coverage {MIN_APERTURE_COVERAGE:.0%})."
         )
     if clipped:
         notes.append("Aperture clipped at the tile edge (neighbouring tiles are not read).")
@@ -1039,7 +1322,7 @@ def _cube_spectrum_from(
         pixel=(tp.x, tp.y),
         pixel_center=tile_pixel_to_sky(tile.npix, tp.x, tp.y, tile.order, w),
         aperture_px=aperture_px,
-        n_pixels=int(mask.sum()),
+        n_pixels=n_pixels,
         n_used=n_used,
         nhits=nhits,
         flags=flags,
@@ -1053,9 +1336,11 @@ def _cube_spectrum_from(
             "pixels_s": round(t_pixels - t_header, 4),
             "total_s": round(t1 - t0, 4),
             "header_requests": header_requests,
-            "pixel_requests": rd.requests - header_requests,
-            "bytes": rd.bytes,
+            "pixel_requests": att.requests - header_requests,
+            "bytes": att.bytes,
             "from_cache": False,
         },
         notes=notes,
+        core_valid=core_valid,
+        min_used=min_used,
     )
