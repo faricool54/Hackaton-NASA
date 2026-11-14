@@ -4,7 +4,7 @@ Actualizado el 14/11/2026 sobre `main` en `859ae5e` (PRs #1, #2 y #3 integrados)
 Este documento coordina trabajo pendiente; no acredita funcionalidades terminadas.
 Asistencia de redacción: OpenAI Codex; ver [AI_USAGE.md](../AI_USAGE.md).
 
-**Reserva confirmada: nosotros (usuario de esta sesión + Codex) tomamos WS4, backend/integración/CI.**
+**Reserva confirmada: rpccp (rocco) con Codex toma WS4, backend/integración/CI.**
 WS1, WS2, WS3 y WS5 deben confirmar sus responsables en [TEAM.md](TEAM.md) y reservar tareas antes de empezar.
 No se asignan nombres ni se presume que alguien esté trabajando por tener una fila en este plan.
 
@@ -32,7 +32,7 @@ para desarrollar: usar fixtures y dependencias simuladas, luego sustituirlas por
 | **WS1 · datos** | WS1-2/3: búsqueda SIA VOTable, filtros, caché, recortes y fallos parciales. WS1-5/6: λ y selección temporal con WS2/3. Revisar la verificación ya aportada antes de repetir WS1-1. | `SearchResult`, `FrameRef`, FITS y asociación inequívoca referencia/descarga; ejemplo reproducible de Barnard. | Servicio externo accesible; acuerdo con WS2 para resultados parciales y metadatos. |
 | **WS2 · imágenes** | WS2-1/2: reproyección y render consistente con fixtures FITS/WCS. Corregir selección temporal e identidad de frames en `build.py`. Preparar coadds por temporada × detector con WS3. | Campo con PNGs alineados y metadatos; build reproducible sin análisis. | FITS reales de WS1; método revisado por WS3; contrato si necesita campos nuevos. |
 | **WS3 · ciencia/contrato** | WS3-3/7/9: aprovechar los cinco presets, definir mediciones y controles; coordinar el PR de contrato con WS1/2/4/5. | Contrato acordado, referencias y protocolo de movimiento/variabilidad; luego evidencia de los cinco ensayos. | Los criterios se definen ya; los resultados requieren FITS, épocas, λ, calidad y registro de WS1/2. |
-| **WS4 · nosotros** | WS4-2/5/10: robustecer API, validar entradas/rutas, acordar solicitud/estados; preparar ejecución y tests con funciones simuladas. Preparar WS4-3/4/6: construcción de campos y deploy. | Servicio por coordenadas, errores claros, límites/caché, lectura de productos y despliegue verificable. | Contrato de jobs para cerrar interfaz con WS5; funciones reales WS1/2 para cerrar R03. |
+| **WS4 · rpccp (rocco)** | WS4-2/5/10: robustecer API, validar entradas/rutas, acordar solicitud/estados; preparar ejecución y tests con funciones simuladas. Preparar WS4-3/4/6: construcción de campos y deploy. | Servicio por coordenadas, errores claros, límites/caché, lectura de productos y despliegue verificable. | Contrato de jobs para cerrar interfaz con WS5; funciones reales WS1/2 para cerrar R03. |
 | **WS5 · frontend** | WS5-7/1/3/13: formulario, estados, reproducción estable, accesibilidad y textos honestos. Usar respuestas de prueba y demo; corregir teclado/cambio de campo. | Interfaz que solicita un campo y muestra la secuencia, fechas y errores. | Contrato de jobs y configuración de WS4; productos de WS2 para demostrar el recorrido real. |
 
 **WS6 es transversal:** preparar desde ahora guion, referencias, atribución y formulario. Deploy: WS4;
@@ -146,7 +146,7 @@ esa etiqueta. No iniciar P2 mientras I1–I3 estén bloqueados.
 Freeze acordado en COLLABORATION.md: domingo 15/11 a las 17:00 ART. Objetivo interno de envío: 21:00 ART;
 cierre según guía: 23:59 ART, sede UP Buenos Aires. Edición/envío y backup siguen pendientes de responsable.
 
-## Nuestro siguiente bloque: WS4
+## Siguiente bloque de WS4 (rpccp)
 
 Primero WS4-2: validación de rutas, errores claros, límites/tiempos y tests offline con funciones simuladas.
 Con esa preparación, coordinar WS4-10 con WS3/5 para cerrar contrato de jobs; luego WS4-5 lo implementa.
