@@ -19,7 +19,15 @@ Verified live on 2026-11-14 (docs/DATA.md §3.0):
   use the key/URI returned by the archive.
 
 Timeouts surface as ``requests.Timeout`` in the ``__cause__`` chain of :class:`SearchError` (the
-backend maps that to HTTP 504 and any other failure to 502).
+backend maps that to HTTP 504 and any other failure to 502). When one service timed out and the
+other failed differently (e.g. SIA timeout, TAP 502), the timeout is the cause, so callers see 504.
+
+A whole search (SIA retries + TAP fallback) is bounded by ``settings.SEARCH_DEADLINE_S``: SIA may use
+at most half of it, TAP the rest, and no attempt starts without at least ``_MIN_ATTEMPT_S`` left.
+TAP runs one query at a time per process (module lock), as IRSA asks.
+
+Results truncated at MAXREC (SIA ``QUERY_STATUS=OVERFLOW``) are flagged and never cached, so raising
+``ERRANTE_SIA_MAXREC`` takes effect on the next search.
 """
 
 from __future__ import annotations
@@ -31,6 +39,7 @@ import json
 import logging
 import math
 import re
+import threading
 import time
 import uuid
 import warnings
@@ -58,7 +67,13 @@ _RELEASES = ("dr1", "qr2", "qr3")  # contract Release literal, minus 'synthetic'
 # beats quick releases; among those, the newest quick release wins.
 _RELEASE_RANK = {"dr1": 3, "qr3": 2, "qr2": 1}
 _BAND_RE = re.compile(r"D([1-6])\s*$")
+# Matches 'l2b-v27-2026-228' and the rarer 'l2b_retry-v27-2026-230' (seen once at Barnard's Star).
 _VERSION_RE = re.compile(r"v(\d+)-(\d{4})-(\d+)")
+_SIA_SHARE = 0.5  # fraction of SEARCH_DEADLINE_S that SIA may use before TAP gets the rest
+_MIN_ATTEMPT_S = 2.0  # do not start an HTTP attempt with less time than this left
+_TAP_LOCK = threading.Lock()  # IRSA asks for one TAP query at a time (backend threads + CLI share it)
+# Collections that exist in SIA2/ObsCore (verified live 2026-11-14; qr2 is no longer indexed).
+_VERIFIED_COLLECTIONS = frozenset({"spherex_dr1", "spherex_dr1_deep", "spherex_qr3", "spherex_qr3_deep"})
 
 ADQL_FRAMES_AT_POSITION = """
 SELECT a.uri, p.planeid, p.time_bounds_lower, p.time_bounds_upper, p.energy_bandpassname, o.collection
@@ -89,8 +104,12 @@ class SearchError(RuntimeError):
         return bool(self.failures) and all(_is_transport_failure(e) for e in self.failures)
 
 
+def _is_timeout(err: BaseException) -> bool:
+    return isinstance(err, (requests.Timeout, TimeoutError))
+
+
 def _is_transport_failure(err: BaseException) -> bool:
-    if isinstance(err, (requests.Timeout, requests.ConnectionError, TimeoutError)):
+    if _is_timeout(err) or isinstance(err, requests.ConnectionError):
         return True
     response = getattr(err, "response", None)
     return isinstance(err, requests.HTTPError) and response is not None and response.status_code >= 429
@@ -119,6 +138,7 @@ class SearchReport:
     n_duplicates: int = 0
     errors: list[str] = field(default_factory=list)
     stale: bool = False  # True when IRSA failed and an expired cache entry was served instead
+    warnings: list[str] = field(default_factory=list)  # e.g. unknown collection names (IRSA ignores them)
 
 
 @dataclass(frozen=True)
@@ -171,18 +191,27 @@ def search_frames_report(
     t0 = time.monotonic()
     ra, dec, radius, dets = _validate(ra, dec, radius_deg, detectors, mjd_min, mjd_max)
     cols = normalize_collections(collections)
+    warn = [
+        f"unknown IRSA collection {c!r}: IRSA returns no rows for it without an error"
+        for c in cols
+        if c not in known_collections()
+    ]
+    for w in warn:
+        log.warning(w)
     key = cache_key(ra, dec, radius, mjd_min, mjd_max, cols)
 
     use_cache = use_cache and settings.QUERY_CACHE_TTL_S > 0
     cached = _cache_read(key) if use_cache else None
     errors: list[str] = []
     stale = False
-    if cached is not None and cached.age_s <= settings.QUERY_CACHE_TTL_S:
+    # A truncated (overflow) entry is never served as fresh: MAXREC may have been raised since.
+    if cached is not None and cached.age_s <= settings.QUERY_CACHE_TTL_S and not cached.overflow:
         rows, service, overflow, n_dup = cached.rows, cached.service, cached.overflow, cached.n_duplicates
         from_cache = True
     else:
+        deadline = t0 + settings.SEARCH_DEADLINE_S if settings.SEARCH_DEADLINE_S > 0 else None
         try:
-            raw, service, overflow, errors = _query_archive(ra, dec, radius, mjd_min, mjd_max, cols)
+            raw, service, overflow, errors = _query_archive(ra, dec, radius, mjd_min, mjd_max, cols, deadline)
         except SearchError as e:
             if cached is None:
                 raise
@@ -193,8 +222,12 @@ def search_frames_report(
         else:
             rows, n_dup = dedupe_rows(raw)
             from_cache = False
-            if use_cache and rows:  # an empty answer is suspicious (all-sky survey): do not pin it for a day
+            # Not cached: an empty answer (suspicious for an all-sky survey) and a truncated one
+            # (the cache key has no MAXREC, and a bigger MAXREC must reach IRSA).
+            if use_cache and rows and not overflow:
                 _cache_write(key, rows, service, overflow, n_dup)
+            if not rows:
+                log.warning("No SPHEREx frames at (%.5f, %.5f) in %s", ra, dec, ", ".join(cols))
 
     if dets is not None:
         rows = [r for r in rows if r.ref.detector in dets]
@@ -221,7 +254,13 @@ def search_frames_report(
         n_duplicates=n_dup,
         errors=errors,
         stale=stale,
+        warnings=warn,
     )
+
+
+def known_collections() -> frozenset[str]:
+    """Collection names verified live (2026-11-14) plus whatever the settings configure."""
+    return frozenset(settings.IRSA_COLLECTIONS) | frozenset(settings.IRSA_DEEP_COLLECTIONS) | _VERIFIED_COLLECTIONS
 
 
 def normalize_collections(collections: list[str] | tuple[str, ...] | str | None) -> tuple[str, ...]:
@@ -394,44 +433,74 @@ def _query_archive(
     mjd_min: float | None,
     mjd_max: float | None,
     cols: tuple[str, ...],
+    deadline: float | None = None,
 ) -> tuple[list[ArchiveRow], str, bool, list[str]]:
     errors: list[str] = []
+    sia_deadline = None
+    if deadline is not None:
+        sia_deadline = time.monotonic() + max(0.0, deadline - time.monotonic()) * _SIA_SHARE
     try:
-        rows, overflow = _search_sia(ra, dec, radius, mjd_min, mjd_max, cols)
+        rows, overflow = _search_sia(ra, dec, radius, mjd_min, mjd_max, cols, sia_deadline)
         return rows, "sia", overflow, errors
     except Exception as e:  # any SIA failure (HTTP, timeout, parse) falls back to TAP
         sia_err = e
         log.warning("SIA search failed (%s); falling back to TAP", _describe(sia_err))
         errors.append(f"sia: {_describe(sia_err)}")
     try:
-        rows = _search_tap(ra, dec, radius, mjd_min, mjd_max, cols)
+        rows, overflow = _search_tap(ra, dec, radius, mjd_min, mjd_max, cols, deadline)
     except Exception as tap_err:
         errors.append(f"tap: {_describe(tap_err)}")
-        raise SearchError(f"IRSA frame search failed ({'; '.join(errors)})", [sia_err, tap_err]) from tap_err
-    return rows, "tap", False, errors
+        failures = [sia_err, tap_err]
+        # A real timeout anywhere wins the cause chain (backend: 504), else the last error (502).
+        cause = next((f for f in failures if _is_timeout(f)), tap_err)
+        raise SearchError(f"IRSA frame search failed ({'; '.join(errors)})", failures) from cause
+    return rows, "tap", overflow, errors
 
 
 def _search_sia(
-    ra: float, dec: float, radius: float, mjd_min: float | None, mjd_max: float | None, cols: tuple[str, ...]
+    ra: float,
+    dec: float,
+    radius: float,
+    mjd_min: float | None,
+    mjd_max: float | None,
+    cols: tuple[str, ...],
+    deadline: float | None = None,
 ) -> tuple[list[ArchiveRow], bool]:
     params = sia_params(ra, dec, radius, mjd_min, mjd_max, cols)
     t0 = time.monotonic()
-    resp = _fetch("GET", settings.IRSA_SIA, params=params, timeout=settings.SIA_TIMEOUT_S)
+    resp = _fetch("GET", settings.IRSA_SIA, params=params, timeout=settings.SIA_TIMEOUT_S, deadline=deadline)
     rows, overflow = parse_sia_votable(resp.content)
     log.info("SIA: %d rows, %.0f KB in %.2f s", len(rows), len(resp.content) / 1024, time.monotonic() - t0)
     return rows, overflow
 
 
 def _search_tap(
-    ra: float, dec: float, radius: float, mjd_min: float | None, mjd_max: float | None, cols: tuple[str, ...]
-) -> list[ArchiveRow]:
+    ra: float,
+    dec: float,
+    radius: float,
+    mjd_min: float | None,
+    mjd_max: float | None,
+    cols: tuple[str, ...],
+    deadline: float | None = None,
+) -> tuple[list[ArchiveRow], bool]:
+    """TAP sync fallback; returns (rows, overflow). Overflow = as many rows as MAXREC (TAP CSV has no status)."""
     query = build_query(ra, dec, radius_deg=radius, mjd_min=mjd_min, mjd_max=mjd_max, collections=cols)
-    data = {"REQUEST": "doQuery", "LANG": "ADQL", "FORMAT": "csv", "QUERY": query}
+    maxrec = settings.SIA_MAXREC
+    data = {"REQUEST": "doQuery", "LANG": "ADQL", "FORMAT": "csv", "MAXREC": str(maxrec), "QUERY": query}
     t0 = time.monotonic()
-    resp = _fetch("POST", settings.IRSA_TAP_SYNC, data=data, timeout=settings.TAP_TIMEOUT_S)
+    wait = -1 if deadline is None else max(0.0, deadline - t0 - _MIN_ATTEMPT_S)
+    if not _TAP_LOCK.acquire(timeout=wait):
+        raise requests.Timeout(f"waited {wait:.0f} s for another TAP query to finish")
+    try:
+        resp = _fetch("POST", settings.IRSA_TAP_SYNC, data=data, timeout=settings.TAP_TIMEOUT_S, deadline=deadline)
+    finally:
+        _TAP_LOCK.release()
     rows = parse_tap_csv(resp.text)
+    overflow = len(rows) >= maxrec
+    if overflow:
+        log.warning("TAP result has MAXREC=%d rows: probably truncated", maxrec)
     log.info("TAP: %d rows in %.2f s", len(rows), time.monotonic() - t0)
-    return rows
+    return rows, overflow
 
 
 def _http(method: str, url: str, *, params=None, data=None, timeout: float) -> requests.Response:
@@ -439,11 +508,15 @@ def _http(method: str, url: str, *, params=None, data=None, timeout: float) -> r
     return requests.request(method, url, params=params, data=data, timeout=timeout)
 
 
-def _fetch(method: str, url: str, *, params=None, data=None, timeout: float) -> requests.Response:
+def _fetch(
+    method: str, url: str, *, params=None, data=None, timeout: float, deadline: float | None = None
+) -> requests.Response:
     """HTTP with retries and exponential backoff on 5xx/429, connection errors and timeouts.
 
     4xx is raised at once. A timeout is retried once at most (each one already cost ``timeout``
     seconds). The last transport error is re-raised as is, so ``requests.Timeout`` survives.
+    ``deadline`` (a ``time.monotonic()`` value) caps every attempt's timeout and stops retrying when
+    less than ``_MIN_ATTEMPT_S`` would be left; with no attempt made at all it raises ``requests.Timeout``.
     """
     attempts = max(1, settings.SEARCH_ATTEMPTS)
     timeouts = 0
@@ -454,10 +527,19 @@ def _fetch(method: str, url: str, *, params=None, data=None, timeout: float) -> 
             retry_after = getattr(getattr(last, "response", None), "headers", {}).get("Retry-After", "")
             if retry_after.isdigit():
                 delay = max(delay, min(float(retry_after), 10.0))
+            if deadline is not None and time.monotonic() + delay + _MIN_ATTEMPT_S > deadline:
+                log.info("No time left to retry %s after %s", url, _describe(last))
+                break
             log.info("Retry %d/%d of %s in %.1f s after %s", attempt + 1, attempts, url, delay, _describe(last))
             time.sleep(delay)
+        attempt_timeout = timeout
+        if deadline is not None:
+            remaining = deadline - time.monotonic()
+            if remaining < _MIN_ATTEMPT_S:
+                break
+            attempt_timeout = min(timeout, remaining)
         try:
-            resp = _http(method, url, params=params, data=data, timeout=timeout)
+            resp = _http(method, url, params=params, data=data, timeout=attempt_timeout)
         except requests.Timeout as e:  # also ConnectTimeout
             last = e
             timeouts += 1
@@ -472,7 +554,8 @@ def _fetch(method: str, url: str, *, params=None, data=None, timeout: float) -> 
             continue
         resp.raise_for_status()
         return resp
-    assert last is not None
+    if last is None:
+        raise requests.Timeout(f"search deadline reached before querying {url}")
     raise last
 
 
@@ -511,6 +594,8 @@ def _cache_read(key: str) -> _CacheEntry | None:
         return None
     try:
         doc = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(doc, dict):
+            raise ValueError(f"expected a JSON object, got {type(doc).__name__}")
         if doc.get("format") != CACHE_FORMAT:
             return None
         rows = [
@@ -523,7 +608,7 @@ def _cache_read(key: str) -> _CacheEntry | None:
             n_duplicates=int(doc["n_duplicates"]),
             age_s=max(0.0, time.time() - float(doc["created"])),
         )
-    except (OSError, ValueError, KeyError, TypeError) as e:
+    except (OSError, ValueError, KeyError, TypeError, AttributeError) as e:
         log.warning("Ignoring unreadable search cache %s: %s", path, e)
         return None
 
@@ -576,7 +661,10 @@ def _validate(
         dets = frozenset(int(d) for d in detectors)
         if not dets <= set(range(1, 7)):
             raise ValueError(f"Detectors must be 1-6, got {sorted(dets)}")
-    return ra % 360.0, dec, max(radius_deg, MIN_RADIUS_DEG), dets
+    ra %= 360.0
+    if ra >= 360.0:  # float rounding: -1e-17 % 360.0 == 360.0, which SkyCoord rejects
+        ra = 0.0
+    return ra, dec, max(radius_deg, MIN_RADIUS_DEG), dets
 
 
 def _make_row(

@@ -60,11 +60,6 @@ def cmd_validate(args: argparse.Namespace) -> int:
 
 
 def cmd_search(args: argparse.Namespace) -> int:
-    from collections import Counter
-
-    from astropy.time import Time
-
-    from .data.epochs import group_visits, season_summary
     from .data.irsa import SearchError, search_frames_report
 
     try:
@@ -81,9 +76,6 @@ def cmd_search(args: argparse.Namespace) -> int:
     except (SearchError, ValueError) as e:
         print(f"Search failed: {e}", file=sys.stderr)
         return 2
-    if args.json:
-        print(rep.result.model_dump_json(indent=2))
-        return 0
 
     frames = rep.result.frames
     origin = rep.service.upper()
@@ -91,19 +83,35 @@ def cmd_search(args: argparse.Namespace) -> int:
         origin += " (EXPIRED cache: IRSA unavailable)"
     elif rep.from_cache:
         origin += " (cache)"
+    notes = [f"WARNING: {w}" for w in rep.warnings]
+    notes += [f"fallback after: {err}" for err in rep.errors]
+    if rep.overflow:
+        notes.append("WARNING: result truncated at MAXREC (raise ERRANTE_SIA_MAXREC or narrow the search)")
+    if not args.summary:
+        # Default: the SearchResult JSON alone on stdout (WS1-2 acceptance); diagnostics go to stderr.
+        print(rep.result.model_dump_json(indent=2))
+        print(f"{len(frames)} frames via {origin} in {rep.elapsed_s:.2f} s", file=sys.stderr)
+        for note in notes:
+            print(f"  {note}", file=sys.stderr)
+        return 0
+
     print(
         f"{len(frames)} frames at ({rep.result.center.ra:.5f}, {rep.result.center.dec:.5f}) "
         f"r={rep.result.radius_deg:.6g} deg via {origin} in {rep.elapsed_s:.2f} s"
     )
     print(f"  collections searched: {', '.join(rep.collections)}")
-    for err in rep.errors:
-        print(f"  fallback after: {err}")
-    if rep.overflow:
-        print("  WARNING: result truncated at MAXREC (raise ERRANTE_SIA_MAXREC or narrow the search)")
+    for note in notes:
+        print(f"  {note}")
     if rep.n_duplicates:
         print(f"  duplicates removed (same obs_id+detector): {rep.n_duplicates}")
     if not frames:
         return 0
+
+    from collections import Counter
+
+    from astropy.time import Time
+
+    from .data.epochs import group_visits, season_summary
 
     def counts(values) -> str:
         return ", ".join(f"{k}: {n}" for k, n in sorted(Counter(values).items()))
@@ -184,7 +192,13 @@ def main(argv: list[str] | None = None) -> int:
         "deep fields: spherex_dr1_deep,spherex_qr3_deep)",
     )
     s.add_argument("--no-cache", action="store_true", help="ignore and do not write the query cache")
-    s.add_argument("--json", action="store_true", help="print the SearchResult JSON instead of the summary")
+    out = s.add_mutually_exclusive_group()
+    out.add_argument("--json", action="store_true", help="print the SearchResult JSON (default)")
+    out.add_argument(
+        "--summary",
+        action="store_true",
+        help="print counts by collection, release, detector, visit and season instead of the JSON",
+    )
     s.set_defaults(func=cmd_search)
 
     s = sub.add_parser("systems", help="write the curated 3D system models (WS7)")

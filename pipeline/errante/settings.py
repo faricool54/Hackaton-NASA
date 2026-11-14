@@ -46,6 +46,10 @@ TAP_TIMEOUT_S = float(os.environ.get("ERRANTE_TAP_TIMEOUT_S", "60"))
 # IRSA answered ~50% of SIA requests with a fast (< 1 s) 502 on 2026-11-14, so retry a few times.
 SEARCH_ATTEMPTS = int(os.environ.get("ERRANTE_SEARCH_ATTEMPTS", "4"))
 SEARCH_BACKOFF_S = float(os.environ.get("ERRANTE_SEARCH_BACKOFF_S", "1"))
+# Wall-clock budget of one search (SIA retries + TAP fallback): SIA gets at most half, TAP the rest.
+# Without it a dead IRSA held a backend worker ~2-3 min. 0 disables it. The API may lower it to
+# its own timeout (ERRANTE_API_TIMEOUT_S, 30 s) so a worker never outlives the HTTP request.
+SEARCH_DEADLINE_S = float(os.environ.get("ERRANTE_SEARCH_DEADLINE_S", "60"))
 # Search results are cached as JSON in CACHE_DIR/queries/; 0 disables the cache. An expired
 # entry is still served (flagged stale) when both SIA and TAP fail.
 QUERY_CACHE_TTL_S = float(os.environ.get("ERRANTE_QUERY_CACHE_TTL_S", "86400"))

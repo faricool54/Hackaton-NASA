@@ -431,15 +431,14 @@ def test_invalid_arguments(monkeypatch, kwargs):
         irsa.search_frames(args.pop("ra"), args.pop("dec"), **args)
 
 
-def test_cli_search_summary_and_json(monkeypatch, capsys):
+def test_cli_default_output_is_a_search_result(monkeypatch, capsys):
+    # WS1-2 acceptance: `errante search --ra 269.4463 --dec 4.7665` prints a valid SearchResult (stdout only).
     install(monkeypatch, sia=[ok(SIA_XML)])
-    assert cli_main(["search", "--ra", str(RA), "--dec", str(DEC), "--radius", "0.01"]) == 0
-    out = capsys.readouterr().out
-    assert "14 frames" in out and "via SIA" in out
-    assert "by collection: spherex_dr1: 10, spherex_qr3: 4" in out
-    assert "by detector:   D1: 2, D2: 2, D3: 3, D4: 2, D5: 2, D6: 3" in out
-    # Trimmed fixture: in-season gaps exceed 30 d, so the CLI lists 5 "seasons" here.
-    assert "1. MJD 60902.87-60914.21" in out and "5. MJD 61305.63-61305.63" in out
+    assert cli_main(["search", "--ra", "269.4463", "--dec", "4.7665"]) == 0
+    captured = capsys.readouterr()
+    res = SearchResult.model_validate_json(captured.out)
+    assert len(res.frames) == 14
+    assert "14 frames via SIA" in captured.err  # diagnostics never pollute the JSON
 
     assert (
         cli_main(["search", "--ra", str(RA), "--dec", str(DEC), "--radius", "0.01", "--detector", "6", "--json"]) == 0
@@ -447,6 +446,218 @@ def test_cli_search_summary_and_json(monkeypatch, capsys):
     res = SearchResult.model_validate_json(capsys.readouterr().out)
     assert {f.detector for f in res.frames} == {6}
 
+    with pytest.raises(SystemExit):  # --json and --summary are exclusive
+        cli_main(["search", "--ra", str(RA), "--dec", str(DEC), "--json", "--summary"])
+    capsys.readouterr()
+
     install(monkeypatch, sia=[FakeResponse(502)], tap=[FakeResponse(502)])
     assert cli_main(["search", "--ra", "1", "--dec", "1", "--no-cache"]) == 2
-    assert "Search failed" in capsys.readouterr().err
+    captured = capsys.readouterr()
+    assert "Search failed" in captured.err and captured.out == ""
+
+
+def test_cli_summary(monkeypatch, capsys):
+    install(monkeypatch, sia=[ok(SIA_XML)])
+    assert cli_main(["search", "--ra", str(RA), "--dec", str(DEC), "--radius", "0.01", "--summary"]) == 0
+    out = capsys.readouterr().out
+    assert "14 frames" in out and "via SIA" in out
+    assert "by collection: spherex_dr1: 10, spherex_qr3: 4" in out
+    assert "by detector:   D1: 2, D2: 2, D3: 3, D4: 2, D5: 2, D6: 3" in out
+    # Trimmed fixture: in-season gaps exceed 30 d, so the CLI lists 5 "seasons" here.
+    assert "1. MJD 60902.87-60914.21" in out and "5. MJD 61305.63-61305.63" in out
+
+
+# --------------------------------------------------------------------------- review regressions
+
+
+def _empty_votable() -> bytes:
+    text = SIA_XML.decode()
+    return (text[: text.index("<TABLEDATA>") + len("<TABLEDATA>")] + text[text.index("</TABLEDATA>") :]).encode()
+
+
+def _overflow_votable() -> bytes:
+    return SIA_XML.replace(b'"QUERY_STATUS" value="OK"', b'"QUERY_STATUS" value="OVERFLOW"')
+
+
+def test_truncated_result_is_not_cached_so_a_bigger_maxrec_reaches_irsa(monkeypatch):
+    calls: list[int] = []
+
+    def fake_http(method, url, *, params=None, data=None, timeout):
+        maxrec = int(dict(params)["MAXREC"])
+        calls.append(maxrec)
+        return ok(_overflow_votable() if maxrec < 1000 else SIA_XML)
+
+    monkeypatch.setattr(irsa, "_http", fake_http)
+    monkeypatch.setattr(settings, "SIA_MAXREC", 200)
+    first = irsa.search_frames_report(RA, DEC)
+    assert first.overflow and not first.from_cache
+    assert not (settings.CACHE_DIR / "queries").exists()
+    monkeypatch.setattr(settings, "SIA_MAXREC", 50000)
+    second = irsa.search_frames_report(RA, DEC)
+    assert not second.overflow and not second.from_cache
+    assert calls == [200, 50000]
+    # A truncated entry left by an older version is not served as a fresh hit either.
+    (path,) = (settings.CACHE_DIR / "queries").glob("search_*.json")
+    doc = json.loads(path.read_text(encoding="utf-8"))
+    path.write_text(json.dumps(doc | {"overflow": True}), encoding="utf-8")
+    third = irsa.search_frames_report(RA, DEC)
+    assert not third.from_cache and calls == [200, 50000, 50000]
+
+
+@pytest.mark.parametrize("content", ["null", "[]", '"text"', "42"])
+def test_cache_entry_that_is_not_an_object_is_ignored(monkeypatch, content):
+    fake = install(monkeypatch, sia=[ok(SIA_XML)])
+    irsa.search_frames(RA, DEC)
+    (path,) = (settings.CACHE_DIR / "queries").glob("search_*.json")
+    path.write_text(content, encoding="utf-8")
+    assert len(irsa.search_frames(RA, DEC).frames) == 14
+    assert fake.count(settings.IRSA_SIA) == 2
+
+
+@pytest.mark.parametrize(("ra", "expected"), [(-1e-17, 0.0), (-0.0, 0.0), (360.0, 0.0), (725.5, 5.5), (-0.5, 359.5)])
+def test_ra_wraps_into_0_360(monkeypatch, ra, expected):
+    # -1e-17 % 360.0 == 360.0 in float arithmetic: it used to query IRSA and then fail in SkyCoord.
+    fake = install(monkeypatch, sia=[ok(_empty_votable())])
+    res = irsa.search_frames(ra, DEC)
+    assert res.center.ra == pytest.approx(expected) and 0.0 <= res.center.ra < 360.0
+    assert dict(fake.calls[0]["params"])["POS"].startswith(f"CIRCLE {expected:.8f} ")
+
+
+def test_sia_timeout_then_tap_error_surfaces_as_timeout(monkeypatch):
+    # Backend: a Timeout anywhere in __cause__ -> 504. SIA timed out, TAP answered 502.
+    install(monkeypatch, sia=[requests.ReadTimeout("sia slow")], tap=[FakeResponse(502)])
+    with pytest.raises(irsa.SearchError) as exc:
+        irsa.search_frames(RA, DEC)
+    assert isinstance(exc.value.__cause__, requests.Timeout)
+    assert exc.value.is_outage
+    assert [type(e) for e in exc.value.failures] == [requests.ReadTimeout, requests.HTTPError]
+
+
+class FakeClock:
+    """Replaces irsa.time: monotonic() and sleep() are simulated, time() is real (cache ages)."""
+
+    def __init__(self):
+        self.now = 1000.0
+
+    def monotonic(self) -> float:
+        return self.now
+
+    def sleep(self, s: float) -> None:
+        self.now += s
+
+    @staticmethod
+    def time() -> float:
+        return time.time()
+
+
+def _hanging_http(clock: FakeClock, calls: list, sia_status: int | None = None):
+    """SIA/TAP that hang for the whole timeout, or SIA that answers ``sia_status`` at once."""
+
+    def fake_http(method, url, *, params=None, data=None, timeout):
+        calls.append((url, timeout))
+        if url == settings.IRSA_SIA and sia_status is not None:
+            return FakeResponse(sia_status)
+        clock.now += timeout
+        raise requests.ReadTimeout(f"{url} hung {timeout} s")
+
+    return fake_http
+
+
+@pytest.mark.parametrize("sia_status", [None, 502])
+def test_deadline_bounds_a_dead_irsa(monkeypatch, sia_status):
+    clock = FakeClock()
+    calls: list = []
+    monkeypatch.setattr(irsa, "time", clock)
+    monkeypatch.setattr(irsa, "_http", _hanging_http(clock, calls, sia_status))
+    monkeypatch.setattr(settings, "SEARCH_ATTEMPTS", 4)
+    monkeypatch.setattr(settings, "SEARCH_BACKOFF_S", 1.0)
+    monkeypatch.setattr(settings, "SIA_TIMEOUT_S", 30.0)
+    monkeypatch.setattr(settings, "TAP_TIMEOUT_S", 60.0)
+    monkeypatch.setattr(settings, "SEARCH_DEADLINE_S", 60.0)
+    t0 = clock.now
+    with pytest.raises(irsa.SearchError) as exc:
+        irsa.search_frames(RA, DEC)
+    assert clock.now - t0 <= 60.0  # was ~128 s (SIA 502 + TAP hang) or ~182 s (both hang)
+    assert isinstance(exc.value.__cause__, requests.Timeout)
+    assert any(url == settings.IRSA_TAP_SYNC for url, _ in calls)  # TAP still got its turn
+    assert all(timeout <= 60.0 for _, timeout in calls)
+
+    # SEARCH_DEADLINE_S = 0 disables the budget (old behaviour: 2 timeouts per service).
+    calls.clear()
+    monkeypatch.setattr(settings, "SEARCH_DEADLINE_S", 0.0)
+    t0 = clock.now
+    with pytest.raises(irsa.SearchError):
+        irsa.search_frames(RA, DEC)
+    assert clock.now - t0 > 120.0
+
+
+def test_deadline_already_spent_raises_timeout(monkeypatch):
+    clock = FakeClock()
+    monkeypatch.setattr(irsa, "time", clock)
+    fake = install(monkeypatch, sia=[ok(SIA_XML)])
+    with pytest.raises(requests.Timeout):
+        irsa._fetch("GET", settings.IRSA_SIA, timeout=30, deadline=clock.now + 1.0)
+    assert fake.calls == []
+
+
+def test_unknown_collection_is_reported(monkeypatch, caplog):
+    install(monkeypatch, sia=[ok(_empty_votable())])
+    with caplog.at_level("WARNING", logger="errante.data.irsa"):
+        rep = irsa.search_frames_report(RA, DEC, collections=["spherex_dr9"])
+    assert rep.result.frames == []
+    assert len(rep.warnings) == 1 and "spherex_dr9" in rep.warnings[0]
+    assert "spherex_dr9" in caplog.text and "No SPHEREx frames" in caplog.text
+    # Known names (verified or configured) do not warn.
+    install(monkeypatch, sia=[ok(SIA_XML)])
+    assert irsa.search_frames_report(RA, DEC, collections=["spherex_qr3_deep", "spherex_dr1"]).warnings == []
+
+
+def test_cli_prints_collection_warning(monkeypatch, capsys):
+    install(monkeypatch, sia=[ok(_empty_votable())])
+    assert cli_main(["search", "--ra", str(RA), "--dec", str(DEC), "--collections", "spherex_dr9"]) == 0
+    captured = capsys.readouterr()
+    assert SearchResult.model_validate_json(captured.out).frames == []
+    assert "unknown IRSA collection 'spherex_dr9'" in captured.err
+
+
+def test_tap_sends_maxrec_and_flags_truncation(monkeypatch):
+    monkeypatch.setattr(settings, "SIA_MAXREC", 14)  # the TAP fixture has 14 rows
+    fake = install(monkeypatch, sia=[FakeResponse(502)], tap=[ok(TAP_CSV)])
+    rep = irsa.search_frames_report(RA, DEC)
+    assert rep.service == "tap" and rep.overflow
+    tap = next(c for c in fake.calls if c["url"] == settings.IRSA_TAP_SYNC)
+    assert tap["data"]["MAXREC"] == "14"
+    assert not (settings.CACHE_DIR / "queries").exists()  # truncated: not cached
+
+
+def test_tap_queries_run_one_at_a_time(monkeypatch):
+    import threading
+
+    active = 0
+    peak = 0
+    guard = threading.Lock()
+
+    def slow_tap(method, url, *, params=None, data=None, timeout):
+        nonlocal active, peak
+        with guard:
+            active += 1
+            peak = max(peak, active)
+        time.sleep(0.15)
+        with guard:
+            active -= 1
+        return ok(TAP_CSV)
+
+    monkeypatch.setattr(irsa, "_http", slow_tap)
+    results: list = []
+    threads = [
+        threading.Thread(
+            target=lambda: results.append(irsa._search_tap(RA, DEC, irsa.MIN_RADIUS_DEG, None, None, ("spherex_dr1",)))
+        )
+        for _ in range(3)
+    ]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=10)
+    assert len(results) == 3 and all(len(rows) == 14 for rows, _ in results)
+    assert peak == 1

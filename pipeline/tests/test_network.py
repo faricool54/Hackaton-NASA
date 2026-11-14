@@ -60,12 +60,17 @@ def test_irsa_finds_frames_for_barnards_star():
     assert all(f.irsa_uri == f"ibe/data/spherex/{f.s3_key}" for f in frames)
 
 
-def test_wise_0855_is_dr1_only_with_time_filter():
+DR1_LAST_MJD = 61175.0  # WISE 0855's last DR1 season ends at MJD 61174.29; quick releases come after
+
+
+def test_wise_0855_dr1_coverage_with_time_filter():
     from errante.data.irsa import search_frames
 
     res = _live(search_frames, *WISE_0855, use_cache=False)
-    assert len(res.frames) >= 250  # 258 on 2026-11-14, all DR1
-    assert {f.release for f in res.frames} == {"dr1"}
+    releases = Counter(f.release for f in res.frames)
+    assert releases["dr1"] >= 250  # 258 on 2026-11-14, all DR1 (no QR3 pass over it yet)
+    # A later QR3 pass (from ~Nov 2026) may add qr3 frames, but only after the DR1 cut.
+    assert all(f.release == "dr1" for f in res.frames if f.mjd < DR1_LAST_MJD)
     later = _live(search_frames, *WISE_0855, mjd_min=60900, detectors=[5, 6], use_cache=False)
     assert later.frames and all(f.mjd >= 60900 - 0.01 and f.detector in (5, 6) for f in later.frames)
 
@@ -74,8 +79,9 @@ def test_tap_fallback_matches_sia_for_barnard():
     from errante.data import irsa
 
     t0 = time.monotonic()
-    try:
-        rows = irsa._search_tap(*BARNARD, irsa.MIN_RADIUS_DEG, None, None, ("spherex_dr1", "spherex_qr3"))
+    cols = ("spherex_dr1", "spherex_qr3")
+    try:  # 75 s budget: one full 60 s attempt plus quick retries of fast 502s
+        rows, _ = irsa._search_tap(*BARNARD, irsa.MIN_RADIUS_DEG, None, None, cols, deadline=t0 + 75)
     except (requests.Timeout, requests.ConnectionError) as e:
         pytest.skip(f"IRSA TAP unreachable: {e}")
     except requests.HTTPError as e:
@@ -86,6 +92,33 @@ def test_tap_fallback_matches_sia_for_barnard():
     deduped, _ = irsa.dedupe_rows(rows)
     assert len(deduped) > 300
     assert Counter(r.collection for r in deduped).keys() == {"spherex_dr1", "spherex_qr3"}
+
+
+def test_cli_acceptance_command_prints_search_result(monkeypatch, tmp_path, capsys):
+    """WS1-2 acceptance: `errante search --ra 269.4463 --dec 4.7665` prints a valid SearchResult."""
+    from errante import settings
+    from errante.cli import main as cli_main
+    from errante.data.irsa import search_frames
+    from errante.models import SearchResult
+
+    monkeypatch.setattr(settings, "CACHE_DIR", tmp_path)
+    live = _live(search_frames, 269.4463, 4.7665)  # live query; fills the (temporary) cache
+    assert cli_main(["search", "--ra", "269.4463", "--dec", "4.7665"]) == 0
+    res = SearchResult.model_validate_json(capsys.readouterr().out)
+    assert res == live and len(res.frames) > 300
+
+
+def test_overflow_is_flagged_and_not_cached(monkeypatch, tmp_path):
+    from errante import settings
+    from errante.data.irsa import search_frames_report
+
+    monkeypatch.setattr(settings, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(settings, "SIA_MAXREC", 200)
+    r_dra = (248.16761083, 66.75497942)  # ~2,500 frames with the deep collections
+    rep = _live(search_frames_report, *r_dra, collections=["spherex_dr1_deep", "spherex_qr3_deep"])
+    print(f"R Dra deep, MAXREC=200: {len(rep.rows)} rows via {rep.service} in {rep.elapsed_s:.1f} s")
+    assert rep.overflow and len(rep.rows) <= 200
+    assert not (tmp_path / "queries").exists()
 
 
 def test_search_key_is_readable_on_s3():
