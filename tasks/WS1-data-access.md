@@ -61,9 +61,9 @@ El camino crítico termina en imágenes visibles; catálogos y detección no son
 
 **Visión (14/11, [`docs/VISION.md`](../docs/VISION.md)):**
 
-- [ ] **WS1-10 (P0/P1) Todas las exposiciones de un punto.** `errante.data.point.point_series` + `errante point`:
+- [x] **WS1-10 (P0/P1) Todas las exposiciones de un punto.** ✅ PR en curso. `errante.data.point.point_series` + `errante point`:
   stamps de cada exposición en (ra, dec) con λ y tiempo, materia prima del video, el espectro y la curva de luz del panel.
-  🔄 Implementado y revisado; PR en curso.
+  Revisión aplicada (λ nunca cacheada faltante, ETag de layouts, `--deadline`) y `to_spherex_image` para la fotometría de WS2 (box ≥ 15).
 - [x] **WS1-11 (P1) Espectro rápido de cualquier punto.** ✅ #42 (`cube_spectrum`, `errante cube-spectrum`).
 - [x] **WS1-12 (P0) La demo sobrevive a una caída de IRSA.** ✅ #43 (snapshots de los cinco blancos y fallback
   antes del timeout de la API). Sin fallback, un punto arbitrario sigue dependiendo de IRSA (timeout del backend: WS4).
