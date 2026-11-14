@@ -1,0 +1,85 @@
+{
+  "id": "wise-0855",
+  "name": "WISE 0855−0714",
+  "description": "Challenge test target: the coldest known brown dwarf, about as cold as the North Pole.",
+  "tags": [
+    "test-target",
+    "brown-dwarf",
+    "proper-motion"
+  ],
+  "center": {
+    "ra": 133.79513,
+    "dec": -7.24515
+  },
+  "motion": {
+    "distance_pc": 2.28,
+    "parallax_mas": 439.0,
+    "pm_ra_cosdec_mas_yr": -8118.0,
+    "pm_dec_mas_yr": 680.0,
+    "radial_velocity_km_s": null,
+    "epoch": "J2014 (approx.)"
+  },
+  "field_id": "wise-0855",
+  "bodies": [
+    {
+      "id": "wise-0855",
+      "name": "WISE 0855−0714",
+      "kind": "brown_dwarf",
+      "description": "A free-floating ultra-cool brown dwarf with water clouds predicted in its atmosphere.",
+      "radius_km": 71492.0,
+      "mass_kg": 9.49e+27,
+      "teff_k": 285.0,
+      "spectral_type": "Y4 (approx.)",
+      "rotation_period_hours": null,
+      "orbit": null,
+      "variability": null,
+      "appearance": {
+        "model": "brown_dwarf",
+        "color_hex": null,
+        "mesh_url": null,
+        "texture_url": null
+      },
+      "facts": [
+        {
+          "label": "Temperature",
+          "value": "~285",
+          "unit": "K",
+          "source": "Luhman 2014; JWST spectra",
+          "verified": false
+        },
+        {
+          "label": "Distance",
+          "value": "~2.28",
+          "unit": "pc",
+          "source": "Luhman & Esplin 2016",
+          "verified": false
+        },
+        {
+          "label": "Mass",
+          "value": "3–10",
+          "unit": "Jupiter masses",
+          "source": "literature (model dependent)",
+          "verified": false
+        },
+        {
+          "label": "Proper motion",
+          "value": "~8.1",
+          "unit": "arcsec/yr",
+          "source": "literature",
+          "verified": false
+        }
+      ],
+      "candidate_id": null
+    }
+  ],
+  "representation_note": "Model representation built from catalog parameters - not an image. Sizes and distances may be exaggerated for visibility.",
+  "provenance": {
+    "pipeline_version": "0.1.0",
+    "built_at": "2026-11-14T14:28:54.561130Z",
+    "synthetic": false,
+    "data_releases": [],
+    "notes": [
+      "Parameters typed by hand as a starting point; NOT yet verified against catalogs (tasks/WS7-3d-systems.md, WS7-2)."
+    ]
+  }
+}

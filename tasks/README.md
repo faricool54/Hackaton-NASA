@@ -11,6 +11,7 @@ criterio de aceptación y un **prompt de arranque** para pegarle a tu agente (Cl
 | [WS4-backend.md](WS4-backend.md) | Backend API, integración, CI |
 | [WS5-frontend.md](WS5-frontend.md) | Frontend |
 | [WS6-product-submission.md](WS6-product-submission.md) | Producto, narrativa, deploy y entrega |
+| [WS7-3d-systems.md](WS7-3d-systems.md) | Sistemas 3D: modelos de los objetos, órbitas animadas, fichas |
 
 Prioridades: **P0** = sin esto no hay demo · **P1** = lo que hace ganar · **P2** = si sobra tiempo.
 Marcá `[x]` al terminar (solo en tu archivo) y poné el link al PR.

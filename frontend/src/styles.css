@@ -88,3 +88,23 @@ figure { margin: 8px 0; }
 .legend .sq { display: inline-block; width: 10px; height: 10px; border: 2px dashed var(--known); margin: 0 4px 0 8px; vertical-align: middle; }
 
 .prose { max-width: 75ch; }
+
+/* --- 3D systems (WS7) --- */
+.badge.model { color: var(--accent); }
+.badge.unverified-badge { color: var(--unconfirmed); }
+.system-viewer { margin-bottom: 8px; }
+.scene-stage { position: relative; width: 100%; height: min(70vh, 620px); min-height: 320px; background: #03050a; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; touch-action: none; }
+.scene-stage canvas { display: block; }
+.scene-msg { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; padding: 16px; text-align: center; }
+.scene-labels { position: absolute; inset: 0; pointer-events: none; }
+.body-label { pointer-events: auto; background: rgba(7, 9, 15, 0.7); border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; font-size: 0.75rem; color: var(--text); cursor: pointer; white-space: nowrap; }
+.body-label:hover { border-color: var(--accent); }
+.body-list { padding-left: 18px; margin: 0; }
+.body-panel dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 8px 0; }
+.body-panel dt { color: var(--muted); }
+.body-panel dd { margin: 0; }
+.facts { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 0.9rem; }
+.facts th { text-align: left; font-weight: 500; color: var(--muted); padding: 4px 8px 4px 0; vertical-align: top; width: 40%; }
+.facts td { padding: 4px 0; border-top: 1px solid var(--border); }
+.facts th { border-top: 1px solid var(--border); }
+.unverified { color: var(--unconfirmed); font-size: 0.75rem; }

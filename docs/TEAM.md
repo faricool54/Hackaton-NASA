@@ -10,6 +10,7 @@ Completar en el kickoff. Una persona por fila; cada una con su(s) agente(s).
 | WS4 | Backend + integración + CI | _nombre_ | | backend, devops |
 | WS5 | Frontend | _nombre_ | | React/TS, ojo para UX |
 | WS6 | Producto, narrativa, deploy, entrega | _nombre_ | | comunicación, diseño, video |
+| WS7 | Sistemas 3D (modelos, órbitas, fichas) | _nombre_ | | three.js / gráficos 3D, ojo para diseño |
 
 **Coordinador/a de integración:** _nombre_ (cuida `main`, el contrato y el cronograma; suele ser WS4).
 
@@ -22,4 +23,6 @@ Completar en el kickoff. Una persona por fila; cada una con su(s) agente(s).
   sobre cutouts que baje a mano desde S3/IRSA).
 - WS3 necesita detecciones de WS2 para el cruce (mientras tanto: efemérides y campos, sobre `data/demo`).
 - WS4/WS5 no esperan a nadie: el contrato y el demo ya existen.
+- WS7 no espera a nadie para la parte visual (ya hay 5 sistemas + 1 sintético); para verificar valores necesita
+  acceso a NASA Exoplanet Archive/SIMBAD y, para asteroides reales, los candidatos `known` de WS2/WS3.
 - WS6 necesita la URL de deploy (WS4) y capturas reales (WS5) hacia H+24.

@@ -9,6 +9,8 @@
 Una herramienta web pública que muestra imágenes infrarrojas reales de **NASA SPHEREx** tomadas en distintos
 momentos para que cualquiera vea **cómo cambia el cielo** y encuentre **objetos que se mueven** (asteroides,
 objetos transneptunianos, enanas marrones cercanas), con el hipotético **Planeta X** como motivación científica.
+Capa extra (WS7): cada objeto se puede abrir como **modelo 3D** de su sistema (órbitas, fichas) — ver
+`docs/VISION_3D.md`. Es una representación de modelo: la UI siempre lo dice.
 
 Contexto obligatorio: `docs/CHALLENGE.md` (el reto), `docs/ARCHITECTURE.md` (cómo encaja todo),
 `docs/CONTRACT.md` (formato de datos), `docs/DATA.md` (hechos verificados sobre los datos SPHEREx).
@@ -23,6 +25,7 @@ Contexto obligatorio: `docs/CHALLENGE.md` (el reto), `docs/ARCHITECTURE.md` (có
 | `backend/` | API FastAPI | **WS4** |
 | `frontend/` | web (Vite + React + TS) | **WS5** |
 | `docs/submission/`, `frontend/src/pages/AboutPage.tsx` (textos), deploy | pitch, video, envío, deploy | **WS6** |
+| `pipeline/errante/systems/`, `frontend/src/three/`, `frontend/src/components/{SystemViewer,BodyPanel}.tsx`, `frontend/src/pages/{SystemsPage,SystemPage}.tsx` | sistemas 3D (modelos, órbitas, fichas) | **WS7** |
 | `pipeline/errante/models.py`, `products.py`, `shared/schema/`, `frontend/src/api/types.ts` | **CONTRATO** | todos — solo vía PR `contract:` |
 | `pipeline/errante/build.py`, `cli.py`, `synthetic.py` | integración | WS1 + WS2 (coordinar) |
 | `AGENTS.md`, `CLAUDE.md`, `docs/*.md`, `tasks/*.md`, CI, Makefile | coordinación | coordinador/a (ver `docs/TEAM.md`) |
@@ -36,7 +39,8 @@ Contexto obligatorio: `docs/CHALLENGE.md` (el reto), `docs/ARCHITECTURE.md` (có
    Preferí **agregar campos opcionales** antes que renombrar o borrar.
 3. **Nunca hagas pasar datos falsos por reales.** Todo lo sintético lleva `synthetic: true` y la UI muestra el
    badge "SYNTHETIC DATA". Objetos inyectados → `status: "injected"`. Nada de imágenes de otras misiones
-   presentadas como SPHEREx.
+   presentadas como SPHEREx. Las vistas 3D son **modelos**, no imágenes: badge "3D MODEL · NOT AN IMAGE" y
+   cada dato con `source`/`verified` (ver `docs/VISION_3D.md`).
 4. **Honestidad científica.** No afirmamos haber descubierto el Planeta X ni "objetos nuevos". Un candidato sin
    match en catálogos es `unconfirmed` y se explica qué puede ser (artefacto, error, objeto no catalogado).
    Ver `docs/SCIENCE.md`.
@@ -73,7 +77,7 @@ make demo           # regenera datos sintéticos en data/demo
 make api            # backend en :8000 (docs en /docs)
 make web            # frontend en :5173 (lee data/demo por defecto)
 make check          # lo mismo que CI: correr antes de push
-errante --help      # CLI del pipeline: demo | schema | validate | search | build
+errante --help      # CLI del pipeline: demo | schema | validate | search | systems | build
 ```
 
 ## Cuando termines una tarea

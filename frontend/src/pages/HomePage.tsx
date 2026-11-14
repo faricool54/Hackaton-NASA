@@ -22,6 +22,9 @@ export function HomePage() {
           observations taken at different times, and see what wanders — the same way astronomers hunt for a
           hypothetical Planet X.
         </p>
+        <p>
+          <a href="#/systems">Or step inside the objects we track: explore them as 3D systems →</a>
+        </p>
         {/* TODO(WS6): final copy, project name, call to action. TODO(WS5): coordinate/name search box (api mode). */}
       </section>
 

@@ -2,7 +2,7 @@
 
 Fuente de verdad: [`pipeline/errante/models.py`](../pipeline/errante/models.py).
 Generado: [`shared/schema/*.schema.json`](../shared/schema/) (`make schema`). Espejo TS:
-[`frontend/src/api/types.ts`](../frontend/src/api/types.ts). Versión actual: **0.1.0**.
+[`frontend/src/api/types.ts`](../frontend/src/api/types.ts). Versión actual: **0.2.0** (0.2.0 agregó los sistemas 3D, aditivo).
 Ejemplos reales del formato: [`data/demo/`](../data/demo/).
 
 ## Archivos en disco (= lo que lee el frontend estático)
@@ -14,6 +14,7 @@ Ejemplos reales del formato: [`data/demo/`](../data/demo/).
 <root>/fields/<id>/known.json             KnownObjectList  objetos conocidos predichos en cada frame
 <root>/fields/<id>/frames/<frame_id>.png  imagen 8 bits en la grilla común
 <root>/fields/<id>/thumb.png              miniatura
+<root>/systems/<id>.json                  SystemModel      modelo 3D de un sistema/objeto (WS7)
 ```
 `<root>` = `data/demo` (sintético) o `data/products` (real).
 
@@ -27,6 +28,7 @@ Ejemplos reales del formato: [`data/demo/`](../data/demo/).
 | `GET /api/fields/{id}/candidates` | `CandidateList` | ✅ |
 | `GET /api/fields/{id}/known` | `KnownObjectList` | ✅ |
 | `GET /data/fields/{id}/...` | PNGs | ✅ |
+| `GET /api/systems/{id}` | `SystemModel` | ✅ |
 | `GET /api/search?ra&dec[&detector]` | `SearchResult` (frames SPHEREx que cubren el punto) | 501 → WS1+WS4 |
 | `GET /api/known-objects?ra&dec&mjd[&radius_deg]` | `KnownObject[]` | 501 → WS3+WS4 |
 
@@ -41,6 +43,10 @@ Ejemplos reales del formato: [`data/demo/`](../data/demo/).
 - **Flujos**: `flux_mjy` en mJy; imágenes en MJy/sr (`Stretch.unit`).
 - **Candidate.status**: `known` | `unconfirmed` | `artifact` | `injected` (ver SCIENCE §4). `score` ∈ [0, 1].
 - **Provenance.synthetic = true** ⇒ la UI DEBE mostrar el badge de datos sintéticos.
+- **SystemModel** (3D): unidades `radius_km`, `mass_kg`, `teff_k`, órbitas en AU/días/grados, `Orbit.parent` =
+  `Body.id` del padre (`orbit = null` ⇒ cuerpo raíz en el origen), `epoch_mjd = null` ⇒ fase arbitraria.
+  `Fact.verified = false` ⇒ la UI marca el valor como "unverified". Siempre se muestra `representation_note`.
+  `Manifest.systems` puede faltar en productos viejos (tratar como `[]`).
 
 ## Cómo cambiar el contrato
 

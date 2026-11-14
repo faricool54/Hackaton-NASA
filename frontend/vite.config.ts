@@ -6,5 +6,7 @@ export default defineConfig({
   base: process.env.VITE_BASE ?? '/',
   plugins: [react()],
   server: { port: 5173 },
+  // three.js (~500 kB) lives in its own lazily-loaded chunk (3D pages only), so the warning is expected.
+  build: { chunkSizeWarningLimit: 600 },
   test: { environment: 'node' },
 });

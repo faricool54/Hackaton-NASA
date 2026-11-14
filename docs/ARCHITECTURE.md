@@ -22,6 +22,7 @@
                                      ▼                                   │
                          frontend/ (WS5)  Vite + React + TS  ◀───────────┘
                          Home (campos) · Field (blink + candidatos + espectro + mapa) · About
+                         Systems 3D (WS7): systems/<id>.json → three.js (carga diferida) · órbitas · fichas
 ```
 
 ## Decisiones (y por qué)
@@ -36,6 +37,8 @@
 | **Píxeles en convención PNG** en el contrato | Es lo que necesita la UI; la conversión FITS↔PNG vive solo en `imaging/grid.py` |
 | Python: numpy/astropy/pydantic/pillow base; scipy/photutils/reproject/astroquery como extra `science` | CI y backend livianos; los WS científicos instalan el extra |
 | Sin librerías de UI/routing en el frontend (hash router propio) | Menos dependencias, deploy en cualquier host estático |
+| **three.js** para la capa 3D, cargado con `import()` solo en `#/system/...` | ~130 kB gzip que no paga quien solo usa el blink; sin React Three Fiber para no sumar capas |
+| Sistemas 3D desde **parámetros de catálogo** (no imágenes) con `Fact.source/verified` | Representación atractiva pero honesta: cada número trazable a su fuente |
 
 ## Flujo de un campo real (objetivo de integración)
 

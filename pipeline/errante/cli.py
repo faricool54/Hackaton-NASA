@@ -51,7 +51,11 @@ def cmd_validate(args: argparse.Namespace) -> int:
         if missing:
             print(f"{fs.id}: missing images {missing}", file=sys.stderr)
             return 1
-    print(f"OK: {len(manifest.fields)} fields valid in {store.root}")
+    from .systems.build import validate_hierarchy
+
+    for ss in manifest.systems:
+        validate_hierarchy(store.read_system(ss.id))
+    print(f"OK: {len(manifest.fields)} fields and {len(manifest.systems)} systems valid in {store.root}")
     return 0
 
 
@@ -60,6 +64,18 @@ def cmd_search(args: argparse.Namespace) -> int:
 
     res = search_frames(args.ra, args.dec, detectors=args.detector)
     print(res.model_dump_json(indent=2))
+    return 0
+
+
+def cmd_systems(args: argparse.Namespace) -> int:
+    from .products import ProductStore
+    from .systems.build import write_systems
+    from .systems.catalog import curated_systems
+
+    store = ProductStore(Path(args.out))
+    ids = write_systems(store, curated_systems())
+    store.rebuild_manifest()
+    print(f"3D systems written to {store.root / 'systems'}: {ids}")
     return 0
 
 
@@ -100,6 +116,10 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--dec", type=float, required=True)
     s.add_argument("--detector", type=int, action="append")
     s.set_defaults(func=cmd_search)
+
+    s = sub.add_parser("systems", help="write the curated 3D system models (WS7)")
+    s.add_argument("--out", default=str(settings.PRODUCTS_DIR))
+    s.set_defaults(func=cmd_systems)
 
     s = sub.add_parser("build", help="build real products for a field in config/fields.toml")
     s.add_argument("field_id")

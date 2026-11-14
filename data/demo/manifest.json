@@ -1,6 +1,6 @@
 {
-  "schema_version": "0.1.0",
-  "generated_at": "2026-11-14T13:48:38.278167Z",
+  "schema_version": "0.2.0",
+  "generated_at": "2026-11-14T14:28:54.562668Z",
   "synthetic": true,
   "fields": [
     {
@@ -46,6 +46,135 @@
       ],
       "thumbnail": "thumb.png",
       "synthetic": true
+    }
+  ],
+  "systems": [
+    {
+      "id": "barnards-star",
+      "name": "Barnard's Star system",
+      "description": "Challenge test target: the fastest-moving star in our sky, with four small planets.",
+      "tags": [
+        "test-target",
+        "proper-motion",
+        "exoplanets"
+      ],
+      "center": {
+        "ra": 269.4521,
+        "dec": 4.6934
+      },
+      "n_bodies": 5,
+      "kinds": [
+        "planet",
+        "star"
+      ],
+      "field_id": "barnards-star",
+      "synthetic": false
+    },
+    {
+      "id": "demo-ecliptic-orbits",
+      "name": "Demo: where the moving dots are",
+      "description": "SYNTHETIC. 3D orbits for the candidates of the synthetic 'demo-ecliptic' field.",
+      "tags": [
+        "synthetic",
+        "solar-system"
+      ],
+      "center": {
+        "ra": 180.0,
+        "dec": 0.0
+      },
+      "n_bodies": 6,
+      "kinds": [
+        "asteroid",
+        "planet",
+        "star",
+        "tno"
+      ],
+      "field_id": "demo-ecliptic",
+      "synthetic": true
+    },
+    {
+      "id": "epsilon-indi",
+      "name": "Epsilon Indi system",
+      "description": "Challenge test target: a Sun-like star, a cold giant planet and a pair of brown dwarfs.",
+      "tags": [
+        "test-target",
+        "brown-dwarf",
+        "binary",
+        "exoplanets"
+      ],
+      "center": {
+        "ra": 330.8402,
+        "dec": -56.786
+      },
+      "n_bodies": 4,
+      "kinds": [
+        "brown_dwarf",
+        "planet",
+        "star"
+      ],
+      "field_id": null,
+      "synthetic": false
+    },
+    {
+      "id": "r-draconis",
+      "name": "R Draconis",
+      "description": "Challenge test target: a giant star that swells and fades every ~8 months.",
+      "tags": [
+        "test-target",
+        "variable"
+      ],
+      "center": {
+        "ra": 248.1675,
+        "dec": 66.755
+      },
+      "n_bodies": 1,
+      "kinds": [
+        "star"
+      ],
+      "field_id": null,
+      "synthetic": false
+    },
+    {
+      "id": "rw-aurigae",
+      "name": "RW Aurigae",
+      "description": "Challenge test target: a young binary star whose dusty disk causes deep dimming events.",
+      "tags": [
+        "test-target",
+        "variable",
+        "binary",
+        "young-star"
+      ],
+      "center": {
+        "ra": 76.9563,
+        "dec": 30.4014
+      },
+      "n_bodies": 3,
+      "kinds": [
+        "disk",
+        "star"
+      ],
+      "field_id": null,
+      "synthetic": false
+    },
+    {
+      "id": "wise-0855",
+      "name": "WISE 0855−0714",
+      "description": "Challenge test target: the coldest known brown dwarf, about as cold as the North Pole.",
+      "tags": [
+        "test-target",
+        "brown-dwarf",
+        "proper-motion"
+      ],
+      "center": {
+        "ra": 133.79513,
+        "dec": -7.24515
+      },
+      "n_bodies": 1,
+      "kinds": [
+        "brown_dwarf"
+      ],
+      "field_id": "wise-0855",
+      "synthetic": false
     }
   ]
 }

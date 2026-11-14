@@ -114,6 +114,83 @@
       ],
       "title": "SkyCoord",
       "type": "object"
+    },
+    "SystemSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "center": {
+          "$ref": "#/$defs/SkyCoord"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "field_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Field Id"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "kinds": {
+          "description": "Distinct body kinds, for icons/filters",
+          "items": {
+            "enum": [
+              "star",
+              "brown_dwarf",
+              "planet",
+              "dwarf_planet",
+              "moon",
+              "asteroid",
+              "comet",
+              "tno",
+              "disk",
+              "unknown"
+            ],
+            "type": "string"
+          },
+          "title": "Kinds",
+          "type": "array"
+        },
+        "n_bodies": {
+          "title": "N Bodies",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "synthetic": {
+          "title": "Synthetic",
+          "type": "boolean"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "center",
+        "n_bodies",
+        "synthetic"
+      ],
+      "title": "SystemSummary",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -131,14 +208,22 @@
       "type": "string"
     },
     "schema_version": {
-      "default": "0.1.0",
+      "default": "0.2.0",
       "title": "Schema Version",
       "type": "string"
     },
     "synthetic": {
-      "description": "True if ANY field is synthetic",
+      "description": "True if ANY field or system is synthetic",
       "title": "Synthetic",
       "type": "boolean"
+    },
+    "systems": {
+      "description": "3D system models (WS7)",
+      "items": {
+        "$ref": "#/$defs/SystemSummary"
+      },
+      "title": "Systems",
+      "type": "array"
     }
   },
   "required": [

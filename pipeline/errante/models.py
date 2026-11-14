@@ -25,7 +25,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-SCHEMA_VERSION = "0.1.0"
+SCHEMA_VERSION = "0.2.0"
 
 Release = Literal["dr1", "qr2", "qr3", "synthetic"]
 """SPHEREx data release a frame comes from (see docs/DATA.md)."""
@@ -199,6 +199,121 @@ class SkyField(_Model):
     provenance: Provenance
 
 
+# --- 3D systems (WS7): models of the objects we track and their systems ------
+#
+# A SystemModel describes a star/planetary system (or a single object) so the
+# frontend can draw it in 3D: bodies with physical parameters, Keplerian orbits
+# around a parent body, variability, and plain-language facts with sources.
+# It is a MODEL REPRESENTATION built from catalog parameters, never an image:
+# the UI must say so (see docs/VISION_3D.md). Values typed by hand that have not
+# been checked against a catalog carry `verified = false`.
+
+BodyKind = Literal[
+    "star", "brown_dwarf", "planet", "dwarf_planet", "moon", "asteroid", "comet", "tno", "disk", "unknown"
+]
+AppearanceModel = Literal["star", "brown_dwarf", "rocky", "icy", "gas_giant", "disk", "mesh"]
+VariabilityKind = Literal["pulsation", "accretion", "eclipse", "rotation", "irregular"]
+
+
+class Fact(_Model):
+    """One human-readable fact shown in a body's info panel."""
+
+    label: str = Field(description="e.g. 'Distance', 'Spectral type'")
+    value: str = Field(description="Display value, already formatted, e.g. '1.83'")
+    unit: str | None = Field(default=None, description="e.g. 'pc', 'K', 'Earth masses'")
+    source: str | None = Field(default=None, description="Catalog/paper/URL the value comes from")
+    verified: bool = Field(default=False, description="True only if checked against `source`")
+
+
+class Orbit(_Model):
+    """Keplerian orbit of a body around its parent (two-body approximation)."""
+
+    parent: str = Field(description="Body.id of the body it orbits (or the barycenter body)")
+    semi_major_axis_au: float = Field(gt=0)
+    period_days: float = Field(gt=0)
+    eccentricity: float = Field(default=0.0, ge=0, lt=1)
+    inclination_deg: float = Field(default=0.0, ge=0, le=180)
+    ascending_node_deg: float = Field(default=0.0, ge=0, lt=360)
+    arg_periapsis_deg: float = Field(default=0.0, ge=0, lt=360)
+    mean_anomaly_deg: float = Field(default=0.0, ge=0, lt=360, description="At epoch_mjd")
+    epoch_mjd: float | None = Field(default=None, description="Epoch of mean_anomaly_deg; None = arbitrary phase")
+
+
+class Variability(_Model):
+    kind: VariabilityKind
+    period_days: float | None = Field(default=None, gt=0)
+    amplitude_mag: float | None = Field(default=None, ge=0)
+    band: str | None = Field(default=None, description="Band the amplitude refers to, e.g. 'V', 'K', 'SPHEREx 2 um'")
+
+
+class Appearance(_Model):
+    """Rendering hints. The UI derives everything it can from physics (teff -> color)."""
+
+    model: AppearanceModel
+    color_hex: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$", description="Override base color")
+    mesh_url: str | None = Field(
+        default=None, description="glTF/OBJ shape model (e.g. radar/lightcurve asteroid shape)"
+    )
+    texture_url: str | None = None
+
+
+class Body(_Model):
+    id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]*$", description="URL-safe slug, unique within the system")
+    name: str
+    kind: BodyKind
+    description: str = ""
+    radius_km: float | None = Field(default=None, gt=0)
+    mass_kg: float | None = Field(default=None, gt=0)
+    teff_k: float | None = Field(default=None, gt=0, description="Effective temperature; drives the color")
+    spectral_type: str | None = None
+    rotation_period_hours: float | None = Field(default=None, gt=0)
+    orbit: Orbit | None = Field(default=None, description="None = the system's root body (sits at the origin)")
+    variability: Variability | None = None
+    appearance: Appearance
+    facts: list[Fact] = Field(default_factory=list)
+    candidate_id: str | None = Field(default=None, description="Linked Candidate.id in SystemModel.field_id")
+
+
+class SpaceMotion(_Model):
+    """Where the system is and how it moves through the Galaxy (drives the 'move through space' view)."""
+
+    distance_pc: float | None = Field(default=None, gt=0)
+    parallax_mas: float | None = Field(default=None, gt=0)
+    pm_ra_cosdec_mas_yr: float | None = None
+    pm_dec_mas_yr: float | None = None
+    radial_velocity_km_s: float | None = None
+    epoch: str | None = Field(default=None, description="Reference epoch of position/motion, e.g. 'J2016.0' (Gaia DR3)")
+
+
+class SystemModel(_Model):
+    id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]*$", description="URL-safe slug")
+    name: str
+    description: str = ""
+    tags: list[str] = Field(default_factory=list, description="e.g. 'test-target', 'brown-dwarf', 'variable'")
+    center: SkyCoord
+    motion: SpaceMotion | None = None
+    field_id: str | None = Field(default=None, description="SPHEREx field (SkyField.id) where it is observed")
+    bodies: list[Body] = Field(min_length=1)
+    representation_note: str = Field(
+        default="Model representation built from catalog parameters - not an image. Sizes and distances may be "
+        "exaggerated for visibility.",
+        description="Shown by the UI next to every 3D view",
+    )
+    provenance: Provenance
+
+
+class SystemSummary(_Model):
+    id: str
+    name: str
+    description: str = ""
+    tags: list[str] = Field(default_factory=list)
+    center: SkyCoord
+    n_bodies: int
+    kinds: list[BodyKind] = Field(default_factory=list, description="Distinct body kinds, for icons/filters")
+    field_id: str | None = None
+    synthetic: bool
+
+
 class FieldSummary(_Model):
     id: str
     name: str
@@ -216,8 +331,9 @@ class FieldSummary(_Model):
 class Manifest(_Model):
     schema_version: str = SCHEMA_VERSION
     generated_at: datetime
-    synthetic: bool = Field(description="True if ANY field is synthetic")
+    synthetic: bool = Field(description="True if ANY field or system is synthetic")
     fields: list[FieldSummary]
+    systems: list[SystemSummary] = Field(default_factory=list, description="3D system models (WS7)")
 
 
 # --- Live archive search (WS1 -> WS4 `/api/search`) -------------------------
@@ -247,5 +363,6 @@ ALL_MODELS: dict[str, type[BaseModel]] = {
     "CandidateList": CandidateList,
     "KnownObjectList": KnownObjectList,
     "SearchResult": SearchResult,
+    "SystemModel": SystemModel,
 }
 """Top-level documents, one JSON Schema file each in shared/schema/."""

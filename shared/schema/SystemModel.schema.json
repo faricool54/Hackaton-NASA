@@ -1,0 +1,646 @@
+{
+  "$defs": {
+    "Appearance": {
+      "additionalProperties": false,
+      "description": "Rendering hints. The UI derives everything it can from physics (teff -> color).",
+      "properties": {
+        "color_hex": {
+          "anyOf": [
+            {
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Override base color",
+          "title": "Color Hex"
+        },
+        "mesh_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "glTF/OBJ shape model (e.g. radar/lightcurve asteroid shape)",
+          "title": "Mesh Url"
+        },
+        "model": {
+          "enum": [
+            "star",
+            "brown_dwarf",
+            "rocky",
+            "icy",
+            "gas_giant",
+            "disk",
+            "mesh"
+          ],
+          "title": "Model",
+          "type": "string"
+        },
+        "texture_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Texture Url"
+        }
+      },
+      "required": [
+        "model"
+      ],
+      "title": "Appearance",
+      "type": "object"
+    },
+    "Body": {
+      "additionalProperties": false,
+      "properties": {
+        "appearance": {
+          "$ref": "#/$defs/Appearance"
+        },
+        "candidate_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Linked Candidate.id in SystemModel.field_id",
+          "title": "Candidate Id"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "facts": {
+          "items": {
+            "$ref": "#/$defs/Fact"
+          },
+          "title": "Facts",
+          "type": "array"
+        },
+        "id": {
+          "description": "URL-safe slug, unique within the system",
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "star",
+            "brown_dwarf",
+            "planet",
+            "dwarf_planet",
+            "moon",
+            "asteroid",
+            "comet",
+            "tno",
+            "disk",
+            "unknown"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "mass_kg": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mass Kg"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "orbit": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Orbit"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "None = the system's root body (sits at the origin)"
+        },
+        "radius_km": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Radius Km"
+        },
+        "rotation_period_hours": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rotation Period Hours"
+        },
+        "spectral_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Spectral Type"
+        },
+        "teff_k": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Effective temperature; drives the color",
+          "title": "Teff K"
+        },
+        "variability": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Variability"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "kind",
+        "appearance"
+      ],
+      "title": "Body",
+      "type": "object"
+    },
+    "Fact": {
+      "additionalProperties": false,
+      "description": "One human-readable fact shown in a body's info panel.",
+      "properties": {
+        "label": {
+          "description": "e.g. 'Distance', 'Spectral type'",
+          "title": "Label",
+          "type": "string"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Catalog/paper/URL the value comes from",
+          "title": "Source"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "e.g. 'pc', 'K', 'Earth masses'",
+          "title": "Unit"
+        },
+        "value": {
+          "description": "Display value, already formatted, e.g. '1.83'",
+          "title": "Value",
+          "type": "string"
+        },
+        "verified": {
+          "default": false,
+          "description": "True only if checked against `source`",
+          "title": "Verified",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "label",
+        "value"
+      ],
+      "title": "Fact",
+      "type": "object"
+    },
+    "Orbit": {
+      "additionalProperties": false,
+      "description": "Keplerian orbit of a body around its parent (two-body approximation).",
+      "properties": {
+        "arg_periapsis_deg": {
+          "default": 0.0,
+          "exclusiveMaximum": 360,
+          "minimum": 0,
+          "title": "Arg Periapsis Deg",
+          "type": "number"
+        },
+        "ascending_node_deg": {
+          "default": 0.0,
+          "exclusiveMaximum": 360,
+          "minimum": 0,
+          "title": "Ascending Node Deg",
+          "type": "number"
+        },
+        "eccentricity": {
+          "default": 0.0,
+          "exclusiveMaximum": 1,
+          "minimum": 0,
+          "title": "Eccentricity",
+          "type": "number"
+        },
+        "epoch_mjd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Epoch of mean_anomaly_deg; None = arbitrary phase",
+          "title": "Epoch Mjd"
+        },
+        "inclination_deg": {
+          "default": 0.0,
+          "maximum": 180,
+          "minimum": 0,
+          "title": "Inclination Deg",
+          "type": "number"
+        },
+        "mean_anomaly_deg": {
+          "default": 0.0,
+          "description": "At epoch_mjd",
+          "exclusiveMaximum": 360,
+          "minimum": 0,
+          "title": "Mean Anomaly Deg",
+          "type": "number"
+        },
+        "parent": {
+          "description": "Body.id of the body it orbits (or the barycenter body)",
+          "title": "Parent",
+          "type": "string"
+        },
+        "period_days": {
+          "exclusiveMinimum": 0,
+          "title": "Period Days",
+          "type": "number"
+        },
+        "semi_major_axis_au": {
+          "exclusiveMinimum": 0,
+          "title": "Semi Major Axis Au",
+          "type": "number"
+        }
+      },
+      "required": [
+        "parent",
+        "semi_major_axis_au",
+        "period_days"
+      ],
+      "title": "Orbit",
+      "type": "object"
+    },
+    "Provenance": {
+      "additionalProperties": false,
+      "properties": {
+        "built_at": {
+          "format": "date-time",
+          "title": "Built At",
+          "type": "string"
+        },
+        "data_releases": {
+          "items": {
+            "enum": [
+              "dr1",
+              "qr2",
+              "qr3",
+              "synthetic"
+            ],
+            "type": "string"
+          },
+          "title": "Data Releases",
+          "type": "array"
+        },
+        "notes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Notes",
+          "type": "array"
+        },
+        "pipeline_version": {
+          "title": "Pipeline Version",
+          "type": "string"
+        },
+        "synthetic": {
+          "description": "True = fake data for development. The UI MUST say so.",
+          "title": "Synthetic",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "pipeline_version",
+        "built_at",
+        "synthetic"
+      ],
+      "title": "Provenance",
+      "type": "object"
+    },
+    "SkyCoord": {
+      "additionalProperties": false,
+      "properties": {
+        "dec": {
+          "description": "ICRS declination [deg]",
+          "maximum": 90,
+          "minimum": -90,
+          "title": "Dec",
+          "type": "number"
+        },
+        "ra": {
+          "description": "ICRS right ascension [deg]",
+          "exclusiveMaximum": 360,
+          "minimum": 0,
+          "title": "Ra",
+          "type": "number"
+        }
+      },
+      "required": [
+        "ra",
+        "dec"
+      ],
+      "title": "SkyCoord",
+      "type": "object"
+    },
+    "SpaceMotion": {
+      "additionalProperties": false,
+      "description": "Where the system is and how it moves through the Galaxy (drives the 'move through space' view).",
+      "properties": {
+        "distance_pc": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Distance Pc"
+        },
+        "epoch": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Reference epoch of position/motion, e.g. 'J2016.0' (Gaia DR3)",
+          "title": "Epoch"
+        },
+        "parallax_mas": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parallax Mas"
+        },
+        "pm_dec_mas_yr": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pm Dec Mas Yr"
+        },
+        "pm_ra_cosdec_mas_yr": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pm Ra Cosdec Mas Yr"
+        },
+        "radial_velocity_km_s": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Radial Velocity Km S"
+        }
+      },
+      "title": "SpaceMotion",
+      "type": "object"
+    },
+    "Variability": {
+      "additionalProperties": false,
+      "properties": {
+        "amplitude_mag": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Amplitude Mag"
+        },
+        "band": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Band the amplitude refers to, e.g. 'V', 'K', 'SPHEREx 2 um'",
+          "title": "Band"
+        },
+        "kind": {
+          "enum": [
+            "pulsation",
+            "accretion",
+            "eclipse",
+            "rotation",
+            "irregular"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "period_days": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Period Days"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "Variability",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "bodies": {
+      "items": {
+        "$ref": "#/$defs/Body"
+      },
+      "minItems": 1,
+      "title": "Bodies",
+      "type": "array"
+    },
+    "center": {
+      "$ref": "#/$defs/SkyCoord"
+    },
+    "description": {
+      "default": "",
+      "title": "Description",
+      "type": "string"
+    },
+    "field_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "SPHEREx field (SkyField.id) where it is observed",
+      "title": "Field Id"
+    },
+    "id": {
+      "description": "URL-safe slug",
+      "pattern": "^[a-z0-9][a-z0-9-]*$",
+      "title": "Id",
+      "type": "string"
+    },
+    "motion": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SpaceMotion"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "provenance": {
+      "$ref": "#/$defs/Provenance"
+    },
+    "representation_note": {
+      "default": "Model representation built from catalog parameters - not an image. Sizes and distances may be exaggerated for visibility.",
+      "description": "Shown by the UI next to every 3D view",
+      "title": "Representation Note",
+      "type": "string"
+    },
+    "tags": {
+      "description": "e.g. 'test-target', 'brown-dwarf', 'variable'",
+      "items": {
+        "type": "string"
+      },
+      "title": "Tags",
+      "type": "array"
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "center",
+    "bodies",
+    "provenance"
+  ],
+  "title": "SystemModel",
+  "type": "object"
+}

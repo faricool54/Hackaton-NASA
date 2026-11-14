@@ -37,3 +37,12 @@ def test_unknown_field_is_404(client):
 def test_live_endpoints_report_not_implemented_cleanly(client):
     r = client.get("/api/search", params={"ra": 10, "dec": 10})
     assert r.status_code in (200, 501, 502, 504)
+
+
+def test_systems_roundtrip(client):
+    manifest = client.get("/api/manifest").json()
+    assert manifest["systems"], "demo data should include 3D systems"
+    sid = manifest["systems"][0]["id"]
+    system = client.get(f"/api/systems/{sid}").json()
+    assert system["id"] == sid and system["bodies"]
+    assert client.get("/api/systems/nope").status_code == 404
