@@ -115,7 +115,8 @@ def test_submit_invalid_params_returns_422(client_with_engine, body, fragment):
     client = client_with_engine(engine)
     r = client.post("/api/jobs", json={"ra": 0.0, "dec": 0.0, **body})
     assert r.status_code == 422
-    assert fragment in r.json()["detail"].lower()
+    assert any(fragment in str(error["loc"][-2:]).lower() for error in r.json()["detail"])
+    engine.service.submit.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

@@ -17,25 +17,13 @@ from __future__ import annotations
 import re
 import xml.etree.ElementTree as ET
 from functools import lru_cache
-from typing import Literal
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel
+
+from errante.models import ObjectType, ResolvedRegion
 
 router = APIRouter(tags=["live"])
-
-# ObjectType values from the contract (models.py / types.ts)
-ObjectType = Literal[
-    "asteroid",
-    "comet",
-    "tno",
-    "dwarf_planet",
-    "planet",
-    "star",
-    "brown_dwarf",
-    "unknown",
-]
 
 # Map Sesame/SIMBAD otype codes → contract ObjectType.
 # SIMBAD otype reference: https://simbad.cds.unistra.fr/guide/otypes.htx
@@ -166,14 +154,6 @@ def _resolve_cached(name: str) -> dict:
         status_code=502,
         detail=f"Sesame returned unexpected status {response.status_code}",
     )
-
-
-class ResolvedRegion(BaseModel):
-    ra: float
-    dec: float
-    object_type: str
-    resolved_name: str
-    source: str
 
 
 @router.get("/resolve-name", response_model=ResolvedRegion)

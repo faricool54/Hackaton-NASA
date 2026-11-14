@@ -20,11 +20,10 @@ The internal "publishing" state is collapsed to "running" in responses.
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime
-from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Path, Request
-from pydantic import BaseModel, Field
+
+from errante.models import JobStatusResponse, JobSubmitRequest
 
 from ..jobs.errors import InvalidRequest, JobNotFound, QueueFull
 from ..jobs.types import Job, JobRequest, JobStatus
@@ -41,49 +40,6 @@ _PUBLIC_STATUS = {
     JobStatus.no_coverage: "no_coverage",
     JobStatus.pipeline_not_ready: "pipeline_not_ready",
 }
-
-PublicStatus = Literal["queued", "running", "ready", "failed", "no_coverage", "pipeline_not_ready"]
-
-
-# ---------------------------------------------------------------------------
-# Request / response models
-# ---------------------------------------------------------------------------
-
-
-class JobSubmitRequest(BaseModel):
-    """Body for POST /api/jobs."""
-
-    ra: float = Field(..., description="Right ascension (ICRS degrees, [0, 360))")
-    dec: float = Field(..., description="Declination (ICRS degrees, [-90, 90])")
-    size_deg: float = Field(
-        default=0.25,
-        description="Field side length in degrees ([0.01, 0.5])",
-    )
-    detectors: list[int] = Field(
-        default_factory=list,
-        description="SPHEREx detector numbers to include (1–6); empty = all",
-    )
-    mjd_min: float | None = Field(default=None, description="Earliest frame epoch (MJD)")
-    mjd_max: float | None = Field(default=None, description="Latest frame epoch (MJD)")
-    max_frames: int = Field(
-        default=40,
-        description="Maximum number of frames to include ([2, 120])",
-    )
-
-
-class JobStatusResponse(BaseModel):
-    """Response for both POST /api/jobs and GET /api/jobs/{id}."""
-
-    id: str
-    status: PublicStatus
-    stage: str
-    created_at: datetime
-    updated_at: datetime
-    # Set when status == "ready"
-    result_field_id: str | None = None
-    # Set when status == "failed"
-    error_detail: str | None = None
-
 
 # ---------------------------------------------------------------------------
 # Helpers

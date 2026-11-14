@@ -91,12 +91,15 @@ Pages con fuente GitHub Actions y la variable `ENABLE_PAGES=true`. Configurar `V
 `VITE_API_BASE=https://<backend>` para conectarlo; por defecto publica la demo estática etiquetada. Para este
 repo privado, confirmar que el plan de GitHub habilita Pages; no cambiar la visibilidad del repo para evitarlo.
 Validar la URL resultante sin login, con un campo no precargado y el frontend del equipo antes de marcar R01/R03.
-Solo preparar/ejecutar el workflow no demuestra el flujo de jobs, todavía pendiente del contrato.
+Solo preparar/ejecutar el workflow no demuestra el recorrido desde una URL pública.
 
 Referencias de configuración: [GitHub Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)
 y [contexto Docker/Dockerfile específico](https://docs.docker.com/build/concepts/context/#dockerignore-files).
 
 ## Jobs por coordenadas: implementación y conexión
+
+Contrato compartido **0.3.0** en `errante.models`, `shared/schema` y tipos TS (PR #32). Las rutas usan
+esos mismos modelos: no mantienen copias locales. WS5 consume POST/GET y el resolver desde ese contrato.
 
 Activar con `ERRANTE_ENABLE_JOBS=1`. El backend sirve y construye en **el mismo directorio**:
 `ERRANTE_DATA_DIR` si se definió, o `ERRANTE_PRODUCTS_DIR` aunque todavía no haya manifest. Al activar jobs
@@ -143,3 +146,7 @@ son responsabilidad del host/contenedor. Los resultados desaparecidos o inválid
 `no_coverage` requiere una consulta válida vacía; errores genéricos de proyección/descarga no se interpretan
 como ausencia de cobertura. Una secuencia técnica correcta tampoco certifica movimiento/variabilidad R05.
 La integración de espectros, comparaciones y fichas científicas sigue las dependencias de WS2/WS3 de VISION.md.
+
+Para verificar un PR apilado contra su base inmediata: `ERRANTE_BASE_REF=origin/<rama-base>` antes de
+`python scripts/dev.py check` (PowerShell: `$env:ERRANTE_BASE_REF=...`). La guardia mantiene las mismas
+reglas de dueños y CI usa la base del PR. Sin la variable sigue comparando con `origin/main`.
