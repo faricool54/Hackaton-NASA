@@ -24,6 +24,9 @@ other failed differently (e.g. SIA timeout, TAP 502), the timeout is the cause, 
 
 A whole search (SIA retries + TAP fallback) is bounded by ``settings.SEARCH_DEADLINE_S``: SIA may use
 at most half of it, TAP the rest, and no attempt starts without at least ``_MIN_ATTEMPT_S`` left.
+When the search has a fallback in hand (an expired cache entry or a covering snapshot, see below) the
+budget is capped at ``settings.SEARCH_FALLBACK_DEADLINE_S`` (20 s), so the fallback still answers before
+the backend gives up on the request (ERRANTE_API_TIMEOUT_S, 30 s -> HTTP 504).
 TAP runs one query at a time per process (module lock), as IRSA asks.
 
 Results truncated at MAXREC (SIA ``QUERY_STATUS=OVERFLOW``) are flagged and never cached, so raising
@@ -149,7 +152,9 @@ class SearchReport:
     overflow: bool = False
     n_duplicates: int = 0
     errors: list[str] = field(default_factory=list)
-    stale: bool = False  # True when IRSA failed and an expired cache entry was served instead
+    # True when IRSA failed and an older answer was served instead: an expired cache entry (``service`` is
+    # the service that produced it) or a committed search snapshot (``service == 'snapshot'``).
+    stale: bool = False
     warnings: list[str] = field(default_factory=list)  # e.g. unknown collection names (IRSA ignores them)
 
 
@@ -204,6 +209,8 @@ def search_frames_report(
 
     ``use_snapshot`` (default: same as ``use_cache``) allows the committed search snapshots as a last
     resort, only after SIA and TAP both failed and no cached answer exists (see :func:`find_snapshot`).
+    With such a fallback in hand IRSA gets ``settings.SEARCH_FALLBACK_DEADLINE_S`` at most
+    (:func:`search_budget`).
     """
     t0 = time.monotonic()
     allow_snapshot = use_cache if use_snapshot is None else use_snapshot
@@ -227,7 +234,11 @@ def search_frames_report(
         rows, service, overflow, n_dup = cached.rows, cached.service, cached.overflow, cached.n_duplicates
         from_cache = True
     else:
-        deadline = t0 + settings.SEARCH_DEADLINE_S if settings.SEARCH_DEADLINE_S > 0 else None
+        # Fallbacks are known before IRSA is asked: with one in hand the search gets a shorter budget, so
+        # the fallback still reaches a caller that stops waiting (the backend answers 504 after 30 s).
+        snap = find_snapshot(ra, dec, radius, cols) if cached is None and allow_snapshot else None
+        budget = search_budget(fallback=cached is not None or snap is not None)
+        deadline = t0 + budget if budget > 0 else None
         try:
             raw, service, overflow, errors = _query_archive(ra, dec, radius, mjd_min, mjd_max, cols, deadline)
         except SearchError as e:
@@ -237,11 +248,10 @@ def search_frames_report(
                 rows, service, overflow, n_dup = cached.rows, cached.service, cached.overflow, cached.n_duplicates
             else:
                 # Nothing cached: last resort, a committed snapshot whose disk holds this search.
-                snap = find_snapshot(ra, dec, radius, cols) if allow_snapshot else None
                 if snap is None:
                     raise
-                rows = snap.frames(ra, dec, radius, mjd_min, mjd_max, cols)
-                service, overflow, n_dup = "snapshot", False, 0
+                rows, n_dup = snap.replay(ra, dec, radius, mjd_min, mjd_max, cols)
+                service, overflow = "snapshot", False
                 warn.append(snapshot_warning(snap))
                 log.warning("%s (%s)", warn[-1], e)
             from_cache, stale, errors = True, True, [str(e)]
@@ -284,6 +294,17 @@ def search_frames_report(
     )
 
 
+def search_budget(*, fallback: bool) -> float:
+    """Seconds one search may spend on IRSA (0 = unbounded).
+
+    ``settings.SEARCH_DEADLINE_S``, capped at ``settings.SEARCH_FALLBACK_DEADLINE_S`` when an expired cache
+    entry or a committed snapshot can answer instead (``fallback=True``). A value of 0 switches either off.
+    """
+    limits = [settings.SEARCH_DEADLINE_S] + ([settings.SEARCH_FALLBACK_DEADLINE_S] if fallback else [])
+    limits = [s for s in limits if s > 0]
+    return min(limits) if limits else 0.0
+
+
 def known_collections() -> frozenset[str]:
     """Collection names verified live (2026-11-14) plus whatever the settings configure."""
     return frozenset(settings.IRSA_COLLECTIONS) | frozenset(settings.IRSA_DEEP_COLLECTIONS) | _VERIFIED_COLLECTIONS
@@ -316,9 +337,10 @@ def build_query(
 ) -> str:
     """ADQL for the TAP fallback (``ADQL_FRAMES_AT_POSITION``).
 
-    The column goes FIRST in INTERSECTS: IRSA TAP rejects ``INTERSECTS(CIRCLE(...), p.poly)`` with
-    "Invalid or unsupported ADQL query string" and accepts ``INTERSECTS(p.poly, CIRCLE(...))``
-    (verified live 2026-11-14 19:25-19:26 UTC).
+    The column goes FIRST in INTERSECTS: IRSA TAP rejects ``INTERSECTS(CIRCLE(...), p.poly)`` at once with
+    "Invalid or unsupported ADQL query string" (live 2026-11-14 19:25-19:44 and 20:05 UTC).
+    ``INTERSECTS(p.poly, CIRCLE(...))`` is not rejected at parse time, but no answer has been seen end to end:
+    it hung or got a 502 while the TAP spherex tables were down (2026-11-14 19:16-20:07 UTC). Unverified.
     """
     if radius_deg > MIN_RADIUS_DEG:
         region = f"INTERSECTS(p.poly, CIRCLE('ICRS', {ra:.8f}, {dec:.8f}, {radius_deg:.9g}))"
@@ -862,10 +884,27 @@ class SearchSnapshot:
         collections: tuple[str, ...] | list[str] | None = None,
     ) -> list[ArchiveRow]:
         """Replay a search offline: footprint touches the circle and the exposure overlaps [mjd_min, mjd_max]."""
+        return self.replay(ra, dec, radius_deg, mjd_min, mjd_max, collections)[0]
+
+    def replay(
+        self,
+        ra: float,
+        dec: float,
+        radius_deg: float,
+        mjd_min: float | None = None,
+        mjd_max: float | None = None,
+        collections: tuple[str, ...] | list[str] | None = None,
+    ) -> tuple[list[ArchiveRow], int]:
+        """:meth:`frames` plus the number of (obs_id, detector) duplicates dropped.
+
+        The snapshot keeps every collection's row; like :func:`search_frames` the replay keeps one row per
+        (obs_id, detector) (DR1 wins) AFTER the collection filter, so a search of one collection still sees
+        that collection's rows, as live SIA does.
+        """
         wanted = set(self.collections if collections is None else collections)
         lo = -math.inf if mjd_min is None else float(mjd_min)
         hi = math.inf if mjd_max is None else float(mjd_max)
-        return [
+        hits = [
             s.row
             for s in self.rows
             if s.row.collection in wanted
@@ -873,9 +912,11 @@ class SearchSnapshot:
             and s.t_min <= hi
             and footprint_hits(s.footprint, ra, dec, radius_deg)
         ]
+        return dedupe_rows(hits)
 
 
 _SNAPSHOT_MEMO: dict[Path, tuple[tuple[int, int], SearchSnapshot | None]] = {}
+_SNAPSHOT_DIRS_WARNED: set[Path] = set()  # missing snapshot directories already logged
 
 
 def snapshot_path(field_id: str, directory: Path | None = None) -> Path:
@@ -948,7 +989,19 @@ def list_snapshots(directory: Path | None = None) -> list[SearchSnapshot]:
     Parsed files are memoized by (mtime, size), so a long-running backend reads each file once.
     """
     directory = directory or SNAPSHOT_DIR
-    if directory is None or not directory.is_dir():
+    if directory is None:  # switched off (ERRANTE_SEARCH_SNAPSHOTS=0, tests, live checks)
+        return []
+    if not directory.is_dir():
+        # A deploy that does not ship data/index/search, or a non-editable install (REPO_ROOT elsewhere).
+        with _SNAPSHOT_LOCK:
+            first = directory not in _SNAPSHOT_DIRS_WARNED
+            _SNAPSHOT_DIRS_WARNED.add(directory)
+        if first:
+            log.warning(
+                "Search snapshot directory %s does not exist: the IRSA-outage fallback is off "
+                "(ship data/index/search or set ERRANTE_SEARCH_SNAPSHOTS to its path; 0 silences this)",
+                directory,
+            )
         return []
     out: list[SearchSnapshot] = []
     for path in sorted(directory.glob("*.json")):
@@ -1038,7 +1091,9 @@ def fetch_snapshot(
                 "rows": len(raw),
             }
         )
-    kept, n_dup = dedupe_rows(list(by_key.values()))
+    # Every file is kept, also when one (obs_id, detector) is in two collections: the replay deduplicates
+    # after its collection filter (SearchSnapshot.replay), so a one-collection search stays exact.
+    kept = sorted(by_key.values(), key=lambda r: (r.ref.mjd, r.ref.detector, r.ref.obs_id, r.collection))
     records: list[list] = []
     used: list[ArchiveRow] = []
     n_no_footprint = n_outside = 0
@@ -1077,7 +1132,7 @@ def fetch_snapshot(
             "elapsed_s": round(sum(q["elapsed_s"] for q in queries), 2),
             "rows_returned": sum(q["rows"] for q in queries),
             "distinct_files": len(by_key),
-            "duplicates_removed": n_dup,
+            "duplicate_rows": len(used) - len(dedupe_rows(used)[0]),
             "rows_without_footprint": n_no_footprint,
             "rows_outside_disk": n_outside,
             "rows": len(records),
@@ -1087,9 +1142,11 @@ def fetch_snapshot(
             "point_check": None,
             "generator": "errante snapshot-search (errante.data.irsa.fetch_snapshot)",
             "use": (
-                "Real IRSA SIA answer, deduplicated by (obs_id, detector) like search_frames. Read only when SIA "
-                "and TAP both fail and no cached search exists, for searches inside this disk; flagged "
-                "service='snapshot', stale=True. Frames published after queried_utc are missing."
+                "Real IRSA SIA answer, one row per file (duplicate_rows: same obs_id + detector in two "
+                "collections; a replay keeps one per (obs_id, detector) after its collection filter, DR1 first, "
+                "like search_frames). Read only when SIA and TAP both fail and no cached search exists, for "
+                "searches inside this disk; flagged service='snapshot', stale=True. Frames published after "
+                "queried_utc are missing."
             ),
         },
         "columns": list(SNAPSHOT_COLUMNS),

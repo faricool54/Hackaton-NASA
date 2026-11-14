@@ -729,7 +729,7 @@ def test_fetch_snapshot_document(monkeypatch, tmp_path):
     assert len(prov["queries"]) == 7 and prov["rows_returned"] == 7 * 14
     assert prov["rows"] == prov["distinct_files"] == len(doc["rows"]) == 14
     assert prov["rows_by_collection"] == {"spherex_dr1": 10, "spherex_qr3": 4}
-    assert sum(prov["rows_by_detector"].values()) == 14 and prov["duplicates_removed"] == 0
+    assert sum(prov["rows_by_detector"].values()) == 14 and prov["duplicate_rows"] == 0
     assert prov["rows_outside_disk"] == prov["rows_without_footprint"] == 0
     assert prov["queried_utc"] == prov["queries"][0]["queried_utc"] and prov["queried_utc"].endswith("Z")
     assert prov["mjd_range"][0] < prov["mjd_range"][1]
@@ -859,13 +859,18 @@ def test_snapshot_replay_follows_the_footprints(monkeypatch, tmp_path):
     assert min(seen) < 14 and max(seen) > 0  # the footprints really select frames
 
 
-def test_stale_cache_beats_snapshot_and_no_cache_means_no_snapshot(monkeypatch, snapdir):
+def _expired_cached_search(monkeypatch) -> None:
+    """A real (fixture) SIA answer for (RA, DEC) in the search cache, 3 days old (TTL: 1 day)."""
     install(monkeypatch, sia=[ok(SIA_XML)])
     irsa.search_frames(RA, DEC, detectors=None)
     (path,) = (settings.CACHE_DIR / "queries").glob("search_*.json")
     doc = json.loads(path.read_text(encoding="utf-8"))
     doc["created"] = time.time() - 3 * 86400
     path.write_text(json.dumps(doc), encoding="utf-8")
+
+
+def test_stale_cache_beats_snapshot_and_no_cache_means_no_snapshot(monkeypatch, snapdir):
+    _expired_cached_search(monkeypatch)
     install(monkeypatch, **IRSA_DOWN)
     rep = irsa.search_frames_report(RA, DEC)
     assert rep.stale and rep.service == "sia" and rep.warnings == []  # the expired cache, not the snapshot
@@ -875,6 +880,158 @@ def test_stale_cache_beats_snapshot_and_no_cache_means_no_snapshot(monkeypatch, 
     assert irsa.search_frames_report(RA, DEC, use_cache=False, use_snapshot=True).service == "snapshot"
     with pytest.raises(irsa.SearchError):
         irsa.search_frames_report(RA, DEC, use_snapshot=False, mjd_min=1)  # no cache for this key either
+
+
+# The shipped settings.py defaults (the autouse fixture makes retries instant) and the backend's default
+# ERRANTE_API_TIMEOUT_S (errante_api.settings.Settings.live_timeout_s): the backend answers HTTP 504 after it.
+SHIPPED_BUDGET = {
+    "SEARCH_ATTEMPTS": 4,
+    "SEARCH_BACKOFF_S": 1.0,
+    "SIA_TIMEOUT_S": 30.0,
+    "TAP_TIMEOUT_S": 60.0,
+    "SEARCH_DEADLINE_S": 60.0,
+    "SEARCH_FALLBACK_DEADLINE_S": 20.0,
+}
+API_TIMEOUT_S = 30.0
+
+
+def _outage_http(clock: FakeClock, calls: list, sia, tap):
+    """IRSA down: each service hangs until its read timeout ('hang') or answers that HTTP status at once."""
+
+    def fake_http(method, url, *, params=None, data=None, timeout):
+        calls.append((url, timeout))
+        mode = sia if url == settings.IRSA_SIA else tap
+        if mode == "hang":
+            clock.now += timeout
+            raise requests.ReadTimeout(f"{url} hung {timeout} s")
+        return FakeResponse(mode)
+
+    return fake_http
+
+
+def _outage(monkeypatch, sia, tap) -> tuple[FakeClock, list]:
+    for name, value in SHIPPED_BUDGET.items():
+        monkeypatch.setattr(settings, name, value)
+    clock, calls = FakeClock(), []
+    monkeypatch.setattr(irsa, "time", clock)
+    monkeypatch.setattr(irsa, "_http", _outage_http(clock, calls, sia, tap))
+    return clock, calls
+
+
+# 2026-11-14: SIA answered bursts of fast 502s or hung; TAP hung on every spherex query for hours.
+@pytest.mark.parametrize(("sia", "tap"), [(502, "hang"), ("hang", "hang"), ("hang", 502)])
+@pytest.mark.parametrize("fallback", ["snapshot", "expired cache"])
+def test_fallback_answers_before_the_api_gives_up(monkeypatch, snapdir, sia, tap, fallback):
+    # Review 2026-11-14: SIA 502 + TAP hang used the whole 60 s SEARCH_DEADLINE_S before the snapshot
+    # answered, so /api/search (30 s) returned 504. With a fallback in hand the search budget is capped.
+    if fallback == "expired cache":
+        monkeypatch.setattr(irsa, "SNAPSHOT_DIR", None)
+        _expired_cached_search(monkeypatch)
+    clock, calls = _outage(monkeypatch, sia, tap)
+    t0 = clock.now
+    rep = irsa.search_frames_report(RA, DEC)
+    assert rep.stale and rep.service == ("snapshot" if fallback == "snapshot" else "sia")
+    assert len(rep.result.frames) == 14
+    assert clock.now - t0 <= settings.SEARCH_FALLBACK_DEADLINE_S < API_TIMEOUT_S - 5
+    assert {url for url, _ in calls} == {settings.IRSA_SIA, settings.IRSA_TAP_SYNC}  # IRSA still got its chance
+
+
+def test_fallback_budget_applies_only_with_a_fallback(monkeypatch, snapdir):
+    clock, _ = _outage(monkeypatch, 502, "hang")
+    # Far from every snapshot and nothing cached: IRSA keeps the whole SEARCH_DEADLINE_S.
+    t0 = clock.now
+    with pytest.raises(irsa.SearchError):
+        irsa.search_frames(RA + 1.0, DEC)
+    assert 50.0 < clock.now - t0 <= 60.0
+    # use_cache=False (live checks) never falls back, so it is not capped either.
+    t0 = clock.now
+    with pytest.raises(irsa.SearchError):
+        irsa.search_frames(RA, DEC, use_cache=False)
+    assert 50.0 < clock.now - t0 <= 60.0
+    # SEARCH_FALLBACK_DEADLINE_S = 0 switches the cap off; a smaller SEARCH_DEADLINE_S wins over it.
+    monkeypatch.setattr(settings, "SEARCH_FALLBACK_DEADLINE_S", 0.0)
+    t0 = clock.now
+    assert irsa.search_frames_report(RA, DEC).service == "snapshot"
+    assert 50.0 < clock.now - t0 <= 60.0
+    monkeypatch.setattr(settings, "SEARCH_FALLBACK_DEADLINE_S", 20.0)
+    monkeypatch.setattr(settings, "SEARCH_DEADLINE_S", 12.0)
+    t0 = clock.now
+    assert irsa.search_frames_report(RA, DEC).service == "snapshot"
+    assert clock.now - t0 <= 12.0
+
+
+def test_shipped_search_budget_fits_the_backend_timeout():
+    import dataclasses
+    import os
+
+    env = {"SIA_TIMEOUT_S": "ERRANTE_SIA_TIMEOUT_S", "TAP_TIMEOUT_S": "ERRANTE_TAP_TIMEOUT_S"}
+    env |= {"SEARCH_DEADLINE_S": "ERRANTE_SEARCH_DEADLINE_S"}
+    env |= {"SEARCH_FALLBACK_DEADLINE_S": "ERRANTE_SEARCH_FALLBACK_DEADLINE_S"}
+    for name, var in env.items():  # SHIPPED_BUDGET mirrors settings.py (unless this shell overrides it)
+        if var not in os.environ:
+            assert getattr(settings, name) == SHIPPED_BUDGET[name], name
+    api = pytest.importorskip("errante_api.settings")
+    (field,) = [f for f in dataclasses.fields(api.Settings) if f.name == "live_timeout_s"]
+    assert field.default == API_TIMEOUT_S  # if WS4 lowers it, lower SEARCH_FALLBACK_DEADLINE_S too
+
+
+def _with_qr3_copy(xml: bytes) -> bytes:
+    """The SIA fixture plus a qr3 copy of its first (dr1) row: one obs_id + detector in two collections."""
+    start = xml.index(b"<TR>")
+    end = xml.index(b"</TR>", start) + len(b"</TR>")
+    row = xml[start:end]
+    assert row.count(b"dr1/level2/") == 2 and row.count(b"spherex_dr1") == 2  # obs_collection, publisher DID
+    copy = row.replace(b"dr1/level2/", b"qr3/level2/").replace(b"spherex_dr1", b"spherex_qr3")
+    return xml[:end] + b"\n" + copy + xml[end:]
+
+
+def test_snapshot_keeps_every_collection_row(monkeypatch, tmp_path):
+    # Review 2026-11-14: the snapshot was deduplicated over dr1+qr3 (DR1 wins) BEFORE the replay filtered by
+    # collection, so a qr3-only search during an outage lost frames that live SIA on qr3 returns.
+    xml = _with_qr3_copy(SIA_XML)
+    install(monkeypatch, sia=[ok(xml)])
+    live_both = irsa.search_frames_report(RA, DEC, use_cache=False)
+    assert live_both.n_duplicates == 1 and len(live_both.result.frames) == 14
+    doc = irsa.fetch_snapshot("barnards-star", RA, DEC, rounds=1, pause_s=0, tile_radius_deg=10.0)
+    assert len(doc["rows"]) == doc["provenance"]["rows"] == 15 and doc["provenance"]["duplicate_rows"] == 1
+    check = doc["provenance"]["point_check"]
+    assert check["rows_live"] == check["rows_replayed"] == 14 and not check["only_live"]
+    directory = tmp_path / "dup"
+    irsa.write_snapshot(doc, irsa.snapshot_path("barnards-star", directory))
+    monkeypatch.setattr(irsa, "SNAPSHOT_DIR", directory)
+    install(monkeypatch, **IRSA_DOWN)
+    rep = irsa.search_frames_report(RA, DEC)
+    assert rep.service == "snapshot" and rep.result.frames == live_both.result.frames and rep.n_duplicates == 1
+    rep = irsa.search_frames_report(RA, DEC, collections=["spherex_qr3"])
+    assert rep.service == "snapshot" and len(rep.result.frames) == 5 and rep.n_duplicates == 0
+    (dup,) = [f for f in rep.result.frames if (f.obs_id, f.detector) == ("2025W33_2C_0321_1", 6)]
+    assert dup.release == "qr3" and dup.s3_key.startswith("qr3/level2/")
+
+
+def test_missing_snapshot_dir_is_logged_once(monkeypatch, tmp_path, caplog):
+    # A deploy that does not ship data/index/search (or a non-editable install) silently lost the fallback.
+    missing = tmp_path / "not-shipped"
+    monkeypatch.setattr(irsa, "SNAPSHOT_DIR", missing)
+    install(monkeypatch, **IRSA_DOWN)
+    with caplog.at_level("WARNING", logger="errante.data.irsa"):
+        for _ in range(3):
+            with pytest.raises(irsa.SearchError):
+                irsa.search_frames(RA, DEC)
+    assert caplog.text.count(f"Search snapshot directory {missing} does not exist") == 1
+    assert "ERRANTE_SEARCH_SNAPSHOTS" in caplog.text
+    caplog.clear()
+    monkeypatch.setattr(irsa, "SNAPSHOT_DIR", None)  # switched off on purpose: nothing to report
+    with caplog.at_level("WARNING", logger="errante.data.irsa"), pytest.raises(irsa.SearchError):
+        irsa.search_frames(RA, DEC)
+    assert "Search snapshot directory" not in caplog.text
+
+
+def test_cli_search_labels_a_snapshot_answer(monkeypatch, snapdir, capsys):
+    install(monkeypatch, **IRSA_DOWN)
+    assert cli_main(["search", "--ra", str(RA), "--dec", str(DEC)]) == 0
+    err = capsys.readouterr().err
+    assert "14 frames via committed SNAPSHOT (IRSA unavailable)" in err and "EXPIRED" not in err
+    assert "WARNING: IRSA unavailable: frames come from the committed search snapshot 'barnards-star'" in err
 
 
 def test_broken_snapshot_files_are_ignored(monkeypatch, snapdir, caplog):
@@ -980,8 +1137,11 @@ def test_committed_snapshot_files(field_id):
     assert prov["queried_utc"].startswith("2026-") and prov["queried_utc"].endswith("Z")
     assert prov["rows"] == len(doc["rows"]) == len(snap.rows) and prov["rows_without_footprint"] == 0
     assert sum(prov["rows_by_collection"].values()) == sum(prov["rows_by_detector"].values()) == len(snap.rows)
+    # One row per S3 file; an (obs_id, detector) in two collections is deduplicated by the replay. The files
+    # committed on 2026-11-14 were deduplicated when written ('duplicates_removed': 0 in all five, same rows).
+    assert len({s.row.ref.s3_key for s in snap.rows}) == len(snap.rows)
     keys = [(s.row.ref.obs_id, s.row.ref.detector) for s in snap.rows]
-    assert len(keys) == len(set(keys))  # deduplicated like search_frames
+    assert len(keys) - len(set(keys)) == prov.get("duplicate_rows", prov.get("duplicates_removed"))
     assert all(s.row.ref.irsa_uri == f"ibe/data/spherex/{s.row.ref.s3_key}" for s in snap.rows)
     assert all(s.t_min <= s.row.ref.mjd <= s.t_max for s in snap.rows)
     # The field centre in fields.toml (what build.py searches) is inside the disk, with margin for clicks.
@@ -1036,3 +1196,17 @@ def test_cli_snapshot_search(monkeypatch, tmp_path, capsys):
     assert all(f"{fid}: snapshot NOT written" in err for fid in OFFICIAL)
     assert not (tmp_path / "none").exists()
     assert fake.count(settings.IRSA_SIA) == 5 * settings.SEARCH_ATTEMPTS
+
+
+@pytest.mark.parametrize("point_answer", ["502", "empty"])
+def test_cli_snapshot_search_exits_1_when_the_point_check_fails(monkeypatch, tmp_path, capsys, point_answer):
+    # Review 2026-11-14: the file was written with exit 0 although test_committed_snapshot_files rejects it.
+    point = FakeResponse(502) if point_answer == "502" else ok(_empty_votable())
+    install(monkeypatch, sia=[ok(SIA_XML)] * 7 + [point])  # 7 tiles answer, the centre point search does not
+    out = tmp_path / "snaps"
+    argv = ["snapshot-search", "barnards-star", "--out", str(out), "--rounds", "1", "--pause", "0"]
+    assert cli_main(argv) == 1
+    err = capsys.readouterr().err
+    assert ("point check NOT run" if point_answer == "502" else "WARNING point check: live 0 vs replayed 14") in err
+    assert "barnards-star.json fails CI (test_committed_snapshot_files)" in err
+    assert irsa.load_snapshot(out / "barnards-star.json").field_id == "barnards-star"  # written, for inspection

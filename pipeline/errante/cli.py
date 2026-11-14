@@ -79,7 +79,9 @@ def cmd_search(args: argparse.Namespace) -> int:
 
     frames = rep.result.frames
     origin = rep.service.upper()
-    if rep.stale:
+    if rep.service == "snapshot":
+        origin = "committed SNAPSHOT (IRSA unavailable)"  # the WARNING note gives its date
+    elif rep.stale:
         origin += " (EXPIRED cache: IRSA unavailable)"
     elif rep.from_cache:
         origin += " (cache)"
@@ -145,6 +147,7 @@ def cmd_snapshot_search(args: argparse.Namespace) -> int:
         return 2
     out_dir = Path(args.out) if args.out else (irsa.SNAPSHOT_DIR or irsa.DEFAULT_SNAPSHOT_DIR)
     failed = []
+    unverified = []  # written, but the live point check failed or did not run: CI rejects such a file
     for fid in ids:
         cfg = cfgs[fid]
         try:
@@ -181,7 +184,14 @@ def cmd_snapshot_search(args: argparse.Namespace) -> int:
             print(
                 f"  point check OK: the replay at the centre matches the live point search ({check['rows_live']} frames)"
             )
-    return 1 if failed else 0
+            continue
+        unverified.append(fid)
+        print(
+            f"  {path.name} fails CI (test_committed_snapshot_files): run `errante snapshot-search {fid}` again "
+            f"once SIA answers, or restore the committed file (git checkout -- <path>)",
+            file=sys.stderr,
+        )
+    return 1 if failed or unverified else 0
 
 
 def cmd_systems(args: argparse.Namespace) -> int:
