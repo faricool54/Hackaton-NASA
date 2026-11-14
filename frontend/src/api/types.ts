@@ -303,3 +303,32 @@ export interface SearchResult {
   radius_deg: number;
   frames: FrameRef[];
 }
+
+/** Shared contract 0.3.0. Empty detectors means all six; coordinates are ICRS degrees. */
+export interface JobSubmitRequest {
+  ra: number;
+  dec: number;
+  size_deg?: number;
+  detectors?: number[];
+  mjd_min?: number | null;
+  mjd_max?: number | null;
+  max_frames?: number;
+}
+
+export type PublicJobStatus = 'queued' | 'running' | 'ready' | 'failed' | 'no_coverage' | 'pipeline_not_ready';
+
+export interface JobStatusResponse {
+  id: string;
+  status: PublicJobStatus;
+  stage: string;
+  created_at: string;
+  updated_at: string;
+  result_field_id: string | null;
+  error_detail: string | null;
+}
+
+export interface ResolvedRegion extends SkyCoord {
+  object_type: ObjectType;
+  resolved_name: string;
+  source: string;
+}
