@@ -1,9 +1,13 @@
 // Pure layout math for the 3D system scene: distance mapping, body radius caps, camera
-// framing and model-time stepping. No three.js here, so it is unit-testable without WebGL.
+// framing, model-time stepping, the Mira pulsation radius and the spin rules (M2: a body turns
+// only from a rotation period or the tidal-lock rule). No three.js here, so it is unit-testable
+// without WebGL and SystemViewer can import it from the main chunk.
 // Everything is a MODEL REPRESENTATION: sizes are exaggerated, distances optionally compressed.
-import type { Body, Orbit, OrbitQuality } from '../api/types';
+import type { Body, Orbit, OrbitQuality, SystemModel } from '../api/types';
 import { compressDistance } from './appearance';
-import { topoOrder } from './orbits';
+import { paramTier, spectralClass, type Tier } from './astro';
+import { formatPeriod } from './bodyFormat';
+import { J2000_MJD, topoOrder, type Vec3 } from './orbits';
 
 export type DistanceMode = 'compressed' | 'linear';
 
@@ -12,8 +16,16 @@ export const AU_PER_KM = 1 / 1.495978707e8;
 /** Smallest radius (scene units) a body is drawn with, unless that would make it overlap a neighbour. */
 export const MIN_VISIBLE_RADIUS: Record<DistanceMode, number> = { compressed: 0.12, linear: 0.03 };
 
-/** Pulsating stars change size a little (factor^0.08), brightness a lot. */
-export const PULSATION_SIZE_EXPONENT = 0.08;
+/**
+ * Radius modulation of a pulsating (Mira) star: ±10 %, i.e. the class-typical ~20 % peak-to-peak
+ * change of the continuum diameter (CLASS-TYPICAL, PULSATION_CITATION). It replaces the old ad-hoc
+ * f^0.08 size factor (±27 % for R Dra's 6.5 mag). The V swing itself is TiO-driven (Reid & Goldston
+ * 2002, ApJ 568, 931), not a Planck effect, so it is carried by the glow only.
+ */
+export const PULSATION_RADIUS_AMPLITUDE = 0.1;
+
+export const PULSATION_CITATION =
+  'Ireland et al. 2004, MNRAS 350, 365; Woodruff et al. 2004, A&A 421, 703 (Mira continuum diameters change by ~20 % peak-to-peak)';
 
 /** Orbit line colors (also used by the legend under the canvas, so both always agree). */
 export const ORBIT_COLOR: Record<OrbitQuality, string> = {
@@ -72,16 +84,26 @@ export function distanceMapper(mode: DistanceMode, refAu: number, scale: number)
   return mode === 'compressed' ? (au) => compressDistance(au, refAu) : (au) => au * scale;
 }
 
-/** Size factor of a body for a brightness factor (1 = mean). */
-export function pulsationScale(brightnessFactor: number): number {
-  return Math.pow(brightnessFactor, PULSATION_SIZE_EXPONENT);
+/** True when the scene animates the body's size: a periodic pulsation with an amplitude. */
+export function drawsPulsation(body: Body): boolean {
+  const v = body.variability;
+  return !!v && v.kind === 'pulsation' && !!v.amplitude_mag && !!v.period_days;
+}
+
+/**
+ * Radius factor of a pulsating star at `mjd`: 1 − A·sin(phase), on the same sinusoid and phase as
+ * variabilityFactor (largest when brightest). The real phase lag between size and visual light is
+ * not modelled. 1 for every body that is not drawn as pulsating.
+ */
+export function pulsationRadiusScale(body: Body, mjd: number): number {
+  if (!drawsPulsation(body)) return 1;
+  const phase = (2 * Math.PI * (mjd - J2000_MJD)) / body.variability!.period_days!;
+  return 1 - PULSATION_RADIUS_AMPLITUDE * Math.sin(phase);
 }
 
 /** Largest size factor a body reaches while pulsating (1 if it is not drawn as pulsating). */
 export function maxPulsationScale(body: Body): number {
-  const v = body.variability;
-  if (!v || !v.amplitude_mag || !v.period_days) return 1; // same conditions as variabilityFactor
-  return pulsationScale(Math.pow(10, 0.4 * (Math.abs(v.amplitude_mag) / 2)));
+  return drawsPulsation(body) ? 1 + PULSATION_RADIUS_AMPLITUDE : 1;
 }
 
 /** Non-disk bodies that orbit an existing body, grouped by parent id. */
@@ -212,4 +234,125 @@ export function focusDistance(
 export function advanceModelTime(mjd: number, daysPerSecond: number, frameSeconds: number): number {
   const dt = Math.min(Math.max(frameSeconds, 0), MAX_FRAME_SECONDS);
   return mjd + daysPerSecond * dt;
+}
+
+/**
+ * Suggested animation speed (days per real second) so the fastest motion is easy to follow: the
+ * shortest orbital, variability or rotation period, covered in 8 s.
+ */
+export function suggestedSpeed(system: Pick<SystemModel, 'bodies'>): number {
+  const periods = system.bodies.flatMap((b) => [
+    b.orbit?.period_days,
+    b.variability?.period_days,
+    typeof b.rotation_period_hours === 'number' ? b.rotation_period_hours / 24 : undefined,
+  ]);
+  const valid = periods.filter((p): p is number => typeof p === 'number' && Number.isFinite(p) && p > 0);
+  return valid.length ? Math.min(...valid) / 8 : 1;
+}
+
+// --- rotation (M2) -------------------------------------------------------------------------------
+
+/** Orbital periods below this make a planet of an M dwarf tidally locked (THEORY). */
+export const TIDAL_LOCK_MAX_PERIOD_DAYS = 10;
+
+export const TIDAL_LOCK_CITATION = 'Barnes 2017, Celest. Mech. Dyn. Astron. 129, 509 (tidal locking of habitable exoplanets)';
+
+/** A spin is not drawn when it would advance more than this per rendered frame (it would alias). */
+export const SPIN_ALIAS_MAX_DEG_PER_FRAME = 90;
+
+/**
+ * How a body spins in the scene:
+ *   'period'     rotation_period_hours is set: it turns at that period in model time (tier of its
+ *                'Rotation period' Fact; the spin-axis orientation is unknown and drawn upright);
+ *   'tidal-lock' a planet with P_orb < 10 d around an M dwarf keeps one face to it (THEORY);
+ *   'none'       rotation unknown: not drawn.
+ */
+export type SpinModel =
+  | { readonly kind: 'period'; readonly periodHours: number; readonly tier: Tier; readonly method: string; readonly citation: string }
+  | { readonly kind: 'tidal-lock'; readonly periodHours: number; readonly tier: 'theory'; readonly method: string; readonly citation: string }
+  | { readonly kind: 'none'; readonly periodHours: null; readonly tier: null; readonly method: string; readonly citation: string };
+
+/** An M-type main-sequence star (from the parsed spectral type). */
+function isMDwarf(body: Body): boolean {
+  if (body.kind !== 'star') return false;
+  const sp = spectralClass(body).value;
+  return !!sp && sp.letter === 'M' && (sp.stage === 'main-sequence' || sp.luminosityClass === 'V');
+}
+
+/** Bodies the tidal-lock rule applies to (planets and small bodies, as in astro.ts). */
+const LOCKABLE: ReadonlySet<Body['kind']> = new Set<Body['kind']>(['planet', 'dwarf_planet', 'moon', 'asteroid', 'comet', 'tno', 'unknown']);
+
+/** The spin model of one body of a system (see SpinModel). */
+export function spinModel(body: Body, bodies: readonly Body[]): SpinModel {
+  const p = body.rotation_period_hours;
+  if (body.kind !== 'disk' && typeof p === 'number' && Number.isFinite(p) && p > 0) {
+    const t = paramTier(body, 'rotationPeriod');
+    return {
+      kind: 'period',
+      periodHours: p,
+      tier: t.tier,
+      method: `turns once per ${formatPeriod(p / 24)} in model time (${t.tier}: ${t.method}); spin-axis orientation unknown, drawn perpendicular to the reference plane`,
+      citation: t.citation,
+    };
+  }
+  const o = body.orbit;
+  if (LOCKABLE.has(body.kind) && o && o.period_days > 0 && o.period_days < TIDAL_LOCK_MAX_PERIOD_DAYS) {
+    const parent = bodies.find((b) => b.id === o.parent);
+    if (parent && isMDwarf(parent)) {
+      return {
+        kind: 'tidal-lock',
+        periodHours: o.period_days * 24,
+        tier: 'theory',
+        method: `orbital period ${formatPeriod(o.period_days)} < ${TIDAL_LOCK_MAX_PERIOD_DAYS} d around the M dwarf ${parent.name}: expected to be tidally locked, so it keeps one face to it`,
+        citation: TIDAL_LOCK_CITATION,
+      };
+    }
+  }
+  return { kind: 'none', periodHours: null, tier: null, method: 'rotation unknown: not drawn', citation: 'none' };
+}
+
+/** Azimuth (rad) of a body around its parent in the reference plane, from its relative position (AU). */
+export function orbitalPhaseAngle(rel: Vec3): number {
+  return Math.atan2(rel[1], rel[0]);
+}
+
+/**
+ * Spin angle (rad, about the scene's up axis) at `mjd`: 2π·24·(mjd − J2000)/P_h (mod 2π) for a
+ * period, the orbital phase for a tidally locked planet (one face always points to the parent),
+ * undefined when the rotation is unknown. Deterministic in model time, so scrubbing works.
+ */
+export function rotationAngle(spin: SpinModel, mjd: number, orbitalPhase: number | null): number | undefined {
+  if (spin.kind === 'period') {
+    const turns = (24 * (mjd - J2000_MJD)) / spin.periodHours;
+    return 2 * Math.PI * (turns - Math.floor(turns));
+  }
+  if (spin.kind === 'tidal-lock') return orbitalPhase ?? undefined;
+  return undefined;
+}
+
+/** True when a spin of this period would advance more than 90° in one frame of `stepDays` (it would alias). */
+export function spinAliased(periodHours: number, stepDays: number): boolean {
+  if (!(periodHours > 0)) return true;
+  return ((Math.abs(stepDays) * 24) / periodHours) * 360 > SPIN_ALIAS_MAX_DEG_PER_FRAME;
+}
+
+/** Legend line on how the bodies of a system spin, at a given speed (days per second, 60 frames/s). */
+export function spinLegend(system: Pick<SystemModel, 'bodies'>, daysPerSecond: number): string {
+  const spins = system.bodies.map((b) => ({ b, s: spinModel(b, system.bodies) }));
+  const parts: string[] = [];
+  for (const { b, s } of spins) {
+    if (s.kind !== 'period') continue;
+    const held = spinAliased(s.periodHours, daysPerSecond / 60) ? ', held still at this speed (it would alias)' : '';
+    const tier = s.tier === 'measured' ? 'MEASURED period' : `period ${s.tier.toUpperCase()}`;
+    parts.push(`${b.name} turns once per ${formatPeriod(s.periodHours / 24)} (${tier}; axis orientation unknown, drawn upright${held})`);
+  }
+  const locked = spins.filter(({ s }) => s.kind === 'tidal-lock').map(({ b }) => b.name);
+  if (locked.length) {
+    parts.push(
+      `${locked.join(', ')} keep one face to their star (tidal locking expected for P < ${TIDAL_LOCK_MAX_PERIOD_DAYS} d around an M dwarf: THEORY, Barnes 2017)`,
+    );
+  }
+  const unknown = spins.some(({ b, s }) => s.kind === 'none' && b.kind !== 'disk');
+  if (unknown) parts.push(parts.length ? 'other bodies: rotation unknown, not drawn' : 'rotation unknown for every body, so none is drawn spinning');
+  return `Spin: ${parts.join('; ')}.`;
 }

@@ -1,10 +1,20 @@
 // 3D viewer for a SystemModel. three.js is loaded on demand (dynamic import) so the
-// blink viewer and the rest of the site stay light.
-import { useEffect, useRef, useState } from 'react';
+// blink viewer and the rest of the site stay light. Everything imported statically here
+// (sceneLayout, colorModes) is pure and three-free.
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import type { SystemModel } from '../api/types';
 import { formatElapsed, formatMjd } from '../api/format';
 import type { SystemScene } from '../three/SystemScene';
-import { nonFittedOrbits, ORBIT_COLOR, type DistanceMode } from '../three/sceneLayout';
+import {
+  CLASS_TYPICAL_CHIP,
+  COLOR_MODE_LABEL,
+  colorLegend,
+  DEFAULT_COLOR_MODE,
+  FALSE_COLOUR_CHIP,
+  surfaceLegend,
+  type ColorMode,
+} from '../three/colorModes';
+import { nonFittedOrbits, ORBIT_COLOR, spinLegend, suggestedSpeed, type DistanceMode } from '../three/sceneLayout';
 
 interface Props {
   system: SystemModel;
@@ -17,10 +27,25 @@ const SPEED_STEPS = [0.25, 0.5, 1, 2, 4, 8];
 /** 'load' = the three.js chunk did not download; 'webgl' = the browser could not create the 3D context. */
 type ErrorKind = 'load' | 'webgl';
 
+// Inline styles: styles.css belongs to WS5.
+const CHIPS: CSSProperties = {
+  position: 'absolute',
+  top: 8,
+  left: 8,
+  right: 8,
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: 6,
+  pointerEvents: 'none',
+  zIndex: 2,
+};
+const CHIP: CSSProperties = { background: 'rgba(3, 5, 10, 0.75)' };
+const FALSE_CHIP: CSSProperties = { ...CHIP, color: '#f9a8d4' };
+const ILLUSTRATIVE_CHIP: CSSProperties = { ...CHIP, color: 'var(--unconfirmed, #fbbf24)' };
+
 export function SystemViewer({ system, selectedId, onSelect }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<SystemScene | null>(null);
-  const baseSpeedRef = useRef(1);
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
   const selectedIdRef = useRef(selectedId);
@@ -39,6 +64,8 @@ export function SystemViewer({ system, selectedId, onSelect }: Props) {
   const [distanceMode, setDistanceMode] = useState<DistanceMode>('compressed');
   const [showOrbits, setShowOrbits] = useState(true);
   const [showLabels, setShowLabels] = useState(true);
+  const [colorMode, setColorMode] = useState<ColorMode>(DEFAULT_COLOR_MODE);
+  const [classTypical, setClassTypical] = useState(false);
 
   // Create / destroy the scene when the system changes.
   useEffect(() => {
@@ -51,7 +78,7 @@ export function SystemViewer({ system, selectedId, onSelect }: Props) {
     setStatus('loading');
     setError(null);
     import('../three/SystemScene').then(
-      ({ SystemScene, suggestedSpeed }) => {
+      ({ SystemScene }) => {
         if (disposed || !containerRef.current) return;
         let scene: SystemScene;
         try {
@@ -70,7 +97,6 @@ export function SystemViewer({ system, selectedId, onSelect }: Props) {
           fail('webgl', e);
           return;
         }
-        baseSpeedRef.current = suggestedSpeed(system);
         sceneRef.current = scene;
         setStartMjd(scene.getStartTime());
         setStatus('ready');
@@ -84,20 +110,39 @@ export function SystemViewer({ system, selectedId, onSelect }: Props) {
     };
   }, [system]);
 
+  // Same pure function the scene uses (sceneLayout.ts), so the label and the animation agree.
+  const daysPerSec = suggestedSpeed(system) * speedMul;
+
   useEffect(() => sceneRef.current?.setPlaying(playing), [playing, status]);
-  useEffect(() => sceneRef.current?.setSpeed(baseSpeedRef.current * speedMul), [speedMul, status]);
+  useEffect(() => sceneRef.current?.setSpeed(daysPerSec), [daysPerSec, status]);
   useEffect(
-    () => sceneRef.current?.setOptions({ distanceMode, showOrbits, showLabels }),
-    [distanceMode, showOrbits, showLabels, status],
+    () => sceneRef.current?.setOptions({ distanceMode, showOrbits, showLabels, colorMode, classTypical }),
+    [distanceMode, showOrbits, showLabels, colorMode, classTypical, status],
   );
   useEffect(() => sceneRef.current?.focus(selectedId), [selectedId, status]);
 
-  const daysPerSec = baseSpeedRef.current * speedMul;
   const notFitted = nonFittedOrbits(system.bodies);
+  const colourLines = colorLegend(colorMode, system);
+  const surfaceLines = surfaceLegend(system, colorMode, classTypical);
 
   return (
     <div className="system-viewer">
       <div className="scene-stage" ref={containerRef} role="group" aria-label={`3D model of ${system.name}`}>
+        <div style={CHIPS} aria-hidden="true">
+          <span className="badge model" style={CHIP}>
+            3D MODEL · NOT AN IMAGE
+          </span>
+          {colorMode === 'ir' && (
+            <span className="badge" style={FALSE_CHIP}>
+              {FALSE_COLOUR_CHIP}
+            </span>
+          )}
+          {classTypical && !system.provenance.synthetic && (
+            <span className="badge" style={ILLUSTRATIVE_CHIP}>
+              {CLASS_TYPICAL_CHIP}
+            </span>
+          )}
+        </div>
         {status === 'loading' && (
           <p className="scene-msg muted" role="status">
             Loading 3D view…
@@ -142,17 +187,48 @@ export function SystemViewer({ system, selectedId, onSelect }: Props) {
             <option value="linear">true proportions</option>
           </select>
         </label>
+        <label>
+          Colour{' '}
+          <select value={colorMode} onChange={(e) => setColorMode(e.target.value as ColorMode)}>
+            <option value="ir">{COLOR_MODE_LABEL.ir}</option>
+            <option value="visible">{COLOR_MODE_LABEL.visible}</option>
+          </select>
+        </label>
         <label className="small">
           <input type="checkbox" checked={showOrbits} onChange={(e) => setShowOrbits(e.target.checked)} /> orbits
         </label>
         <label className="small">
           <input type="checkbox" checked={showLabels} onChange={(e) => setShowLabels(e.target.checked)} /> labels
         </label>
+        {!system.provenance.synthetic && (
+          <label className="small" title="Illustrative patterns typical of the object class; not observed on these bodies">
+            <input type="checkbox" checked={classTypical} onChange={(e) => setClassTypical(e.target.checked)} /> show
+            class-typical features (illustrative)
+          </label>
+        )}
         {selectedId && (
           <button type="button" onClick={() => onSelect(null)}>
             ⤢ Whole system
           </button>
         )}
+      </div>
+      <div className="muted small" aria-live="polite">
+        {colorMode === 'ir' && (
+          <p style={{ margin: '0 0 4px' }}>
+            <strong style={{ color: '#f9a8d4' }}>{FALSE_COLOUR_CHIP}</strong> (not what the eye would see).
+          </p>
+        )}
+        {colourLines.map((line, i) => (
+          <p key={`c${i}`} style={{ margin: '0 0 4px' }}>
+            {line}
+          </p>
+        ))}
+        {surfaceLines.map((line, i) => (
+          <p key={`s${i}`} style={{ margin: '0 0 4px' }}>
+            {line}
+          </p>
+        ))}
+        <p style={{ margin: '0 0 4px' }}>{spinLegend(system, daysPerSec)}</p>
       </div>
       {(notFitted.assumed.length > 0 || notFitted.hypothetical.length > 0) && (
         // Explained here too, not only inside the body panel: the whole-system view shows these orbits.

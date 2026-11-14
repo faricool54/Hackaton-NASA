@@ -8,10 +8,12 @@
 //   measured      the drawn value is backed by a verified Fact (see paramTier for the mapping)
 //   derived       computed only from measured inputs with an exact relation (L = 4πR²σT⁴, log g ...)
 //   model         a physical model or approximation is involved (blackbody, μ = 1.3, Eddington
-//                 atmosphere, assumed albedo), or an input is itself a model estimate
+//                 atmosphere, assumed albedo, circular orbit), or an input is itself a model estimate
+//   range-pick    a single number picked inside a range published for THIS object (e.g. RW Aur B
+//                 Teff inside 4100–4200 K). It is object-specific evidence, so it ranks above a value
+//                 that is only typical of the class, but below a model value stated as one number
 //   class-typical a value typical of the object class, not of this object
 //   theory        a theoretical expectation (e.g. tidal locking)
-//   range-pick    a single number drawn from a published range
 //   illustrative  no verified source backs the value (drawing value, unverified, or no Fact at all)
 //   display       a screen mapping (brightness for the glow), never photometry
 // A derived value is 'derived' when all its inputs are measured; otherwise it takes the weakest
@@ -29,20 +31,20 @@ export type Tier =
   | 'measured'
   | 'derived'
   | 'model'
+  | 'range-pick'
   | 'class-typical'
   | 'theory'
-  | 'range-pick'
   | 'illustrative'
   | 'display';
 
-/** All tiers, strongest first. */
+/** All tiers, strongest first (see the header for why 'range-pick' ranks above 'class-typical'). */
 export const TIERS: readonly Tier[] = [
   'measured',
   'derived',
   'model',
+  'range-pick',
   'class-typical',
   'theory',
-  'range-pick',
   'illustrative',
   'display',
 ];
@@ -278,15 +280,17 @@ export function displayBrightness(teffK: number): Derived<number> {
 
 /**
  * Fraction of a blackbody's surface flux emitted in [loUm, hiUm]: ∫B_λ dλ / (σT⁴/π), midpoint
- * quadrature in ln λ (default 4000 steps). Kept below 2500 K as a flagged model diagnostic.
+ * quadrature in ln λ (default 4000 steps, never fewer than 2000; the method string reports the
+ * number actually used). Kept below 2500 K as a flagged model diagnostic.
  */
 export function bandFraction(teffK: number, loUm: number, hiUm: number, steps = 4000): Derived<number | null> {
-  const method = `∫B_λ dλ over ${fmt(loUm)}–${fmt(hiUm)} µm / (σT⁴/π), blackbody at ${fmt(teffK)} K, ${steps}-step log-λ quadrature`;
+  const n = Number.isFinite(steps) ? Math.max(2000, Math.floor(steps)) : 4000;
+  const method = `∫B_λ dλ over ${fmt(loUm)}–${fmt(hiUm)} µm / (σT⁴/π), blackbody at ${fmt(teffK)} K, ${n}-step log-λ quadrature`;
   if (!(teffK > 0) || !(hiUm > loUm && loUm > 0)) {
     return { value: null, tier: 'model', method, citation: PLANCK_CITE, flags: ['missing-input'] };
   }
   const total = (PHYS.sigma * teffK ** 4) / Math.PI;
-  const value = bandRadiance(teffK, loUm * 1e-6, hiUm * 1e-6, Math.max(2000, steps)) / total;
+  const value = bandRadiance(teffK, loUm * 1e-6, hiUm * 1e-6, n) / total;
   return {
     value,
     tier: 'model',
@@ -329,6 +333,37 @@ function abFromFnu(fnu: number): number | null {
   return fnu > 0 ? -2.5 * Math.log10(fnu / (PHYS.abZeroJy * PHYS.jansky)) : null;
 }
 
+/** Mean blackbody F_ν (W m⁻² Hz⁻¹) over the channel centres of one detector. */
+function bandFluxDensityNu(teffK: number, radiusKm: number, distancePc: number, det: SpherexDetector): number {
+  const sum = det.channelCentersUm.reduce((s, l) => s + fluxDensityNu(teffK, radiusKm, distancePc, l), 0);
+  return sum / det.channelCentersUm.length;
+}
+
+/**
+ * Band-averaged blackbody AB magnitude of one SPHEREx detector: F_ν = π B_ν(T)(R/d)² averaged over
+ * its 17 log-uniform channel centres, AB = −2.5 log10(F_ν / 3631 Jy). A Teff-level diagnostic like
+ * blackbodyAbMag: below 2500 K the number is returned but flagged 'blackbody-unreliable', and it
+ * never includes non-photospheric light (disks, accretion). spherexPrediction decides what is shown.
+ */
+export function blackbodyBandAbMag(teffK: number, radiusKm: number, distancePc: number, detector: SpherexDetector): Derived<number | null> {
+  const method = `${detector.id}: mean F_ν = π B_ν(T)(R/d)² over ${detector.channelCentersUm.length} log-uniform channels (${fmt(detector.lambdaMinUm)}–${fmt(detector.lambdaMaxUm)} µm), T = ${fmt(teffK)} K; AB = −2.5 log10(F_ν / 3631 Jy)`;
+  const citation = `${PLANCK_CITE}; Oke & Gunn 1983, ApJ 266, 713 (AB system); ${SPHEREX_BANDS_CITATION}`;
+  if (!(teffK > 0 && radiusKm > 0 && distancePc > 0)) {
+    return { value: null, tier: 'model', method, citation, flags: ['missing-input'] };
+  }
+  const value = abFromFnu(bandFluxDensityNu(teffK, radiusKm, distancePc, detector));
+  if (unreliable(teffK)) {
+    return {
+      value,
+      tier: 'model',
+      method: `${method}; diagnostic only, not for display below ${BLACKBODY_MIN_TEFF_K} K`,
+      citation: `${citation}; ${BB_UNRELIABLE_CITE}`,
+      flags: ['blackbody-unreliable'],
+    };
+  }
+  return { value, tier: 'model', method, citation, flags: [] };
+}
+
 // --- limb darkening (M2) ---------------------------------------------------------------------
 
 /** Grey Eddington atmosphere: T(τ) = Teff (3/4 (τ + 2/3))^(1/4); Eddington–Barbier: I(μ) ≈ B(T(τ = μ)). */
@@ -343,7 +378,8 @@ const LIMB_CITE =
  * Limb-darkening table for the star shader: n entries (μ = i/(n−1), from the limb μ = 0 to the
  * disc centre μ = 1), each the linear-sRGB intensity I(μ)/I(1) per channel, packed as
  * [r0, g0, b0, r1, g1, b1, ...]. Limb reddening follows from the cooler T at small μ.
- * Tier 'model': real M-dwarf and Mira atmospheres are molecular, not grey.
+ * Tier 'model' (the method's own tier): real M-dwarf and Mira atmospheres are molecular, not grey.
+ * For a catalog body use bodyLimbDarkening, which also folds in the tier of the drawn Teff.
  */
 export function limbDarkeningLut(teffK: number, n = 16): Derived<Float32Array> {
   const count = Math.max(2, Math.floor(n));
@@ -382,18 +418,20 @@ export function limbDarkeningAt(teffK: number, lambdaNm: number, mu: number): De
 
 // --- Fact → parameter mapping and input tiers ------------------------------------------------
 
-export type BodyParam = 'teff' | 'radius' | 'mass' | 'spectralType' | 'semiMajorAxis';
+export type BodyParam = 'teff' | 'radius' | 'mass' | 'spectralType' | 'semiMajorAxis' | 'eccentricity' | 'rotationPeriod';
 
 /**
  * How Facts are matched to body fields (by label, case-insensitive, anchored at the start):
- *   teff          'Temperature …', 'Effective temperature …', 'Teff …'
- *   radius        'Radius …'  (disks: also 'Dust disk radius …', 'Disk radius …')
- *   mass          'Mass …', 'Minimum mass …' (the latter flags a lower bound, M sin i)
- *   spectralType  'Spectral type …'
- *   semiMajorAxis 'Orbit size …', 'Semi-major axis …'
- *   distance      'Distance …' (any body of the system, compared with SystemModel.motion.distance_pc)
- * Labels such as 'Projected separation', 'Separation from A' or 'Gas (CO) disk radius' do NOT match:
- * they are not the drawn quantity. Unmatched fields fall to 'illustrative'.
+ *   teff           'Temperature …', 'Effective temperature …', 'Teff …'
+ *   radius         'Radius …'  (disks: also 'Dust disk radius …', 'Disk radius …')
+ *   mass           'Mass …', 'Minimum mass …' (the latter flags a lower bound, M sin i)
+ *   spectralType   'Spectral type …'
+ *   semiMajorAxis  'Orbit size …', 'Semi-major axis …'
+ *   eccentricity   'Eccentricity …' (unitless; compared with Orbit.eccentricity)
+ *   rotationPeriod 'Rotation period …', 'Rotation …' (hours or days; compared with rotation_period_hours)
+ *   distance       'Distance …' (any body of the system, compared with SystemModel.motion.distance_pc)
+ * Labels such as 'Projected separation', 'Separation from A', 'Gas (CO) disk radius' or a pulsation
+ * 'Period' do NOT match: they are not the drawn quantity. Unmatched fields fall to 'illustrative'.
  */
 export const FACT_LABEL_PATTERNS = {
   teff: /^((effective\s+)?temperature|t\s*_?eff)\b/i,
@@ -402,6 +440,8 @@ export const FACT_LABEL_PATTERNS = {
   mass: /^(minimum\s+)?mass\b/i,
   spectralType: /^spectral\s+type\b/i,
   semiMajorAxis: /^(orbit\s+size|semi-?major\s+axis)\b/i,
+  eccentricity: /^eccentricity\b/i,
+  rotationPeriod: /^rotation(\s+period)?\b/i,
   distance: /^distance\b/i,
 } as const;
 
@@ -410,8 +450,8 @@ const ILLUSTRATIVE_WORDS = /illustrativ|drawing value|placeholder|arbitrary/i;
 const MODEL_WORDS = /estimat|model|calculated from|not measured/i;
 const LOWER_BOUND_LABEL = /^minimum\s+mass\b|m\s*sin\s*i/i;
 
-/** Unit (lower-case) → factor to the body field's unit (K, km, kg, AU, pc). */
-const UNITS: Record<'teff' | 'radius' | 'mass' | 'semiMajorAxis' | 'distance', Record<string, number>> = {
+/** Unit (lower-case) → factor to the body field's unit (K, km, kg, AU, unitless, hours, pc). */
+const UNITS: Record<Exclude<BodyParam, 'spectralType'> | 'distance', Record<string, number>> = {
   teff: { k: 1, kelvin: 1 },
   radius: {
     km: 1,
@@ -433,6 +473,8 @@ const UNITS: Record<'teff' | 'radius' | 'mass' | 'semiMajorAxis' | 'distance', R
     'earth mass': M_EARTH,
   },
   semiMajorAxis: { au: 1 },
+  eccentricity: { '': 1 },
+  rotationPeriod: { h: 1, hr: 1, hour: 1, hours: 1, d: 24, day: 24, days: 24 },
   distance: { pc: 1, parsec: 1, parsecs: 1 },
 };
 
@@ -442,6 +484,8 @@ const PARAM_NAME: Record<BodyParam | 'distance', string> = {
   mass: 'mass',
   spectralType: 'spectral type',
   semiMajorAxis: 'semi-major axis',
+  eccentricity: 'eccentricity',
+  rotationPeriod: 'rotation period',
   distance: 'distance',
 };
 
@@ -451,39 +495,78 @@ export interface ParamTier extends Derived<number | string | null> {
   readonly fact: Fact | null;
 }
 
+interface FactPoint {
+  v: number;
+  /** Quoted uncertainty below / above v (0 when none is quoted). */
+  errLo: number;
+  errHi: number;
+  /** Half a unit in the last quoted digit of v ('1.00' → 0.005, '3195' → 0.5). */
+  halfUlp: number;
+}
+
+interface FactRange {
+  lo: number;
+  hi: number;
+  halfUlpLo: number;
+  halfUlpHi: number;
+}
+
 interface ParsedNumbers {
-  points: { v: number; err: number }[];
-  ranges: [number, number][];
+  points: FactPoint[];
+  ranges: FactRange[];
+  /** The value carries '~' or '≈' (an approximate number): a 5 % tolerance is allowed. */
+  approximate: boolean;
+}
+
+/** Half a unit in the last digit of a decimal string such as '0.0188', '1460' or '1.2e5'. */
+function halfUlp(numText: string): number {
+  const m = /^-?\d+(?:\.(\d+))?(?:e([+-]?\d+))?$/i.exec(numText.trim());
+  if (!m) return 0;
+  return 0.5 * 10 ** ((m[2] ? +m[2] : 0) - (m[1]?.length ?? 0));
 }
 
 /** Numbers in a Fact value: '3195 ± 28', '6.5 (+0.7/−0.6)', '~2000–3300', '~250–300 (best fit 285)'. */
 function parseFactNumbers(text: string): ParsedNumbers {
   let s = text.replace(/−/g, '-').replace(/[–—]/g, '–').replace(/(\d),(?=\d{3}\b)/g, '$1');
-  const points: { v: number; err: number }[] = [];
-  const ranges: [number, number][] = [];
+  const points: FactPoint[] = [];
+  const ranges: FactRange[] = [];
   const num = '(\\d+(?:\\.\\d+)?)';
-  s = s.replace(new RegExp(`${num}\\s*±\\s*${num}`, 'g'), (_, v, e) => {
-    points.push({ v: +v, err: +e });
+  s = s.replace(new RegExp(`${num}\\s*±\\s*${num}`, 'g'), (_, v: string, e: string) => {
+    points.push({ v: +v, errLo: +e, errHi: +e, halfUlp: halfUlp(v) });
     return ' ';
   });
-  s = s.replace(new RegExp(`${num}\\s*\\(\\s*\\+\\s*${num}\\s*/\\s*-\\s*${num}\\s*\\)`, 'g'), (_, v, up, lo) => {
-    points.push({ v: +v, err: Math.max(+up, +lo) });
+  s = s.replace(new RegExp(`${num}\\s*\\(\\s*\\+\\s*${num}\\s*/\\s*-\\s*${num}\\s*\\)`, 'g'), (_, v: string, up: string, lo: string) => {
+    points.push({ v: +v, errLo: +lo, errHi: +up, halfUlp: halfUlp(v) });
     return ' ';
   });
-  s = s.replace(new RegExp(`${num}\\s*(?:–|\\bto\\b)\\s*${num}|${num}-${num}`, 'g'), (_, a, b, c, d) => {
-    const lo = +(a ?? c);
-    const hi = +(b ?? d);
-    ranges.push([Math.min(lo, hi), Math.max(lo, hi)]);
+  s = s.replace(new RegExp(`${num}\\s*(?:–|\\bto\\b)\\s*${num}|${num}-${num}`, 'g'), (_, a?: string, b?: string, c?: string, d?: string) => {
+    const x = (a ?? c) as string;
+    const y = (b ?? d) as string;
+    const [lo, hi] = +x <= +y ? [x, y] : [y, x];
+    ranges.push({ lo: +lo, hi: +hi, halfUlpLo: halfUlp(lo), halfUlpHi: halfUlp(hi) });
     return ' ';
   });
-  for (const m of s.matchAll(/(?<![\w.])-?\d+(?:\.\d+)?(?:e[+-]?\d+)?/gi)) points.push({ v: +m[0], err: 0 });
-  return { points, ranges };
+  for (const m of s.matchAll(/(?<![\w.])-?\d+(?:\.\d+)?(?:e[+-]?\d+)?/gi)) {
+    points.push({ v: +m[0], errLo: 0, errHi: 0, halfUlp: halfUlp(m[0]) });
+  }
+  return { points, ranges, approximate: /[~≈]/.test(text) };
 }
 
-/** 'point' when the drawn value is one the Fact states, 'range' when it only falls inside a range. */
+/**
+ * 'point' when the drawn value is one the Fact states, 'range' when it only falls inside a range.
+ * Point tolerance: the quoted error on that side plus half a unit in the last quoted digit; with no
+ * quoted error, the larger of that half unit and 1 %; 5 % only when the value carries '~'.
+ * Ranges: [lo − half unit, hi + half unit], with no further slack.
+ */
 function matchNumbers(v: number, parsed: ParsedNumbers): 'point' | 'range' | 'none' {
-  if (parsed.points.some((p) => Math.abs(v - p.v) <= Math.max(p.err, 0.05 * Math.abs(p.v)))) return 'point';
-  if (parsed.ranges.some(([lo, hi]) => v >= lo * 0.98 && v <= hi * 1.02)) return 'range';
+  const within = (p: FactPoint) => {
+    const err = v >= p.v ? p.errHi : p.errLo;
+    let tol = err > 0 ? err + p.halfUlp : Math.max(p.halfUlp, 0.01 * Math.abs(p.v));
+    if (parsed.approximate) tol = Math.max(tol, 0.05 * Math.abs(p.v));
+    return Math.abs(v - p.v) <= tol;
+  };
+  if (parsed.points.some(within)) return 'point';
+  if (parsed.ranges.some((r) => v >= r.lo - r.halfUlpLo && v <= r.hi + r.halfUlpHi)) return 'range';
   return 'none';
 }
 
@@ -505,6 +588,10 @@ function drawnValue(body: Body, param: BodyParam): number | string | null {
       return body.spectral_type;
     case 'semiMajorAxis':
       return body.orbit ? body.orbit.semi_major_axis_au : null;
+    case 'eccentricity':
+      return body.orbit ? body.orbit.eccentricity : null;
+    case 'rotationPeriod':
+      return body.rotation_period_hours;
   }
 }
 
@@ -573,13 +660,14 @@ function noFact(param: BodyParam | 'distance', drawn: number | string | null, wh
 /**
  * Evidence tier of one drawn body field. 'measured' only for a verified Fact matched by label
  * (FACT_LABEL_PATTERNS) whose label/source does not say estimate/model/illustrative and whose
- * value agrees with the drawn number (within its error, 5 %, or as one of the stated values);
- * a number picked inside a published range is 'range-pick'; anything else is weaker.
+ * value agrees with the drawn number (within its quoted error plus half a unit in the last digit;
+ * without an error, 1 % or that half unit; 5 % only for a '~' value); a number picked inside a
+ * published range is 'range-pick'; anything else is weaker.
  */
 export function paramTier(body: Body, param: BodyParam): ParamTier {
   const drawn = drawnValue(body, param);
   if (drawn === null) return noFact(param, null, `no ${PARAM_NAME[param]} on the body`);
-  if (param === 'semiMajorAxis' && body.orbit?.quality && body.orbit.quality !== 'fitted') {
+  if ((param === 'semiMajorAxis' || param === 'eccentricity') && body.orbit?.quality && body.orbit.quality !== 'fitted') {
     return noFact(param, drawn, `orbit is '${body.orbit.quality}' (not a fitted solution)`, ['assumed-orbit']);
   }
   const pattern = param === 'radius' && body.kind === 'disk' ? FACT_LABEL_PATTERNS.diskRadius : FACT_LABEL_PATTERNS[param];
@@ -741,14 +829,17 @@ export function granulationParams(body: Body): GranulationParams {
 
 // --- orbits: host star, equilibrium temperature, insolation, separations --------------------
 
-/** The star a body is lit by, and the body (itself or an ancestor) that orbits that star. */
+/**
+ * The star or brown dwarf a body is lit by (the nearest stellar ancestor), and the body (itself or
+ * an ancestor) that orbits it.
+ */
 function hostStar(body: Body, system: SystemModel): { host: Body; orbiter: Body } | null {
   const byId = new Map(system.bodies.map((b) => [b.id, b]));
   let orbiter = body;
   for (let i = 0; i <= system.bodies.length && orbiter.orbit; i++) {
     const parent = byId.get(orbiter.orbit.parent);
     if (!parent) return null;
-    if (parent.kind === 'star') return { host: parent, orbiter };
+    if (isStellar(parent)) return { host: parent, orbiter };
     orbiter = parent;
   }
   return null;
@@ -758,47 +849,91 @@ const IRRADIATED: ReadonlySet<Body['kind']> = new Set<Body['kind']>(['planet', '
 
 const TEQ_CITE =
   'radiative balance with full heat redistribution (Seager 2010, Exoplanet Atmospheres, Princeton UP; Cowan & Agol 2011, ApJ 729, 54)';
+const ORBIT_AVERAGE_CITE =
+  "time average of the inverse-square flux over a Keplerian orbit: Kepler's second law gives ⟨r⁻²⟩ = 1/(a²√(1−e²))";
+
+interface OrbitEccentricity {
+  readonly e: number;
+  readonly tier: ParamTier;
+  /** e = 0 as drawn with no Fact behind it: the conventional circular-orbit assumption (a MODEL). */
+  readonly circularAssumed: boolean;
+  /** Flux averaged over the orbit relative to the flux at a: 1/√(1−e²). */
+  readonly fluxFactor: number;
+  readonly text: string;
+}
 
 /**
- * Equilibrium temperature T_eq = T_star sqrt(R_star / 2a) (1 − A_B)^(1/4) (K), full redistribution, at the
- * semi-major axis (eccentricity ignored). MODEL: the Bond albedo is assumed.
+ * The drawn eccentricity of an orbit and how it enters a result. An unbacked e = 0 is the standard
+ * circular-orbit assumption (the result is floored at 'model'); any other e brings its own tier.
+ */
+function orbitEccentricity(orbiter: Body): OrbitEccentricity {
+  const E = paramTier(orbiter, 'eccentricity');
+  const e = orbiter.orbit ? Math.min(Math.max(orbiter.orbit.eccentricity, 0), 0.999999) : 0;
+  const circularAssumed = e === 0 && E.tier === 'illustrative';
+  return {
+    e,
+    tier: E,
+    circularAssumed,
+    fluxFactor: 1 / Math.sqrt(1 - e * e),
+    text: circularAssumed ? `e = 0: circular orbit assumed (${E.method})` : `e = ${fmt(e)} (${E.tier})`,
+  };
+}
+
+/** Tier of an orbit-dependent result: the eccentricity tier, or a 'model' floor for an assumed circle. */
+function orbitTier(others: readonly Tier[], ecc: OrbitEccentricity, floor: Tier = 'derived'): Tier {
+  return ecc.circularAssumed ? derivedTier(others, weakestTier([floor, 'model'])) : derivedTier([...others, ecc.tier.tier], floor);
+}
+
+function orbitFlags(...inputs: readonly ParamTier[]): Flag[] {
+  return inputs.some((i) => i.flags.includes('assumed-orbit')) ? ['assumed-orbit'] : [];
+}
+
+/**
+ * Equilibrium temperature T_eq = T_host sqrt(R_host / 2a) (1 − A_B)^(1/4) (K), full redistribution,
+ * at the semi-major axis (the usual catalog convention; e is not used). When e > 0 the method also
+ * gives the value for the orbit-averaged flux, × (1 − e²)^(−1/8). MODEL: the Bond albedo is assumed.
+ * The host is the nearest star or brown dwarf the body orbits.
  */
 export function equilibriumTemperature(body: Body, system: SystemModel, bondAlbedo = 0): Derived<number | null> {
   if (!IRRADIATED.has(body.kind)) return missing('computed for planets and small bodies only', TEQ_CITE, 'not-modelled', 'model');
   const hs = hostStar(body, system);
-  if (!hs || hs.host.teff_k === null || hs.host.radius_km === null || !hs.orbiter.orbit) {
-    return missing('needs a host star with Teff and radius', TEQ_CITE);
+  if (!hs || !hs.orbiter.orbit) return missing('needs a host star or brown dwarf to orbit', TEQ_CITE);
+  if (hs.host.teff_k === null || hs.host.radius_km === null) {
+    return missing(`needs the Teff and radius of the host ${hs.host.name}`, TEQ_CITE);
   }
   const T = paramTier(hs.host, 'teff');
   const R = paramTier(hs.host, 'radius');
   const a = paramTier(hs.orbiter, 'semiMajorAxis');
+  const ecc = orbitEccentricity(hs.orbiter);
   const aM = hs.orbiter.orbit.semi_major_axis_au * PHYS.au;
   const value = hs.host.teff_k * Math.sqrt((hs.host.radius_km * 1e3) / (2 * aM)) * Math.pow(1 - bondAlbedo, 0.25);
+  const averaged = ecc.e > 0 ? `; for the orbit-averaged flux (e = ${fmt(ecc.e)}, ${ecc.tier.tier}) T_eq would be ${fmt(value * Math.pow(ecc.fluxFactor, 0.25))} K` : '';
   return {
     value,
     tier: derivedTier([T.tier, R.tier, a.tier], 'model'),
-    method: `T_eq = T*·sqrt(R*/2a)·(1 − A_B)^¼ with A_B = ${bondAlbedo} (assumed), full redistribution, a = ${fmt(hs.orbiter.orbit.semi_major_axis_au)} AU around ${hs.host.name}; host ${inputsText([T, R])}, a ${a.tier}`,
-    citation: TEQ_CITE,
-    flags: a.flags.includes('assumed-orbit') ? ['assumed-orbit'] : [],
+    method: `T_eq = T·sqrt(R/2a)·(1 − A_B)^¼ with A_B = ${bondAlbedo} (assumed), full redistribution, at the semi-major axis a = ${fmt(hs.orbiter.orbit.semi_major_axis_au)} AU (${a.tier}) around ${hs.host.name}; host ${inputsText([T, R])}${averaged}`,
+    citation: ecc.e > 0 ? `${TEQ_CITE}; ${ORBIT_AVERAGE_CITE}` : TEQ_CITE,
+    flags: orbitFlags(a),
   };
 }
 
-/** Insolation S/S_earth = (L_star / L_sun) / (a/AU)². */
+/** Insolation S/S_earth = (L_host / L_sun) / ((a/AU)² √(1 − e²)), averaged over the orbit. */
 export function insolation(body: Body, system: SystemModel): Derived<number | null> {
-  const citation = `inverse-square law; L* from the ${STEFAN_BOLTZMANN}; ${PHYS_CITATION}`;
+  const citation = `inverse-square law; ${ORBIT_AVERAGE_CITE}; L from the ${STEFAN_BOLTZMANN}; ${PHYS_CITATION}`;
   if (!IRRADIATED.has(body.kind)) return missing('computed for planets and small bodies only', citation, 'not-modelled', 'model');
   const hs = hostStar(body, system);
-  if (!hs || !hs.orbiter.orbit) return missing('needs a host star', citation);
+  if (!hs || !hs.orbiter.orbit) return missing('needs a host star or brown dwarf to orbit', citation);
   const L = luminosity(hs.host);
-  if (L.value === null) return missing('needs the host luminosity (Teff and radius)', citation);
+  if (L.value === null) return missing(`needs the luminosity of the host ${hs.host.name} (Teff and radius)`, citation);
   const a = paramTier(hs.orbiter, 'semiMajorAxis');
+  const ecc = orbitEccentricity(hs.orbiter);
   const au = hs.orbiter.orbit.semi_major_axis_au;
   return {
-    value: L.value / (au * au),
-    tier: derivedTier([L.tier, a.tier]),
-    method: `S/S⊕ = (L*/L☉)/(a/AU)², L* = ${fmt(L.value)} L☉ (${L.tier}), a = ${fmt(au)} AU (${a.tier})`,
+    value: (L.value / (au * au)) * ecc.fluxFactor,
+    tier: orbitTier([L.tier, a.tier], ecc),
+    method: `orbit-averaged S/S⊕ = (L/L☉)/((a/AU)²√(1−e²)), L = ${fmt(L.value)} L☉ of ${hs.host.name} (${L.tier}), a = ${fmt(au)} AU (${a.tier}), ${ecc.text}${ecc.e > 0 ? `; ${fmt((ecc.fluxFactor - 1) * 100)} % above the flux at a` : ''}`,
     citation,
-    flags: a.flags.includes('assumed-orbit') ? ['assumed-orbit'] : [],
+    flags: orbitFlags(a, ecc.tier),
   };
 }
 
@@ -819,22 +954,26 @@ export function angularDiameterMas(body: Body, system: SystemModel): Derived<num
 }
 
 /**
- * Bounds on the angular separation from the parent, [0, a(1+e)/d] arcsec: orientation-free,
- * since projection can only shorten the true separation (largest at apoapsis).
+ * Bounds on the angular separation from the parent, [0, a(1+e)/d] arcsec, for the drawn (best-fit)
+ * orbit: orientation-free, since projection can only shorten the true separation (largest at
+ * apoapsis). The tier folds in a, e and d; the uncertainties of a and e are not propagated (the
+ * method also gives 2a/d, the largest separation of any bound orbit with that a).
  */
 export function separationBoundsArcsec(body: Body, system: SystemModel): Derived<readonly [number, number] | null> {
   const citation = 'Keplerian apoapsis a(1+e); 1 AU at 1 pc subtends 1 arcsec';
   if (!body.orbit) return missing('no orbit', citation, 'not-modelled', 'model');
   const a = paramTier(body, 'semiMajorAxis');
+  const ecc = orbitEccentricity(body);
   const d = distanceTier(system);
   if (d.value === null) return missing('needs the system distance', citation);
-  const max = (body.orbit.semi_major_axis_au * (1 + body.orbit.eccentricity)) / Number(d.value);
+  const dist = Number(d.value);
+  const max = (body.orbit.semi_major_axis_au * (1 + ecc.e)) / dist;
   return {
     value: [0, max],
-    tier: derivedTier([a.tier, d.tier]),
-    method: `[0, a(1+e)/d] with e = ${fmt(body.orbit.eccentricity)} as drawn (inclination and phase unknown or not used); ${inputsText([a, d])}`,
+    tier: orbitTier([a.tier, d.tier], ecc),
+    method: `[0, a(1+e)/d] for the drawn (best-fit) orbit, ${ecc.text}; uncertainties of a and e not propagated; inclination and phase unknown or not used; any bound orbit with this a stays below 2a/d = ${fmt((2 * body.orbit.semi_major_axis_au) / dist)}″; ${inputsText([a, d])}`,
     citation,
-    flags: a.flags.includes('assumed-orbit') ? ['assumed-orbit'] : [],
+    flags: orbitFlags(a, ecc.tier),
   };
 }
 
@@ -970,7 +1109,28 @@ export type SpherexReliability =
   | 'blackbody approx.'
   | 'illustrative inputs'
   | 'blackbody unreliable - not shown'
+  | 'photosphere only - IR excess not modelled'
   | 'not modelled';
+
+/** Text that marks a young stellar object (spectral-type note or a 'Type' Fact). */
+const YOUNG_STAR_TEXT = /t\s*tau|pre-?main|\bpms\b|\byso\b|young stellar|herbig/i;
+
+const IR_EXCESS_CITE =
+  'evidence for the rule (RW Aur A+B, classical T Tauri stars with disks): SPHEREx measured D5 7.92–8.65 and D6 7.63–8.38 AB in 2025-09 to 2026-09 (docs/RECON_SPHEREX.md §4.4), and 2MASS gives Ks = 7.020 Vega = 8.87 AB (Cutri et al. 2003, VizieR II/246; K_AB − K_Vega = 1.85, Blanton & Roweis 2007, AJ 133, 734), i.e. 1.3–3.8 mag brighter than the A+B photosphere blackbody';
+
+/**
+ * Why a stellar body's SPHEREx flux is not photospheric: a pre-main-sequence (T Tauri / YSO) star,
+ * or a system that contains a circumstellar disk. Null when neither applies.
+ */
+function irExcessReason(body: Body, system: SystemModel): string | null {
+  const st = body.spectral_type ? parseSpectralType(body.spectral_type) : null;
+  if (st?.stage === 'pre-main-sequence') return `pre-main-sequence star (spectral type '${body.spectral_type}')`;
+  const typeFact = body.facts.find((f) => /^(variable\s+)?type\b/i.test(f.label.trim()) && YOUNG_STAR_TEXT.test(f.value));
+  if (typeFact) return `young stellar object ('${typeFact.label}: ${typeFact.value}')`;
+  const disk = system.bodies.find((b) => b.kind === 'disk');
+  if (disk) return `the system contains a circumstellar disk (${disk.name})`;
+  return null;
+}
 
 /**
  * How far the blackbody SPHEREx numbers of a body can be trusted:
@@ -979,6 +1139,10 @@ export type SpherexReliability =
  *                                      model or illustrative): numbers are shown with that tier
  *   'blackbody unreliable - not shown' Teff < 2500 K (L/T/Y dwarfs): molecular absorption and clouds
  *                                      move flux by magnitudes; no AB value is returned
+ *   'photosphere only - IR excess not modelled'
+ *                                      pre-main-sequence star, or a disk in the system: hot dust and
+ *                                      accretion add near/mid-IR light the blackbody lacks (RW Aur:
+ *                                      1.3–3.8 mag); no AB value is returned
  *   'not modelled'                     planets (reflected + thermal light), disks, or missing inputs
  */
 export function spherexReliability(body: Body, system: SystemModel): Derived<SpherexReliability> {
@@ -999,6 +1163,16 @@ export function spherexReliability(body: Body, system: SystemModel): Derived<Sph
       method: `Teff ${fmt(body.teff_k)} K < ${BLACKBODY_MIN_TEFF_K} K: a blackbody misplaces the flux of an L/T/Y dwarf by magnitudes`,
       citation,
       flags: ['blackbody-unreliable'],
+    };
+  }
+  const excess = irExcessReason(body, system);
+  if (excess) {
+    return {
+      value: 'photosphere only - IR excess not modelled',
+      tier: 'model',
+      method: `${excess}: circumstellar dust and accretion add near- and mid-IR emission that a photosphere blackbody does not include, so it underestimates the SPHEREx flux by magnitudes; no AB value is shown (the real source may be brighter than the non-linearity onset: check the OVERFLOW/NONLINEAR flags)`,
+      citation: `${SPHEREX_BANDS_CITATION}; ${IR_EXCESS_CITE}`,
+      flags: ['not-modelled'],
     };
   }
   const inputs = [T, R, d];
@@ -1027,12 +1201,15 @@ export interface SpherexPrediction extends Derived<readonly SpherexBandEstimate[
 /**
  * Blackbody predictions for the six SPHEREx detectors: F_ν = π B_ν(T)(R/d)² averaged over the 17
  * log-uniform channels of each detector, AB = −2.5 log10(F_ν / 3631 Jy) (Oke & Gunn 1983).
+ * AB values are returned only for 'blackbody approx.' and 'illustrative inputs' (never below 2500 K
+ * and never for a star with an unmodelled IR excess).
  */
 export function spherexPrediction(body: Body, system: SystemModel): SpherexPrediction {
   const rel = spherexReliability(body, system);
   const citation = `${PLANCK_CITE}; Oke & Gunn 1983, ApJ 266, 713 (AB); ${SPHEREX_BANDS_CITATION}`;
   const T = paramTier(body, 'teff');
   const showAb = rel.value === 'blackbody approx.' || rel.value === 'illustrative inputs';
+  const photosphereOnly = rel.value === 'photosphere only - IR excess not modelled';
   const d = distanceTier(system);
   const bands = SPHEREX_DETECTORS.map((det): SpherexBandEstimate => {
     const fr =
@@ -1040,15 +1217,22 @@ export function spherexPrediction(body: Body, system: SystemModel): SpherexPredi
         ? bandFraction(body.teff_k, det.lambdaMinUm, det.lambdaMaxUm)
         : missing(`${det.id}: ${rel.method}`, PLANCK_CITE, rel.flags[0] ?? 'not-modelled', 'model');
     const fraction: Derived<number | null> =
-      fr.value === null ? fr : { ...fr, tier: derivedTier([T.tier], 'model'), method: `${fr.method}; ${inputsText([T])}` };
+      fr.value === null
+        ? fr
+        : {
+            ...fr,
+            tier: derivedTier([T.tier], 'model'),
+            method: `${fr.method}${photosphereOnly ? '; photosphere only (the IR excess is not modelled)' : ''}; ${inputsText([T])}`,
+          };
     if (!showAb || body.teff_k === null || body.radius_km === null || d.value === null) {
-      return { detector: det, fraction, abMag: { value: null, tier: rel.tier, method: `${det.id}: ${rel.value} (${rel.method})`, citation, flags: rel.flags } };
+      return {
+        detector: det,
+        fraction,
+        abMag: { value: null, tier: rel.tier, method: `${det.id}: ${rel.value} (${rel.method})`, citation: rel.citation, flags: rel.flags },
+      };
     }
-    const teff = body.teff_k;
-    const radiusKm = body.radius_km;
-    const dist = Number(d.value);
-    const fnu = det.channelCentersUm.reduce((s, l) => s + fluxDensityNu(teff, radiusKm, dist, l), 0) / det.channelCentersUm.length;
-    const ab = abFromFnu(fnu);
+    const bb = blackbodyBandAbMag(body.teff_k, body.radius_km, Number(d.value), det);
+    const ab = bb.value;
     const flags: Flag[] = ab !== null && ab < det.nonLinearityOnsetAB ? ['brighter-than-nonlinearity'] : [];
     return {
       detector: det,
@@ -1056,13 +1240,13 @@ export function spherexPrediction(body: Body, system: SystemModel): SpherexPredi
       abMag: {
         value: ab,
         tier: rel.tier,
-        method: `${det.id}: mean F_ν over ${det.channelCentersUm.length} log-uniform channels (${fmt(det.lambdaMinUm)}–${fmt(det.lambdaMaxUm)} µm); ${rel.value}; ${rel.method}${flags.length ? `; brighter than the non-linearity onset AB ${det.nonLinearityOnsetAB} (pre-launch model)` : ''}`,
+        method: `${bb.method}; ${rel.value}; ${rel.method}${flags.length ? `; brighter than the non-linearity onset AB ${det.nonLinearityOnsetAB} (pre-launch model)` : ''}`,
         citation,
         flags,
       },
     };
   });
-  return { value: bands, tier: rel.tier, method: rel.method, citation, flags: rel.flags, reliability: rel.value };
+  return { value: bands, tier: rel.tier, method: rel.method, citation: photosphereOnly ? `${citation}; ${IR_EXCESS_CITE}` : citation, flags: rel.flags, reliability: rel.value };
 }
 
 // --- body-level colour and visible light -------------------------------------------------------
@@ -1074,6 +1258,29 @@ export function bodyColor(body: Body): Derived<BlackbodyColor | null> {
   const T = paramTier(body, 'teff');
   const c = blackbodyColor(body.teff_k);
   return { ...c, tier: derivedTier([T.tier], 'model'), method: `${c.method}; ${inputsText([T])}` };
+}
+
+/**
+ * Limb-darkening table of a star or brown dwarf at its drawn Teff (limbDarkeningLut, same layout),
+ * with the Teff tier folded in: never stronger than 'model', and e.g. 'range-pick' for R Dra.
+ * Null below 2500 K (a grey visible-light atmosphere says nothing about L/T/Y dwarfs) and for
+ * other kinds.
+ */
+export function bodyLimbDarkening(body: Body, n = 16): Derived<Float32Array | null> {
+  if (!isStellar(body)) return missing(`${body.kind}: no photosphere model`, LIMB_CITE, 'not-modelled', 'model');
+  if (body.teff_k === null) return missing('no Teff', LIMB_CITE);
+  if (unreliable(body.teff_k)) {
+    return {
+      value: null,
+      tier: 'model',
+      method: `not computed below ${BLACKBODY_MIN_TEFF_K} K: a grey atmosphere does not describe a molecular, cloudy L/T/Y-dwarf photosphere`,
+      citation: `${LIMB_CITE}; ${BB_UNRELIABLE_CITE}`,
+      flags: ['blackbody-unreliable'],
+    };
+  }
+  const T = paramTier(body, 'teff');
+  const lut = limbDarkeningLut(body.teff_k, n);
+  return { ...lut, tier: derivedTier([T.tier], 'model'), method: `${lut.method}; ${inputsText([T])}` };
 }
 
 /** Visible-light luminosity L × f(380–780 nm) of a blackbody, in L_sun (for glow scaling). */
@@ -1100,6 +1307,8 @@ export interface BodyDerivation {
     readonly mass: ParamTier;
     readonly spectralType: ParamTier;
     readonly semiMajorAxis: ParamTier;
+    readonly eccentricity: ParamTier;
+    readonly rotationPeriod: ParamTier;
     readonly distance: ParamTier;
   };
   readonly luminosity: Derived<number | null>;
@@ -1115,6 +1324,8 @@ export interface BodyDerivation {
   readonly massClass: Derived<MassClass | null>;
   readonly spectralClass: Derived<SpectralType | null>;
   readonly color: Derived<BlackbodyColor | null>;
+  /** Limb-darkening table with the Teff tier folded in (bodyLimbDarkening). */
+  readonly limbDarkening: Derived<Float32Array | null>;
   readonly displayBrightness: Derived<number | null>;
   readonly spherex: SpherexPrediction;
 }
@@ -1128,6 +1339,8 @@ export function deriveBody(body: Body, system: SystemModel): BodyDerivation {
       mass: paramTier(body, 'mass'),
       spectralType: paramTier(body, 'spectralType'),
       semiMajorAxis: paramTier(body, 'semiMajorAxis'),
+      eccentricity: paramTier(body, 'eccentricity'),
+      rotationPeriod: paramTier(body, 'rotationPeriod'),
       distance: distanceTier(system),
     },
     luminosity: luminosity(body),
@@ -1143,6 +1356,7 @@ export function deriveBody(body: Body, system: SystemModel): BodyDerivation {
     massClass: massClass(body),
     spectralClass: spectralClass(body),
     color: bodyColor(body),
+    limbDarkening: bodyLimbDarkening(body),
     displayBrightness:
       isStellar(body) && body.teff_k !== null
         ? displayBrightness(body.teff_k)

@@ -1,13 +1,24 @@
-// Physics-driven look: temperature → color, and display-scale helpers.
-// Everything here is an approximation for a MODEL REPRESENTATION, not an image.
-import type { Body } from '../api/types';
+// Look of a body in the 3D scene: base colour, surface-pattern gate and display-scale helpers.
+// Everything here is part of a MODEL REPRESENTATION, not an image.
+//
+// Real systems draw only what is measured or physically derived (AGENTS.md rules 3-5):
+//   stars        blackbody colour at the catalog Teff through the CIE 1931 2° observer (astro.ts)
+//   planets      a neutral 18 % grey sphere: albedo and colour are unknown for every real target
+//   brown dwarfs neutral: their visible spectra are not blackbodies (Burrows, Marley & Sharp 2000,
+//                ApJ 531, 438), so no visible colour is computed
+//   disks        neutral, translucent: the scattered-light colour is not computed
+// No random craters, bands or blotches on real bodies; class-typical patterns appear only when the
+// viewer turns them on, labelled ILLUSTRATIVE (S5). The hand palette below and kelvinToRgb (Tanner
+// Helland fit) are used ONLY for the synthetic demo system (provenance.synthetic).
+import type { Body, SystemModel } from '../api/types';
+import { bodyColor as blackbodyBodyColor } from './astro';
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
 /**
  * Approximate blackbody color (sRGB 0–255) for a temperature in kelvin.
- * Tanner Helland's fit, valid ~1000–40000 K; below 1000 K we fade to a dark red
- * (cold brown dwarfs emit almost nothing visible — their real color is debated).
+ * Tanner Helland's fit, valid ~1000–40000 K; below 1000 K we fade to a dark red.
+ * Synthetic demo system only: real systems use the CIE 1931 colour from astro.ts.
  */
 export function kelvinToRgb(kelvin: number): [number, number, number] {
   const t = clamp(kelvin, 1000, 40000) / 100;
@@ -33,23 +44,80 @@ export function rgbToHex([r, g, b]: [number, number, number]): string {
   return '#' + [r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('');
 }
 
-/** Base color of a body: explicit override > temperature > per-model default. */
-export function bodyColor(body: Body): string {
+/** Reflectance used for bodies whose albedo is unknown (a photographic mid grey). */
+export const NEUTRAL_ALBEDO = 0.18;
+
+/** NEUTRAL_ALBEDO as an sRGB-encoded hex: linear 0.18 → sRGB 0.461 → 118 = 0x76. */
+export const NEUTRAL_GREY_HEX = '#767676';
+
+/** Hand palette of the synthetic demo system (decoration, never used for a real body). */
+const SYNTHETIC_PALETTE: Record<string, string> = {
+  gas_giant: '#c9a27a',
+  icy: '#bcd7e8',
+  disk: '#d9a066',
+  brown_dwarf: '#7a2e3b',
+};
+
+/** The legacy look, kept for the synthetic demo system: override > temperature fit > palette. */
+function syntheticColor(body: Body): string {
   if (body.appearance.color_hex) return body.appearance.color_hex;
   if (body.teff_k && (body.kind === 'star' || body.kind === 'brown_dwarf')) return rgbToHex(kelvinToRgb(body.teff_k));
-  switch (body.appearance.model) {
-    case 'gas_giant':
-      return '#c9a27a';
-    case 'icy':
-      return '#bcd7e8';
-    case 'disk':
-      return '#d9a066';
-    case 'brown_dwarf':
-      return '#7a2e3b';
-    default:
-      return '#9a8f84';
-  }
+  return SYNTHETIC_PALETTE[body.appearance.model] ?? '#9a8f84';
 }
+
+/**
+ * Base visible colour of a body ('#rrggbb', sRGB). Real systems (the default when `system` is not
+ * given): the CIE 1931 blackbody colour for stars and brown dwarfs ≥ 2500 K, otherwise the neutral
+ * 18 % grey (a hand-set appearance.color_hex is ignored: it would not be physically derived).
+ * Synthetic systems keep the legacy palette and temperature fit. Brightness is applied separately.
+ */
+export function bodyColor(body: Body, system?: Pick<SystemModel, 'provenance'> | null): string {
+  if (system?.provenance.synthetic) return syntheticColor(body);
+  return blackbodyBodyColor(body).value?.hex ?? NEUTRAL_GREY_HEX;
+}
+
+export type SurfacePattern = 'none' | 'procedural' | 'bands' | 'mottling';
+
+/** Kinds that can carry a surface pattern (stars use the star shader, disks are rings). */
+const PATTERNED_KINDS: ReadonlySet<Body['kind']> = new Set<Body['kind']>([
+  'brown_dwarf',
+  'planet',
+  'dwarf_planet',
+  'moon',
+  'asteroid',
+  'comet',
+  'tno',
+  'unknown',
+]);
+
+/**
+ * Which surface pattern a body gets:
+ *   'procedural' synthetic demo system only (the legacy seeded bands / craters);
+ *   'bands'      class-typical zonal bands of gas giants and brown dwarfs (Apai et al. 2017,
+ *                Science 357, 683), only with the class-typical toggle on: ILLUSTRATIVE;
+ *   'mottling'   class-typical albedo mottling of rocky and icy bodies, toggle on: ILLUSTRATIVE;
+ *   'none'       everything else. A real body never gets a pattern with the toggle off: no
+ *                object-level surface measurement exists for any demo target (S5).
+ */
+export function surfacePattern(body: Body, system: Pick<SystemModel, 'provenance'>, classTypical = false): SurfacePattern {
+  if (!PATTERNED_KINDS.has(body.kind) || body.appearance.model === 'mesh') return 'none';
+  if (system.provenance.synthetic) return 'procedural';
+  if (!classTypical) return 'none';
+  if (body.kind === 'brown_dwarf' || body.appearance.model === 'gas_giant' || body.appearance.model === 'brown_dwarf') return 'bands';
+  if (body.appearance.model === 'rocky' || body.appearance.model === 'icy') return 'mottling';
+  return 'none';
+}
+
+/** The gate of SystemScene's procedural / class-typical textures. */
+export function hasSurfacePattern(body: Body, system: Pick<SystemModel, 'provenance'>, classTypical = false): boolean {
+  return surfacePattern(body, system, classTypical) !== 'none';
+}
+
+/** Peak intensity contrast of the class-typical patterns (ILLUSTRATIVE drawing choice). */
+export const CLASS_TYPICAL_CONTRAST: Record<'bands' | 'mottling', number> = { bands: 0.15, mottling: 0.1 };
+
+export const CLASS_TYPICAL_CITATION =
+  'zonal bands / patchy clouds of brown dwarfs: Radigan et al. 2014, ApJ 793, 75; Metchev et al. 2015, ApJ 799, 154; Apai et al. 2017, Science 357, 683';
 
 /**
  * Compressed distance mapping (AU → scene units) so 0.02 AU and 1500 AU fit in one view.

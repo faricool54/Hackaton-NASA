@@ -14,9 +14,11 @@ import {
   angularDiameterMas,
   bandFraction,
   blackbodyAbMag,
+  blackbodyBandAbMag,
   blackbodyChromaticity,
   blackbodyColor,
   bodyColor,
+  bodyLimbDarkening,
   deriveBody,
   derivedTier,
   displayBrightness,
@@ -112,6 +114,12 @@ describe('constants and tiers', () => {
     expect(weakestTier(['derived', 'theory', 'class-typical'])).toBe('theory');
     expect(TIERS[0]).toBe('measured');
   });
+
+  it('ranks a pick inside a range published for the object above a class-typical value', () => {
+    expect(TIERS).toEqual(['measured', 'derived', 'model', 'range-pick', 'class-typical', 'theory', 'illustrative', 'display']);
+    expect(weakestTier(['range-pick', 'class-typical'])).toBe('class-typical');
+    expect(derivedTier(['range-pick', 'model'])).toBe('range-pick');
+  });
 });
 
 describe('CIE 1931 table (CIE 018:2019 / CVRL ciexyz31, 5 nm)', () => {
@@ -122,9 +130,20 @@ describe('CIE 1931 table (CIE 018:2019 / CVRL ciexyz31, 5 nm)', () => {
     expect(at(555)).toEqual([555, 0.5120501, 1.0, 0.005749999]); // ȳ peaks at 1 at 555 nm
     expect(at(360)).toEqual([360, 0.0001299, 0.000003917, 0.0006061]);
     expect(at(830)).toEqual([830, 0.000001251141, 0.00000045181, 0]);
-    // Σȳ·Δλ ≈ 106.857 (the CIE metadata column sum of the 1 nm table).
-    const sumY = CIE1931_2DEG.reduce((s, r) => s + r[2], 0) * 5;
-    expect(rel(sumY, 106.8569171011719)).toBeLessThan(1e-3);
+    // Column sums × 5 nm. x̄ and z̄: the 5 nm sums of the CIE file (106.8657, 106.8933; the 1 nm sums
+    // are 106.8655 and 106.8923). ȳ: the CIE metadata column sum of the 1 nm table, 106.8569171.
+    const sum = (col: 1 | 2 | 3) => CIE1931_2DEG.reduce((s, r) => s + r[col], 0) * 5;
+    expect(rel(sum(1), 106.8657)).toBeLessThan(1e-5);
+    expect(rel(sum(2), 106.8569171011719)).toBeLessThan(1e-5);
+    expect(rel(sum(3), 106.8933)).toBeLessThan(1e-5);
+  });
+
+  it('is byte-for-byte the table checked against CVRL (FNV-1a hash of every row)', () => {
+    // A typo in any of the 285 values, or a swapped row, changes the hash. The table was checked
+    // value by value against the CVRL 5 nm file and the CIE 1 nm file (stage-2 review, 2026-11-14).
+    let h = 2166136261;
+    for (const ch of JSON.stringify(CIE1931_2DEG)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+    expect((h >>> 0).toString(16).padStart(8, '0')).toBe('0e63f646');
   });
 
   it('records its source and licence', () => {
@@ -170,6 +189,13 @@ describe('blackbody colour', () => {
     expect(ba.value).toBeNull();
     expect(ba.flags).toContain('blackbody-unreliable');
     expect(bodyColor(bodyIn('epsilon-indi', 'eps-indi-ba')).value).toBeNull();
+  });
+
+  it('band fractions report the number of quadrature steps actually used', () => {
+    expect(bandFraction(3195, 0.38, 0.78).method).toMatch(/\b4000-step\b/);
+    expect(bandFraction(3195, 0.38, 0.78, 100).method).toMatch(/\b2000-step\b/); // never fewer than 2000
+    expect(bandFraction(3195, 0.38, 0.78, 6000.7).method).toMatch(/\b6000-step\b/);
+    expect(bandFraction(3195, 0.38, 0.78, 100).value).toBe(bandFraction(3195, 0.38, 0.78, 2000).value);
   });
 
   it('display brightness: Sun 1, Barnard dimmer, cold dwarfs at the floor; tier DISPLAY', () => {
@@ -250,15 +276,52 @@ describe('judge fixtures (mu = 1.3), at the precision they were quoted', () => {
       const t = equilibriumTemperature(p, BARNARD);
       expect(Math.abs(num(t) - teq), id).toBeLessThanOrEqual(1);
       expect(t.tier, id).toBe('model'); // the albedo and redistribution are assumed
-      expect(sig(num(insolation(p, BARNARD)), 2), id).toBe(s);
+      const S = insolation(p, BARNARD);
+      expect(sig(num(S), 2), id).toBe(s);
+      // Drawn circular with no Eccentricity Fact: the circular orbit is an assumption (MODEL).
+      expect(S.tier, id).toBe('model');
+      expect(S.method, id).toMatch(/circular orbit assumed/);
       expect(num(equilibriumTemperature(p, BARNARD, 0.3))).toBeLessThan(num(t));
     }
   });
 
   it('Epsilon Indi Ab Teq 48 K and Earth Teq (5772 K, 1 AU, A = 0) 278.3 K', () => {
-    expect(Math.abs(num(equilibriumTemperature(bodyIn('epsilon-indi', 'eps-indi-ab'), EPS)) - 48)).toBeLessThan(0.5);
+    const ab = bodyIn('epsilon-indi', 'eps-indi-ab');
+    const teq = equilibriumTemperature(ab, EPS);
+    expect(Math.abs(num(teq) - 48)).toBeLessThan(0.5); // at a, the catalog convention
+    expect(teq.method).toMatch(/orbit-averaged flux \(e = 0\.25, measured\) T_eq would be 48\.6 K/);
     expect(num(equilibriumTemperature(bodyIn('demo-ecliptic-orbits', 'earth'), DEMO))).toBeCloseTo(278.3, 1);
     expect(num(insolation(bodyIn('demo-ecliptic-orbits', 'earth'), DEMO))).toBeCloseTo(1, 3);
+  });
+
+  it('insolation is the orbit average L/(a²√(1−e²)), with the eccentricity tier folded in', () => {
+    const ab = bodyIn('epsilon-indi', 'eps-indi-ab');
+    const S = insolation(ab, EPS);
+    const atA = num(luminosity(epsA)) / 15.76 ** 2;
+    expect(num(S)).toBeCloseTo(atA / Math.sqrt(1 - 0.25 ** 2), 12);
+    expect(num(S) / atA - 1).toBeCloseTo(0.0328, 4); // 3.3 % above the flux at a
+    expect(S.tier).toBe('derived'); // L derived, a and e measured (Sanghi et al. 2026)
+    expect(S.method).toMatch(/e = 0\.25 \(measured\)/);
+    // An eccentricity with no Fact behind it makes the average illustrative.
+    const unbacked: Body = { ...ab, facts: ab.facts.filter((f) => !/^eccentricity/i.test(f.label)) };
+    const sys: SystemModel = { ...EPS, bodies: EPS.bodies.map((b) => (b.id === ab.id ? unbacked : b)) };
+    expect(insolation(unbacked, sys).tier).toBe('illustrative');
+  });
+
+  it('a brown dwarf can be the host: Teq and S of a planet around WISE 0855', () => {
+    const planet: Body = {
+      ...bodyIn('barnards-star', 'barnard-b'),
+      id: 'test-planet',
+      facts: [],
+      orbit: { ...bodyIn('barnards-star', 'barnard-b').orbit!, parent: 'wise-0855', semi_major_axis_au: 0.01 },
+    };
+    const sys: SystemModel = { ...WISE, bodies: [...WISE.bodies, planet] };
+    const w = bodyIn('wise-0855', 'wise-0855');
+    const teq = equilibriumTemperature(planet, sys);
+    expect(num(teq)).toBeCloseTo(w.teff_k! * Math.sqrt((w.radius_km! * 1e3) / (2 * 0.01 * PHYS.au)), 9);
+    expect(teq.method).toMatch(/WISE/);
+    expect(num(insolation(planet, sys))).toBeCloseTo(num(luminosity(w)) / 0.01 ** 2, 12);
+    expect(teq.flags).not.toContain('missing-input');
   });
 });
 
@@ -311,8 +374,8 @@ describe('reliability of the SPHEREx numbers', () => {
       'eps-indi-bb': 'blackbody unreliable - not shown',
       'wise-0855': 'blackbody unreliable - not shown',
       'r-draconis': 'illustrative inputs',
-      'rw-aur-a': 'illustrative inputs', // radius is an unverified estimate
-      'rw-aur-b': 'illustrative inputs', // Teff picked inside 4100-4200 K
+      'rw-aur-a': 'photosphere only - IR excess not modelled', // classical T Tauri star with a disk
+      'rw-aur-b': 'photosphere only - IR excess not modelled', // classical T Tauri star
       sun: 'not modelled', // synthetic system: no distance
     };
     for (const s of SYSTEMS) {
@@ -323,32 +386,75 @@ describe('reliability of the SPHEREx numbers', () => {
       }
     }
   });
+
+  it('RW Aur: the photosphere blackbody is magnitudes fainter than SPHEREx and 2MASS saw, so no AB is shown', () => {
+    const a = bodyIn('rw-aurigae', 'rw-aur-a');
+    const b = bodyIn('rw-aurigae', 'rw-aur-b');
+    const d = RWAUR.motion!.distance_pc!;
+    // A and B are 1.49″ apart, inside one SPHEREx PSF: compare the blended A+B photosphere.
+    const blend = (ab: (s: Body) => number) => -2.5 * Math.log10(10 ** (-0.4 * ab(a)) + 10 ** (-0.4 * ab(b)));
+    const band = (i: number) => blend((s) => num(blackbodyBandAbMag(s.teff_k!, s.radius_km!, d, SPHEREX_DETECTORS[i])));
+    // SPHEREx, 2025-09 to 2026-09 (docs/RECON_SPHEREX.md §4.4): D5 7.92-8.65 AB, D6 7.63-8.38 AB.
+    expect(band(4) - 8.65).toBeGreaterThan(2);
+    expect(band(5) - 8.38).toBeGreaterThan(2);
+    // 2MASS Ks = 7.020 (Vega), VizieR II/246; K_AB - K_Vega = 1.85 (Blanton & Roweis 2007).
+    const ks = blend((s) => num(blackbodyAbMag(s.teff_k!, s.radius_km!, d, 2.159)));
+    expect(ks - (7.02 + 1.85)).toBeGreaterThan(1);
+    for (const s of [a, b]) {
+      const r = spherexReliability(s, RWAUR);
+      expect(r.tier, s.id).toBe('model');
+      expect(r.flags, s.id).toEqual(['not-modelled']);
+      expect(r.citation, s.id).toMatch(/RECON_SPHEREX\.md §4\.4/);
+      expect(r.citation, s.id).toMatch(/II\/246/);
+      const p = spherexPrediction(s, RWAUR);
+      expect(p.reliability).toBe('photosphere only - IR excess not modelled');
+      for (const est of p.value) {
+        expect(est.abMag.value, `${s.id} ${est.detector.id}`).toBeNull();
+        expect(est.abMag.flags).toContain('not-modelled');
+        expect(est.fraction.method).toMatch(/photosphere only/);
+      }
+    }
+  });
+
+  it('flags an IR excess for any pre-main-sequence star or any star in a system with a disk', () => {
+    // Barnard's Star moved into a system with a disk, then given a T Tauri 'Type' Fact.
+    const disk = bodyIn('rw-aurigae', 'rw-aur-a-disk');
+    const withDisk: SystemModel = { ...BARNARD, bodies: [...BARNARD.bodies, disk] };
+    expect(spherexReliability(barnard, withDisk).value).toBe('photosphere only - IR excess not modelled');
+    expect(spherexReliability(barnard, withDisk).method).toMatch(/circumstellar disk/);
+    const tt: Body = { ...barnard, facts: [...barnard.facts, { label: 'Type', value: 'Classical T Tauri star', unit: null, source: 'x', verified: true }] };
+    expect(spherexReliability(tt, BARNARD).value).toBe('photosphere only - IR excess not modelled');
+    expect(spherexReliability(barnard, BARNARD).value).toBe('blackbody approx.');
+  });
 });
 
 describe('input tiers from Facts', () => {
-  type Row = Partial<Record<'teff' | 'radius' | 'mass' | 'semiMajorAxis', Tier>>;
-  // Explicit expected tiers for every demo body (a new body must be added here).
+  type Row = Partial<Record<'teff' | 'radius' | 'mass' | 'semiMajorAxis' | 'eccentricity' | 'rotationPeriod', Tier>>;
+  // Explicit expected tiers for every demo body (a new body must be added here). Barnard's planets
+  // are drawn circular with no Eccentricity Fact, so their e is 'illustrative' (results that use it
+  // treat an unbacked e = 0 as the circular-orbit assumption, a MODEL).
   const EXPECTED: Record<string, Row> = {
-    'barnards-star': { teff: 'measured', radius: 'measured', mass: 'measured' },
-    'barnard-d': { radius: 'model', mass: 'measured', semiMajorAxis: 'measured' },
-    'barnard-b': { radius: 'model', mass: 'measured', semiMajorAxis: 'measured' },
-    'barnard-c': { radius: 'model', mass: 'measured', semiMajorAxis: 'measured' },
-    'barnard-e': { radius: 'model', mass: 'measured', semiMajorAxis: 'measured' },
+    'barnards-star': { teff: 'measured', radius: 'measured', mass: 'measured', rotationPeriod: 'measured' },
+    'barnard-d': { radius: 'model', mass: 'measured', semiMajorAxis: 'measured', eccentricity: 'illustrative' },
+    'barnard-b': { radius: 'model', mass: 'measured', semiMajorAxis: 'measured', eccentricity: 'illustrative' },
+    'barnard-c': { radius: 'model', mass: 'measured', semiMajorAxis: 'measured', eccentricity: 'illustrative' },
+    'barnard-e': { radius: 'model', mass: 'measured', semiMajorAxis: 'measured', eccentricity: 'illustrative' },
     sun: { teff: 'illustrative', radius: 'illustrative', mass: 'illustrative' },
-    earth: { radius: 'illustrative', semiMajorAxis: 'illustrative' },
-    jupiter: { radius: 'illustrative', semiMajorAxis: 'illustrative' },
-    neptune: { radius: 'illustrative', semiMajorAxis: 'illustrative' },
-    'syn-2026-aa': { radius: 'illustrative', semiMajorAxis: 'illustrative' },
-    'syn-tno-1': { radius: 'illustrative', semiMajorAxis: 'illustrative' },
+    earth: { radius: 'illustrative', semiMajorAxis: 'illustrative', eccentricity: 'illustrative' },
+    jupiter: { radius: 'illustrative', semiMajorAxis: 'illustrative', eccentricity: 'illustrative' },
+    neptune: { radius: 'illustrative', semiMajorAxis: 'illustrative', eccentricity: 'illustrative' },
+    'syn-2026-aa': { radius: 'illustrative', semiMajorAxis: 'illustrative', eccentricity: 'illustrative' },
+    'syn-tno-1': { radius: 'illustrative', semiMajorAxis: 'illustrative', eccentricity: 'illustrative' },
     'eps-indi-a': { teff: 'measured', radius: 'measured', mass: 'measured' },
-    'eps-indi-ab': { teff: 'measured', radius: 'model', mass: 'measured', semiMajorAxis: 'measured' },
-    'eps-indi-ba': { teff: 'measured', radius: 'illustrative', mass: 'measured', semiMajorAxis: 'illustrative' },
-    'eps-indi-bb': { teff: 'measured', radius: 'illustrative', mass: 'measured', semiMajorAxis: 'measured' },
+    'eps-indi-ab': { teff: 'measured', radius: 'model', mass: 'measured', semiMajorAxis: 'measured', eccentricity: 'measured' },
+    // Ba/Bb Teff: the catalog labels them 'Temperature (model-dependent)' (evolutionary models).
+    'eps-indi-ba': { teff: 'model', radius: 'illustrative', mass: 'measured', semiMajorAxis: 'illustrative', eccentricity: 'illustrative' },
+    'eps-indi-bb': { teff: 'model', radius: 'illustrative', mass: 'measured', semiMajorAxis: 'measured', eccentricity: 'measured' },
     'wise-0855': { teff: 'model', radius: 'model', mass: 'range-pick' },
     'r-draconis': { teff: 'range-pick', radius: 'illustrative', mass: 'illustrative' },
     'rw-aur-a': { teff: 'measured', radius: 'illustrative', mass: 'measured' },
     'rw-aur-a-disk': { radius: 'measured' },
-    'rw-aur-b': { teff: 'range-pick', radius: 'measured', mass: 'measured', semiMajorAxis: 'illustrative' },
+    'rw-aur-b': { teff: 'range-pick', radius: 'measured', mass: 'measured', semiMajorAxis: 'illustrative', eccentricity: 'measured' },
   };
 
   it('matches the expected table for every demo body', () => {
@@ -364,7 +470,40 @@ describe('input tiers from Facts', () => {
         }
       }
     }
-    expect(n).toBeGreaterThan(40);
+    expect(n).toBeGreaterThan(50);
+  });
+
+  it("only Barnard's Star has a rotation period (145 ± 15 d, verified); nothing else may spin", () => {
+    for (const s of SYSTEMS) {
+      for (const b of s.bodies) {
+        if (b.id === 'barnards-star') expect(b.rotation_period_hours).toBe(3480);
+        else expect(b.rotation_period_hours, b.id).toBeNull();
+      }
+    }
+    const P = paramTier(barnard, 'rotationPeriod');
+    expect(P.fact?.label).toBe('Rotation period');
+    expect(paramTier({ ...barnard, rotation_period_hours: 24 * 200 }, 'rotationPeriod').tier).toBe('illustrative');
+    expect(paramTier(epsA, 'rotationPeriod').flags).toContain('missing-input');
+  });
+
+  it('uses the quoted error and the quoted digits as the tolerance, 5 % only for "~" values', () => {
+    const fact = (value: string, unit = 'K'): Fact => ({ label: 'Temperature', value, unit, source: 'x', verified: true });
+    const at = (teff: number, value: string) => paramTier({ ...barnard, teff_k: teff, facts: [fact(value)] }, 'teff').tier;
+    expect(at(3195 + 28, '3195 ± 28')).toBe('measured');
+    expect(at(3195 + 29, '3195 ± 28')).toBe('illustrative'); // beyond err + half a unit
+    expect(at(3354, '3195 ± 28')).toBe('illustrative'); // 5.7 sigma off: no 5 % slack any more
+    expect(at(3354, '~3195')).toBe('measured'); // '~' allows 5 %
+    expect(at(3220, '3195')).toBe('measured'); // no error quoted: 1 %
+    expect(at(3240, '3195')).toBe('illustrative');
+    expect(at(4280, '4100–4200')).toBe('illustrative'); // no 2 % slack outside a range
+    expect(at(4200.5, '4100–4200')).toBe('range-pick'); // half a unit in the last digit
+    // Asymmetric errors are used on their own side.
+    const mass = (mj: number) =>
+      paramTier({ ...barnard, mass_kg: mj * (PHYS.GMJup / PHYS.G), facts: [{ label: 'Mass', value: '6.5 (+0.7/−0.6)', unit: 'Jupiter masses', source: 'x', verified: true }] }, 'mass').tier;
+    expect(mass(7.2)).toBe('measured');
+    expect(mass(5.8)).toBe('illustrative');
+    // Half a unit in the last quoted digit: RW Aur B 0.9953 M_sun against '1.00' (and 1 %).
+    expect(paramTier(bodyIn('rw-aurigae', 'rw-aur-b'), 'mass').tier).toBe('measured');
   });
 
   it('flags minimum masses and keeps the mass class a lower bound', () => {
@@ -388,7 +527,11 @@ describe('input tiers from Facts', () => {
   it('reads the system distance from Distance Facts', () => {
     expect(distanceTier(BARNARD).tier).toBe('measured');
     expect(distanceTier(RDRA).tier).toBe('measured'); // ~790 pc vs 792 pc
-    expect(distanceTier(RWAUR).tier).toBe('illustrative'); // no Distance Fact in the catalog
+    // Verified Distance Fact on RW Aur A: 156.1 pc from B's Gaia DR3 parallax (Kurtovic et al. 2024).
+    const rw = distanceTier(RWAUR);
+    expect(rw.tier).toBe('measured');
+    expect(rw.value).toBe(156.1);
+    expect(rw.fact?.label).toBe('Distance');
     expect(distanceTier(DEMO).value).toBeNull();
   });
 
@@ -448,6 +591,21 @@ describe('star shader inputs (M2, pure parts)', () => {
     }
   });
 
+  it('body-level limb darkening carries the tier of the drawn Teff', () => {
+    const rdra = bodyIn('r-draconis', 'r-draconis');
+    const ld = bodyLimbDarkening(rdra);
+    expect(ld.tier).toBe('range-pick'); // Teff picked inside ~2000-3300 K
+    expect(ld.value).toEqual(limbDarkeningLut(3000).value);
+    expect(ld.method).toMatch(/Teff range-pick/);
+    expect(bodyLimbDarkening(barnard).tier).toBe('model'); // measured Teff, grey-atmosphere floor
+    expect(bodyLimbDarkening(bodyIn('rw-aurigae', 'rw-aur-b')).tier).toBe('range-pick');
+    const w = bodyLimbDarkening(bodyIn('wise-0855', 'wise-0855'));
+    expect(w.value).toBeNull();
+    expect(w.flags).toContain('blackbody-unreliable');
+    expect(bodyLimbDarkening(bodyIn('barnards-star', 'barnard-b')).flags).toContain('not-modelled');
+    expect(deriveBody(rdra, RDRA).limbDarkening.tier).toBe('range-pick');
+  });
+
   it('the grey model gives I(0)/I(1) about 0.33 for the Sun at 550 nm', () => {
     expect(Math.abs(limbDarkeningAt(5772, 550, 0).value - 0.33)).toBeLessThan(0.01);
     expect(limbDarkeningAt(5772, 550, 1).value).toBeCloseTo(1, 12);
@@ -471,10 +629,29 @@ describe('star shader inputs (M2, pure parts)', () => {
 describe('geometry', () => {
   it('separation bounds are [0, a(1+e)/d] arcsec', () => {
     const ab = bodyIn('epsilon-indi', 'eps-indi-ab');
-    const [lo, hi] = separationBoundsArcsec(ab, EPS).value!;
+    const sep = separationBoundsArcsec(ab, EPS);
+    const [lo, hi] = sep.value!;
     expect(lo).toBe(0);
     expect(hi).toBeCloseTo((15.76 * 1.25) / 3.638, 9);
+    expect(sep.tier).toBe('derived'); // a, e and d all measured
+    expect(sep.method).toMatch(/drawn \(best-fit\) orbit/);
+    expect(sep.method).toMatch(/uncertainties of a and e not propagated/);
     expect(separationBoundsArcsec(bodyIn('epsilon-indi', 'eps-indi-ba'), EPS).flags).toContain('assumed-orbit');
+  });
+
+  it('folds the eccentricity tier into the separation bounds', () => {
+    // e = 0.9 with no Eccentricity Fact behind it: the bound uses an invented e.
+    const ab = bodyIn('epsilon-indi', 'eps-indi-ab');
+    const e09: Body = { ...ab, orbit: { ...ab.orbit!, eccentricity: 0.9 }, facts: ab.facts.filter((f) => !/^eccentricity/i.test(f.label)) };
+    expect(separationBoundsArcsec(e09, EPS).tier).toBe('illustrative');
+    // e = 0.9 against the Fact '0.25 ± 0.09': the drawn value does not match.
+    expect(separationBoundsArcsec({ ...ab, orbit: { ...ab.orbit!, eccentricity: 0.9 } }, EPS).tier).toBe('illustrative');
+    // Barnard's planets: drawn circular without an Eccentricity Fact, a circular-orbit MODEL.
+    for (const id of ['barnard-b', 'barnard-c', 'barnard-d', 'barnard-e']) {
+      const s = separationBoundsArcsec(bodyIn('barnards-star', id), BARNARD);
+      expect(s.tier, id).toBe('model');
+      expect(s.value![1], id).toBeLessThan(0.021);
+    }
   });
 });
 

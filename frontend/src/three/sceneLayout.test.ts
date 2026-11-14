@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Appearance, AppearanceModel, Body, Orbit, SystemModel } from '../api/types';
 import { displayRadius } from './appearance';
-import { orbitalPosition, variabilityFactor } from './orbits';
+import { J2000_MJD, orbitalPosition, variabilityFactor } from './orbits';
 import {
   advanceModelTime,
   apoapsisAu,
@@ -15,8 +15,16 @@ import {
   maxPulsationScale,
   MIN_VISIBLE_RADIUS,
   nonFittedOrbits,
+  orbitalPhaseAngle,
   periapsisAu,
+  PULSATION_RADIUS_AMPLITUDE,
+  pulsationRadiusScale,
   referenceAu,
+  rotationAngle,
+  spinAliased,
+  spinLegend,
+  spinModel,
+  suggestedSpeed,
   tighterHalfFov,
   type DistanceMode,
 } from './sceneLayout';
@@ -171,7 +179,8 @@ describe('radius caps: bodies never pass through each other', () => {
       }),
       body({ id: 'c', orbit: orbit({ semi_major_axis_au: 0.5 }) }),
     ];
-    expect(maxPulsationScale(bodies[0])).toBeGreaterThan(1.3);
+    // Class-typical ±10 % Mira diameter change, whatever the V amplitude (not the old f^0.08: ±44 % for 8 mag).
+    expect(maxPulsationScale(bodies[0])).toBeCloseTo(1 + PULSATION_RADIUS_AMPLITUDE, 12);
     for (const mode of ['compressed', 'linear'] as const) {
       for (const { clearance } of clearances(bodies, mode)) expect(clearance).toBeGreaterThan(0);
     }
@@ -181,6 +190,27 @@ describe('radius caps: bodies never pass through each other', () => {
     expect(maxPulsationScale(body({}))).toBe(1);
     const irregular = body({ variability: { kind: 'irregular', period_days: null, amplitude_mag: 2, band: 'V' } });
     expect(maxPulsationScale(irregular)).toBe(1);
+    // A rotational modulation changes the brightness, not the size.
+    const spotted = body({ variability: { kind: 'rotation', period_days: 3, amplitude_mag: 0.05, band: 'V' } });
+    expect(maxPulsationScale(spotted)).toBe(1);
+    expect(pulsationRadiusScale(spotted, 60000)).toBe(1);
+  });
+
+  it('the pulsation radius stays within ±10 % and peaks with the brightness', () => {
+    const mira = body({ kind: 'star', variability: { kind: 'pulsation', period_days: 245.6, amplitude_mag: 6.5, band: 'V' } });
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (let i = 0; i < 1000; i++) {
+      const s = pulsationRadiusScale(mira, J2000_MJD + (i / 1000) * 245.6);
+      lo = Math.min(lo, s);
+      hi = Math.max(hi, s);
+    }
+    expect(lo).toBeGreaterThanOrEqual(0.9 - 1e-12);
+    expect(hi).toBeLessThanOrEqual(maxPulsationScale(mira) + 1e-12);
+    expect(hi - lo).toBeCloseTo(0.2, 3);
+    const brightest = J2000_MJD + 0.75 * 245.6; // sin = −1 in variabilityFactor
+    expect(pulsationRadiusScale(mira, brightest)).toBeCloseTo(1.1, 9);
+    expect(variabilityFactor(mira, brightest)).toBeGreaterThan(1);
   });
 });
 
@@ -283,5 +313,88 @@ describe('orbit legend', () => {
     const o = orbit({ semi_major_axis_au: 2, eccentricity: 0.25 });
     expect(periapsisAu(o)).toBeCloseTo(1.5, 12);
     expect(apoapsisAu(o)).toBeCloseTo(2.5, 12);
+  });
+});
+
+describe('rotation (M2): nothing spins without a period or the tidal-lock rule', () => {
+  const byId = (id: string) => SYSTEMS.find((s) => s.id === id)!;
+
+  it('only Barnard\'s Star has a period, and only Barnard b-e are tidally locked, in the demo systems', () => {
+    for (const system of SYSTEMS) {
+      for (const b of system.bodies) {
+        const s = spinModel(b, system.bodies);
+        if (b.id === 'barnards-star') {
+          expect(s.kind, b.id).toBe('period');
+          expect(s.periodHours).toBe(3480);
+          expect(s.tier).toBe('measured'); // verified 'Rotation period' Fact, 145 ± 15 d
+        } else if (system.id === 'barnards-star') {
+          expect(s.kind, b.id).toBe('tidal-lock'); // P 2.3-6.7 d around an M4V dwarf
+          expect(s.tier).toBe('theory');
+          expect(s.citation).toMatch(/Barnes 2017/);
+        } else {
+          expect(s.kind, `${system.id}/${b.id}`).toBe('none');
+          expect(s.method).toBe('rotation unknown: not drawn');
+        }
+      }
+    }
+  });
+
+  it('rotationAngle is undefined when the rotation is unknown', () => {
+    const wise = byId('wise-0855').bodies[0];
+    const s = spinModel(wise, [wise]);
+    expect(s.kind).toBe('none');
+    expect(rotationAngle(s, 60000, 1.2)).toBeUndefined();
+  });
+
+  it('rotationAngle follows the period in model time and is deterministic (scrubbing)', () => {
+    const barnard = byId('barnards-star').bodies.find((b) => b.id === 'barnards-star')!;
+    const s = spinModel(barnard, [barnard]);
+    expect(rotationAngle(s, J2000_MJD, null)).toBeCloseTo(0, 12);
+    expect(rotationAngle(s, J2000_MJD + 145 / 4, null)).toBeCloseTo(Math.PI / 2, 9);
+    expect(rotationAngle(s, J2000_MJD + 145 * 7, null)).toBeCloseTo(0, 6);
+    expect(rotationAngle(s, 61234.5, null)).toBe(rotationAngle(s, 61234.5, null));
+  });
+
+  it('a tidally locked planet turns with its orbital phase, so one face points to its star', () => {
+    const system = byId('barnards-star');
+    const planet = system.bodies.find((b) => b.id === 'barnard-b')!;
+    const s = spinModel(planet, system.bodies);
+    for (const mjd of [60000, 60001.3, 60002.9]) {
+      const rel = orbitalPosition(planet.orbit!, mjd);
+      const phase = orbitalPhaseAngle(rel);
+      expect(rotationAngle(s, mjd, phase)).toBe(phase);
+    }
+    // Not locked: a short orbit around a K dwarf, or a long one around an M dwarf.
+    const k = body({ id: 'k', kind: 'star', spectral_type: 'K5V' });
+    const m = body({ id: 'm', kind: 'star', spectral_type: 'M4V' });
+    expect(spinModel(body({ orbit: orbit({ parent: 'k', period_days: 3 }) }), [k]).kind).toBe('none');
+    expect(spinModel(body({ orbit: orbit({ parent: 'm', period_days: 30 }) }), [m]).kind).toBe('none');
+    expect(spinModel(body({ orbit: orbit({ parent: 'm', period_days: 3 }) }), [m]).kind).toBe('tidal-lock');
+  });
+
+  it('the anti-aliasing guard holds a spin that would turn more than 90° per frame', () => {
+    expect(spinAliased(3480, 1 / 60)).toBe(false); // Barnard at 1 day per second
+    expect(spinAliased(3480, 900 / 60)).toBe(false); // 15 d per frame = 37°
+    expect(spinAliased(3480, 3000 / 60)).toBe(true); // 50 d per frame = 124°
+    expect(spinAliased(10, 0.25 / 24)).toBe(false); // 0.25 h of a 10 h period = 9°
+    expect(spinAliased(10, 3 / 24)).toBe(true); // 3 h of a 10 h period = 108°
+    expect(spinLegend(byId('barnards-star'), 3000)).toMatch(/held still/);
+    expect(spinLegend(byId('barnards-star'), 1)).not.toMatch(/held still/);
+  });
+
+  it('the spin legend names the measured period, the THEORY lock and the unknown rotations', () => {
+    const barnard = spinLegend(byId('barnards-star'), 1);
+    expect(barnard).toMatch(/Barnard's Star turns once per 145\.0 days \(MEASURED period/);
+    expect(barnard).toMatch(/THEORY/);
+    expect(spinLegend(byId('epsilon-indi'), 1)).toMatch(/rotation unknown for every body/);
+  });
+
+  it('suggestedSpeed includes rotation periods', () => {
+    const wise = byId('wise-0855');
+    expect(suggestedSpeed(wise)).toBe(1); // no period at all: 1 day per second
+    const withPeriod = { ...wise, bodies: wise.bodies.map((b) => ({ ...b, rotation_period_hours: 12 })) };
+    expect(suggestedSpeed(withPeriod)).toBeCloseTo(0.5 / 8, 12);
+    // Barnard's 145 d rotation does not slow the 2.34 d orbits down.
+    expect(suggestedSpeed(byId('barnards-star'))).toBeCloseTo(2.3402 / 8, 9);
   });
 });
