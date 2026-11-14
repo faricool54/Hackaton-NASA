@@ -80,7 +80,9 @@ def cmd_search(args: argparse.Namespace) -> int:
 
     frames = rep.result.frames
     origin = rep.service.upper()
-    if rep.stale:
+    if rep.service == "snapshot":
+        origin = "committed SNAPSHOT (IRSA unavailable)"  # the WARNING note gives its date
+    elif rep.stale:
         origin += " (EXPIRED cache: IRSA unavailable)"
     elif rep.from_cache:
         origin += " (cache)"
@@ -128,6 +130,69 @@ def cmd_search(args: argparse.Namespace) -> int:
             f"    {i}. MJD {s['mjd_min']:.2f}-{s['mjd_max']:.2f} ({d0} -> {d1}): {s['n']} frames, {s['visits']} visits"
         )
     return 0
+
+
+def cmd_snapshot_search(args: argparse.Namespace) -> int:
+    """(Re)generate committed search snapshots (data/index/search/<field-id>.json) from a live SIA query."""
+    from .build import load_field_configs
+    from .data import irsa
+
+    cfgs = load_field_configs()
+    if args.all == bool(args.field_id):
+        print("Give one field id or --all (every field tagged 'official-target').", file=sys.stderr)
+        return 2
+    ids = [fid for fid, c in cfgs.items() if "official-target" in c.tags] if args.all else [args.field_id]
+    unknown = [fid for fid in ids if fid not in cfgs]
+    if unknown:
+        print(f"Unknown field {unknown}. Known: {sorted(cfgs)}", file=sys.stderr)
+        return 2
+    out_dir = Path(args.out) if args.out else (irsa.SNAPSHOT_DIR or irsa.DEFAULT_SNAPSHOT_DIR)
+    failed = []
+    unverified = []  # written, but the live point check failed or did not run: CI rejects such a file
+    for fid in ids:
+        cfg = cfgs[fid]
+        try:
+            doc = irsa.fetch_snapshot(
+                fid,
+                cfg.ra,
+                cfg.dec,
+                name=cfg.name,
+                radius_deg=irsa.SNAPSHOT_RADIUS_DEG if args.radius is None else args.radius,
+                collections=args.collections,
+                rounds=args.rounds,
+                pause_s=args.pause,
+            )
+        except (irsa.SearchError, ValueError) as e:
+            print(f"{fid}: snapshot NOT written: {e}", file=sys.stderr)
+            failed.append(fid)
+            continue
+        path = irsa.write_snapshot(doc, irsa.snapshot_path(fid, out_dir))
+        prov = doc["provenance"]
+        print(
+            f"{fid}: {prov['rows']} frames within {doc['radius_deg']:g} deg ({', '.join(doc['collections'])}) "
+            f"via SIA at {prov['queried_utc']} in {prov['elapsed_s']:.1f} s -> {path} ({path.stat().st_size / 1024:.0f} KB)"
+        )
+        check = prov["point_check"]
+        if "error" in check:
+            print(f"  point check NOT run (SIA failed): {check['error']}", file=sys.stderr)
+        elif check["only_live"] or check["only_replayed"]:
+            print(
+                f"  WARNING point check: live {check['rows_live']} vs replayed {check['rows_replayed']} "
+                f"(only live: {check['only_live']}; only replayed: {check['only_replayed']})",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                f"  point check OK: the replay at the centre matches the live point search ({check['rows_live']} frames)"
+            )
+            continue
+        unverified.append(fid)
+        print(
+            f"  {path.name} fails CI (test_committed_snapshot_files): run `errante snapshot-search {fid}` again "
+            f"once SIA answers, or restore the committed file (git checkout -- <path>)",
+            file=sys.stderr,
+        )
+    return 1 if failed or unverified else 0
 
 
 def cmd_cube_spectrum(args: argparse.Namespace) -> int:
@@ -347,6 +412,21 @@ def main(argv: list[str] | None = None) -> int:
         help="print counts by collection, release, detector, visit and season instead of the JSON",
     )
     s.set_defaults(func=cmd_search)
+
+    s = sub.add_parser(
+        "snapshot-search",
+        help="(re)generate the committed search snapshot of a field (IRSA-outage fallback, WS1)",
+        description="Query IRSA SIA live around a field of config/fields.toml and write data/index/search/<id>.json. "
+        "search_frames reads these snapshots only when SIA and TAP both fail and nothing is cached.",
+    )
+    s.add_argument("field_id", nargs="?", help="field id in config/fields.toml")
+    s.add_argument("--all", action="store_true", help="every field tagged 'official-target' (the five R05 targets)")
+    s.add_argument("--radius", type=float, default=None, help="snapshot disk radius [deg] (default: 0.1)")
+    s.add_argument("--collections", default=None, help="comma-separated (default: ERRANTE_COLLECTIONS or dr1,qr3)")
+    s.add_argument("--out", default=None, help="output directory (default: data/index/search)")
+    s.add_argument("--rounds", type=int, default=6, help="SIA rounds when IRSA keeps failing (default: 6)")
+    s.add_argument("--pause", type=float, default=20.0, help="seconds between rounds (default: 20)")
+    s.set_defaults(func=cmd_snapshot_search)
 
     s = sub.add_parser(
         "cube-spectrum", help="SPHEREx spectrum (102 planes) of a position from the DR1 all-sky cube on S3 (WS1)"

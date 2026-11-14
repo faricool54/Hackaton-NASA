@@ -24,10 +24,20 @@ other failed differently (e.g. SIA timeout, TAP 502), the timeout is the cause, 
 
 A whole search (SIA retries + TAP fallback) is bounded by ``settings.SEARCH_DEADLINE_S``: SIA may use
 at most half of it, TAP the rest, and no attempt starts without at least ``_MIN_ATTEMPT_S`` left.
+When the search has a fallback in hand (an expired cache entry or a covering snapshot, see below) the
+budget is capped at ``settings.SEARCH_FALLBACK_DEADLINE_S`` (20 s), so the fallback still answers before
+the backend gives up on the request (ERRANTE_API_TIMEOUT_S, 30 s -> HTTP 504).
 TAP runs one query at a time per process (module lock), as IRSA asks.
 
 Results truncated at MAXREC (SIA ``QUERY_STATUS=OVERFLOW``) are flagged and never cached, so raising
 ``ERRANTE_SIA_MAXREC`` takes effect on the next search.
+
+When SIA and TAP both fail and there is no cached answer (not even an expired one), a committed
+**search snapshot** (``data/index/search/<field-id>.json``, written by ``errante snapshot-search``)
+answers searches that fall inside its disk: a real SIA answer around a showcase field, replayed
+offline with each frame's footprint (``s_region``), the collections and the detector/MJD filters.
+It is flagged (``service='snapshot'``, ``stale=True``, a warning with the query date) and never used
+while IRSA answers. See :func:`find_snapshot` and :func:`fetch_snapshot`.
 """
 
 from __future__ import annotations
@@ -38,12 +48,15 @@ import io
 import json
 import logging
 import math
+import os
 import re
 import threading
 import time
 import uuid
 import warnings
+from collections import Counter
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 
 import requests
@@ -130,14 +143,18 @@ class SearchReport:
 
     result: SearchResult
     rows: list[ArchiveRow]
-    service: str  # 'sia' or 'tap' (the service that produced the data, even when read from cache)
+    # 'sia' or 'tap' (the service that produced the data, even when read from cache), or 'snapshot'
+    # when IRSA was down and a committed search snapshot answered (then stale=True; see warnings).
+    service: str
     from_cache: bool
     elapsed_s: float
     collections: tuple[str, ...]
     overflow: bool = False
     n_duplicates: int = 0
     errors: list[str] = field(default_factory=list)
-    stale: bool = False  # True when IRSA failed and an expired cache entry was served instead
+    # True when IRSA failed and an older answer was served instead: an expired cache entry (``service`` is
+    # the service that produced it) or a committed search snapshot (``service == 'snapshot'``).
+    stale: bool = False
     warnings: list[str] = field(default_factory=list)  # e.g. unknown collection names (IRSA ignores them)
 
 
@@ -186,9 +203,17 @@ def search_frames_report(
     *,
     collections: list[str] | tuple[str, ...] | None = None,
     use_cache: bool = True,
+    use_snapshot: bool | None = None,
 ) -> SearchReport:
-    """Same as :func:`search_frames` but also says which service answered, cache use and timing."""
+    """Same as :func:`search_frames` but also says which service answered, cache use and timing.
+
+    ``use_snapshot`` (default: same as ``use_cache``) allows the committed search snapshots as a last
+    resort, only after SIA and TAP both failed and no cached answer exists (see :func:`find_snapshot`).
+    With such a fallback in hand IRSA gets ``settings.SEARCH_FALLBACK_DEADLINE_S`` at most
+    (:func:`search_budget`).
+    """
     t0 = time.monotonic()
+    allow_snapshot = use_cache if use_snapshot is None else use_snapshot
     ra, dec, radius, dets = _validate(ra, dec, radius_deg, detectors, mjd_min, mjd_max)
     cols = normalize_collections(collections)
     warn = [
@@ -209,15 +234,26 @@ def search_frames_report(
         rows, service, overflow, n_dup = cached.rows, cached.service, cached.overflow, cached.n_duplicates
         from_cache = True
     else:
-        deadline = t0 + settings.SEARCH_DEADLINE_S if settings.SEARCH_DEADLINE_S > 0 else None
+        # Fallbacks are known before IRSA is asked: with one in hand the search gets a shorter budget, so
+        # the fallback still reaches a caller that stops waiting (the backend answers 504 after 30 s).
+        snap = find_snapshot(ra, dec, radius, cols) if cached is None and allow_snapshot else None
+        budget = search_budget(fallback=cached is not None or snap is not None)
+        deadline = t0 + budget if budget > 0 else None
         try:
             raw, service, overflow, errors = _query_archive(ra, dec, radius, mjd_min, mjd_max, cols, deadline)
         except SearchError as e:
-            if cached is None:
-                raise
-            # IRSA is down: an expired answer beats no answer (new weeks may be missing).
-            log.warning("IRSA unavailable; using a %.1f h old cached search (%s)", cached.age_s / 3600, e)
-            rows, service, overflow, n_dup = cached.rows, cached.service, cached.overflow, cached.n_duplicates
+            if cached is not None:
+                # IRSA is down: an expired answer beats no answer (new weeks may be missing).
+                log.warning("IRSA unavailable; using a %.1f h old cached search (%s)", cached.age_s / 3600, e)
+                rows, service, overflow, n_dup = cached.rows, cached.service, cached.overflow, cached.n_duplicates
+            else:
+                # Nothing cached: last resort, a committed snapshot whose disk holds this search.
+                if snap is None:
+                    raise
+                rows, n_dup = snap.replay(ra, dec, radius, mjd_min, mjd_max, cols)
+                service, overflow = "snapshot", False
+                warn.append(snapshot_warning(snap))
+                log.warning("%s (%s)", warn[-1], e)
             from_cache, stale, errors = True, True, [str(e)]
         else:
             rows, n_dup = dedupe_rows(raw)
@@ -258,6 +294,17 @@ def search_frames_report(
     )
 
 
+def search_budget(*, fallback: bool) -> float:
+    """Seconds one search may spend on IRSA (0 = unbounded).
+
+    ``settings.SEARCH_DEADLINE_S``, capped at ``settings.SEARCH_FALLBACK_DEADLINE_S`` when an expired cache
+    entry or a committed snapshot can answer instead (``fallback=True``). A value of 0 switches either off.
+    """
+    limits = [settings.SEARCH_DEADLINE_S] + ([settings.SEARCH_FALLBACK_DEADLINE_S] if fallback else [])
+    limits = [s for s in limits if s > 0]
+    return min(limits) if limits else 0.0
+
+
 def known_collections() -> frozenset[str]:
     """Collection names verified live (2026-11-14) plus whatever the settings configure."""
     return frozenset(settings.IRSA_COLLECTIONS) | frozenset(settings.IRSA_DEEP_COLLECTIONS) | _VERIFIED_COLLECTIONS
@@ -288,9 +335,15 @@ def build_query(
     mjd_max: float | None = None,
     collections: list[str] | tuple[str, ...] | None = None,
 ) -> str:
-    """ADQL for the TAP fallback (``ADQL_FRAMES_AT_POSITION``)."""
+    """ADQL for the TAP fallback (``ADQL_FRAMES_AT_POSITION``).
+
+    The column goes FIRST in INTERSECTS: IRSA TAP rejects ``INTERSECTS(CIRCLE(...), p.poly)`` at once with
+    "Invalid or unsupported ADQL query string" (live 2026-11-14 19:25-19:44 and 20:05 UTC).
+    ``INTERSECTS(p.poly, CIRCLE(...))`` is not rejected at parse time, but no answer has been seen end to end:
+    it hung or got a 502 while the TAP spherex tables were down (2026-11-14 19:16-20:07 UTC). Unverified.
+    """
     if radius_deg > MIN_RADIUS_DEG:
-        region = f"INTERSECTS(CIRCLE('ICRS', {ra:.8f}, {dec:.8f}, {radius_deg:.9g}), p.poly)"
+        region = f"INTERSECTS(p.poly, CIRCLE('ICRS', {ra:.8f}, {dec:.8f}, {radius_deg:.9g}))"
     else:
         region = f"CONTAINS(POINT('ICRS', {ra:.8f}, {dec:.8f}), p.poly)"
     collection_clause = ""
@@ -758,3 +811,548 @@ def _preference(row: ArchiveRow) -> tuple[int, tuple[int, ...]]:
 
 def _describe(err: BaseException) -> str:
     return f"{type(err).__name__}: {err}"
+
+
+# --------------------------------------------------------------------------- search snapshots (IRSA outage)
+
+SNAPSHOT_KIND = "errante.search_snapshot"
+SNAPSHOT_FORMAT = 1
+"""Bump when the snapshot layout changes (files with another format are ignored, with a warning)."""
+SNAPSHOT_COLUMNS = ("s3_key", "t_min", "t_max", "collection", "footprint")
+SNAPSHOT_RADIUS_DEG = 0.1
+"""Default snapshot disk: searches whose circle lies inside it are answered exactly from the footprints.
+0.1 deg holds the 0.15 deg field box's inner circle and the J2000 (name-resolver) positions of the
+high-proper-motion targets (Barnard's Star: 0.076 deg from its fields.toml centre)."""
+SNAPSHOT_TILE_RADIUS_DEG = 0.055
+"""Largest single SIA circle used to build a snapshot. 2026-11-14 (Barnard's Star): SIA answered circles of
+0.001-0.085 deg in 3-5 s but hung on 0.1 deg (60 s and 300 s timeouts) and 0.25 deg, so wider disks are tiled."""
+DEFAULT_SNAPSHOT_DIR = settings.REPO_ROOT / "data" / "index" / "search"
+_SNAPSHOT_OFF = {"0", "off", "no", "none", "false"}
+_SNAPSHOT_LOCK = threading.Lock()
+
+
+def _snapshot_dir_from_env() -> Path | None:
+    raw = os.environ.get("ERRANTE_SEARCH_SNAPSHOTS", "").strip()
+    if raw.lower() in _SNAPSHOT_OFF:
+        return None
+    return Path(raw).resolve() if raw else DEFAULT_SNAPSHOT_DIR
+
+
+SNAPSHOT_DIR: Path | None = _snapshot_dir_from_env()
+"""Where the committed snapshots live (env ``ERRANTE_SEARCH_SNAPSHOTS``: a directory, or ``0`` to disable).
+``None`` disables the snapshot fallback (offline tests and live checks set it)."""
+
+
+@dataclass(frozen=True)
+class SnapshotRow:
+    """One snapshot frame: the ArchiveRow plus what an offline replay needs."""
+
+    row: ArchiveRow
+    t_min: float
+    t_max: float
+    footprint: tuple[float, ...]  # ra1, dec1, ra2, dec2, ... [deg]; great-circle edges, not closed
+
+
+@dataclass(frozen=True)
+class SearchSnapshot:
+    """A committed IRSA answer around a showcase field (``data/index/search/<field-id>.json``)."""
+
+    path: Path
+    field_id: str
+    name: str
+    ra: float
+    dec: float
+    radius_deg: float
+    collections: tuple[str, ...]
+    service: str  # service that produced the snapshot ('sia')
+    queried_utc: str
+    rows: tuple[SnapshotRow, ...]
+
+    def covers(self, ra: float, dec: float, radius_deg: float, collections: tuple[str, ...] | list[str]) -> bool:
+        """True when the search circle lies inside the snapshot disk and every collection was snapshotted."""
+        if not set(collections) <= set(self.collections):
+            return False
+        return angular_separation_deg(self.ra, self.dec, ra, dec) + radius_deg <= self.radius_deg + 1e-9
+
+    def frames(
+        self,
+        ra: float,
+        dec: float,
+        radius_deg: float,
+        mjd_min: float | None = None,
+        mjd_max: float | None = None,
+        collections: tuple[str, ...] | list[str] | None = None,
+    ) -> list[ArchiveRow]:
+        """Replay a search offline: footprint touches the circle and the exposure overlaps [mjd_min, mjd_max]."""
+        return self.replay(ra, dec, radius_deg, mjd_min, mjd_max, collections)[0]
+
+    def replay(
+        self,
+        ra: float,
+        dec: float,
+        radius_deg: float,
+        mjd_min: float | None = None,
+        mjd_max: float | None = None,
+        collections: tuple[str, ...] | list[str] | None = None,
+    ) -> tuple[list[ArchiveRow], int]:
+        """:meth:`frames` plus the number of (obs_id, detector) duplicates dropped.
+
+        The snapshot keeps every collection's row; like :func:`search_frames` the replay keeps one row per
+        (obs_id, detector) (DR1 wins) AFTER the collection filter, so a search of one collection still sees
+        that collection's rows, as live SIA does.
+        """
+        wanted = set(self.collections if collections is None else collections)
+        lo = -math.inf if mjd_min is None else float(mjd_min)
+        hi = math.inf if mjd_max is None else float(mjd_max)
+        hits = [
+            s.row
+            for s in self.rows
+            if s.row.collection in wanted
+            and s.t_max >= lo
+            and s.t_min <= hi
+            and footprint_hits(s.footprint, ra, dec, radius_deg)
+        ]
+        return dedupe_rows(hits)
+
+
+_SNAPSHOT_MEMO: dict[Path, tuple[tuple[int, int], SearchSnapshot | None]] = {}
+_SNAPSHOT_DIRS_WARNED: set[Path] = set()  # missing snapshot directories already logged
+
+
+def snapshot_path(field_id: str, directory: Path | None = None) -> Path:
+    """``<directory>/<field-id>.json`` (default directory: ``SNAPSHOT_DIR`` or ``DEFAULT_SNAPSHOT_DIR``)."""
+    if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", field_id):
+        raise ValueError(f"Invalid field id for a snapshot file name: {field_id!r}")
+    return (directory or SNAPSHOT_DIR or DEFAULT_SNAPSHOT_DIR) / f"{field_id}.json"
+
+
+def snapshot_warning(snap: SearchSnapshot) -> str:
+    return (
+        f"IRSA unavailable: frames come from the committed search snapshot '{snap.field_id}' "
+        f"({snap.service.upper()} answer of {snap.queried_utc}); frames published after that date are missing"
+    )
+
+
+def load_snapshot(path: Path) -> SearchSnapshot:
+    """Read and validate one snapshot file (``ValueError`` when it is not a usable snapshot)."""
+    try:
+        doc = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        raise ValueError(f"unreadable snapshot {path}: {e}") from e
+    if not isinstance(doc, dict) or doc.get("kind") != SNAPSHOT_KIND:
+        raise ValueError(f"{path} is not a search snapshot")
+    if doc.get("format") != SNAPSHOT_FORMAT:
+        raise ValueError(f"{path}: snapshot format {doc.get('format')!r}, expected {SNAPSHOT_FORMAT}")
+    if tuple(doc.get("columns", ())) != SNAPSHOT_COLUMNS:
+        raise ValueError(f"{path}: columns {doc.get('columns')!r}, expected {list(SNAPSHOT_COLUMNS)}")
+    try:
+        listed = list(doc["collections"])
+        cols = normalize_collections(listed)
+        rows = []
+        for rec in doc["rows"]:
+            key, t_min, t_max, ci, footprint = rec
+            if not (isinstance(ci, int) and 0 <= ci < len(listed)):
+                raise ValueError(f"bad collection index in row {key}")
+            row = _make_row(key, None, t_min, t_max, None, listed[ci])
+            if row is None:
+                raise ValueError(f"bad row {key}")
+            fp = tuple(float(v) for v in footprint)
+            if len(fp) < 6 or len(fp) % 2 or not all(math.isfinite(v) for v in fp):
+                raise ValueError(f"bad footprint in row {key}")
+            t_lo = row.ref.mjd if t_min is None else float(t_min)
+            t_hi = row.ref.mjd if t_max is None else float(t_max)
+            rows.append(SnapshotRow(row, t_lo, t_hi, fp))
+        ra, dec = float(doc["center"]["ra"]), float(doc["center"]["dec"])
+        radius = float(doc["radius_deg"])
+        if not (0.0 <= ra < 360.0 and -90.0 <= dec <= 90.0 and 0.0 < radius <= 10.0):
+            raise ValueError(f"bad centre/radius ({ra}, {dec}, {radius})")
+        prov = doc["provenance"]
+        return SearchSnapshot(
+            path=Path(path),
+            field_id=str(doc["field_id"]),
+            name=str(doc.get("name", "")),
+            ra=ra,
+            dec=dec,
+            radius_deg=radius,
+            collections=cols,
+            service=str(prov["service"]),
+            queried_utc=str(prov["queried_utc"]),
+            rows=tuple(rows),
+        )
+    except (KeyError, TypeError, ValueError, IndexError) as e:
+        raise ValueError(f"invalid snapshot {path}: {e}") from e
+
+
+def list_snapshots(directory: Path | None = None) -> list[SearchSnapshot]:
+    """Every valid snapshot in ``directory`` (default ``SNAPSHOT_DIR``); invalid files are skipped with a warning.
+
+    Parsed files are memoized by (mtime, size), so a long-running backend reads each file once.
+    """
+    directory = directory or SNAPSHOT_DIR
+    if directory is None:  # switched off (ERRANTE_SEARCH_SNAPSHOTS=0, tests, live checks)
+        return []
+    if not directory.is_dir():
+        # A deploy that does not ship data/index/search, or a non-editable install (REPO_ROOT elsewhere).
+        with _SNAPSHOT_LOCK:
+            first = directory not in _SNAPSHOT_DIRS_WARNED
+            _SNAPSHOT_DIRS_WARNED.add(directory)
+        if first:
+            log.warning(
+                "Search snapshot directory %s does not exist: the IRSA-outage fallback is off "
+                "(ship data/index/search or set ERRANTE_SEARCH_SNAPSHOTS to its path; 0 silences this)",
+                directory,
+            )
+        return []
+    out: list[SearchSnapshot] = []
+    for path in sorted(directory.glob("*.json")):
+        try:
+            st = path.stat()
+        except OSError:
+            continue
+        stamp = (st.st_mtime_ns, st.st_size)
+        with _SNAPSHOT_LOCK:
+            memo = _SNAPSHOT_MEMO.get(path)
+        if memo is not None and memo[0] == stamp:
+            snap = memo[1]
+        else:
+            try:
+                snap = load_snapshot(path)
+            except ValueError as e:
+                log.warning("Ignoring search snapshot: %s", e)
+                snap = None
+            with _SNAPSHOT_LOCK:
+                _SNAPSHOT_MEMO[path] = (stamp, snap)
+        if snap is not None:
+            out.append(snap)
+    return out
+
+
+def find_snapshot(
+    ra: float,
+    dec: float,
+    radius_deg: float,
+    collections: tuple[str, ...] | list[str],
+    directory: Path | None = None,
+) -> SearchSnapshot | None:
+    """The snapshot whose disk holds this search (closest centre first), or None. Never raises."""
+    try:
+        hits = [s for s in list_snapshots(directory) if s.covers(ra, dec, radius_deg, collections)]
+    except Exception as e:  # a broken snapshot directory must not hide the IRSA error
+        log.warning("Search snapshots unavailable: %s", _describe(e))
+        return None
+    if not hits:
+        return None
+    return min(hits, key=lambda s: (angular_separation_deg(s.ra, s.dec, ra, dec), s.field_id))
+
+
+def fetch_snapshot(
+    field_id: str,
+    ra: float,
+    dec: float,
+    *,
+    name: str = "",
+    radius_deg: float = SNAPSHOT_RADIUS_DEG,
+    collections: list[str] | tuple[str, ...] | str | None = None,
+    rounds: int = 6,
+    pause_s: float = 20.0,
+    tile_radius_deg: float = SNAPSHOT_TILE_RADIUS_DEG,
+) -> dict:
+    """Query SIA live around a field and return a snapshot document (write it with :func:`write_snapshot`).
+
+    SIA only: its ``s_region`` footprints make the offline replay exact. A disk wider than
+    ``tile_radius_deg`` is covered by several SIA circles (:func:`snapshot_tiles`; IRSA hung on single
+    circles of 0.1 deg), merged, and cut back to the frames whose footprint touches the disk. Each of
+    ``rounds`` rounds already retries 5xx like any search, with ``pause_s`` between rounds. A truncated
+    answer (MAXREC) raises :class:`SearchError`. The point search at the centre is also run live and
+    compared with the replay of the snapshot (``provenance.point_check``).
+    """
+    snapshot_path(field_id)  # validates the id
+    ra, dec, radius, _ = _validate(ra, dec, radius_deg, None, None, None)
+    cols = normalize_collections(collections)
+    tiles = snapshot_tiles(ra, dec, radius, tile_radius_deg)
+    tile_radius = radius if len(tiles) == 1 else tile_radius_deg
+    queries: list[dict] = []
+    by_key: dict[str, ArchiveRow] = {}
+    extra: dict[str, tuple[float | None, float | None, tuple[float, ...] | None]] = {}
+    for t_ra, t_dec in tiles:
+        params = sia_params(t_ra, t_dec, tile_radius, None, None, cols)
+        content, queried, elapsed = _sia_patiently(params, rounds, pause_s)
+        raw, overflow = parse_sia_votable(content)
+        if overflow:
+            raise SearchError(f"SIA answer truncated at MAXREC={settings.SIA_MAXREC}: not writing a partial snapshot")
+        extra.update(_sia_snapshot_columns(content))
+        by_key.update((r.ref.s3_key or "", r) for r in raw)
+        queries.append(
+            {
+                "pos": dict(params)["POS"],
+                "queried_utc": queried,
+                "elapsed_s": round(elapsed, 2),
+                "response_bytes": len(content),
+                "rows": len(raw),
+            }
+        )
+    # Every file is kept, also when one (obs_id, detector) is in two collections: the replay deduplicates
+    # after its collection filter (SearchSnapshot.replay), so a one-collection search stays exact.
+    kept = sorted(by_key.values(), key=lambda r: (r.ref.mjd, r.ref.detector, r.ref.obs_id, r.collection))
+    records: list[list] = []
+    used: list[ArchiveRow] = []
+    n_no_footprint = n_outside = 0
+    for r in kept:
+        key = r.ref.s3_key or ""
+        t_min, t_max, footprint = extra.get(key, (None, None, None))
+        if r.ref.irsa_uri != f"{IRSA_DATA_PREFIX}{key}":
+            raise SearchError(f"irsa_uri {r.ref.irsa_uri!r} is not '{IRSA_DATA_PREFIX}' + key: the snapshot would lie")
+        if r.collection not in cols:
+            raise SearchError(f"SIA returned collection {r.collection!r} outside the query {cols}")
+        if footprint is None:
+            n_no_footprint += 1
+            continue
+        if not footprint_hits(footprint, ra, dec, radius):  # reached by a tile beyond the disk only
+            n_outside += 1
+            continue
+        records.append([key, t_min, t_max, cols.index(r.collection), list(footprint)])
+        used.append(r)
+    if n_no_footprint:
+        log.warning("%d frames without a usable s_region left out of the snapshot", n_no_footprint)
+    mjds = [r.ref.mjd for r in used]
+    doc = {
+        "kind": SNAPSHOT_KIND,
+        "format": SNAPSHOT_FORMAT,
+        "field_id": field_id,
+        "name": name,
+        "center": {"ra": round(ra, 8), "dec": round(dec, 8)},
+        "radius_deg": radius,
+        "collections": list(cols),
+        "provenance": {
+            "service": "sia",
+            "url": settings.IRSA_SIA,
+            "params": {"COLLECTION": list(cols), "RESPONSEFORMAT": "VOTABLE", "MAXREC": settings.SIA_MAXREC},
+            "queries": queries,
+            "queried_utc": queries[0]["queried_utc"],
+            "elapsed_s": round(sum(q["elapsed_s"] for q in queries), 2),
+            "rows_returned": sum(q["rows"] for q in queries),
+            "distinct_files": len(by_key),
+            "duplicate_rows": len(used) - len(dedupe_rows(used)[0]),
+            "rows_without_footprint": n_no_footprint,
+            "rows_outside_disk": n_outside,
+            "rows": len(records),
+            "rows_by_collection": dict(sorted(Counter(r.collection for r in used).items())),
+            "rows_by_detector": {f"D{d}": n for d, n in sorted(Counter(r.ref.detector for r in used).items())},
+            "mjd_range": [round(min(mjds), 6), round(max(mjds), 6)] if mjds else None,
+            "point_check": None,
+            "generator": "errante snapshot-search (errante.data.irsa.fetch_snapshot)",
+            "use": (
+                "Real IRSA SIA answer, one row per file (duplicate_rows: same obs_id + detector in two "
+                "collections; a replay keeps one per (obs_id, detector) after its collection filter, DR1 first, "
+                "like search_frames). Read only when SIA and TAP both fail and no cached search exists, for "
+                "searches inside this disk; flagged service='snapshot', stale=True. Frames published after "
+                "queried_utc are missing."
+            ),
+        },
+        "columns": list(SNAPSHOT_COLUMNS),
+        "column_notes": {
+            "s3_key": "key in s3://nasa-irsa-spherex/; irsa_uri = 'ibe/data/spherex/' + key; obs_id, detector, "
+            "release and pipeline version are parsed from it (errante.data.s3.parse_key)",
+            "t_min": "exposure start [MJD] (SIA t_min)",
+            "t_max": "exposure end [MJD] (SIA t_max); FrameRef.mjd = (t_min + t_max) / 2",
+            "collection": "index into 'collections'",
+            "footprint": "SIA s_region polygon: ra1, dec1, ra2, dec2, ... [deg ICRS, 6 decimals], closing "
+            "vertex dropped; edges are great circles",
+        },
+        "rows": records,
+    }
+    doc["provenance"]["point_check"] = _point_check(records, ra, dec, cols, rounds, pause_s)
+    return doc
+
+
+def write_snapshot(doc: dict, path: Path) -> Path:
+    """Write a snapshot document as JSON with one row per line (small, readable diffs); returns ``path``."""
+    path = Path(path)
+    head = {k: v for k, v in doc.items() if k != "rows"}
+    text = json.dumps(head, indent=2, ensure_ascii=False)
+    body = ",\n".join("    " + json.dumps(r, separators=(",", ":"), ensure_ascii=False) for r in doc["rows"])
+    text = text[:-1].rstrip() + ',\n  "rows": [\n' + body + ("\n" if body else "") + "  ]\n}\n"
+    json.loads(text)  # never write a file the loader cannot parse
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f"{path.name}.{uuid.uuid4().hex}.part")
+    tmp.write_text(text, encoding="utf-8", newline="\n")
+    tmp.replace(path)
+    return path
+
+
+def snapshot_tiles(
+    ra: float, dec: float, radius_deg: float, tile_radius_deg: float = SNAPSHOT_TILE_RADIUS_DEG
+) -> list[tuple[float, float]]:
+    """Centres of SIA circles of ``tile_radius_deg`` that together cover the disk of ``radius_deg``.
+
+    Hexagonal lattice with spacing sqrt(3) * tile radius (every point of the plane is within one tile
+    radius of a node), keeping the nodes whose circle reaches the disk: 7 tiles for 0.1 / 0.055 deg.
+    Offsets are laid out in the tangent plane and moved onto the sphere along great circles.
+    """
+    if radius_deg <= tile_radius_deg:
+        return [(ra, dec)]
+    step = math.sqrt(3.0) * tile_radius_deg
+    n = math.ceil((radius_deg + tile_radius_deg) / step) + 1
+    nodes = []
+    for j in range(-n, n + 1):
+        for i in range(-n, n + 1):
+            x, y = step * (i + j / 2.0), step * j * math.sqrt(3.0) / 2.0
+            if math.hypot(x, y) <= radius_deg + tile_radius_deg:
+                nodes.append((math.hypot(x, y), math.atan2(x, y)))
+    out = []
+    d0, a0 = math.radians(dec), math.radians(ra)
+    for dist, bearing in sorted(nodes):
+        delta = math.radians(dist)
+        d = math.asin(math.sin(d0) * math.cos(delta) + math.cos(d0) * math.sin(delta) * math.cos(bearing))
+        a = a0 + math.atan2(
+            math.sin(bearing) * math.sin(delta) * math.cos(d0), math.cos(delta) - math.sin(d0) * math.sin(d)
+        )
+        out.append((round(math.degrees(a) % 360.0, 8), round(math.degrees(d), 8)))
+    return out
+
+
+def angular_separation_deg(ra1: float, dec1: float, ra2: float, dec2: float) -> float:
+    """Great-circle distance [deg] (Vincenty formula: accurate at all separations)."""
+    r1, d1, r2, d2 = (math.radians(v) for v in (ra1, dec1, ra2, dec2))
+    dra = r2 - r1
+    num = math.hypot(
+        math.cos(d2) * math.sin(dra), math.cos(d1) * math.sin(d2) - math.sin(d1) * math.cos(d2) * math.cos(dra)
+    )
+    den = math.sin(d1) * math.sin(d2) + math.cos(d1) * math.cos(d2) * math.cos(dra)
+    return math.degrees(math.atan2(num, den))
+
+
+def footprint_hits(footprint: tuple[float, ...] | list[float], ra: float, dec: float, radius_deg: float = 0.0) -> bool:
+    """True when a sky polygon (ra1, dec1, ra2, dec2, ...; great-circle edges) touches a circle around (ra, dec).
+
+    Exact on the sphere: the gnomonic projection about (ra, dec) maps great circles to straight lines,
+    and the angular distance to a projected point p is atan(|p|), so "inside, or an edge closer than the
+    radius" is decided in the plane. Polygons reaching more than ~84 deg from the centre never match.
+    """
+    d0 = math.radians(dec)
+    sin_d0, cos_d0 = math.sin(d0), math.cos(d0)
+    pts: list[tuple[float, float]] = []
+    for i in range(0, len(footprint) - 1, 2):
+        d = math.radians(footprint[i + 1])
+        dra = math.radians(footprint[i] - ra)
+        cos_c = sin_d0 * math.sin(d) + cos_d0 * math.cos(d) * math.cos(dra)
+        if cos_c < 0.1:
+            return False
+        x = math.cos(d) * math.sin(dra) / cos_c
+        y = (cos_d0 * math.sin(d) - sin_d0 * math.cos(d) * math.cos(dra)) / cos_c
+        pts.append((x, y))
+    if len(pts) < 3:
+        return False
+    inside = False
+    nearest2 = math.inf
+    for (x1, y1), (x2, y2) in zip(pts, pts[1:] + pts[:1], strict=True):
+        if (y1 > 0) != (y2 > 0) and x1 - y1 * (x2 - x1) / (y2 - y1) > 0:
+            inside = not inside
+        dx, dy = x2 - x1, y2 - y1
+        length2 = dx * dx + dy * dy
+        t = 0.0 if length2 == 0 else min(1.0, max(0.0, -(x1 * dx + y1 * dy) / length2))
+        px, py = x1 + t * dx, y1 + t * dy
+        nearest2 = min(nearest2, px * px + py * py)
+    return inside or math.degrees(math.atan(math.sqrt(nearest2))) <= radius_deg
+
+
+def parse_s_region(text) -> tuple[float, ...] | None:
+    """'POLYGON ICRS ra1 dec1 ... ra1 dec1' -> (ra1, dec1, ...) rounded to 6 decimals, or None."""
+    if not text:
+        return None
+    tokens = str(text).replace("(", " ").replace(")", " ").replace(",", " ").split()
+    if not tokens or tokens[0].upper() != "POLYGON":
+        return None
+    nums: list[float] = []
+    for tok in tokens[1:]:
+        try:
+            nums.append(float(tok))
+        except ValueError:
+            if nums:  # a word after the coordinates: not a simple polygon
+                return None
+    if len(nums) % 2 or not all(math.isfinite(v) for v in nums):
+        return None
+    if len(nums) >= 8 and nums[:2] == nums[-2:]:
+        nums = nums[:-2]  # closing vertex
+    if len(nums) < 6:
+        return None
+    return tuple(round(v, 6) for v in nums)
+
+
+def _utc_now() -> str:
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _sia_patiently(params: list[tuple[str, str]], rounds: int, pause_s: float) -> tuple[bytes, str, float]:
+    """(content, UTC start, seconds) of an SIA query, retried for ``rounds`` rounds on transport failures."""
+    last: Exception | None = None
+    for attempt in range(max(1, rounds)):
+        if attempt:
+            log.info("SIA round %d/%d in %.0f s after %s", attempt + 1, rounds, pause_s, _describe(last))
+            time.sleep(pause_s)
+        started, t0 = _utc_now(), time.monotonic()
+        try:
+            resp = _fetch("GET", settings.IRSA_SIA, params=params, timeout=settings.SIA_TIMEOUT_S)
+        except requests.RequestException as e:
+            if not _is_transport_failure(e):
+                raise SearchError(f"SIA failed: {_describe(e)}", [e]) from e
+            last = e
+            continue
+        return resp.content, started, time.monotonic() - t0
+    raise SearchError(f"SIA unavailable after {max(1, rounds)} rounds: {_describe(last)}", [last]) from last
+
+
+def _sia_snapshot_columns(content: bytes) -> dict[str, tuple[float | None, float | None, tuple[float, ...] | None]]:
+    """S3 key -> (t_min, t_max, footprint) from an SIA2 VOTable: the columns ArchiveRow does not keep."""
+    from astropy.io.votable import parse as parse_votable
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        vot = parse_votable(io.BytesIO(content), verify="ignore")
+    tables = [t for r in vot.resources if r.type == "results" for t in r.tables] or list(vot.iter_tables())
+    if not tables:
+        return {}
+    vt = tables[0]
+    arr = vt.array
+    by_name = {f.name.lower(): dtype_name for f, dtype_name in zip(vt.fields, arr.dtype.names, strict=True)}
+
+    def column(name: str) -> list:
+        key = by_name.get(name)
+        return [None] * len(arr) if key is None else [_plain(v) for v in arr[key].tolist()]
+
+    out: dict[str, tuple[float | None, float | None, tuple[float, ...] | None]] = {}
+    for cloud, access_url, t_lo, t_hi, region in zip(
+        column("cloud_access"), column("access_url"), column("t_min"), column("t_max"), column("s_region"), strict=True
+    ):
+        key = _key_from_cloud_access(cloud)
+        if key is None and access_url:
+            key = s3.irsa_uri_to_s3_key(_irsa_uri(access_url))
+        if key:
+            out[key] = (_float_or_none(t_lo), _float_or_none(t_hi), parse_s_region(region))
+    return out
+
+
+def _point_check(
+    records: list[list], ra: float, dec: float, cols: tuple[str, ...], rounds: int, pause_s: float
+) -> dict:
+    """Live point search at the centre vs the offline replay of the snapshot rows: same (obs_id, detector) set?"""
+    replay = set()
+    for key, _t_min, _t_max, _ci, footprint in records:
+        if footprint_hits(footprint, ra, dec, MIN_RADIUS_DEG):
+            parsed = s3.parse_key(key)
+            replay.add((parsed.obs_id, parsed.detector))
+    try:
+        content, queried, _ = _sia_patiently(sia_params(ra, dec, MIN_RADIUS_DEG, None, None, cols), rounds, pause_s)
+        rows, overflow = parse_sia_votable(content)
+    except SearchError as e:
+        return {"radius_deg": MIN_RADIUS_DEG, "error": str(e), "rows_replayed": len(replay)}
+    live = {(r.ref.obs_id, r.ref.detector) for r in dedupe_rows(rows)[0]}
+    return {
+        "radius_deg": MIN_RADIUS_DEG,
+        "queried_utc": queried,
+        "rows_live": len(live),
+        "rows_replayed": len(replay),
+        "overflow": overflow,
+        "only_live": [f"{o}D{d}" for o, d in sorted(live - replay)][:20],
+        "only_replayed": [f"{o}D{d}" for o, d in sorted(replay - live)][:20],
+    }
