@@ -37,77 +37,115 @@
   },
   "frames": [
     {
-      "id": "2025W34_2B_0030_3D3",
-      "obs_id": "2025W34_2B_0030_3",
+      "id": "2025W34_1B_0164_3D3",
+      "obs_id": "2025W34_1B_0164_3",
       "detector": 3,
-      "mjd": 60908.642840356,
-      "date_obs": "2025-08-21T15:25:41.407000Z",
-      "wavelength_um": 1.9169985806369771,
-      "bandwidth_um": 0.047528784319520165,
+      "mjd": 60905.8569073,
+      "date_obs": "2025-08-18T20:33:56.791000Z",
+      "wavelength_um": 1.788365634588661,
+      "bandwidth_um": 0.043964108640672135,
       "release": "dr1",
-      "image": "frames/2025W34_2B_0030_3D3.png",
-      "source_uri": "ibe/data/spherex/dr1/level2/2025W34_2B/l2b-v27-2026-229/3/level2_2025W34_2B_0030_3D3_spx_l2b-v27-2026-229.fits",
-      "valid_fraction": 0.984245867768595,
+      "image": "frames/2025W34_1B_0164_3D3.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2025W34_1B/l2b-v27-2026-228/3/level2_2025W34_1B_0164_3D3_spx_l2b-v27-2026-228.fits",
+      "valid_fraction": 0.9823088842975206,
       "stretch": {
-        "vmin": -0.04043354094028473,
-        "vmax": 9.688066396862268,
+        "vmin": -0.04335838556289673,
+        "vmax": 9.915615506470203,
         "unit": "MJy/sr",
         "method": "asinh"
       }
     },
     {
-      "id": "2025W34_2B_0030_3D6",
-      "obs_id": "2025W34_2B_0030_3",
-      "detector": 6,
-      "mjd": 60908.642840356,
-      "date_obs": "2025-08-21T15:25:41.407000Z",
-      "wavelength_um": 4.647633147263771,
-      "bandwidth_um": 0.03709927517481175,
-      "release": "dr1",
-      "image": "frames/2025W34_2B_0030_3D6.png",
-      "source_uri": "ibe/data/spherex/dr1/level2/2025W34_2B/l2b-v27-2026-229/6/level2_2025W34_2B_0030_3D6_spx_l2b-v27-2026-229.fits",
-      "valid_fraction": 0.9833419421487604,
-      "stretch": {
-        "vmin": -0.0097406767308712,
-        "vmax": 3.903356719762087,
-        "unit": "MJy/sr",
-        "method": "asinh"
-      }
-    },
-    {
-      "id": "2025W34_2B_0030_4D3",
-      "obs_id": "2025W34_2B_0030_4",
+      "id": "2025W34_2B_0030_1D3",
+      "obs_id": "2025W34_2B_0030_1",
       "detector": 3,
-      "mjd": 60908.644332613,
-      "date_obs": "2025-08-21T15:27:50.338000Z",
-      "wavelength_um": 1.9610364891418628,
-      "bandwidth_um": 0.048377555514704955,
+      "mjd": 60908.639855842,
+      "date_obs": "2025-08-21T15:21:23.545000Z",
+      "wavelength_um": 1.8305722010313654,
+      "bandwidth_um": 0.04539792309622313,
       "release": "dr1",
-      "image": "frames/2025W34_2B_0030_4D3.png",
-      "source_uri": "ibe/data/spherex/dr1/level2/2025W34_2B/l2b-v27-2026-229/3/level2_2025W34_2B_0030_4D3_spx_l2b-v27-2026-229.fits",
-      "valid_fraction": 0.9830836776859504,
+      "image": "frames/2025W34_2B_0030_1D3.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2025W34_2B/l2b-v27-2026-229/3/level2_2025W34_2B_0030_1D3_spx_l2b-v27-2026-229.fits",
+      "valid_fraction": 0.9838584710743802,
       "stretch": {
-        "vmin": -0.037139877676963806,
-        "vmax": 9.69136006012559,
+        "vmin": -0.02578563243150711,
+        "vmax": 9.933188259601593,
         "unit": "MJy/sr",
         "method": "asinh"
       }
     },
     {
-      "id": "2025W34_2B_0030_4D6",
-      "obs_id": "2025W34_2B_0030_4",
+      "id": "2025W34_2B_0030_1D6",
+      "obs_id": "2025W34_2B_0030_1",
       "detector": 6,
-      "mjd": 60908.644332613,
-      "date_obs": "2025-08-21T15:27:50.338000Z",
-      "wavelength_um": 4.68142420122026,
-      "bandwidth_um": 0.03734769302795504,
+      "mjd": 60908.639855842,
+      "date_obs": "2025-08-21T15:21:23.545000Z",
+      "wavelength_um": 4.5806519134828125,
+      "bandwidth_um": 0.03623818417084891,
       "release": "dr1",
-      "image": "frames/2025W34_2B_0030_4D6.png",
-      "source_uri": "ibe/data/spherex/dr1/level2/2025W34_2B/l2b-v27-2026-229/6/level2_2025W34_2B_0030_4D6_spx_l2b-v27-2026-229.fits",
-      "valid_fraction": 0.9872159090909091,
+      "image": "frames/2025W34_2B_0030_1D6.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2025W34_2B/l2b-v27-2026-229/6/level2_2025W34_2B_0030_1D6_spx_l2b-v27-2026-229.fits",
+      "valid_fraction": 0.98463326446281,
       "stretch": {
-        "vmin": -0.010907944291830063,
-        "vmax": 3.902189452201128,
+        "vmin": -0.0036914683878421783,
+        "vmax": 3.5564576275646687,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2025W34_2B_0030_2D6",
+      "obs_id": "2025W34_2B_0030_2",
+      "detector": 6,
+      "mjd": 60908.641348099,
+      "date_obs": "2025-08-21T15:23:32.476000Z",
+      "wavelength_um": 4.613936206570656,
+      "bandwidth_um": 0.03679167315324084,
+      "release": "dr1",
+      "image": "frames/2025W34_2B_0030_2D6.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2025W34_2B/l2b-v27-2026-229/6/level2_2025W34_2B_0030_2D6_spx_l2b-v27-2026-229.fits",
+      "valid_fraction": 0.98411673553719,
+      "stretch": {
+        "vmin": -0.008749265223741531,
+        "vmax": 3.5513998307287693,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2025W35_1A_0146_1D2",
+      "obs_id": "2025W35_1A_0146_1",
+      "detector": 2,
+      "mjd": 60912.714812798,
+      "date_obs": "2025-08-25T17:09:19.826000Z",
+      "wavelength_um": 1.5168626088459745,
+      "bandwidth_um": 0.03710039619309237,
+      "release": "dr1",
+      "image": "frames/2025W35_1A_0146_1D2.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2025W35_1A/l2b-v27-2026-230/2/level2_2025W35_1A_0146_1D2_spx_l2b-v27-2026-230.fits",
+      "valid_fraction": 0.9863119834710744,
+      "stretch": {
+        "vmin": -0.026720494031906128,
+        "vmax": 9.786999687552452,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2025W35_1A_0146_1D5",
+      "obs_id": "2025W35_1A_0146_1",
+      "detector": 5,
+      "mjd": 60912.71481281,
+      "date_obs": "2025-08-25T17:09:19.827000Z",
+      "wavelength_um": 4.296140483261387,
+      "bandwidth_um": 0.037421949742768634,
+      "release": "dr1",
+      "image": "frames/2025W35_1A_0146_1D5.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2025W35_1A/l2b-v27-2026-230/5/level2_2025W35_1A_0146_1D5_spx_l2b-v27-2026-230.fits",
+      "valid_fraction": 0.981404958677686,
+      "stretch": {
+        "vmin": 0.011213935911655426,
+        "vmax": 4.106056861579418,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -125,8 +163,27 @@
       "source_uri": "ibe/data/spherex/dr1/level2/2025W35_1A/l2b-v27-2026-230/2/level2_2025W35_1A_0146_2D2_spx_l2b-v27-2026-230.fits",
       "valid_fraction": 0.9832128099173554,
       "stretch": {
-        "vmin": -0.05631867051124573,
-        "vmax": 9.921519458293915,
+        "vmin": -0.03554673492908478,
+        "vmax": 9.778173446655273,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2025W35_1A_0146_2D5",
+      "obs_id": "2025W35_1A_0146_2",
+      "detector": 5,
+      "mjd": 60912.716305055,
+      "date_obs": "2025-08-25T17:11:28.757000Z",
+      "wavelength_um": 4.3329465250544414,
+      "bandwidth_um": 0.03761981463354405,
+      "release": "dr1",
+      "image": "frames/2025W35_1A_0146_2D5.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2025W35_1A/l2b-v27-2026-230/5/level2_2025W35_1A_0146_2D5_spx_l2b-v27-2026-230.fits",
+      "valid_fraction": 0.9855371900826446,
+      "stretch": {
+        "vmin": -0.0037773102521896362,
+        "vmax": 4.091065615415573,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -144,122 +201,65 @@
       "source_uri": "ibe/data/spherex/dr1/level2/2025W35_1A/l2b-v27-2026-230/2/level2_2025W35_1A_0146_3D2_spx_l2b-v27-2026-230.fits",
       "valid_fraction": 0.9784349173553719,
       "stretch": {
-        "vmin": -0.039518147706985474,
-        "vmax": 9.938319981098175,
+        "vmin": -0.018746212124824524,
+        "vmax": 9.794973969459534,
         "unit": "MJy/sr",
         "method": "asinh"
       }
     },
     {
-      "id": "2025W35_1A_0146_3D5",
-      "obs_id": "2025W35_1A_0146_3",
-      "detector": 5,
-      "mjd": 60912.717797312,
-      "date_obs": "2025-08-25T17:13:37.688000Z",
-      "wavelength_um": 4.37000544877402,
-      "bandwidth_um": 0.037778462393306525,
-      "release": "dr1",
-      "image": "frames/2025W35_1A_0146_3D5.png",
-      "source_uri": "ibe/data/spherex/dr1/level2/2025W35_1A/l2b-v27-2026-230/5/level2_2025W35_1A_0146_3D5_spx_l2b-v27-2026-230.fits",
-      "valid_fraction": 0.9830836776859504,
-      "stretch": {
-        "vmin": -0.009038802236318588,
-        "vmax": 3.9150299951434135,
-        "unit": "MJy/sr",
-        "method": "asinh"
-      }
-    },
-    {
-      "id": "2025W35_1A_0146_4D2",
-      "obs_id": "2025W35_1A_0146_4",
-      "detector": 2,
-      "mjd": 60912.719289557,
-      "date_obs": "2025-08-25T17:15:46.618000Z",
-      "wavelength_um": 1.629240168678,
-      "bandwidth_um": 0.03944239136082847,
-      "release": "dr1",
-      "image": "frames/2025W35_1A_0146_4D2.png",
-      "source_uri": "ibe/data/spherex/dr1/level2/2025W35_1A/l2b-v27-2026-230/2/level2_2025W35_1A_0146_4D2_spx_l2b-v27-2026-230.fits",
-      "valid_fraction": 0.9806301652892562,
-      "stretch": {
-        "vmin": -0.03203049302101135,
-        "vmax": 9.94580763578415,
-        "unit": "MJy/sr",
-        "method": "asinh"
-      }
-    },
-    {
-      "id": "2025W35_1A_0146_4D5",
-      "obs_id": "2025W35_1A_0146_4",
-      "detector": 5,
-      "mjd": 60912.719289557,
-      "date_obs": "2025-08-25T17:15:46.618000Z",
-      "wavelength_um": 4.40721162556501,
-      "bandwidth_um": 0.037490130393359064,
-      "release": "dr1",
-      "image": "frames/2025W35_1A_0146_4D5.png",
-      "source_uri": "ibe/data/spherex/dr1/level2/2025W35_1A/l2b-v27-2026-230/5/level2_2025W35_1A_0146_4D5_spx_l2b-v27-2026-230.fits",
-      "valid_fraction": 0.9882489669421488,
-      "stretch": {
-        "vmin": -0.012155633419752121,
-        "vmax": 3.91191316395998,
-        "unit": "MJy/sr",
-        "method": "asinh"
-      }
-    },
-    {
-      "id": "2025W35_2A_0611_4D1",
-      "obs_id": "2025W35_2A_0611_4",
+      "id": "2025W35_2A_0611_2D1",
+      "obs_id": "2025W35_2A_0611_2",
       "detector": 1,
-      "mjd": 60918.628476305,
-      "date_obs": "2025-08-31T15:05:00.353000Z",
-      "wavelength_um": 0.9931296789898182,
-      "bandwidth_um": 0.026091044975358926,
+      "mjd": 60918.62549178,
+      "date_obs": "2025-08-31T15:00:42.490000Z",
+      "wavelength_um": 0.9472267777132951,
+      "bandwidth_um": 0.024066505692294536,
       "release": "dr1",
-      "image": "frames/2025W35_2A_0611_4D1.png",
-      "source_uri": "ibe/data/spherex/dr1/level2/2025W35_2A/l2b-v27-2026-231/1/level2_2025W35_2A_0611_4D1_spx_l2b-v27-2026-231.fits",
-      "valid_fraction": 0.9854080578512396,
+      "image": "frames/2025W35_2A_0611_2D1.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2025W35_2A/l2b-v27-2026-231/1/level2_2025W35_2A_0611_2D1_spx_l2b-v27-2026-231.fits",
+      "valid_fraction": 0.9879907024793388,
       "stretch": {
-        "vmin": 0.027561649680137634,
-        "vmax": 8.002872318029404,
+        "vmin": 0.012192532420158386,
+        "vmax": 7.581321626901627,
         "unit": "MJy/sr",
         "method": "asinh"
       }
     },
     {
-      "id": "2025W36_1A_0024_1D1",
-      "obs_id": "2025W36_1A_0024_1",
+      "id": "2025W35_2A_0611_3D1",
+      "obs_id": "2025W35_2A_0611_3",
       "detector": 1,
-      "mjd": 60919.103706131,
-      "date_obs": "2025-09-01T02:29:20.210000Z",
-      "wavelength_um": 1.0166954258432885,
-      "bandwidth_um": 0.027033526501240347,
+      "mjd": 60918.626984036,
+      "date_obs": "2025-08-31T15:02:51.421000Z",
+      "wavelength_um": 0.9699177704781687,
+      "bandwidth_um": 0.024959806696628537,
       "release": "dr1",
-      "image": "frames/2025W36_1A_0024_1D1.png",
-      "source_uri": "ibe/data/spherex/dr1/level2/2025W36_1A/l2b-v27-2026-232/1/level2_2025W36_1A_0024_1D1_spx_l2b-v27-2026-232.fits",
-      "valid_fraction": 0.9832128099173554,
+      "image": "frames/2025W35_2A_0611_3D1.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2025W35_2A/l2b-v27-2026-231/1/level2_2025W35_2A_0611_3D1_spx_l2b-v27-2026-231.fits",
+      "valid_fraction": 0.981404958677686,
       "stretch": {
-        "vmin": 0.02651180326938629,
-        "vmax": 8.001822471618652,
+        "vmin": 0.019546881318092346,
+        "vmax": 7.5886759757995605,
         "unit": "MJy/sr",
         "method": "asinh"
       }
     },
     {
-      "id": "2025W36_1A_0024_1D4",
-      "obs_id": "2025W36_1A_0024_1",
+      "id": "2025W35_2A_0611_3D4",
+      "obs_id": "2025W35_2A_0611_3",
       "detector": 4,
-      "mjd": 60919.103706131,
-      "date_obs": "2025-09-01T02:29:20.210000Z",
-      "wavelength_um": 3.449649029655893,
-      "bandwidth_um": 0.09830979316542982,
+      "mjd": 60918.626984036,
+      "date_obs": "2025-08-31T15:02:51.421000Z",
+      "wavelength_um": 3.270558733034142,
+      "bandwidth_um": 0.09328468969089422,
       "release": "dr1",
-      "image": "frames/2025W36_1A_0024_1D4.png",
-      "source_uri": "ibe/data/spherex/dr1/level2/2025W36_1A/l2b-v27-2026-232/4/level2_2025W36_1A_0024_1D4_spx_l2b-v27-2026-232.fits",
-      "valid_fraction": 0.9797262396694215,
+      "image": "frames/2025W35_2A_0611_3D4.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2025W35_2A/l2b-v27-2026-231/4/level2_2025W35_2A_0611_3D4_spx_l2b-v27-2026-231.fits",
+      "valid_fraction": 0.9820506198347108,
       "stretch": {
-        "vmin": -0.0063302479684352875,
-        "vmax": 5.038150358945131,
+        "vmin": 0.014642160385847092,
+        "vmax": 5.059122767299414,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -277,8 +277,8 @@
       "source_uri": "ibe/data/spherex/dr1/level2/2025W36_2B/l2b-v27-2026-234/1/level2_2025W36_2B_0123_1D1_spx_l2b-v27-2026-234.fits",
       "valid_fraction": 0.981146694214876,
       "stretch": {
-        "vmin": 0.009725674986839294,
-        "vmax": 7.985036343336105,
+        "vmin": 0.004055336117744446,
+        "vmax": 7.573184430599213,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -303,82 +303,6 @@
       }
     },
     {
-      "id": "2026W11_1A_0511_1D1",
-      "obs_id": "2026W11_1A_0511_1",
-      "detector": 1,
-      "mjd": 61110.433724395,
-      "date_obs": "2026-03-11T10:24:33.788000Z",
-      "wavelength_um": 0.8041644232858061,
-      "bandwidth_um": 0.01995886372156392,
-      "release": "dr1",
-      "image": "frames/2026W11_1A_0511_1D1.png",
-      "source_uri": "ibe/data/spherex/dr1/level2/2026W11_1A/l2b-v27-2026-232/1/level2_2026W11_1A_0511_1D1_spx_l2b-v27-2026-232.fits",
-      "valid_fraction": 0.9456353305785123,
-      "stretch": {
-        "vmin": 0.002850279211997986,
-        "vmax": 7.978160947561264,
-        "unit": "MJy/sr",
-        "method": "asinh"
-      }
-    },
-    {
-      "id": "2026W11_1A_0511_1D4",
-      "obs_id": "2026W11_1A_0511_1",
-      "detector": 4,
-      "mjd": 61110.433724395,
-      "date_obs": "2026-03-11T10:24:33.788000Z",
-      "wavelength_um": 2.6365865066368106,
-      "bandwidth_um": 0.07398944552101115,
-      "release": "dr1",
-      "image": "frames/2026W11_1A_0511_1D4.png",
-      "source_uri": "ibe/data/spherex/dr1/level2/2026W11_1A/l2b-v27-2026-232/4/level2_2026W11_1A_0511_1D4_spx_l2b-v27-2026-232.fits",
-      "valid_fraction": 0.9755940082644629,
-      "stretch": {
-        "vmin": -0.0005896426737308502,
-        "vmax": 5.043890964239836,
-        "unit": "MJy/sr",
-        "method": "asinh"
-      }
-    },
-    {
-      "id": "2026W11_1A_0511_2D1",
-      "obs_id": "2026W11_1A_0511_2",
-      "detector": 1,
-      "mjd": 61110.435216664,
-      "date_obs": "2026-03-11T10:26:42.720000Z",
-      "wavelength_um": 0.8232154458947742,
-      "bandwidth_um": 0.020478984399504418,
-      "release": "dr1",
-      "image": "frames/2026W11_1A_0511_2D1.png",
-      "source_uri": "ibe/data/spherex/dr1/level2/2026W11_1A/l2b-v27-2026-232/1/level2_2026W11_1A_0511_2D1_spx_l2b-v27-2026-232.fits",
-      "valid_fraction": 0.9403409090909091,
-      "stretch": {
-        "vmin": 0.011459574103355408,
-        "vmax": 7.9867702424526215,
-        "unit": "MJy/sr",
-        "method": "asinh"
-      }
-    },
-    {
-      "id": "2026W11_1A_0511_2D4",
-      "obs_id": "2026W11_1A_0511_2",
-      "detector": 4,
-      "mjd": 61110.435216664,
-      "date_obs": "2026-03-11T10:26:42.720000Z",
-      "wavelength_um": 2.7083995749569647,
-      "bandwidth_um": 0.07624643526119985,
-      "release": "dr1",
-      "image": "frames/2026W11_1A_0511_2D4.png",
-      "source_uri": "ibe/data/spherex/dr1/level2/2026W11_1A/l2b-v27-2026-232/4/level2_2026W11_1A_0511_2D4_spx_l2b-v27-2026-232.fits",
-      "valid_fraction": 0.971849173553719,
-      "stretch": {
-        "vmin": -0.0011064894497394562,
-        "vmax": 5.043374117463827,
-        "unit": "MJy/sr",
-        "method": "asinh"
-      }
-    },
-    {
       "id": "2026W11_1A_0511_3D1",
       "obs_id": "2026W11_1A_0511_3",
       "detector": 1,
@@ -391,8 +315,84 @@
       "source_uri": "ibe/data/spherex/dr1/level2/2026W11_1A/l2b-v27-2026-232/1/level2_2026W11_1A_0511_3D1_spx_l2b-v27-2026-232.fits",
       "valid_fraction": 0.9573863636363636,
       "stretch": {
-        "vmin": 0.014090761542320251,
-        "vmax": 7.989401429891586,
+        "vmin": 0.008420422673225403,
+        "vmax": 7.577549517154694,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2026W11_1A_0511_3D4",
+      "obs_id": "2026W11_1A_0511_3",
+      "detector": 4,
+      "mjd": 61110.436708909,
+      "date_obs": "2026-03-11T10:28:51.650000Z",
+      "wavelength_um": 2.7815356041835844,
+      "bandwidth_um": 0.0782775965371129,
+      "release": "dr1",
+      "image": "frames/2026W11_1A_0511_3D4.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2026W11_1A/l2b-v27-2026-232/4/level2_2026W11_1A_0511_3D4_spx_l2b-v27-2026-232.fits",
+      "valid_fraction": 0.9731404958677686,
+      "stretch": {
+        "vmin": -0.004757929593324661,
+        "vmax": 5.039722677320242,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2026W11_1A_0511_4D1",
+      "obs_id": "2026W11_1A_0511_4",
+      "detector": 1,
+      "mjd": 61110.438201155,
+      "date_obs": "2026-03-11T10:31:00.580000Z",
+      "wavelength_um": 0.8626635929303731,
+      "bandwidth_um": 0.02187814697347506,
+      "release": "dr1",
+      "image": "frames/2026W11_1A_0511_4D1.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2026W11_1A/l2b-v27-2026-232/1/level2_2026W11_1A_0511_4D1_spx_l2b-v27-2026-232.fits",
+      "valid_fraction": 0.9723657024793388,
+      "stretch": {
+        "vmin": 0.005501732230186462,
+        "vmax": 7.574630826711655,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2026W11_1A_0511_4D4",
+      "obs_id": "2026W11_1A_0511_4",
+      "detector": 4,
+      "mjd": 61110.438201166,
+      "date_obs": "2026-03-11T10:31:00.581000Z",
+      "wavelength_um": 2.857566124811855,
+      "bandwidth_um": 0.0802363452108775,
+      "release": "dr1",
+      "image": "frames/2026W11_1A_0511_4D4.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2026W11_1A/l2b-v27-2026-232/4/level2_2026W11_1A_0511_4D4_spx_l2b-v27-2026-232.fits",
+      "valid_fraction": 0.9770144628099173,
+      "stretch": {
+        "vmin": -0.007304195314645767,
+        "vmax": 5.037176411598921,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2026W11_1A_0539_1D1",
+      "obs_id": "2026W11_1A_0539_1",
+      "detector": 1,
+      "mjd": 61110.565753411,
+      "date_obs": "2026-03-11T13:34:41.095000Z",
+      "wavelength_um": 0.903952573321461,
+      "bandwidth_um": 0.023558483178957732,
+      "release": "dr1",
+      "image": "frames/2026W11_1A_0539_1D1.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2026W11_1A/l2b-v27-2026-232/1/level2_2026W11_1A_0539_1D1_spx_l2b-v27-2026-232.fits",
+      "valid_fraction": 0.98463326446281,
+      "stretch": {
+        "vmin": 0.021298617124557495,
+        "vmax": 7.590427711606026,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -410,8 +410,8 @@
       "source_uri": "ibe/data/spherex/dr1/level2/2026W12_1A/l2b-v27-2026-235/2/level2_2026W12_1A_0311_3D2_spx_l2b-v27-2026-235.fits",
       "valid_fraction": 0.9434400826446281,
       "stretch": {
-        "vmin": -0.05548819899559021,
-        "vmax": 9.92234992980957,
+        "vmin": -0.03471626341342926,
+        "vmax": 9.779003918170929,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -429,8 +429,8 @@
       "source_uri": "ibe/data/spherex/dr1/level2/2026W12_1A/l2b-v27-2026-235/5/level2_2026W12_1A_0311_3D5_spx_l2b-v27-2026-235.fits",
       "valid_fraction": 0.9816632231404959,
       "stretch": {
-        "vmin": -0.014886971563100815,
-        "vmax": 3.9091818258166313,
+        "vmin": -0.016362376511096954,
+        "vmax": 4.078480549156666,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -448,8 +448,8 @@
       "source_uri": "ibe/data/spherex/dr1/level2/2026W12_1A/l2b-v27-2026-235/2/level2_2026W12_1A_0311_4D2_spx_l2b-v27-2026-235.fits",
       "valid_fraction": 0.9575154958677686,
       "stretch": {
-        "vmin": -0.06151854991912842,
-        "vmax": 9.916319578886032,
+        "vmin": -0.04074661433696747,
+        "vmax": 9.77297356724739,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -467,8 +467,8 @@
       "source_uri": "ibe/data/spherex/dr1/level2/2026W12_1A/l2b-v27-2026-235/5/level2_2026W12_1A_0311_4D5_spx_l2b-v27-2026-235.fits",
       "valid_fraction": 0.9865702479338843,
       "stretch": {
-        "vmin": -0.017388347536325455,
-        "vmax": 3.9066804498434067,
+        "vmin": -0.018863752484321594,
+        "vmax": 4.075979173183441,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -486,8 +486,8 @@
       "source_uri": "ibe/data/spherex/dr1/level2/2026W13_1A/l2b-v27-2026-236/3/level2_2026W13_1A_0549_1D3_spx_l2b-v27-2026-236.fits",
       "valid_fraction": 0.9598398760330579,
       "stretch": {
-        "vmin": -0.0015213340520858765,
-        "vmax": 9.726978603750467,
+        "vmin": -0.010815240442752838,
+        "vmax": 9.948158651590347,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -505,8 +505,8 @@
       "source_uri": "ibe/data/spherex/dr1/level2/2026W13_1A/l2b-v27-2026-236/6/level2_2026W13_1A_0549_1D6_spx_l2b-v27-2026-236.fits",
       "valid_fraction": 0.9895402892561983,
       "stretch": {
-        "vmin": -0.02309395745396614,
-        "vmax": 3.890003439038992,
+        "vmin": -0.018359865993261337,
+        "vmax": 3.5417892299592495,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -524,8 +524,8 @@
       "source_uri": "ibe/data/spherex/dr1/level2/2026W15_2A/l2b-v27-2026-240/3/level2_2026W15_2A_0137_1D3_spx_l2b-v27-2026-240.fits",
       "valid_fraction": 0.9759814049586777,
       "stretch": {
-        "vmin": -0.030064329504966736,
-        "vmax": 9.698435608297586,
+        "vmin": -0.0393582358956337,
+        "vmax": 9.919615656137466,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -543,160 +543,160 @@
       "source_uri": "ibe/data/spherex/dr1/level2/2026W15_2A/l2b-v27-2026-240/6/level2_2026W15_2A_0137_1D6_spx_l2b-v27-2026-240.fits",
       "valid_fraction": 0.9878615702479339,
       "stretch": {
-        "vmin": -0.017468255013227463,
-        "vmax": 3.8956291414797306,
+        "vmin": -0.01273416355252266,
+        "vmax": 3.547414932399988,
         "unit": "MJy/sr",
         "method": "asinh"
       }
     },
     {
-      "id": "2026W34_1A_0308_3D3",
-      "obs_id": "2026W34_1A_0308_3",
+      "id": "2026W34_1A_0308_1D3",
+      "obs_id": "2026W34_1A_0308_1",
       "detector": 3,
-      "mjd": 61270.598429696,
-      "date_obs": "2026-08-18T14:21:44.326000Z",
-      "wavelength_um": 1.9377070123447804,
-      "bandwidth_um": 0.04736446477096402,
+      "mjd": 61270.595445182,
+      "date_obs": "2026-08-18T14:17:26.464000Z",
+      "wavelength_um": 1.8505222431993633,
+      "bandwidth_um": 0.04593594361789453,
       "release": "qr3",
-      "image": "frames/2026W34_1A_0308_3D3.png",
-      "source_uri": "ibe/data/spherex/qr3/level2/2026W34_1A/l2b-v27-2026-243/3/level2_2026W34_1A_0308_3D3_spx_l2b-v27-2026-243.fits",
-      "valid_fraction": 0.981404958677686,
+      "image": "frames/2026W34_1A_0308_1D3.png",
+      "source_uri": "ibe/data/spherex/qr3/level2/2026W34_1A/l2b-v27-2026-243/3/level2_2026W34_1A_0308_1D3_spx_l2b-v27-2026-243.fits",
+      "valid_fraction": 0.9886363636363636,
       "stretch": {
-        "vmin": -0.0298691987991333,
-        "vmax": 9.69863073900342,
+        "vmin": -0.035202570259571075,
+        "vmax": 9.923771321773529,
         "unit": "MJy/sr",
         "method": "asinh"
       }
     },
     {
-      "id": "2026W34_1A_0308_3D6",
-      "obs_id": "2026W34_1A_0308_3",
+      "id": "2026W34_1A_0308_1D6",
+      "obs_id": "2026W34_1A_0308_1",
       "detector": 6,
-      "mjd": 61270.598429696,
-      "date_obs": "2026-08-18T14:21:44.326000Z",
-      "wavelength_um": 4.663838072067322,
-      "bandwidth_um": 0.037048182171267416,
+      "mjd": 61270.595445182,
+      "date_obs": "2026-08-18T14:17:26.464000Z",
+      "wavelength_um": 4.596385149341477,
+      "bandwidth_um": 0.03641557154832373,
       "release": "qr3",
-      "image": "frames/2026W34_1A_0308_3D6.png",
-      "source_uri": "ibe/data/spherex/qr3/level2/2026W34_1A/l2b-v27-2026-243/6/level2_2026W34_1A_0308_3D6_spx_l2b-v27-2026-243.fits",
-      "valid_fraction": 0.9865702479338843,
+      "image": "frames/2026W34_1A_0308_1D6.png",
+      "source_uri": "ibe/data/spherex/qr3/level2/2026W34_1A/l2b-v27-2026-243/6/level2_2026W34_1A_0308_1D6_spx_l2b-v27-2026-243.fits",
+      "valid_fraction": 0.9832128099173554,
       "stretch": {
-        "vmin": -0.009196270257234573,
-        "vmax": 3.9039011262357235,
+        "vmin": -0.0032129399478435516,
+        "vmax": 3.5569361560046673,
         "unit": "MJy/sr",
         "method": "asinh"
       }
     },
     {
-      "id": "2026W34_1A_0308_4D3",
-      "obs_id": "2026W34_1A_0308_4",
+      "id": "2026W34_1A_0308_2D3",
+      "obs_id": "2026W34_1A_0308_2",
       "detector": 3,
-      "mjd": 61270.599921953,
-      "date_obs": "2026-08-18T14:23:53.257000Z",
-      "wavelength_um": 1.9825667502626507,
-      "bandwidth_um": 0.04851230728299123,
+      "mjd": 61270.596937439,
+      "date_obs": "2026-08-18T14:19:35.395000Z",
+      "wavelength_um": 1.8937972790995727,
+      "bandwidth_um": 0.04679999002198652,
       "release": "qr3",
-      "image": "frames/2026W34_1A_0308_4D3.png",
-      "source_uri": "ibe/data/spherex/qr3/level2/2026W34_1A/l2b-v27-2026-243/3/level2_2026W34_1A_0308_4D3_spx_l2b-v27-2026-243.fits",
-      "valid_fraction": 0.9851497933884298,
+      "image": "frames/2026W34_1A_0308_2D3.png",
+      "source_uri": "ibe/data/spherex/qr3/level2/2026W34_1A/l2b-v27-2026-243/3/level2_2026W34_1A_0308_2D3_spx_l2b-v27-2026-243.fits",
+      "valid_fraction": 0.9768853305785123,
       "stretch": {
-        "vmin": -0.03151174634695053,
-        "vmax": 9.696988191455603,
+        "vmin": -0.030218549072742462,
+        "vmax": 9.928755342960358,
         "unit": "MJy/sr",
         "method": "asinh"
       }
     },
     {
-      "id": "2026W34_1A_0308_4D6",
-      "obs_id": "2026W34_1A_0308_4",
+      "id": "2026W34_1A_0308_2D6",
+      "obs_id": "2026W34_1A_0308_2",
       "detector": 6,
-      "mjd": 61270.599921953,
-      "date_obs": "2026-08-18T14:23:53.257000Z",
-      "wavelength_um": 4.697720782985797,
-      "bandwidth_um": 0.037276788115179524,
+      "mjd": 61270.596937439,
+      "date_obs": "2026-08-18T14:19:35.395000Z",
+      "wavelength_um": 4.629974846195337,
+      "bandwidth_um": 0.036804608377441976,
       "release": "qr3",
-      "image": "frames/2026W34_1A_0308_4D6.png",
-      "source_uri": "ibe/data/spherex/qr3/level2/2026W34_1A/l2b-v27-2026-243/6/level2_2026W34_1A_0308_4D6_spx_l2b-v27-2026-243.fits",
-      "valid_fraction": 0.9857954545454546,
+      "image": "frames/2026W34_1A_0308_2D6.png",
+      "source_uri": "ibe/data/spherex/qr3/level2/2026W34_1A/l2b-v27-2026-243/6/level2_2026W34_1A_0308_2D6_spx_l2b-v27-2026-243.fits",
+      "valid_fraction": 0.9837293388429752,
       "stretch": {
-        "vmin": -0.011490140110254288,
-        "vmax": 3.901607256382704,
+        "vmin": -0.0038300417363643646,
+        "vmax": 3.5563190542161465,
         "unit": "MJy/sr",
         "method": "asinh"
       }
     },
     {
-      "id": "2026W35_1A_0092_1D2",
-      "obs_id": "2026W35_1A_0092_1",
+      "id": "2026W34_2A_0264_1D2",
+      "obs_id": "2026W34_2A_0264_1",
       "detector": 2,
-      "mjd": 61276.438350992,
-      "date_obs": "2026-08-24T10:31:13.526000Z",
-      "wavelength_um": 1.6139930259748978,
-      "bandwidth_um": 0.03907132143248969,
+      "mjd": 61273.788888342,
+      "date_obs": "2026-08-21T18:55:59.953000Z",
+      "wavelength_um": 1.502643016199376,
+      "bandwidth_um": 0.03676637072059038,
       "release": "qr3",
-      "image": "frames/2026W35_1A_0092_1D2.png",
-      "source_uri": "ibe/data/spherex/qr3/level2/2026W35_1A/l2b-v27-2026-243/2/level2_2026W35_1A_0092_1D2_spx_l2b-v27-2026-243.fits",
-      "valid_fraction": 0.9829545454545454,
+      "image": "frames/2026W34_2A_0264_1D2.png",
+      "source_uri": "ibe/data/spherex/qr3/level2/2026W34_2A/l2b-v27-2026-243/2/level2_2026W34_2A_0264_1D2_spx_l2b-v27-2026-243.fits",
+      "valid_fraction": 0.9838584710743802,
       "stretch": {
-        "vmin": -0.02498602867126465,
-        "vmax": 9.952852100133896,
+        "vmin": -0.0250425785779953,
+        "vmax": 9.788677603006363,
         "unit": "MJy/sr",
         "method": "asinh"
       }
     },
     {
-      "id": "2026W35_1A_0092_1D5",
-      "obs_id": "2026W35_1A_0092_1",
-      "detector": 5,
-      "mjd": 61276.438351004,
-      "date_obs": "2026-08-24T10:31:13.527000Z",
-      "wavelength_um": 4.392239904468216,
-      "bandwidth_um": 0.03772537938655641,
-      "release": "qr3",
-      "image": "frames/2026W35_1A_0092_1D5.png",
-      "source_uri": "ibe/data/spherex/qr3/level2/2026W35_1A/l2b-v27-2026-243/5/level2_2026W35_1A_0092_1D5_spx_l2b-v27-2026-243.fits",
-      "valid_fraction": 0.9907024793388429,
-      "stretch": {
-        "vmin": -0.00943855568766594,
-        "vmax": 3.914630241692066,
-        "unit": "MJy/sr",
-        "method": "asinh"
-      }
-    },
-    {
-      "id": "2026W35_2A_0126_1D2",
-      "obs_id": "2026W35_2A_0126_1",
+      "id": "2026W34_2A_0264_2D2",
+      "obs_id": "2026W34_2A_0264_2",
       "detector": 2,
-      "mjd": 61280.166927671,
-      "date_obs": "2026-08-28T04:00:22.551000Z",
-      "wavelength_um": 1.6524068974125623,
-      "bandwidth_um": 0.0396965344015674,
+      "mjd": 61273.790380599,
+      "date_obs": "2026-08-21T18:58:08.884000Z",
+      "wavelength_um": 1.5389491235937598,
+      "bandwidth_um": 0.037577281542044594,
       "release": "qr3",
-      "image": "frames/2026W35_2A_0126_1D2.png",
-      "source_uri": "ibe/data/spherex/qr3/level2/2026W35_2A/l2b-v27-2026-246/2/level2_2026W35_2A_0126_1D2_spx_l2b-v27-2026-246.fits",
-      "valid_fraction": 0.9165805785123967,
+      "image": "frames/2026W34_2A_0264_2D2.png",
+      "source_uri": "ibe/data/spherex/qr3/level2/2026W34_2A/l2b-v27-2026-243/2/level2_2026W34_2A_0264_2D2_spx_l2b-v27-2026-243.fits",
+      "valid_fraction": 0.981146694214876,
       "stretch": {
-        "vmin": -0.022838279604911804,
-        "vmax": 9.954999849200249,
+        "vmin": -0.024373099207878113,
+        "vmax": 9.78934708237648,
         "unit": "MJy/sr",
         "method": "asinh"
       }
     },
     {
-      "id": "2026W35_2A_0126_1D5",
-      "obs_id": "2026W35_2A_0126_1",
+      "id": "2026W34_2A_0264_2D5",
+      "obs_id": "2026W34_2A_0264_2",
       "detector": 5,
-      "mjd": 61280.166927671,
-      "date_obs": "2026-08-28T04:00:22.551000Z",
-      "wavelength_um": 4.429416991061983,
-      "bandwidth_um": 0.036872073443405734,
+      "mjd": 61273.790380599,
+      "date_obs": "2026-08-21T18:58:08.884000Z",
+      "wavelength_um": 4.3182587367483265,
+      "bandwidth_um": 0.03743418876723242,
       "release": "qr3",
-      "image": "frames/2026W35_2A_0126_1D5.png",
-      "source_uri": "ibe/data/spherex/qr3/level2/2026W35_2A/l2b-v27-2026-246/5/level2_2026W35_2A_0126_1D5_spx_l2b-v27-2026-246.fits",
-      "valid_fraction": 0.8716425619834711,
+      "image": "frames/2026W34_2A_0264_2D5.png",
+      "source_uri": "ibe/data/spherex/qr3/level2/2026W34_2A/l2b-v27-2026-243/5/level2_2026W34_2A_0264_2D5_spx_l2b-v27-2026-243.fits",
+      "valid_fraction": 0.9855371900826446,
       "stretch": {
-        "vmin": -0.0006919018924236298,
-        "vmax": 3.9233768954873085,
+        "vmin": -0.013361163437366486,
+        "vmax": 4.081481762230396,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2026W35_1A_0038_1D5",
+      "obs_id": "2026W35_1A_0038_1",
+      "detector": 5,
+      "mjd": 61276.166956039,
+      "date_obs": "2026-08-24T04:00:25.002000Z",
+      "wavelength_um": 4.355217604042618,
+      "bandwidth_um": 0.03788565027441877,
+      "release": "qr3",
+      "image": "frames/2026W35_1A_0038_1D5.png",
+      "source_uri": "ibe/data/spherex/qr3/level2/2026W35_1A/l2b-v27-2026-243/5/level2_2026W35_1A_0038_1D5_spx_l2b-v27-2026-243.fits",
+      "valid_fraction": 0.9854080578512396,
+      "stretch": {
+        "vmin": -0.009142659604549408,
+        "vmax": 4.085700266063213,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -714,8 +714,8 @@
       "source_uri": "ibe/data/spherex/qr3/level2/2026W35_2A/l2b-v27-2026-246/1/level2_2026W35_2A_0412_1D1_spx_l2b-v27-2026-246.fits",
       "valid_fraction": 0.984504132231405,
       "stretch": {
-        "vmin": 0.007804244756698608,
-        "vmax": 7.983114913105965,
+        "vmin": 0.0021339058876037598,
+        "vmax": 7.571263000369072,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -752,8 +752,8 @@
       "source_uri": "ibe/data/spherex/qr3/level2/2026W35_2A/l2b-v27-2026-246/1/level2_2026W35_2A_0412_2D1_spx_l2b-v27-2026-246.fits",
       "valid_fraction": 0.9863119834710744,
       "stretch": {
-        "vmin": 0.021298184990882874,
-        "vmax": 7.996608853340149,
+        "vmin": 0.015627846121788025,
+        "vmax": 7.584756940603256,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -790,8 +790,8 @@
       "source_uri": "ibe/data/spherex/qr3/level2/2026W35_2A/l2b-v27-2026-246/1/level2_2026W35_2A_0412_3D1_spx_l2b-v27-2026-246.fits",
       "valid_fraction": 0.9836002066115702,
       "stretch": {
-        "vmin": 0.01692204177379608,
-        "vmax": 7.992232710123062,
+        "vmin": 0.011251702904701233,
+        "vmax": 7.580380797386169,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -799,7 +799,7 @@
   ],
   "provenance": {
     "pipeline_version": "0.1.0",
-    "built_at": "2026-11-14T18:53:08.415377Z",
+    "built_at": "2026-11-14T20:25:08.509975Z",
     "synthetic": false,
     "data_releases": [
       "dr1",
@@ -807,7 +807,322 @@
     ],
     "notes": [
       "Automatic detection and catalog matching were not run.",
-      "Pixel values and stretch limits are IMAGE - ZODI (SPHEREx zodiacal model subtracted) in MJy/sr; PNGs use an asinh mapping with the same contrast for every frame of a detector, and transparent pixels mean no data. Saturated star cores and detector-defect pixels are filled from their neighbours for display only; they count as invalid in valid_fraction."
+      "Pixel values and stretch limits are IMAGE - ZODI (SPHEREx zodiacal model subtracted) in MJy/sr; PNGs use an asinh mapping with the same contrast for every frame of a detector, and transparent pixels mean no data. Saturated star cores and detector-defect pixels are filled from their neighbours for display only; they count as invalid in valid_fraction.",
+      "Frame selection: downloaded 80 candidate frame(s) (up to 2 x max_frames=40) and kept 40, spread round-robin over seasons x detectors; inside each (season, detector) the frames whose wavelength at the field centre is closest to a per-detector reference (D1 0.936 um, D2 1.517 um, D3 1.793 um, D4 3.015 um, D5 4.296 um, D6 4.581 um) come first, then those nearest the season middle; frames without a known wavelength rank last. Rejected 0 bad frame(s) whose IMAGE - ZODI robust scatter exceeds 15x the noise of their VARIANCE plane (background steps). Downloaded 61 more D2/D3 frame(s) only to find J/H/Ks wavelengths for the false-color composites; they are not blink frames.",
+      "False-color composites: 3 'detectors' and 3 'jhk' season composite(s) (infrared, not true color). detectors = full range: blue = D1 (fallback D2), green = D3 (D4), red = D6 (D5), coadds of the season's published frames. jhk = 2MASS-like: blue / green / red = coadd of the season's downloaded exposures (including unpublished candidates) within 0.06 um of J 1.25 / H 1.65 / Ks 2.17 um at the field centre, else the nearest one within 0.12 um. Each channel: one weight per frame, sky removed, bad pixels left out (saturated cores drawn white, for display only). Green spans 2 sigma below the sky to the bright end of its usable pixels; red and blue are scaled to green by the median field-star flux ratio (target halo excluded), so typical field stars look white; limits shared by every season with the same detectors; colour-preserving asinh (Lupton et al. 2004)."
     ]
-  }
+  },
+  "composites": [
+    {
+      "id": "detectors_S0",
+      "mode": "detectors",
+      "season": 0,
+      "mjd_min": 60905.8569073,
+      "mjd_max": 60923.107869337,
+      "image": "color/detectors_S0.png",
+      "channels": [
+        {
+          "color": "red",
+          "detector": 6,
+          "wavelength_um": 4.5972940600267345,
+          "wavelength_min_um": 4.5806519134828125,
+          "wavelength_max_um": 4.613936206570656,
+          "frame_ids": [
+            "2025W34_2B_0030_1D6",
+            "2025W34_2B_0030_2D6"
+          ]
+        },
+        {
+          "color": "green",
+          "detector": 3,
+          "wavelength_um": 1.8094689178100132,
+          "wavelength_min_um": 1.788365634588661,
+          "wavelength_max_um": 1.8305722010313654,
+          "frame_ids": [
+            "2025W34_1B_0164_3D3",
+            "2025W34_2B_0030_1D3"
+          ]
+        },
+        {
+          "color": "blue",
+          "detector": 1,
+          "wavelength_um": 0.9403017286696724,
+          "wavelength_min_um": 0.9037606378175534,
+          "wavelength_max_um": 0.9699177704781687,
+          "frame_ids": [
+            "2025W35_2A_0611_2D1",
+            "2025W35_2A_0611_3D1",
+            "2025W36_2B_0123_1D1"
+          ]
+        }
+      ],
+      "notes": [
+        "False color: SPHEREx infrared wavelengths mapped to red, green and blue (infrared, not true color).",
+        "Full range: red = D6 4.60 um, green = D3 1.81 um, blue = D1 0.94 um (mean wavelength at the field centre).",
+        "Colour balance: red and blue scaled to green by the median flux ratio of the field stars (red x0.191, blue x0.873; median of 3 season fit(s)), so typical field stars look white.",
+        "Colours are relative to the field: typical field stars look roughly white and an object redder than they are looks red."
+      ]
+    },
+    {
+      "id": "detectors_S1",
+      "mode": "detectors",
+      "season": 1,
+      "mjd_min": 61110.436708909,
+      "mjd_max": 61140.030727046,
+      "image": "color/detectors_S1.png",
+      "channels": [
+        {
+          "color": "red",
+          "detector": 6,
+          "wavelength_um": 4.545473773279294,
+          "wavelength_min_um": 4.539926520495253,
+          "wavelength_max_um": 4.551021026063337,
+          "frame_ids": [
+            "2026W13_1A_0549_1D6",
+            "2026W15_2A_0137_1D6"
+          ]
+        },
+        {
+          "color": "green",
+          "detector": 3,
+          "wavelength_um": 1.786295592233558,
+          "wavelength_min_um": 1.7793062008705816,
+          "wavelength_max_um": 1.7932849835965343,
+          "frame_ids": [
+            "2026W13_1A_0549_1D3",
+            "2026W15_2A_0137_1D3"
+          ]
+        },
+        {
+          "color": "blue",
+          "detector": 1,
+          "wavelength_um": 0.869824374447182,
+          "wavelength_min_um": 0.842856957089712,
+          "wavelength_max_um": 0.903952573321461,
+          "frame_ids": [
+            "2026W11_1A_0511_3D1",
+            "2026W11_1A_0511_4D1",
+            "2026W11_1A_0539_1D1"
+          ]
+        }
+      ],
+      "notes": [
+        "False color: SPHEREx infrared wavelengths mapped to red, green and blue (infrared, not true color).",
+        "Full range: red = D6 4.55 um, green = D3 1.79 um, blue = D1 0.87 um (mean wavelength at the field centre).",
+        "Colour balance: red and blue scaled to green by the median flux ratio of the field stars (red x0.191, blue x0.873; median of 3 season fit(s)), so typical field stars look white.",
+        "Colours are relative to the field: typical field stars look roughly white and an object redder than they are looks red."
+      ]
+    },
+    {
+      "id": "detectors_S2",
+      "mode": "detectors",
+      "season": 2,
+      "mjd_min": 61270.595445182,
+      "mjd_max": 61281.662753423,
+      "image": "color/detectors_S2.png",
+      "channels": [
+        {
+          "color": "red",
+          "detector": 6,
+          "wavelength_um": 4.613179997768407,
+          "wavelength_min_um": 4.596385149341477,
+          "wavelength_max_um": 4.629974846195337,
+          "frame_ids": [
+            "2026W34_1A_0308_1D6",
+            "2026W34_1A_0308_2D6"
+          ]
+        },
+        {
+          "color": "green",
+          "detector": 3,
+          "wavelength_um": 1.872159761149468,
+          "wavelength_min_um": 1.8505222431993633,
+          "wavelength_max_um": 1.8937972790995727,
+          "frame_ids": [
+            "2026W34_1A_0308_1D3",
+            "2026W34_1A_0308_2D3"
+          ]
+        },
+        {
+          "color": "blue",
+          "detector": 1,
+          "wavelength_um": 0.9585819640010799,
+          "wavelength_min_um": 0.9361403234670472,
+          "wavelength_max_um": 0.9813741226488931,
+          "frame_ids": [
+            "2026W35_2A_0412_1D1",
+            "2026W35_2A_0412_2D1",
+            "2026W35_2A_0412_3D1"
+          ]
+        }
+      ],
+      "notes": [
+        "False color: SPHEREx infrared wavelengths mapped to red, green and blue (infrared, not true color).",
+        "Full range: red = D6 4.61 um, green = D3 1.87 um, blue = D1 0.96 um (mean wavelength at the field centre).",
+        "Colour balance: red and blue scaled to green by the median flux ratio of the field stars (red x0.191, blue x0.873; median of 3 season fit(s)), so typical field stars look white.",
+        "Colours are relative to the field: typical field stars look roughly white and an object redder than they are looks red."
+      ]
+    },
+    {
+      "id": "jhk_S0",
+      "mode": "jhk",
+      "season": 0,
+      "mjd_min": 60903.139031826,
+      "mjd_max": 60914.483259048,
+      "image": "color/jhk_S0.png",
+      "channels": [
+        {
+          "color": "red",
+          "detector": 3,
+          "wavelength_um": 2.174546060464161,
+          "wavelength_min_um": 2.1494000938501694,
+          "wavelength_max_um": 2.199692027078153,
+          "frame_ids": [
+            "2025W35_1A_0008_4D3",
+            "2025W35_1A_0484_1D3"
+          ]
+        },
+        {
+          "color": "green",
+          "detector": null,
+          "wavelength_um": 1.6461746843517144,
+          "wavelength_min_um": 1.5910751312967393,
+          "wavelength_max_um": 1.7082602477960078,
+          "frame_ids": [
+            "2025W33_2C_0386_3D3",
+            "2025W33_2C_0386_4D3",
+            "2025W34_1B_0164_1D3",
+            "2025W35_1A_0146_3D2",
+            "2025W35_1A_0146_4D2"
+          ]
+        },
+        {
+          "color": "blue",
+          "detector": 2,
+          "wavelength_um": 1.2385126231852728,
+          "wavelength_min_um": 1.2385126231852728,
+          "wavelength_max_um": 1.2385126231852728,
+          "frame_ids": [
+            "2025W35_1A_0444_1D2"
+          ]
+        }
+      ],
+      "notes": [
+        "False color: SPHEREx infrared wavelengths mapped to red, green and blue (infrared, not true color).",
+        "2MASS-like: each channel holds narrow SPHEREx samples near J, H or Ks, not the 2MASS filters or 2MASS photometry. red = D3 2.17 um, green = D2+D3 1.65 um, blue = D2 1.24 um (mean wavelength at the field centre).",
+        "Colour balance: red and blue scaled to green by the median flux ratio of the field stars (red x0.705, blue x0.927; median of 3 season fit(s)), so typical field stars look white.",
+        "Colours are relative to the field: typical field stars look roughly white and an object redder than they are looks red."
+      ]
+    },
+    {
+      "id": "jhk_S1",
+      "mode": "jhk",
+      "season": 1,
+      "mjd_min": 61114.100229685,
+      "mjd_max": 61164.879785113,
+      "image": "color/jhk_S1.png",
+      "channels": [
+        {
+          "color": "red",
+          "detector": 3,
+          "wavelength_um": 2.1802632059665257,
+          "wavelength_min_um": 2.154698855545829,
+          "wavelength_max_um": 2.2058615036448743,
+          "frame_ids": [
+            "2026W12_2A_0520_1D3",
+            "2026W12_2A_0520_2D3",
+            "2026W19_1A_0216_1D3",
+            "2026W19_1A_0326_1D3"
+          ]
+        },
+        {
+          "color": "green",
+          "detector": null,
+          "wavelength_um": 1.6414045780564819,
+          "wavelength_min_um": 1.5909404567681116,
+          "wavelength_max_um": 1.7001000436059313,
+          "frame_ids": [
+            "2026W11_2A_0550_1D2",
+            "2026W11_2A_0550_2D2",
+            "2026W13_1A_0129_1D3",
+            "2026W13_1A_0129_2D3",
+            "2026W13_1A_0129_3D3"
+          ]
+        },
+        {
+          "color": "blue",
+          "detector": 2,
+          "wavelength_um": 1.232411870747117,
+          "wavelength_min_um": 1.197111624255731,
+          "wavelength_max_um": 1.284748096643939,
+          "frame_ids": [
+            "2026W11_2A_0513_1D2",
+            "2026W11_2A_0513_2D2",
+            "2026W11_2A_0513_3D2",
+            "2026W11_2A_0513_4D2",
+            "2026W12_2A_0496_1D2"
+          ]
+        }
+      ],
+      "notes": [
+        "False color: SPHEREx infrared wavelengths mapped to red, green and blue (infrared, not true color).",
+        "2MASS-like: each channel holds narrow SPHEREx samples near J, H or Ks, not the 2MASS filters or 2MASS photometry. red = D3 2.18 um, green = D2+D3 1.64 um, blue = D2 1.23 um (mean wavelength at the field centre).",
+        "Colour balance: red and blue scaled to green by the median flux ratio of the field stars (red x0.705, blue x0.927; median of 3 season fit(s)), so typical field stars look white.",
+        "Colours are relative to the field: typical field stars look roughly white and an object redder than they are looks red."
+      ]
+    },
+    {
+      "id": "jhk_S2",
+      "mode": "jhk",
+      "season": 2,
+      "mjd_min": 61271.209721236,
+      "mjd_max": 61280.166927671,
+      "image": "color/jhk_S2.png",
+      "channels": [
+        {
+          "color": "red",
+          "detector": 3,
+          "wavelength_um": 2.1483922792398205,
+          "wavelength_min_um": 2.1236985148496306,
+          "wavelength_max_um": 2.1730860436300103,
+          "frame_ids": [
+            "2026W34_1A_0431_3D3",
+            "2026W34_1A_0431_4D3"
+          ]
+        },
+        {
+          "color": "green",
+          "detector": 2,
+          "wavelength_um": 1.6373769671099885,
+          "wavelength_min_um": 1.6139930259748978,
+          "wavelength_max_um": 1.6605996073224132,
+          "frame_ids": [
+            "2026W34_1A_0456_1D2",
+            "2026W34_1A_0456_2D2",
+            "2026W35_1A_0092_1D2",
+            "2026W35_2A_0126_1D2"
+          ]
+        },
+        {
+          "color": "blue",
+          "detector": 2,
+          "wavelength_um": 1.2382576019455753,
+          "wavelength_min_um": 1.1947853512877853,
+          "wavelength_max_um": 1.2822519364557314,
+          "frame_ids": [
+            "2026W34_2A_0206_2D2",
+            "2026W34_2A_0206_3D2",
+            "2026W34_2A_0206_4D2",
+            "2026W34_2A_0233_1D2"
+          ]
+        }
+      ],
+      "notes": [
+        "False color: SPHEREx infrared wavelengths mapped to red, green and blue (infrared, not true color).",
+        "2MASS-like: each channel holds narrow SPHEREx samples near J, H or Ks, not the 2MASS filters or 2MASS photometry. red = D3 2.15 um, green = D2 1.64 um, blue = D2 1.24 um (mean wavelength at the field centre).",
+        "Colour balance: red and blue scaled to green by the median flux ratio of the field stars (red x0.705, blue x0.927; median of 3 season fit(s)), so typical field stars look white.",
+        "Colours are relative to the field: typical field stars look roughly white and an object redder than they are looks red."
+      ]
+    }
+  ]
 }
