@@ -2,9 +2,33 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Many agents push often: cancel superseded runs of the same branch/PR.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
+  # Advisory: does a wsN/... PR only touch files of its workstream? (docs/COLLABORATION.md)
+  owners:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Ownership guard
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          GITHUB_HEAD_REF: ${{ github.head_ref }}
+        run: python3 scripts/owners.py --base origin/${{ github.base_ref }}
+
   python:
     runs-on: ubuntu-latest
     steps:

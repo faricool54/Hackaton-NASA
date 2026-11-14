@@ -1,0 +1,23 @@
+# Same line endings on every OS (Windows/macOS/Linux) so agents don't produce
+# whole-file diffs. Matches .editorconfig (end_of_line = lf).
+* text=auto eol=lf
+
+# Windows-only scripts keep CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.fits binary
+*.fits.gz binary
+*.fits.fz binary
+*.npy binary
+*.parquet binary
+*.mp4 binary
+*.pdf binary
