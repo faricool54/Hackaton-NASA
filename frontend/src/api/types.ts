@@ -4,7 +4,7 @@
 // Pixel convention for every x/y: PNG convention — origin at the TOP-LEFT pixel,
 // 0-based, x → right, y → DOWN, on the field's common north-up grid (east left).
 
-export const SCHEMA_VERSION = '0.2.1';
+export const SCHEMA_VERSION = '0.3.0';
 
 export type Release = 'dr1' | 'qr2' | 'qr3' | 'synthetic';
 export type ObjectType =
@@ -20,6 +20,13 @@ export type CandidateKind = 'moving' | 'proper_motion' | 'variable';
 /** unconfirmed = not matched to any catalog. It is NOT a discovery claim. */
 export type CandidateStatus = 'unconfirmed' | 'known' | 'artifact' | 'injected';
 export type MatchSource = 'jpl_sbident' | 'jpl_horizons' | 'skybot' | 'simbad' | 'synthetic';
+/**
+ * How a FALSE-COLOR composite maps SPHEREx infrared wavelengths to RGB (added in 0.3.0).
+ * detectors = whole SPHEREx detectors over the full 0.75-5.0 um range;
+ * jhk = 2MASS-like, exposures near J/H/Ks (~1.25/1.65/2.15 um). Blue = shortest, red = longest.
+ */
+export type CompositeMode = 'detectors' | 'jhk';
+export type CompositeColor = 'red' | 'green' | 'blue';
 
 export interface SkyCoord {
   ra: number; // deg ICRS
@@ -45,8 +52,8 @@ export interface Frame {
   id: string;
   obs_id: string;
   detector: number; // 1-6
-  mjd: number;
-  date_obs: string; // ISO 8601
+  mjd: number; // mid-exposure (header MJD-AVG), not the start (MJD-OBS)
+  date_obs: string; // ISO 8601 UTC, same instant as mjd (DATE-AVG)
   wavelength_um: number | null;
   bandwidth_um: number | null;
   release: Release;
@@ -148,6 +155,31 @@ export interface Provenance {
   notes: string[];
 }
 
+/** One color channel of a FALSE-COLOR composite: which infrared exposures were mapped to it. */
+export interface CompositeChannel {
+  color: CompositeColor;
+  detector: number | null; // 1-6; null = inputs from several detectors
+  wavelength_um: number | null; // mean central wavelength of the inputs at the field centre
+  wavelength_min_um: number | null; // shortest central wavelength among the inputs
+  wavelength_max_um: number | null; // longest central wavelength among the inputs
+  frame_ids: string[]; // Frame.id convention; may include exposures not in Field.frames
+}
+
+/**
+ * FALSE-COLOR infrared composite of one observing season (added in 0.3.0).
+ * SPHEREx sees 0.75-5.0 um, invisible to the eye: it is NOT a true-color image and the UI must say so.
+ */
+export interface Composite {
+  id: string; // unique within the field, e.g. 'detectors_S0'
+  mode: CompositeMode;
+  season: number; // 0-based observing season (0 = earliest)
+  mjd_min: number; // earliest mid-exposure MJD among the inputs
+  mjd_max: number; // latest mid-exposure MJD among the inputs
+  image: string; // RGB/RGBA PNG relative to the field dir, e.g. 'color/detectors_S0.png'
+  channels: [CompositeChannel, CompositeChannel, CompositeChannel]; // red, green, blue (in this order)
+  notes: string[];
+}
+
 export interface Field {
   id: string;
   name: string;
@@ -158,6 +190,7 @@ export interface Field {
   grid: Grid;
   frames: Frame[];
   provenance: Provenance;
+  composites?: Composite[]; // added in 0.3.0 (absent in older products: treat as [])
 }
 
 export interface FieldSummary {
