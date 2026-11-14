@@ -14,6 +14,9 @@ GET /data/...                         static files (frame PNGs, thumbnails)
 
 from __future__ import annotations
 
+import logging
+import os
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -29,15 +32,33 @@ from .routes import live, products
 from .settings import Settings
 from .store import PublicProductStore
 
+log = logging.getLogger(__name__)
+
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
 
+    # Job engine: only start when explicitly enabled via env var so the
+    # default dev server doesn't spin up background threads unexpectedly.
+    _enable_jobs = os.environ.get("ERRANTE_ENABLE_JOBS", "").lower() in ("1", "true", "yes")
+
     @asynccontextmanager
-    async def lifespan(app: FastAPI):
+    async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+        if _enable_jobs:
+            from .jobs.engine import JobEngine
+
+            engine = JobEngine.from_env()
+            engine.start()
+            app.state.job_engine = engine
+            log.info("job engine started")
+        else:
+            app.state.job_engine = None
         try:
             yield
         finally:
+            if _enable_jobs and getattr(app.state, "job_engine", None) is not None:
+                app.state.job_engine.stop()
+                log.info("job engine stopped")
             app.state.live.close()
 
     app = FastAPI(
@@ -59,12 +80,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def health() -> dict:
         store: ProductStore = app.state.store
         has_manifest = store.manifest_path.exists()
+        engine = getattr(app.state, "job_engine", None)
         return {
             "status": "ok" if has_manifest else "no-data",
             "version": __version__,
             "schema_version": SCHEMA_VERSION,
             "data_dir": "configured",
             "synthetic": store.read_manifest().synthetic if has_manifest else None,
+            "job_engine": "running" if (engine is not None and engine.is_running) else "disabled",
         }
 
     app.include_router(products.router, prefix="/api")
