@@ -7,8 +7,8 @@
 **Extensión P2**, posterior al recorrido obligatorio RA/Dec → imágenes reales → animación y ensayos.
 Las guías de entrega y evaluación exigen evidencia, honestidad y atribución: `REQUIREMENTS.md`,
 `SUBMISSION_GUIDE.md` y `JUDGING_GUIDE.md`. La galería ya existe, pero no valida R02/R05 ni aporta por sí
-misma integración real de datos NASA para Relevance. El código llegó en la contribución WS7; parámetros
-de catálogo y procedencia completa siguen pendientes de revisión.
+misma integración real de datos NASA para Relevance. El código llegó en la contribución WS7; los parámetros
+se contrastaron con catálogos y papers en WS7-2 (2026-11-14, con asistencia de IA); falta la revisión humana del equipo.
 
 ## La idea
 
@@ -40,8 +40,9 @@ clickeables, transiciones suaves de cámara, panel lateral legible y que funcion
 - Es una **representación de modelo, no una imagen**. La UI muestra siempre el badge **"3D MODEL · NOT AN IMAGE"**
   y la nota `representation_note`: tamaños exagerados, distancias opcionalmente comprimidas.
 - Cada dato de la ficha es un `Fact` con `source` y `verified`. Si no se verificó contra la fuente, la UI lo marca
-  **"unverified"** y el sistema muestra el badge **"UNVERIFIED VALUES"**. Hoy **todos** los valores reales están
-  tipeados a mano como punto de partida → WS7-2 los verifica.
+  **"unverified"** y el sistema muestra el badge **"UNVERIFIED VALUES"**. Desde WS7-2 (2026-11-14) los valores
+  de los cinco blancos están contrastados con NASA Exoplanet Archive, SIMBAD (espejo CfA), Gaia DR3, VizieR y los
+  papers citados; quedan "unverified" solo las estimaciones que ninguna fuente publica (radio de R Dra y de RW Aur A).
 - Lo que no sabemos no se dibuja como si lo supiéramos: cada órbita declara `Orbit.quality`. `assumed` (no
   ajustada: un círculo a la separación proyectada o a una distancia estimada) se dibuja **en amarillo** y la ficha
   dice "assumed, not fitted"; `hypothetical` (p. ej. Planeta Nueve) en violeta. Las fases sin época son
@@ -50,17 +51,25 @@ clickeables, transiciones suaves de cámara, panel lateral legible y que funcion
 - Simplificaciones explícitas: jerarquías sin baricentros (Epsilon Indi), variabilidad sinusoidal, radios
   estimados de planetas no transitantes. Cada una figura en `provenance.notes` o en la etiqueta del dato.
 
-## Qué representan los presets actuales (sin validar científicamente)
+## Qué representan los presets (verificados en WS7-2, 2026-11-14)
 
-| Objetivo | Qué se puede modelar | Fuente para verificar (WS7-2) |
-|---|---|---|
-| **Barnard's Star** | estrella y compañeros planetarios ilustrativos; existencia/parámetros del preset a contrastar | NASA Exoplanet Archive, Gaia DR3 |
-| **Epsilon Indi** | estrella, compañero planetario y componentes Ba/Bb con jerarquía simplificada; distinguir B de A | NASA Exoplanet Archive, SIMBAD, literatura |
-| **WISE 0855−0714** | cuerpo aislado ilustrativo; temperatura, masa y astrometría sin verificar | SIMBAD, Luhman et al. 2024 (JWST), Kirkpatrick et al. 2021 (paralaje) |
-| **R Draconis** | modelo de pulsación, no curva de luz SPHEREx medida | AAVSO VSX / GCVS |
-| **RW Aurigae** | binaria joven A+B con disco alrededor de A; atenuaciones irregulares | SIMBAD, literatura |
-| Asteroides / TNOs del pipeline | órbita heliocéntrica real (elementos osculantes) + forma si existe | JPL SBDB, NASA 3D Resources, DAMIT |
-| Planeta Nueve (P2, opcional) | órbita **hipotética** con `Orbit.quality = "hypothetical"`; parámetros a revisar antes de mostrar | Brown & Batygin 2021 (AJ 162, 219), a verificar |
+Cada valor se comprobó en la fuente y quedó en `catalog.py` con la cita exacta; `systems/sources.py` reproduce
+las consultas y los tests `network` de `test_systems.py` las vuelven a correr. Posiciones y movimientos en la
+época de la fuente (Gaia DR3 = J2016.0), no en J2000.
+
+| Objetivo | Qué se modela | Fuentes usadas | Correcciones respecto de los valores tipeados |
+|---|---|---|---|
+| **Barnard's Star** | M4V + 4 planetas (P 2.34–6.74 d, masa mínima 0.19–0.34 M⊕; órbitas circulares) | Exoplanet Archive (González Hernández+2024, Basant+2025), Gaia DR3 4472832130942575872 | RV −110.47 km/s (Gaia DR3); centro y época → J2016.0 |
+| **Epsilon Indi** | K5V + Ab (6.5 M♃, a 15.8 AU, e 0.25) + Ba/Bb (T1/T6, P 11.02 a, e 0.54) | Exoplanet Archive (Sanghi+2026), Matthews+2024, Chen+2022, Scholz+2003, Gaia DR3 | Ab: el ajuste vigente (Sanghi+2026) reemplaza a Matthews+2024 (28 AU, e 0.4); masa de A 0.80; Teff 4700 K |
+| **WISE 0855−0714** | enana marrón aislada, ~285 K, ~Y4 | Kirkpatrick+2021 (paralaje/movimiento), Luhman+2024 (JWST) | movimiento propio −8123.7/+673.2 mas/a; las coordenadas del enunciado son WISE All-Sky **época 2010.34**, no J2014 |
+| **R Draconis** | Mira, P 245.6 d, V 6.7–13.2 (animación sinusoidal ilustrativa) | GCVS 5.1, AAVSO VSX, Gaia DR3, Bailer-Jones+2021, van Belle+2002, McDonald+2012 | Teff como rango 2000–3300 K (cambia con la fase); se agregó movimiento (~790 pc) |
+| **RW Aurigae** | A (CTTS, 1.24 M☉) + disco de polvo de 19 AU + B (K6.5, 1.0 M☉) en la órbita ajustada | Kurtovic+2024 (ALMA), Dodin+2020, Testi+2022, VSX, Gaia DR3 | B tiene órbita publicada (a ~258 AU, e 0.79, P ~2800 a, muy incierta); **SIMBAD tiene invertidos los Gaia DR3 de A y B** |
+| Asteroides / TNOs del pipeline | órbita heliocéntrica real (elementos osculantes) + forma si existe | JPL SBDB, NASA 3D Resources, DAMIT | pendiente (WS7-3) |
+| Planeta Nueve (P2, opcional) | órbita **hipotética** con `Orbit.quality = "hypothetical"` | Brown & Batygin 2021 (AJ 162, 219), a verificar | pendiente (WS7-7) |
+
+Para WS3 (blancos): RW Aur A = Gaia DR3 156430817820015232 y B = 156430822114424576 (al revés que SIMBAD; ángulo
+de posición WDS y Kurtovic+2024). Las coordenadas del enunciado para WISE 0855 son de 2010.34: hay que propagar
+~8.2″/año. Detalle de cada consulta: `pipeline/errante/systems/catalog.py`.
 
 Lo que **no** sale de SPHEREx: las órbitas y parámetros físicos vienen de catálogos. SPHEREx aporta *dónde está y
 cómo se mueve en el cielo*, su **espectro 0.75–5 µm** y su variabilidad; la vista 3D lo pone en contexto.
@@ -71,8 +80,8 @@ destinos de verificación, no constancia de una consulta ya realizada ni evidenc
 
 ```
 pipeline/errante/systems/       (WS7)
-  catalog.py   sistemas curados (hoy tipeados a mano, verified=False) + sistema sintético del demo
-  sources.py   stubs: NASA Exoplanet Archive (TAP), JPL SBDB, SIMBAD/Gaia, modelos de forma
+  catalog.py   sistemas curados (verificados en WS7-2, con fuente por dato) + sistema sintético del demo
+  sources.py   NASA Exoplanet Archive, SIMBAD (CfA) y Gaia DR3 por TAP (urllib); stubs: JPL SBDB, modelos de forma
   build.py     valida jerarquía (padres existen, sin ciclos) y escribe <root>/systems/<id>.json
        │  errante demo  → data/demo/systems/*.json      errante systems → data/products/systems/*.json
        ▼

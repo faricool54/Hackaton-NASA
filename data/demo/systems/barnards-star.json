@@ -8,16 +8,16 @@
     "exoplanets"
   ],
   "center": {
-    "ra": 269.4521,
-    "dec": 4.6934
+    "ra": 269.44850252543836,
+    "dec": 4.739420051112412
   },
   "motion": {
-    "distance_pc": 1.83,
-    "parallax_mas": 546.98,
-    "pm_ra_cosdec_mas_yr": -801.6,
-    "pm_dec_mas_yr": 10362.4,
-    "radial_velocity_km_s": -110.6,
-    "epoch": "J2000.0"
+    "distance_pc": 1.8282,
+    "parallax_mas": 546.976,
+    "pm_ra_cosdec_mas_yr": -801.551,
+    "pm_dec_mas_yr": 10362.394,
+    "radial_velocity_km_s": -110.47,
+    "epoch": "J2016.0 (Gaia DR3)"
   },
   "field_id": "barnards-star",
   "bodies": [
@@ -26,9 +26,9 @@
       "name": "Barnard's Star",
       "kind": "star",
       "description": "A small, cool red dwarf. It moves faster across our sky than any other star.",
-      "radius_km": 130095.9,
-      "mass_kg": 3.1824e+29,
-      "teff_k": 3200.0,
+      "radius_km": 128704.5,
+      "mass_kg": 3.22218e+29,
+      "teff_k": 3195.0,
       "spectral_type": "M4V",
       "rotation_period_hours": null,
       "orbit": null,
@@ -44,29 +44,50 @@
           "label": "Spectral type",
           "value": "M4V",
           "unit": null,
-          "source": "SIMBAD",
-          "verified": false
+          "source": "SIMBAD (Kirkpatrick et al. 1991)",
+          "verified": true
         },
         {
           "label": "Temperature",
-          "value": "~3200",
+          "value": "3195 ± 28",
           "unit": "K",
-          "source": "SIMBAD / literature",
-          "verified": false
+          "source": "NASA Exoplanet Archive, pscomppars (González Hernández et al. 2024, A&A 690, A79)",
+          "verified": true
+        },
+        {
+          "label": "Mass",
+          "value": "0.162 ± 0.007",
+          "unit": "solar masses",
+          "source": "NASA Exoplanet Archive, pscomppars (González Hernández et al. 2024, A&A 690, A79)",
+          "verified": true
+        },
+        {
+          "label": "Radius",
+          "value": "0.185 ± 0.006",
+          "unit": "solar radii",
+          "source": "NASA Exoplanet Archive, pscomppars (González Hernández et al. 2024, A&A 690, A79)",
+          "verified": true
         },
         {
           "label": "Distance",
-          "value": "1.83",
+          "value": "1.828",
           "unit": "pc",
-          "source": "Gaia DR3",
-          "verified": false
+          "source": "Gaia DR3 4472832130942575872 (parallax 546.976 ± 0.040 mas)",
+          "verified": true
         },
         {
           "label": "Proper motion",
-          "value": "~10.4",
+          "value": "10.39",
           "unit": "arcsec/yr",
-          "source": "Gaia DR3",
-          "verified": false
+          "source": "Gaia DR3 4472832130942575872",
+          "verified": true
+        },
+        {
+          "label": "Radial velocity",
+          "value": "−110.47 ± 0.13",
+          "unit": "km/s",
+          "source": "Gaia DR3 4472832130942575872",
+          "verified": true
         }
       ],
       "candidate_id": null
@@ -75,16 +96,16 @@
       "id": "barnard-d",
       "name": "Barnard d",
       "kind": "planet",
-      "description": "Rocky sub-Earth found by radial velocity. Too hot for liquid water.",
-      "radius_km": 4459.7,
-      "mass_kg": 1.5527200000000002e+24,
+      "description": "A small planet found by radial velocity (minimum mass well below Earth's); probably rocky. Too hot for liquid water.",
+      "radius_km": 4421.473999999999,
+      "mass_kg": 1.570636e+24,
       "teff_k": null,
       "spectral_type": null,
       "rotation_period_hours": null,
       "orbit": {
         "parent": "barnards-star",
-        "semi_major_axis_au": 0.01873,
-        "period_days": 2.34,
+        "semi_major_axis_au": 0.0188,
+        "period_days": 2.3402,
         "eccentricity": 0.0,
         "inclination_deg": 0.0,
         "ascending_node_deg": 0.0,
@@ -92,7 +113,7 @@
         "mean_anomaly_deg": 0.0,
         "epoch_mjd": null,
         "quality": "fitted",
-        "note": null
+        "note": "Drawn circular: the fitted eccentricities are consistent with zero (Basant et al. 2025 favour e < 0.02). Orbit inclination unknown (radial-velocity detection)."
       },
       "variability": null,
       "appearance": {
@@ -104,24 +125,31 @@
       "facts": [
         {
           "label": "Orbital period",
-          "value": "2.34",
+          "value": "2.3402",
           "unit": "days",
-          "source": "Basant et al. 2025 (ApJL) / NASA Exoplanet Archive",
-          "verified": false
+          "source": "NASA Exoplanet Archive, pscomppars (Basant et al. 2025, ApJL 982, L1)",
+          "verified": true
         },
         {
           "label": "Minimum mass",
-          "value": "~0.26",
+          "value": "0.263",
           "unit": "Earth masses",
-          "source": "Basant et al. 2025 (ApJL) / NASA Exoplanet Archive",
-          "verified": false
+          "source": "NASA Exoplanet Archive, pscomppars (Basant et al. 2025, ApJL 982, L1)",
+          "verified": true
+        },
+        {
+          "label": "Orbit size",
+          "value": "0.0188",
+          "unit": "AU",
+          "source": "NASA Exoplanet Archive, pscomppars (Basant et al. 2025, ApJL 982, L1)",
+          "verified": true
         },
         {
           "label": "Radius (model estimate)",
-          "value": "~0.7",
+          "value": "~0.69",
           "unit": "Earth radii",
-          "source": "mass-radius relation; not measured",
-          "verified": false
+          "source": "NASA Exoplanet Archive, pscomppars: calculated from the mass, not measured (no transits)",
+          "verified": true
         }
       ],
       "candidate_id": null
@@ -130,16 +158,16 @@
       "id": "barnard-b",
       "name": "Barnard b",
       "kind": "planet",
-      "description": "Rocky sub-Earth found by radial velocity. Too hot for liquid water.",
-      "radius_km": 4459.7,
-      "mass_kg": 1.7916e+24,
+      "description": "A small planet found by radial velocity (minimum mass well below Earth's); probably rocky. Too hot for liquid water.",
+      "radius_km": 4587.12,
+      "mass_kg": 1.785628e+24,
       "teff_k": null,
       "spectral_type": null,
       "rotation_period_hours": null,
       "orbit": {
         "parent": "barnards-star",
-        "semi_major_axis_au": 0.02285,
-        "period_days": 3.154,
+        "semi_major_axis_au": 0.0229,
+        "period_days": 3.1542,
         "eccentricity": 0.0,
         "inclination_deg": 0.0,
         "ascending_node_deg": 0.0,
@@ -147,7 +175,7 @@
         "mean_anomaly_deg": 0.0,
         "epoch_mjd": null,
         "quality": "fitted",
-        "note": null
+        "note": "Drawn circular: the fitted eccentricities are consistent with zero (Basant et al. 2025 favour e < 0.02). Orbit inclination unknown (radial-velocity detection)."
       },
       "variability": null,
       "appearance": {
@@ -159,24 +187,31 @@
       "facts": [
         {
           "label": "Orbital period",
-          "value": "3.154",
+          "value": "3.1542",
           "unit": "days",
-          "source": "Basant et al. 2025 (ApJL) / NASA Exoplanet Archive",
-          "verified": false
+          "source": "NASA Exoplanet Archive, pscomppars (Basant et al. 2025, ApJL 982, L1)",
+          "verified": true
         },
         {
           "label": "Minimum mass",
-          "value": "~0.3",
+          "value": "0.299",
           "unit": "Earth masses",
-          "source": "Basant et al. 2025 (ApJL) / NASA Exoplanet Archive",
-          "verified": false
+          "source": "NASA Exoplanet Archive, pscomppars (Basant et al. 2025, ApJL 982, L1)",
+          "verified": true
+        },
+        {
+          "label": "Orbit size",
+          "value": "0.0229",
+          "unit": "AU",
+          "source": "NASA Exoplanet Archive, pscomppars (Basant et al. 2025, ApJL 982, L1)",
+          "verified": true
         },
         {
           "label": "Radius (model estimate)",
-          "value": "~0.7",
+          "value": "~0.72",
           "unit": "Earth radii",
-          "source": "mass-radius relation; not measured",
-          "verified": false
+          "source": "NASA Exoplanet Archive, pscomppars: calculated from the mass, not measured (no transits)",
+          "verified": true
         }
       ],
       "candidate_id": null
@@ -185,16 +220,16 @@
       "id": "barnard-c",
       "name": "Barnard c",
       "kind": "planet",
-      "description": "Rocky sub-Earth found by radial velocity. Too hot for liquid water.",
-      "radius_km": 4459.7,
-      "mass_kg": 2.0304800000000002e+24,
+      "description": "A small planet found by radial velocity (minimum mass well below Earth's); probably rocky. Too hot for liquid water.",
+      "radius_km": 4733.653,
+      "mass_kg": 2.00062e+24,
       "teff_k": null,
       "spectral_type": null,
       "rotation_period_hours": null,
       "orbit": {
         "parent": "barnards-star",
-        "semi_major_axis_au": 0.02732,
-        "period_days": 4.124,
+        "semi_major_axis_au": 0.0274,
+        "period_days": 4.1244,
         "eccentricity": 0.0,
         "inclination_deg": 0.0,
         "ascending_node_deg": 0.0,
@@ -202,7 +237,7 @@
         "mean_anomaly_deg": 0.0,
         "epoch_mjd": null,
         "quality": "fitted",
-        "note": null
+        "note": "Drawn circular: the fitted eccentricities are consistent with zero (Basant et al. 2025 favour e < 0.02). Orbit inclination unknown (radial-velocity detection)."
       },
       "variability": null,
       "appearance": {
@@ -214,24 +249,31 @@
       "facts": [
         {
           "label": "Orbital period",
-          "value": "4.124",
+          "value": "4.1244",
           "unit": "days",
-          "source": "Basant et al. 2025 (ApJL) / NASA Exoplanet Archive",
-          "verified": false
+          "source": "NASA Exoplanet Archive, pscomppars (Basant et al. 2025, ApJL 982, L1)",
+          "verified": true
         },
         {
           "label": "Minimum mass",
-          "value": "~0.34",
+          "value": "0.335",
           "unit": "Earth masses",
-          "source": "Basant et al. 2025 (ApJL) / NASA Exoplanet Archive",
-          "verified": false
+          "source": "NASA Exoplanet Archive, pscomppars (Basant et al. 2025, ApJL 982, L1)",
+          "verified": true
+        },
+        {
+          "label": "Orbit size",
+          "value": "0.0274",
+          "unit": "AU",
+          "source": "NASA Exoplanet Archive, pscomppars (Basant et al. 2025, ApJL 982, L1)",
+          "verified": true
         },
         {
           "label": "Radius (model estimate)",
-          "value": "~0.7",
+          "value": "~0.74",
           "unit": "Earth radii",
-          "source": "mass-radius relation; not measured",
-          "verified": false
+          "source": "NASA Exoplanet Archive, pscomppars: calculated from the mass, not measured (no transits)",
+          "verified": true
         }
       ],
       "candidate_id": null
@@ -240,16 +282,16 @@
       "id": "barnard-e",
       "name": "Barnard e",
       "kind": "planet",
-      "description": "Rocky sub-Earth found by radial velocity. Too hot for liquid water.",
-      "radius_km": 4459.7,
-      "mass_kg": 1.1346800000000001e+24,
+      "description": "A small planet found by radial velocity (minimum mass well below Earth's); probably rocky. Too hot for liquid water.",
+      "radius_km": 4058.327,
+      "mass_kg": 1.152596e+24,
       "teff_k": null,
       "spectral_type": null,
       "rotation_period_hours": null,
       "orbit": {
         "parent": "barnards-star",
-        "semi_major_axis_au": 0.03791,
-        "period_days": 6.739,
+        "semi_major_axis_au": 0.0381,
+        "period_days": 6.7392,
         "eccentricity": 0.0,
         "inclination_deg": 0.0,
         "ascending_node_deg": 0.0,
@@ -257,7 +299,7 @@
         "mean_anomaly_deg": 0.0,
         "epoch_mjd": null,
         "quality": "fitted",
-        "note": null
+        "note": "Drawn circular: the fitted eccentricities are consistent with zero (Basant et al. 2025 favour e < 0.02). Orbit inclination unknown (radial-velocity detection)."
       },
       "variability": null,
       "appearance": {
@@ -269,38 +311,46 @@
       "facts": [
         {
           "label": "Orbital period",
-          "value": "6.739",
+          "value": "6.7392",
           "unit": "days",
-          "source": "Basant et al. 2025 (ApJL) / NASA Exoplanet Archive",
-          "verified": false
+          "source": "NASA Exoplanet Archive, pscomppars (Basant et al. 2025, ApJL 982, L1)",
+          "verified": true
         },
         {
           "label": "Minimum mass",
-          "value": "~0.19",
+          "value": "0.193",
           "unit": "Earth masses",
-          "source": "Basant et al. 2025 (ApJL) / NASA Exoplanet Archive",
-          "verified": false
+          "source": "NASA Exoplanet Archive, pscomppars (Basant et al. 2025, ApJL 982, L1)",
+          "verified": true
+        },
+        {
+          "label": "Orbit size",
+          "value": "0.0381",
+          "unit": "AU",
+          "source": "NASA Exoplanet Archive, pscomppars (Basant et al. 2025, ApJL 982, L1)",
+          "verified": true
         },
         {
           "label": "Radius (model estimate)",
-          "value": "~0.7",
+          "value": "~0.64",
           "unit": "Earth radii",
-          "source": "mass-radius relation; not measured",
-          "verified": false
+          "source": "NASA Exoplanet Archive, pscomppars: calculated from the mass, not measured (no transits)",
+          "verified": true
         }
       ],
       "candidate_id": null
     }
   ],
-  "representation_note": "Model representation built from catalog parameters - not an image. Sizes and distances may be exaggerated for visibility.",
+  "representation_note": "3D model drawn from published catalog and literature values (each fact shows its source) - not an image. Sizes and distances may be exaggerated for visibility.",
   "provenance": {
     "pipeline_version": "0.1.0",
-    "built_at": "2026-11-14T15:09:55.680382Z",
+    "built_at": "2026-11-14T15:59:36.946637Z",
     "synthetic": false,
     "data_releases": [],
     "notes": [
-      "Parameters typed by hand as a starting point; NOT yet verified against catalogs (tasks/WS7-3d-systems.md, WS7-2).",
-      "Orbital and pulsation phases are arbitrary (no epoch): positions are not predictions for a real date."
+      "Values checked on 2026-11-14 against the NASA Exoplanet Archive, SIMBAD (CfA mirror), Gaia DR3, VizieR and the cited papers (tasks/WS7-3d-systems.md, WS7-2). Facts still marked 'unverified' are estimates no source states.",
+      "Orbital and pulsation phases are arbitrary (no epoch): positions are not predictions for a real date.",
+      "Planet masses are minimum masses (M sin i) and planet radii are estimates: radial velocity measures neither the inclination nor the size."
     ]
   }
 }

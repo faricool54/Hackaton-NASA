@@ -1,6 +1,6 @@
 {
   "schema_version": "0.2.1",
-  "generated_at": "2026-11-14T15:09:55.683365Z",
+  "generated_at": "2026-11-14T15:59:36.955605Z",
   "synthetic": true,
   "fields": [
     {
@@ -59,8 +59,8 @@
         "exoplanets"
       ],
       "center": {
-        "ra": 269.4521,
-        "dec": 4.6934
+        "ra": 269.44850252543836,
+        "dec": 4.739420051112412
       },
       "n_bodies": 5,
       "kinds": [
@@ -87,7 +87,7 @@
         "asteroid",
         "planet",
         "star",
-        "tno"
+        "unknown"
       ],
       "field_id": "demo-ecliptic",
       "synthetic": true
@@ -103,8 +103,8 @@
         "exoplanets"
       ],
       "center": {
-        "ra": 330.8402,
-        "dec": -56.786
+        "ra": 330.8724078795965,
+        "dec": -56.79725466122902
       },
       "n_bodies": 4,
       "kinds": [
@@ -124,8 +124,8 @@
         "variable"
       ],
       "center": {
-        "ra": 248.1675,
-        "dec": 66.755
+        "ra": 248.1673783672889,
+        "dec": 66.75500674547219
       },
       "n_bodies": 1,
       "kinds": [
@@ -145,8 +145,8 @@
         "young-star"
       ],
       "center": {
-        "ra": 76.9563,
-        "dec": 30.4014
+        "ra": 76.9565443110343,
+        "dec": 30.401316149887936
       },
       "n_bodies": 3,
       "kinds": [
@@ -159,15 +159,15 @@
     {
       "id": "wise-0855",
       "name": "WISE 0855−0714",
-      "description": "Challenge test target: the coldest known brown dwarf, around the freezing point of water.",
+      "description": "Challenge test target: the coldest known brown dwarf, near the freezing point of water.",
       "tags": [
         "test-target",
         "brown-dwarf",
         "proper-motion"
       ],
       "center": {
-        "ra": 133.79513,
-        "dec": -7.24515
+        "ra": 133.780984,
+        "dec": -7.243932
       },
       "n_bodies": 1,
       "kinds": [
