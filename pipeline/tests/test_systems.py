@@ -1,9 +1,12 @@
-"""3D system models (WS7): physics helpers and catalog integrity."""
+"""3D system models (WS7): physics helpers, catalog integrity and catalog sources."""
+
+import os
 
 import pytest
 
 from errante.models import Appearance, Body, Orbit, Provenance, SkyCoord, SystemModel
 from errante.products import ProductStore
+from errante.systems import sources
 from errante.systems.build import validate_hierarchy, write_systems
 from errante.systems.catalog import curated_systems, demo_systems, kepler_a_au, kepler_period_days
 
@@ -18,17 +21,42 @@ def test_catalog_hierarchies_are_valid(system):
     validate_hierarchy(system)
 
 
-def test_curated_values_are_flagged_unverified_until_checked():
-    """Hand-typed values must not pretend to be verified (AGENTS.md rule 5)."""
+def test_verified_facts_cite_a_source_and_estimates_stay_unverified():
+    """AGENTS.md rule 5: `verified` means checked against the cited source (WS7-2)."""
     for system in curated_systems():
         assert not system.provenance.synthetic
         for body in system.bodies:
-            assert all(not f.verified for f in body.facts), f"{system.id}/{body.id}: verify via WS7-2 first"
+            for fact in body.facts:
+                where = f"{system.id}/{body.id}/{fact.label}"
+                if fact.verified:
+                    assert fact.source and fact.source.strip(), f"{where}: verified without a source"
+                    assert "literature" != fact.source.strip().lower(), f"{where}: cite the paper, not 'literature'"
+                if "illustrative" in fact.label.lower() or "drawing value" in (fact.source or ""):
+                    assert not fact.verified, f"{where}: an illustrative value cannot be verified"
+
+
+def test_real_systems_do_not_claim_to_be_hand_typed_or_synthetic():
+    for system in curated_systems():
+        assert "synthetic" not in system.representation_note.lower()
+        assert not any("typed by hand" in note for note in system.provenance.notes), system.id
 
 
 def test_synthetic_system_is_labelled():
     synthetic = [s for s in demo_systems() if s.provenance.synthetic]
     assert synthetic and all("synthetic" in s.tags for s in synthetic)
+    assert all("SYNTHETIC" in s.representation_note for s in synthetic)
+
+
+def test_committed_demo_systems_match_the_catalog():
+    """data/demo/systems is generated: regenerate it (python scripts/dev.py demo) after editing catalog.py."""
+    from errante import settings
+
+    on_disk = {p.stem for p in (settings.DEMO_DIR / "systems").glob("*.json")}
+    assert on_disk == {s.id for s in demo_systems()}
+    store = ProductStore(settings.DEMO_DIR)
+    for system in demo_systems():
+        committed = store.read_system(system.id)
+        assert committed.model_dump(exclude={"provenance"}) == system.model_dump(exclude={"provenance"}), system.id
 
 
 def _system(bodies):
@@ -44,6 +72,9 @@ def _body(bid, parent=None):
 def test_hierarchy_rejects_unknown_parent_and_cycles():
     with pytest.raises(ValueError, match="unknown parent"):
         validate_hierarchy(_system([_body("a"), _body("b", "zzz")]))
+    # the orphan listed after a body that walks through it must still give the clear error, not KeyError
+    with pytest.raises(ValueError, match="unknown parent 'zzz'"):
+        validate_hierarchy(_system([_body("root"), _body("moon", "x"), _body("x", "zzz")]))
     with pytest.raises(ValueError, match="cycle"):
         validate_hierarchy(_system([_body("root"), _body("a", "b"), _body("b", "a")]))
 
@@ -55,3 +86,101 @@ def test_store_roundtrip_and_manifest(tmp_path):
     assert {s.id for s in manifest.systems} == {s.id for s in demo_systems()}
     assert manifest.synthetic  # the demo-ecliptic-orbits system is synthetic
     assert store.read_system("barnards-star").bodies[0].kind == "star"
+
+
+# --- sources: offline parsing ---------------------------------------------------
+
+
+def test_adql_string_literals_are_escaped():
+    assert sources.adql_str("Barnard's star") == "'Barnard''s star'"
+
+
+def test_tap_rows_parses_both_answer_shapes(monkeypatch):
+    answers = {
+        sources.EXOPLANET_ARCHIVE_TAP: [{"pl_name": "x b", "pl_orbper": 1.5}],
+        sources.SIMBAD_TAP: {"metadata": [{"name": "main_id"}, {"name": "plx_value"}], "data": [["* x", 12.5]]},
+    }
+    monkeypatch.setattr(sources, "_get_json", lambda url, params: (answers[url], url + "?q"))
+    rows, url = sources.tap_rows(sources.EXOPLANET_ARCHIVE_TAP, "select 1")
+    assert rows == [{"pl_name": "x b", "pl_orbper": 1.5}] and url.endswith("?q")
+    rows, _ = sources.tap_rows(sources.SIMBAD_TAP, "select 1")
+    assert rows == [{"main_id": "* x", "plx_value": 12.5}]
+
+
+def test_archive_reference_links_become_text_and_url():
+    raw = {
+        "pl_orbper_reflink": "<a refstr=X href=https://ui.adsabs.harvard.edu/abs/2025X target=ref>Gonz&aacute;lez 2024</a>"
+    }
+    clean = sources._clean_refs(raw)
+    assert clean["pl_orbper_reflink"] == "González 2024"
+    assert clean["pl_orbper_reflink_url"] == "https://ui.adsabs.harvard.edu/abs/2025X"
+
+
+# --- sources: live archives (ERRANTE_NETWORK_TESTS=1 pytest -m network) --------
+
+live = pytest.mark.skipif(os.environ.get("ERRANTE_NETWORK_TESTS") != "1", reason="set ERRANTE_NETWORK_TESTS=1")
+
+
+@pytest.mark.network
+@live
+def test_exoplanet_archive_knows_barnards_planets():
+    system = sources.exoplanet_archive_system("Barnard's star")
+    assert [p["pl_letter"] for p in system["planets"]] == ["d", "b", "c", "e"]  # ordered by period
+    assert system["source"].startswith(sources.EXOPLANET_ARCHIVE_TAP)
+
+
+@pytest.mark.network
+@live
+def test_simbad_and_gaia_answer_for_barnards_star():
+    star = sources.simbad_star("GJ 699")
+    assert star["main_id"] == "NAME Barnard's star" and star["parallax_mas"] > 540
+    gaia = sources.gaia_dr3_source(4472832130942575872)
+    assert gaia["ref_epoch"] == 2016.0 and gaia["parallax"] == pytest.approx(546.98, abs=0.1)
+
+
+def _system_by_id(system_id):
+    return next(s for s in curated_systems() if s.id == system_id)
+
+
+@pytest.mark.network
+@live
+def test_catalog_planets_match_the_exoplanet_archive():
+    """Re-run the WS7-2 check: periods, minimum masses and orbits as in pscomppars."""
+    from errante.systems.catalog import M_EARTH_KG, M_JUP_KG
+
+    archive = {p["pl_name"]: p for p in sources.exoplanet_archive_system("Barnard's star")["planets"]}
+    for body in _system_by_id("barnards-star").bodies[1:]:
+        row = archive[body.name]
+        assert body.orbit.period_days == pytest.approx(row["pl_orbper"], rel=1e-4)
+        assert body.orbit.semi_major_axis_au == pytest.approx(row["pl_orbsmax"], rel=1e-3)
+        assert body.mass_kg / M_EARTH_KG == pytest.approx(row["pl_bmasse"], rel=1e-3)
+    ab = sources.exoplanet_archive_system("eps Ind A")["planets"][0]
+    body = next(b for b in _system_by_id("epsilon-indi").bodies if b.id == "eps-indi-ab")
+    assert body.orbit.semi_major_axis_au == pytest.approx(ab["pl_orbsmax"], rel=1e-3)
+    assert body.orbit.period_days == pytest.approx(ab["pl_orbper"], rel=1e-3)
+    assert body.orbit.eccentricity == pytest.approx(ab["pl_orbeccen"], abs=1e-3)
+    assert body.mass_kg / M_JUP_KG == pytest.approx(ab["pl_bmassj"], rel=1e-2)
+
+
+@pytest.mark.network
+@live
+@pytest.mark.parametrize(
+    ("system_id", "gaia_id", "same_source"),
+    [
+        ("barnards-star", 4472832130942575872, True),
+        ("epsilon-indi", 6412595290592307840, True),
+        ("r-draconis", 1648328016354496384, True),
+        # RW Aur: centre on A, motion from B's solution (A's has RUWE 16); SIMBAD swaps their ids.
+        ("rw-aurigae", 156430817820015232, False),
+    ],
+)
+def test_catalog_positions_and_motions_match_gaia_dr3(system_id, gaia_id, same_source):
+    system = _system_by_id(system_id)
+    gaia = sources.gaia_dr3_source(gaia_id)
+    assert system.motion.epoch.startswith("J2016.0")
+    assert system.center.ra == pytest.approx(gaia["ra"], abs=1e-7)
+    assert system.center.dec == pytest.approx(gaia["dec"], abs=1e-7)
+    motion_source = gaia if same_source else sources.gaia_dr3_source(156430822114424576)
+    assert system.motion.parallax_mas == pytest.approx(motion_source["parallax"], abs=1e-3)
+    assert system.motion.pm_ra_cosdec_mas_yr == pytest.approx(motion_source["pmra"], abs=1e-3)
+    assert system.motion.pm_dec_mas_yr == pytest.approx(motion_source["pmdec"], abs=1e-3)

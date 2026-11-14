@@ -1,23 +1,23 @@
 {
   "id": "wise-0855",
   "name": "WISE 0855−0714",
-  "description": "Challenge test target: the coldest known brown dwarf, about as cold as the North Pole.",
+  "description": "Challenge test target: the coldest known brown dwarf, near the freezing point of water.",
   "tags": [
     "test-target",
     "brown-dwarf",
     "proper-motion"
   ],
   "center": {
-    "ra": 133.79513,
-    "dec": -7.24515
+    "ra": 133.780984,
+    "dec": -7.243932
   },
   "motion": {
     "distance_pc": 2.28,
     "parallax_mas": 439.0,
-    "pm_ra_cosdec_mas_yr": -8118.0,
-    "pm_dec_mas_yr": 680.0,
+    "pm_ra_cosdec_mas_yr": -8123.7,
+    "pm_dec_mas_yr": 673.2,
     "radial_velocity_km_s": null,
-    "epoch": "J2014 (approx.)"
+    "epoch": "J2016.67"
   },
   "field_id": "wise-0855",
   "bodies": [
@@ -25,7 +25,7 @@
       "id": "wise-0855",
       "name": "WISE 0855−0714",
       "kind": "brown_dwarf",
-      "description": "A free-floating ultra-cool brown dwarf with water clouds predicted in its atmosphere.",
+      "description": "A free-floating brown dwarf so cold that water could condense in its atmosphere.",
       "radius_km": 71492.0,
       "mass_kg": 9.49e+27,
       "teff_k": 285.0,
@@ -41,45 +41,61 @@
       },
       "facts": [
         {
+          "label": "Spectral type",
+          "value": "~Y4",
+          "unit": null,
+          "source": "Kirkpatrick et al. 2021, ApJS 253, 7; Luhman et al. 2024, AJ 167, 5 (JWST)",
+          "verified": true
+        },
+        {
           "label": "Temperature",
-          "value": "~285",
+          "value": "~250–300 (best fit 285)",
           "unit": "K",
-          "source": "Luhman 2014; JWST spectra",
-          "verified": false
+          "source": "Luhman et al. 2024, AJ 167, 5 (JWST); model dependent",
+          "verified": true
         },
         {
           "label": "Distance",
           "value": "~2.28",
           "unit": "pc",
-          "source": "Luhman & Esplin 2016",
-          "verified": false
-        },
-        {
-          "label": "Mass",
-          "value": "3–10",
-          "unit": "Jupiter masses",
-          "source": "literature (model dependent)",
-          "verified": false
+          "source": "Kirkpatrick et al. 2021, ApJS 253, 7 (parallax 439.0 ± 2.4 mas)",
+          "verified": true
         },
         {
           "label": "Proper motion",
-          "value": "~8.1",
+          "value": "~8.15",
           "unit": "arcsec/yr",
-          "source": "literature",
-          "verified": false
+          "source": "Kirkpatrick et al. 2021, ApJS 253, 7",
+          "verified": true
+        },
+        {
+          "label": "Mass (evolutionary models)",
+          "value": "3–10",
+          "unit": "Jupiter masses",
+          "source": "Luhman et al. 2024, AJ 167, 5 (JWST); for ages of 1–10 Gyr",
+          "verified": true
+        },
+        {
+          "label": "Radius (evolutionary models)",
+          "value": "~1",
+          "unit": "Jupiter radii",
+          "source": "Luhman et al. 2024, AJ 167, 5 (JWST) (0.10–0.11 solar radii)",
+          "verified": true
         }
       ],
       "candidate_id": null
     }
   ],
-  "representation_note": "Model representation built from catalog parameters - not an image. Sizes and distances may be exaggerated for visibility.",
+  "representation_note": "3D model drawn from published catalog and literature values (each fact shows its source) - not an image. Sizes and distances may be exaggerated for visibility.",
   "provenance": {
     "pipeline_version": "0.1.0",
-    "built_at": "2026-11-14T14:28:54.561130Z",
+    "built_at": "2026-11-14T16:18:25.188120Z",
     "synthetic": false,
     "data_releases": [],
     "notes": [
-      "Parameters typed by hand as a starting point; NOT yet verified against catalogs (tasks/WS7-3d-systems.md, WS7-2)."
+      "Values checked on 2026-11-14 against the NASA Exoplanet Archive, SIMBAD (CfA mirror), Gaia DR3, VizieR and the cited papers (tasks/WS7-3d-systems.md, WS7-2). Facts still marked 'unverified' are estimates no source states.",
+      "The challenge gives 133.79513, −7.24515: the WISE All-Sky position at epoch 2010.34 (MJD 55320.4). The object moves ~8.2 arcsec per year, so positions must be propagated to the date of each image.",
+      "The model is drawn with 5 Jupiter masses, an illustrative value inside the published 3–10 range."
     ]
   }
 }

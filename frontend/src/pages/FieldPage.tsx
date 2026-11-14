@@ -41,7 +41,7 @@ export function FieldPage({ fieldId }: { fieldId: string }) {
   const detectors = useMemo(() => [...new Set(field?.frames.map((f) => f.detector))].sort(), [field]);
   const selected = candidates.find((c) => c.id === selectedId) ?? null;
 
-  if (error) return <main className="error">Could not load field “{fieldId}”: {error}</main>;
+  if (error) return <main className="error">Could not load field "{fieldId}": {error}</main>;
   if (!field) return <main className="muted">Loading…</main>;
 
   return (

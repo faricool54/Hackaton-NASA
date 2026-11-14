@@ -4,12 +4,14 @@ import { client } from '../api/client';
 import type { SystemModel } from '../api/types';
 import { formatRaDec } from '../api/format';
 import { BodyPanel } from '../components/BodyPanel';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 import { SyntheticBadge } from '../components/SyntheticBadge';
 import { SystemViewer } from '../components/SystemViewer';
 
 export function SystemPage({ systemId, bodyId }: { systemId: string; bodyId: string | null }) {
   const [system, setSystem] = useState<SystemModel | null>(null);
-  const [fieldIds, setFieldIds] = useState<Set<string>>(new Set());
+  // Field id -> synthetic flag, from the manifest (a field from a synthetic manifest is synthetic).
+  const [fields, setFields] = useState<Map<string, boolean>>(new Map());
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -18,8 +20,8 @@ export function SystemPage({ systemId, bodyId }: { systemId: string; bodyId: str
     client.getSystem(systemId).then(setSystem).catch((e: Error) => setError(e.message));
     client
       .getManifest()
-      .then((m) => setFieldIds(new Set(m.fields.map((f) => f.id))))
-      .catch(() => setFieldIds(new Set()));
+      .then((m) => setFields(new Map(m.fields.map((f) => [f.id, f.synthetic || m.synthetic]))))
+      .catch(() => setFields(new Map()));
   }, [systemId]);
 
   const select = (id: string | null) => {
@@ -31,7 +33,9 @@ export function SystemPage({ systemId, bodyId }: { systemId: string; bodyId: str
 
   const body = bodyId ? system.bodies.find((b) => b.id === bodyId) ?? null : null;
   const unverified = system.bodies.some((b) => b.facts.some((f) => !f.verified));
-  const fieldExists = !!system.field_id && fieldIds.has(system.field_id);
+  const fieldExists = !!system.field_id && fields.has(system.field_id);
+  // Never call a synthetic field (or the field of a synthetic system) "SPHEREx images".
+  const fieldSynthetic = system.provenance.synthetic || (!!system.field_id && fields.get(system.field_id) === true);
   const m = system.motion;
 
   return (
@@ -45,7 +49,7 @@ export function SystemPage({ systemId, bodyId }: { systemId: string; bodyId: str
           3D MODEL · NOT AN IMAGE
         </span>{' '}
         {unverified && !system.provenance.synthetic && (
-          <span className="badge unverified-badge" title="Some values have not been checked against catalogs yet">
+          <span className="badge unverified-badge" title="Some values are estimates that no catalog or paper states (see the facts marked unverified)">
             UNVERIFIED VALUES
           </span>
         )}
@@ -54,12 +58,14 @@ export function SystemPage({ systemId, bodyId }: { systemId: string; bodyId: str
 
       <div className="field-layout">
         <section>
-          <SystemViewer system={system} selectedId={body?.id ?? null} onSelect={select} />
+          <ErrorBoundary what="The 3D view">
+            <SystemViewer system={system} selectedId={body?.id ?? null} onSelect={select} />
+          </ErrorBoundary>
           <p className="muted small">{system.representation_note}</p>
         </section>
         <aside>
           {body ? (
-            <BodyPanel system={system} body={body} fieldExists={fieldExists} />
+            <BodyPanel system={system} body={body} fieldExists={fieldExists} fieldSynthetic={fieldSynthetic} />
           ) : (
             <div className="panel">
               <h2>In this system</h2>
@@ -75,7 +81,7 @@ export function SystemPage({ systemId, bodyId }: { systemId: string; bodyId: str
           <div className="panel small">
             <h3>Where it is</h3>
             <p>
-              Sky position: {formatRaDec(system.center.ra, system.center.dec)}
+              Sky position{m?.epoch ? ` (${m.epoch})` : ''}: {formatRaDec(system.center.ra, system.center.dec)}
               {m?.distance_pc && (
                 <>
                   <br />
@@ -93,9 +99,15 @@ export function SystemPage({ systemId, bodyId }: { systemId: string; bodyId: str
             {/* TODO(WS7-5): "move through space" view using SpaceMotion (parallax + proper motion + RV). */}
             {system.field_id &&
               (fieldExists ? (
-                <a href={`#/field/${system.field_id}`}>See it in SPHEREx images →</a>
+                <a href={`#/field/${system.field_id}`}>
+                  {fieldSynthetic ? 'See the synthetic demo field (not SPHEREx) →' : 'See it in SPHEREx images →'}
+                </a>
               ) : (
-                <span className="muted">SPHEREx images for this target are not built yet in this dataset.</span>
+                <span className="muted">
+                  {fieldSynthetic
+                    ? 'The synthetic demo field for this system is not built yet in this dataset.'
+                    : 'SPHEREx images for this target are not built yet in this dataset.'}
+                </span>
               ))}
             {system.provenance.notes.length > 0 && (
               <ul className="notes">
