@@ -6,12 +6,20 @@
 ## Qué estamos construyendo
 
 **Errante** (nombre provisorio) — NASA Space Apps Challenge 2026, reto **"Planet X and SPHEREx"**.
-Una herramienta web pública donde se ingresan **RA/Dec** y se reproduce una secuencia de imágenes reales
-de **NASA SPHEREx** de la misma región en distintas fechas. Se valida con **Barnard's Star, Epsilon Indi B,
-WISE 0855, RW Aurigae y R Draconis**, incluyendo movimiento y cambios de brillo.
-La detección automática y el hipotético Planeta X son extensiones del equipo; no bloquean el visor.
-WS7 agrega una galería **3D opcional (P2)**: modelos ilustrativos, no imágenes SPHEREx ni validaciones R05.
-La versión importada tiene parámetros introducidos a mano, todavía sin verificar; ver `docs/VISION_3D.md`.
+
+**Visión acordada por el equipo (14/11/2026): leé [`docs/VISION.md`](docs/VISION.md) antes de trabajar.**
+- Un **mapa interactivo del cielo real de SPHEREx** (Aladin Lite + HiPS de IRSA) con búsqueda por nombre o RA/Dec.
+- Al hacer click en un punto se abre un panel con tres vistas:
+  - **las imágenes reales de SPHEREx de ese punto en distintas fechas, como video**: el núcleo obligatorio del reto;
+  - su **espectro**;
+  - un **modelo 3D realista construido a partir de esas mediciones**. Nada inventado: lo que no se midió no se
+    dibuja, y los planetas aparecen solo si están confirmados en catálogo.
+- Se valida con **Barnard's Star, Epsilon Indi B, WISE 0855, RW Aurigae y R Draconis**, incluyendo movimiento y
+  cambios de brillo.
+- La detección automática y el hipotético Planeta X son extensiones del equipo; no bloquean el recorrido
+  mapa → click → video.
+- El 3D de WS7 deja de ser una galería ilustrativa (P2) y pasa a ser parte de la visión (P1). Sus presets actuales,
+  con parámetros cargados a mano y texturas procedurales, tienen que migrar a la regla de `docs/VISION.md`.
 
 Contexto obligatorio: `docs/CHALLENGE.md` (el reto), `docs/ARCHITECTURE.md` (cómo encaja todo),
 `docs/CONTRACT.md` (formato de datos), `docs/DATA.md` (hechos verificados sobre los datos SPHEREx).
@@ -26,8 +34,12 @@ Revisión interna con evidencia: `docs/submission/JUDGING_REVIEW.md`; no inventa
 **15/11/2026 23:59 ART (UTC-3)**; objetivo interno de envío confirmado: **21:00 ART**. No usar H+40:
 la ventana del PDF es de 38 h 59 min. El horario de evaluación local se confirma aparte.
 
-**Prioridades:** P0 = recorrido obligatorio y publicación; P1 = consideraciones opcionales del enunciado;
-P2 = ampliaciones propias. No iniciar detección/Planeta X dejando bloqueado RA/Dec → imágenes → blink.
+**Prioridades:**
+- **P0:** mapa + búsqueda + click → video SPHEREx real, los cinco blancos validados y la publicación.
+- **P1:** espectro, 3D desde mediciones y las consideraciones opcionales del enunciado.
+- **P2:** detección automática y Planeta X.
+
+No iniciar P1/P2 dejando bloqueado el P0.
 
 ## Cómo trabajamos sin pisarnos (obligatorio)
 
