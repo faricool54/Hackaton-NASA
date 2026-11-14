@@ -37,6 +37,9 @@ sus carpetas; una rama `wsN/...` por tarea; un worktree por agente; nunca `git a
 (incluye la guardia de ownership `scripts/owners.py`) antes de cada push. La tabla detallada de dueños está en
 `docs/COLLABORATION.md` §1 y la aplica `scripts/owners.py`.
 
+Plan vigente de pendientes y dependencias: [`docs/PARALLEL_PLAN.md`](docs/PARALLEL_PLAN.md).
+WS4 reservado por el usuario de esta sesión con Codex; otros responsables por confirmar en TEAM.md.
+
 ## Mapa del repo y dueños
 
 | Ruta | Qué es | Dueño |
@@ -107,7 +110,8 @@ sus carpetas; una rama `wsN/...` por tarea; un worktree por agente; nunca `git a
 - Tests que usan internet: `@pytest.mark.network` (se saltean salvo `ERRANTE_NETWORK_TESTS=1`).
 - TypeScript estricto, React con componentes funcionales, sin librerías nuevas salvo que aporten mucho
   (justificalo en el PR).
-- Coordenadas: ICRS en grados. Tiempos: MJD (`MJD-OBS`). Píxeles en el contrato: **convención PNG**
+- Coordenadas: ICRS en grados. Tiempos: MJD medio (`MJD-AVG`; fallback en `docs/DATA.md` §2;
+  `MJD-OBS` es inicio). Píxeles en el contrato: **convención PNG**
   (origen arriba-izquierda, y hacia abajo, norte arriba, este a la izquierda).
 - Commits: `wsN: verbo + qué` (ej. `ws1: implement TAP search with disk cache`).
 

@@ -1,5 +1,8 @@
 # Cómo trabajamos en paralelo sin pisarnos
 
+Plan de ejecución actual: [PARALLEL_PLAN.md](PARALLEL_PLAN.md) (pendientes, entregables y dependencias).
+WS4 está reservado por el usuario de esta sesión con Codex; ver [TEAM.md](TEAM.md).
+
 Somos 5 personas, cada una con uno o más agentes (Claude Code / Codex), todos sobre el mismo repo y con
 ~36 h. La idea es que **los conflictos no puedan pasar por diseño**, y que cuando pasen sean chicos y obvios.
 
@@ -118,6 +121,9 @@ gh pr create --fill --base main          # título: "ws2: add per-season coadd"
 - [ ] Commits con mensaje `wsN: ...` (+ trailer `Co-Authored-By:` si los hizo un agente).
 
 ## 7. Integrar ramas grandes que ya tocaron archivos de otros (hoy: WS7 y `ws4/integrate-challenge-guides`)
+
+**Registro histórico: integración completada.** Los PRs #1, #2 y #3 ya están en `main` (`859ae5e`).
+No repetir estos pasos: las tareas nuevas parten de `origin/main` y siguen el plan enlazado arriba.
 
 Antes de estas reglas se subieron dos ramas que tocan contrato, frontend, backend y docs de coordinación:
 `claude/ecstatic-turing-rcu8jq` (WS7, sistemas 3D) y `ws4/integrate-challenge-guides` (rocco, construida **encima**
