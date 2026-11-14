@@ -62,6 +62,19 @@
 - PSF ~1–1.2 px (7.5″): fuentes casi sin resolver; aperturas chicas, centroides con cuidado.
 - Cutouts pueden venir no cuadrados con NaN en bordes.
 
+## Hechos verificados (2026-11-14) — leelos antes de implementar
+
+- **El video tiene que ser por temporada × detector (coadds), no por exposición:** cada exposición mide otra λ
+  (filtro lineal variable) y la misma estrella cambia de brillo sin ser variable. Ver [`docs/SCIENCE.md`](../docs/SCIENCE.md) §0.4.
+- **Los objetivos se mueven 1–2 px en toda la línea de base** (Barnard 1,86 · WISE 0855 1,36 · ε Ind B 1,10):
+  hacen falta resta de temporadas (dipolo +/−), stretch común por detector y zoom en la UI.
+- **`build.py`**: (1) corta en 40 frames ordenados por tiempo (todo de la 1.ª temporada) → elegir por temporada ×
+  detector; (2) `frame_id` sale del nombre del archivo de caché (un hash) → derivarlo de `obs_id` + detector.
+  (Ya resuelto en `main`: el campo se escribe antes del análisis, que es opcional con `--analyze`.)
+- **Flags:** `SOURCE` (bit 21) marca estrellas, no es "malo"; `OUTLIER`/`TRANSIENT` pueden caer justo sobre el
+  objeto que se mueve. No enmascarar los píxeles mostrados; exportar fracciones de flags como metadata.
+- Restar `ZODI` (`IMAGE − ZODI`) y pesar coadds con `1/VARIANCE`.
+
 ## Prompt de arranque
 
 > Sos el agente del workstream WS2 (imágenes y detección) del repo Errante para NASA Space Apps 2026. Leé
@@ -69,4 +82,4 @@
 > Trabajá SOLO en `pipeline/errante/imaging/`, `pipeline/errante/detect/` y sus tests. Leé también
 > `docs/REQUIREMENTS.md` y `docs/VALIDATION.md`. Empezá por WS2-1 y WS2-2: cerrar un campo real visible
 > sin análisis automático. Después WS2-8 y las consideraciones de comparación. Librerías pesadas se importan dentro de las funciones
-> (extra `science`). Corré `make check` y mostrame el diff antes de commitear.
+> (extra `science`). Corré `python scripts/dev.py check` y mostrame el diff antes de commitear.

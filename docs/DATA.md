@@ -21,7 +21,7 @@ corregilo en un PR (`ws1: docs/DATA.md ...`). Etiquetas: ✅ verificado sobre da
 - Layout de imágenes: `<release>/level2/<semana>/<version-pipeline>/<detector>/<archivo>.fits`
   ej. `dr1/level2/2025W19_2B/l2b-v27-2026-198/1/level2_2025W19_2B_0007_1D1_spx_l2b-v27-2026-198.fits`
 - Nombre: `level2_<OBSID>D<detector>_spx_<version>.fits` (parseado en `errante.data.s3.parse_key`).
-- Tamaño: **~66 MB por archivo** (DR1). Para un campo chico **no descargues archivos completos**: usá cutouts
+- Tamaño: **~61–66 MB por archivo** (DR1, ✅ `Content-Length` 2026-11-14). Para un campo chico **no descargues archivos completos**: usá cutouts
   (§3) o lecturas por rango HTTP (los headers se pueden leer con `Range:` sin bajar todo).
 - **S3 no permite buscar por posición en el cielo** → para saber qué archivos cubren un punto, usá IRSA (§3).
 
@@ -37,7 +37,8 @@ corregilo en un PR (`ws1: docs/DATA.md ...`). Etiquetas: ✅ verificado sobre da
 | 5 | `EPSF` | PSF efectiva (tabla). En QR viejos se llamaba `PSF` |
 | 6 | `WCS-WAVE` | tabla de búsqueda de longitud de onda por píxel: grilla **9×9** en DR1 (11×11 en QR según docs) |
 
-Header de `IMAGE` (claves útiles): `MJD-OBS` (tiempo medio de la exposición — **usar este**), `DATE-OBS`,
+Header de `IMAGE` (claves útiles): `MJD-OBS` (✅ **inicio** de la exposición, no el medio), `MJD-AVG` (✅ **mitad** de la exposición — **usar este**;
+fallback `MJD-OBS + XPOSURE/2/86400`), `MJD-END`, `DATE-OBS`,
 `DETECTOR` (1–3 SWIR, 4–6 MWIR), `OBSID`, `BUNIT`, `PSF_FWHM` (ej. 7.53″ en D1), WCS `RA---TAN-SIP`
 (usar astropy `WCS(header)`, incluye distorsión SIP), `OMEGA_MEDIAN` (ángulo sólido del píxel ≈ 37.9 arcsec²
 → píxel ≈ 6.15″), posición de la nave `X_SC/Y_SC/Z_SC` [km, geocéntrico] y velocidades `VX_SC…`,
@@ -62,12 +63,42 @@ archivo inspeccionado). ⚠️ `OUTLIER`/`TRANSIENT` pueden dispararse **justo s
 (no está donde el modelo del cielo estático lo espera): no los enmascares a ciegas para buscar movers.
 Implementado en `errante.imaging.flags` (`DEFAULT_BAD`, `MAYBE_MOVER`, `bits_from_header`).
 
-## 3. Buscar y recortar con IRSA 📄 (documentación accesible; consultas/descargas pendientes de verificar)
+## 3. Buscar y recortar con IRSA (✅ verificado en vivo el 2026-11-14: ver §3.0)
 
 Fuentes: [SPHEREx Data Access](https://caltech-ipac.github.io/spherex-archive-documentation/spherex-data-access/),
 [tutorial intro](https://caltech-ipac.github.io/irsa-tutorials/spherex-intro/),
 [tutorial cutouts](https://caltech-ipac.github.io/irsa-tutorials/spherex-cutouts/),
 [parámetros de cutout IBE](https://irsa.ipac.caltech.edu/ibe/cutouts.html).
+
+### 3.0 Verificado en vivo (2026-11-14) ✅
+
+Consultas reales con `curl`/Python el 2026-11-14. Estos hechos **corrigen** lo que diga el resto de esta sección.
+
+| Tema | Hecho verificado |
+|---|---|
+| CORS | IRSA (TAP, SIA, archivos IBE, cutouts, datalink) **no** envía `Access-Control-Allow-Origin` → el navegador no puede consultarlo: hace falta backend/proxy. El bucket S3 **sí** (ACAO `*`, `Range` permitido) y el HiPS SPHEREx de IRSA también. |
+| Colecciones | `spherex_dr1` (945 725 frames), `spherex_dr1_deep` (233 681), `spherex_qr3` (362 124), `spherex_qr3_deep` (86 700). **QR2 ya no está indexado** (sigue en S3). Una colección inexistente devuelve un VOTable vacío **sin error**: no hardcodear nombres sin probarlos. |
+| SIA2 | 1–4 s por consulta. Pedir **VOTable**: el CSV viene **roto** (la columna `cloud_access` lleva JSON sin comillas). Trae `access_url`, `cloud_access.aws.key` (key S3), `s_region`, `t_min`/`t_max`, `em_min`/`em_max`. `MAXREC` y `TIME` funcionan. |
+| TAP | 8–19 s. Tablas: `spherex.obscore`, `observation`, `plane`, `artifact`, `provenance_input`. La ADQL de `errante.data.irsa` (plane JOIN artifact + `CONTAINS`) **funciona**. JOIN obscore+plane falla (`st_covers`). |
+| Cutouts IBE | Devuelven los 7 HDUs con la tabla **EPSF entera**: **~4 MB mínimo** aunque pidas 5′, 4–15 s cada uno. Sin solape → **HTTP 422** (no 500). 503 transitorios: reintentar. |
+| Lectura por Range en S3 | `IMAGE` es float32 **sin comprimir**: se leen solo las filas del recorte (5′ ≈ 0,4 MB en ~1 s; header por Range + `astropy.io.fits.Header.fromstring`). `FLAGS` está comprimido RICE_1 con tiles de 1 fila (hay que leer el heap). Usar `requests` con `Range`; la receta con fsspec no está probada. |
+| Rutas | La versión del pipeline (`l2b-v27-2026-NNN`) **cambia por semana y detector**: nunca construir rutas a mano, usar la key/URI que devuelve la búsqueda. `irsa_uri` → key S3 = quitar `ibe/data/spherex/` ✅. |
+| WCS-WAVE | La grilla depende del **detector**: D1 9×9, D2 11×11, D3 9×14, D4 13×20, D5 11×11, D6 9×9 → leer `TDIM` del archivo, no suponerla cuadrada. |
+| Contaminación | Headers con `HE_AIRGLOW_CONT`, `AURORA_CONT`, `SHUTTLE_GLOW_CONT`, `L2DQAFLG` (también en cutouts). |
+| CDS Estrasburgo | Degradado desde el 2026-11-09 (incidente de seguridad): SIMBAD, VizieR, HiPS de alasky y la URL "latest" de Aladin dan 404. Usar espejos: Sesame/VizieR de **CfA** (`vizier.cfa.harvard.edu`, con CORS), HiPS de **IRSA** (`irsa.ipac.caltech.edu/data/hips/CDS/...`) o **ESA** (`skies.esac.esa.int`), Aladin Lite **3.8.2 desde jsdelivr**. |
+
+**Cobertura de los 5 objetivos** (SIA2 + TAP; temporadas = bloques separados > 30 días):
+
+| Objetivo (centro de la consulta TAP) | Frames: dr1 / qr3 / deep | 🧮 Visitas (> 6 h) | 🧮 Temporadas: MJD (n) | Fechas |
+|---|---|---|---|---|
+| Barnard (269.4463, 4.7665) | **358**: 239 / 119 / 0 | 48 | 60903–60949 (118) · 61110–61165 (121) · 61269–61306 (119) | 2025-08-15 → 2026-09-22 |
+| Eps Ind B (331.0964, −56.8006) | **460**: 340 / 120 / 0 | 74 | 60790–60836 (120) · 60947–60992 (147) · 61149–61164 (73) · 61305–61315 (120) | 2025-04-24 → 2026-10-02 |
+| WISE 0855 (133.7600, −7.2422) | **258**: 258 / **0** / 0 | 37 | 60801–60802 (30) · 60980–61022 (128) · 61151–61174 (100) | 2025-05-05 → 2026-05-14 |
+| RW Aur (76.9565, 30.4014) | **335**: 226 / 109 / 0 | 48 | 60919–60938 (112) · 61092–61111 (114) · 61285–61300 (109) | 2025-09-01 → 2026-09-16 |
+| R Dra (248.1676, 66.7550) | **2493**: 413 / 126 / 1225 + 729 | 249 | 60790–60879 (240) · 60916–61310 casi continuo (2253) | 2025-04-24 → 2026-09-27 |
+
+Centros propagados, movimiento esperado (1–2 px en total) y método para variables: [`SCIENCE.md`](SCIENCE.md) §0.
+Campos profundos: el NEP tiene ~29 400 frames (dr1 + deep + qr3 + qr3_deep): nunca en vivo.
 
 - **TAP** (ADQL, sync, CSV): `https://irsa.ipac.caltech.edu/TAP/sync?REQUEST=doQuery&LANG=ADQL&FORMAT=csv&QUERY=...`
   Tablas documentadas: `spherex.plane` (`planeid`, `time_bounds_lower` [MJD], `poly`, `energy_bandpassname` =
@@ -75,11 +106,11 @@ Fuentes: [SPHEREx Data Access](https://caltech-ipac.github.io/spherex-archive-do
   `errante.data.irsa.ADQL_FRAMES_AT_POSITION` (`CONTAINS(POINT('ICRS', ra, dec), p.poly)`).
   `uri` es relativo (`ibe/data/spherex/<release>/level2/...`): anteponer `https://irsa.ipac.caltech.edu/`.
 - **SIA2**: `https://irsa.ipac.caltech.edu/SIA?COLLECTION=spherex_qr3&POS=circle+<ra>+<dec>+<radio>`;
-  colecciones documentadas `spherex_qr2`, `spherex_qr2_deep`, `spherex_qr3`, `spherex_qr3_deep`.
-  ❓ Nombres para DR1 — **verificar** (WS1, primera tarea).
+  colecciones vigentes ✅ `spherex_dr1`, `spherex_dr1_deep`, `spherex_qr3`, `spherex_qr3_deep` (QR2 ya no
+  indexado). Pedir `RESPONSEFORMAT=VOTABLE` (el CSV viene roto, §3.0).
 - **Cutout server-side**: `<url-del-fits>?center=<ra>,<dec>&size=<s>` (grados por defecto; `size=5arcmin` válido).
   Devuelve el mismo MEF recortado (no gzip), en **orientación nativa** (no norte-arriba → reproyectar), puede ser
-  **no cuadrado** con NaN en bordes; sin superposición → HTTP 500.
+  **no cuadrado** con NaN en bordes; sin superposición → **HTTP 422** ✅; pesa **~4 MB** como mínimo (EPSF, §3.0).
 - **Python**: `astroquery.ipac.irsa.Irsa.query_tap(...)`, `pyvo`. GUI: https://irsa.ipac.caltech.edu/applications/spherex
 - Rendimiento reportado por otros: TAP 3–20 s por consulta; cutout 1–15 s; IRSA limita la concurrencia
   (usar ≤ 6–8 hilos, reintentos con backoff, no paralelizar consultas TAP).
@@ -110,14 +141,18 @@ La guía muestra WCS espectral `key="W"` con `sip = None`; comprobarlo sobre nue
 | JPL SBIdent | https://ssd-api.jpl.nasa.gov/sb_ident.api | objetos conocidos en un campo/época (soporta observador = nave) |
 | JPL Horizons | https://ssd.jpl.nasa.gov/api/horizons.api | efemérides de un objeto |
 | IMCCE SkyBoT | https://ssp.imcce.fr/webservices/skybot/api/conesearch.php | cone search por época (JSON, CORS) |
-| SIMBAD | https://simbad.cds.unistra.fr/ | estrellas/enanas marrones con movimiento propio |
+| SIMBAD | https://simbad.cds.unistra.fr/ | estrellas/enanas marrones con movimiento propio (⚠ CDS degradado: usar Sesame de CfA) |
+| Sesame / VizieR (CfA) ✅ | https://vizier.cfa.harvard.edu/viz-bin/nph-sesame/-oxp/SNV?NOMBRE | resolver nombres con pm; Gaia DR3 `I/355/gaiadr3` (con CORS) |
 
 ## 6. Abierto ❓
 
-- Respuesta real de las colecciones DR1 documentadas (§3) y tablas TAP; si `irsa_uri` ↔ `s3_key` es solo quitar `ibe/data/spherex/`.
+- ✅ Resuelto: colecciones y tablas reales, `irsa_uri` ↔ key S3 (§3.0).
 - Tamaño máximo de cutout y límites de tasa.
 - Política de cita/redistribución para publicar PNGs derivados (incluir créditos siempre).
-- ¿Hay HiPS de SPHEREx (imagen, no cubo) usable directo en Aladin Lite?
+- HiPS: ✅ IRSA publica el cubo SPHEREx DR1 (102 canales, orden 5, con CORS); los HiPS QR2 de CDS dan 404 por el
+  incidente. ❓ Que Aladin Lite renderice ese cubo no está probado.
+- ❓ WISE 0855 visible en coadds D5/D6; ❓ saturación de Barnard/R Dra (`OVERFLOW`/`NONLINEAR`); ❓ throughput a S3
+  desde el host de deploy.
 
 ## 7. Comprobación de los enlaces del enunciado (2026-11-14)
 

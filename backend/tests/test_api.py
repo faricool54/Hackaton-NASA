@@ -7,8 +7,10 @@ from errante_api.settings import Settings
 
 
 @pytest.fixture(scope="module")
-def client():
-    return TestClient(create_app(Settings(data_dir=core.DEMO_DIR)))
+def client(tmp_path_factory):
+    config = Settings(data_dir=core.DEMO_DIR, live_cache_dir=tmp_path_factory.mktemp("api-cache"))
+    with TestClient(create_app(config)) as client:
+        yield client
 
 
 def test_health(client):
@@ -34,9 +36,13 @@ def test_unknown_field_is_404(client):
     assert client.get("/api/fields/nope").status_code == 404
 
 
-def test_live_endpoints_report_not_implemented_cleanly(client):
+def test_live_endpoints_report_not_implemented_cleanly(client, monkeypatch):
+    def unavailable(*args, **kwargs):
+        raise NotImplementedError("test stub")
+
+    monkeypatch.setattr("errante.data.irsa.search_frames", unavailable)
     r = client.get("/api/search", params={"ra": 10, "dec": 10})
-    assert r.status_code in (200, 501, 502, 504)
+    assert r.status_code == 501
 
 
 def test_systems_roundtrip(client):

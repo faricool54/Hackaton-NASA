@@ -1,7 +1,7 @@
 # Contrato de datos (pipeline ⇄ backend ⇄ frontend)
 
 Fuente de verdad: [`pipeline/errante/models.py`](../pipeline/errante/models.py).
-Generado: [`shared/schema/*.schema.json`](../shared/schema/) (`make schema`). Espejo TS:
+Generado: [`shared/schema/*.schema.json`](../shared/schema/) (`python scripts/dev.py schema`). Espejo TS:
 [`frontend/src/api/types.ts`](../frontend/src/api/types.ts). Versión actual: **0.2.1** (0.2.0 agregó los sistemas 3D; 0.2.1 agregó `Orbit.quality`/`note`; ambos aditivos. **0.3.0** queda reservado para el contrato de datos reales de WS3).
 Ejemplos reales del formato: [`data/demo/`](../data/demo/).
 
@@ -73,6 +73,6 @@ La URL propuesta de exploración está en ARCHITECTURE.md; la restauración de c
 ## Cómo cambiar el contrato
 
 1. Rama `contract/<cambio>`; editar `models.py` (preferir campos **opcionales nuevos**).
-2. `make schema` y actualizar `frontend/src/api/types.ts` en el mismo PR.
-3. Si el cambio rompe compatibilidad: subir la versión mayor de `SCHEMA_VERSION` y regenerar `data/demo` (`make demo`).
+2. `python scripts/dev.py schema` y actualizar `frontend/src/api/types.ts` en el mismo PR.
+3. Si el cambio rompe compatibilidad: subir la versión mayor de `SCHEMA_VERSION` y regenerar `data/demo` (`python scripts/dev.py demo`).
 4. PR titulado `contract: ...`, avisar en el chat a WS4 y WS5. CI falla si el schema commiteado quedó viejo.

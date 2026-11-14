@@ -1,0 +1,10 @@
+{
+  "updated_on": "2026-11-14",
+  "tool": "OpenAI Codex",
+  "scope": "WS4 backend validation, bounded archive execution/cache, tests, batch publication, deployment configuration and job-contract proposal",
+  "affected_paths": ["backend/", "scripts/build_fields.py", "scripts/dev.py", "Makefile", ".github/workflows/ci.yml", ".github/workflows/pages.yml", "tasks/WS4-backend.md"],
+  "generated_media": [],
+  "real_target_validation": false,
+  "human_review": "pending",
+  "repository_disclosure": "AI_USAGE.md"
+}

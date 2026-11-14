@@ -1,5 +1,8 @@
 # Tareas por workstream
 
+**Para arrancar en paralelo:** leer [plan compartido y dependencias](../docs/PARALLEL_PLAN.md).
+**WS4 está reservado por rpccp (rocco) con Codex**; los otros responsables deben confirmar su reserva.
+
 Cada archivo es **autocontenido**: objetivo, rutas que te pertenecen, qué recibís y qué entregás, tareas con
 criterio de aceptación y un **prompt de arranque** para pegarle a tu agente (Claude Code o Codex).
 
@@ -34,4 +37,4 @@ Orden de integración: I1 imágenes reales sin detección → I2 coordenadas y p
 Plantilla para pedirle una tarea concreta al agente:
 
 > Leé `AGENTS.md`, `docs/CONTRACT.md` y `tasks/WSx-....md`. Implementá la tarea **WSx-N** respetando las rutas
-> de mi workstream. Agregá tests, corré `make check`, y mostrame el diff y cómo lo probaste antes de commitear.
+> de mi workstream. Agregá tests, corré `python scripts/dev.py check`, y mostrame el diff y cómo lo probaste antes de commitear.

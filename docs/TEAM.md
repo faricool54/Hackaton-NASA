@@ -2,6 +2,10 @@
 
 Completar en el kickoff. Una persona por fila; cada una con su(s) agente(s).
 
+**Plan vigente:** [trabajo paralelo, entregables y dependencias](PARALLEL_PLAN.md).
+Reserva confirmada el 14/11/2026: **rpccp** (rocco) con Codex toma **WS4**.
+Las otras filas siguen pendientes de confirmación; no representan reservas automáticas.
+
 **Local Event confirmado por el usuario (14/11/2026): Universidad de Palermo, Buenos Aires, Argentina.**
 Zona: America/Argentina/Buenos_Aires (ART, UTC-3). Cierre según PDF: 15/11/2026 23:59 ART;
 objetivo interno: 21:00 ART. Horario de evaluación local y aceptación de integrantes: pendientes.
@@ -15,7 +19,7 @@ no se agregan personas después. Workstreams y agentes no son integrantes adicio
 | WS1 | Acceso a datos SPHEREx | _nombre_ | Claude / Codex | Python, APIs, paciencia con servicios lentos |
 | WS2 | Grilla, render y comparación; detección opcional | _nombre_ | | Python + numpy, procesamiento de imágenes |
 | WS3 | Cinco blancos, astrometría, variables, espectros y contexto | _nombre_ | | el/la más "astro" del grupo |
-| WS4 | Backend + integración + CI | _nombre_ | | backend, devops |
+| WS4 | Backend + integración + CI | rpccp (rocco) | Codex | backend, devops |
 | WS5 | Frontend | _nombre_ | | React/TS, ojo para UX |
 | WS6 | Producto, narrativa, deploy, entrega | _nombre_ | | comunicación, diseño, video |
 | WS7 | Galería 3D opcional, modelos y procedencia | _nombre/rol compartido_ | | gráficos y datos; P2 después del recorrido obligatorio |
@@ -35,7 +39,8 @@ se mantiene el máximo de seis miembros registrados. La galería 3D no exige otr
   no necesita candidatos automáticos. Para evidencia real necesita cobertura de WS1 y grilla/render de WS2.
 - WS4/WS5 pueden desarrollar con el demo; el cierre de R03 requiere integrar solicitud RA/Dec → job → campo.
   El backend de construcción es P0; el frontend estático solo sirve campos curados.
-- WS6 necesita la URL de deploy (WS4) y capturas reales (WS5) hacia H+24.
+- WS6 prepara guion y referencias desde ahora; necesita la URL de deploy (WS4) y capturas reales (WS5)
+  para cerrar la demo antes del objetivo interno de envío. Ver los puntos de encuentro del plan compartido.
 - WS6 lidera demo obligatoria (<= 30 s o <= 7 slides), formulario en inglés, inventario de fuentes/SI,
   revisión de medios/equipo y envío confirmado. El PDF define una ventana menor que 48 h: ver WORKFLOW.
 - WS3/WS5/WS6 revisan evidencia de Impact/Creativity/Validity/Relevance/Presentation con JUDGING_REVIEW.md.

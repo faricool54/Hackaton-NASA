@@ -28,24 +28,17 @@ No discovery, real-object recovery, real spectrum or sensitivity result is claim
 ```bash
 git clone https://github.com/faricool54/Hackaton-NASA
 cd Hackaton-NASA
-make setup
-make web
+python scripts/dev.py setup
+python scripts/dev.py web
 ```
 
 The frontend opens at `http://localhost:5173` and uses synthetic products without a backend.
-Optionally run `make api` and use `?mode=api`; API documentation is at `http://localhost:8000/docs`.
+Optionally run `python scripts/dev.py api` and use `?mode=api`; API documentation is at `http://localhost:8000/docs`.
 The current static mode serves prebuilt fields and does not implement arbitrary-coordinate exploration.
 
-On Windows without Make, from the repository root:
-
-```powershell
-py -m venv .venv
-.venv/Scripts/python.exe -m pip install -e "pipeline[dev]" -e "backend[dev]"
-npm --prefix frontend ci
-npm --prefix frontend run dev
-# In a separate terminal, from the repository root:
-.venv/Scripts/python.exe -m uvicorn errante_api.main:app --reload --port 8000
-```
+`scripts/dev.py` works the same on Windows, macOS and Linux (on Windows you can type `py` instead of `python`;
+`make <task>` still works where `make` exists). Run `python scripts/dev.py` to list all tasks.
+Team rules for working in parallel without conflicts: [`docs/COLLABORATION.md`](docs/COLLABORATION.md).
 
 ## Pipeline and checks
 
@@ -56,10 +49,10 @@ errante build barnards-star                 # real image build: still blocked by
 errante build barnards-star --analyze       # opt into optional analysis after saving image products
 errante systems                            # write illustrative 3D models; currently unverified parameters
 errante validate --dir data/demo
-make check
+python scripts/dev.py check
 ```
 
-Python 3.11+ is required. Heavy astronomy libraries are in the optional `science` extra. Use `make
+Python 3.11+ is required. Heavy astronomy libraries are in the optional `science` extra. Use `python scripts/dev.py
 setup-science` for work on real-data processing. Downloads and FITS files belong in ignored caches.
 
 ## Project structure
