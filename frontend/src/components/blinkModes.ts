@@ -1,5 +1,5 @@
 // Image modes of the blink viewer (WS5): single SPHEREx exposures in grayscale, or the
-// false-color season composites of contract 0.3.0 (Field.composites, built by WS2).
+// false-color season composites of contract 0.2.2 (Field.composites, built by WS2).
 import type { Composite, CompositeChannel, CompositeColor, CompositeMode } from '../api/types';
 import { formatMjd } from '../api/format';
 
@@ -22,13 +22,27 @@ const UNAVAILABLE: Record<CompositeMode, string> = {
   jhk: 'no season of this field has exposures near all of J, H and Ks',
 };
 
-/** Composites of one mode, in season order. Products older than contract 0.3.0 have none. */
+/** Composites of one mode, in season order. Products older than contract 0.2.2 have none. */
 export function compositesForMode(composites: Composite[] | undefined, mode: CompositeMode): Composite[] {
   return (composites ?? []).filter((c) => c.mode === mode).sort((a, b) => a.season - b.season || a.mjd_min - b.mjd_min);
 }
 
 export function isModeAvailable(mode: BlinkMode, composites: Composite[] | undefined): boolean {
   return mode === 'bw' || compositesForMode(composites, mode).length > 0;
+}
+
+/** The mode actually shown: a mode this field has no composites for falls back to B/W. */
+export function effectiveMode(mode: BlinkMode, composites: Composite[] | undefined): BlinkMode {
+  return isModeAvailable(mode, composites) ? mode : 'bw';
+}
+
+/** Visible hint under the mode buttons: what the shown mode is, then why any mode is unavailable. */
+export function modeHints(mode: BlinkMode, composites: Composite[] | undefined): string[] {
+  const shown = effectiveMode(mode, composites);
+  const missing = BLINK_MODES.filter(({ mode: m }) => !isModeAvailable(m, composites)).map(
+    ({ mode: m, label }) => `${label}: ${modeTitle(m, composites).replace(/^Not available: /, 'not available, ')}.`,
+  );
+  return [`${modeTitle(shown, composites)}.`, ...missing];
 }
 
 /** Tooltip of a mode button. For a disabled mode it says why there is nothing to show. */

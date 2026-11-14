@@ -263,6 +263,7 @@ figure { margin: 8px 0; }
 .segmented button[aria-pressed='true'] { color: #07111c; background: linear-gradient(145deg, #a6e0ff, #68baff); }
 .segmented button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .segmented button:disabled, .overlay-toggle:disabled, .toolbar select:disabled { opacity: 0.4; cursor: not-allowed; }
+.mode-hint { margin: -4px 0 10px; line-height: 1.45; }
 @media (max-width: 520px) {
   .scrubber-wrap { padding: 11px 12px 6px; }
   .blink-playback { padding: 10px 12px 12px; }

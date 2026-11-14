@@ -35,8 +35,10 @@ export function BlinkViewer({ field, frames, composites, imageUrl, candidates, k
 
   const stack: (Frame | Composite)[] = composites ?? frames;
   const n = stack.length;
-  const current: Frame | undefined = composites ? undefined : frames[Math.min(index, n - 1)];
-  const composite = composites?.[Math.min(index, n - 1)];
+  // The stack can shrink before the reset effect runs (new field, filter or mode): never index past it.
+  const shown = Math.min(index, Math.max(n - 1, 0));
+  const current: Frame | undefined = composites ? undefined : frames[shown];
+  const composite = composites?.[shown];
 
   useEffect(() => setIndex(0), [frames, composites]);
 
@@ -89,7 +91,7 @@ export function BlinkViewer({ field, frames, composites, imageUrl, candidates, k
     [seekToPointer],
   );
 
-  const fillPct = n > 1 ? (index / (n - 1)) * 100 : 0;
+  const fillPct = n > 1 ? (shown / (n - 1)) * 100 : 0;
 
   // tick positions (percent along track)
   const ticks = useMemo(
@@ -99,6 +101,7 @@ export function BlinkViewer({ field, frames, composites, imageUrl, candidates, k
 
   const selected = useMemo(() => candidates.find((c) => c.id === selectedId) ?? null, [candidates, selectedId]);
 
+  if (composites && !composite) return <div className="panel">No false-color composites for this mode.</div>;
   if (!current && !composite) return <div className="panel">This field has no frames.</div>;
   const { width_px: w, height_px: h } = field.grid;
   const r = Math.max(2.5, w / 40);
@@ -113,7 +116,7 @@ export function BlinkViewer({ field, frames, composites, imageUrl, candidates, k
             src={imageUrl(f.image)}
             alt={composites ? `False-color infrared composite ${f.id}` : `SPHEREx frame ${f.id}`}
             className="blink-frame"
-            style={{ visibility: i === index ? 'visible' : 'hidden' }}
+            style={{ visibility: i === shown ? 'visible' : 'hidden' }}
             draggable={false}
           />
         ))}
@@ -181,7 +184,7 @@ export function BlinkViewer({ field, frames, composites, imageUrl, candidates, k
       <div className="scrubber-wrap">
         <div className="scrubber-meta">
           <span className="scrubber-date">{stepDate}</span>
-          <span className="scrubber-count">{composite ? 'SEASON' : 'FRAME'} {String(index + 1).padStart(2, '0')} <span>/ {String(n).padStart(2, '0')}</span></span>
+          <span className="scrubber-count">{composite ? 'SEASON' : 'FRAME'} {String(shown + 1).padStart(2, '0')} <span>/ {String(n).padStart(2, '0')}</span></span>
         </div>
         <div
           className="scrubber-track-wrap"
@@ -192,7 +195,7 @@ export function BlinkViewer({ field, frames, composites, imageUrl, candidates, k
           aria-label={composite ? 'Season' : 'Frame'}
           aria-valuemin={0}
           aria-valuemax={n - 1}
-          aria-valuenow={index}
+          aria-valuenow={shown}
           tabIndex={0}
           onKeyDown={(e) => {
             if (e.key === 'ArrowRight') { e.preventDefault(); setIndex((i) => Math.min(i + 1, n - 1)); }
@@ -205,7 +208,7 @@ export function BlinkViewer({ field, frames, composites, imageUrl, candidates, k
               {ticks.map((pct, i) => (
                 <div
                   key={i}
-                  className={`scrubber-tick${i === index ? ' scrubber-tick--active' : ''}`}
+                  className={`scrubber-tick${i === shown ? ' scrubber-tick--active' : ''}`}
                   style={{ left: `${pct}%` }}
                 />
               ))}

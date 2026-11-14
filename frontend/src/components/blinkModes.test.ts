@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Composite, CompositeChannel, CompositeColor, CompositeMode } from '../api/types';
-import { channelLegend, compositesForMode, isModeAvailable, modeTitle, seasonRange } from './blinkModes';
+import { channelLegend, compositesForMode, effectiveMode, isModeAvailable, modeHints, modeTitle, seasonRange } from './blinkModes';
 
 function channel(color: CompositeColor, detector: number | null, wavelength_um: number | null): CompositeChannel {
   return { color, detector, wavelength_um, wavelength_min_um: wavelength_um, wavelength_max_um: wavelength_um, frame_ids: [] };
@@ -26,7 +26,7 @@ describe('compositesForMode', () => {
     expect(compositesForMode(all, 'jhk').map((c) => c.id)).toEqual(['jhk_S0']);
   });
 
-  it('treats products older than contract 0.3.0 (no composites) as empty', () => {
+  it('treats products older than contract 0.2.2 (no composites) as empty', () => {
     expect(compositesForMode(undefined, 'jhk')).toEqual([]);
   });
 });
@@ -71,5 +71,29 @@ describe('seasonRange', () => {
 
   it('collapses a single-day season', () => {
     expect(seasonRange(composite('jhk', 0, 61000.2, 61000.6))).toBe('2025-11-21');
+  });
+});
+
+describe('effectiveMode / modeHints', () => {
+  const onlyDetectors = [composite('detectors', 0), composite('detectors', 1)];
+
+  it('falls back to B/W when the field has no composites of the chosen mode', () => {
+    expect(effectiveMode('jhk', onlyDetectors)).toBe('bw');
+    expect(effectiveMode('detectors', onlyDetectors)).toBe('detectors');
+    expect(effectiveMode('detectors', undefined)).toBe('bw');
+  });
+
+  it('describes the shown mode first, then says why the other modes are off', () => {
+    const hints = modeHints('jhk', onlyDetectors);
+    expect(hints[0]).toMatch(/grayscale/);
+    expect(hints.slice(1)).toEqual(['Color · J/H/K: not available, no season of this field has exposures near all of J, H and Ks.']);
+    expect(modeHints('detectors', onlyDetectors)).toEqual([
+      'False color, full range: three SPHEREx detectors from 0.75 to 5.0 µm, one image per season (2 seasons).',
+      'Color · J/H/K: not available, no season of this field has exposures near all of J, H and Ks.',
+    ]);
+  });
+
+  it('lists both color modes as unavailable for products without composites', () => {
+    expect(modeHints('bw', undefined)).toHaveLength(3);
   });
 });

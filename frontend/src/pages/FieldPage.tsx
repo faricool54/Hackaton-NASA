@@ -4,7 +4,7 @@ import type { Candidate, Field, KnownObject } from '../api/types';
 import { DETECTOR_BANDS } from '../api/format';
 import { BlinkViewer } from '../components/BlinkViewer';
 import type { BlinkMode } from '../components/blinkModes';
-import { BLINK_MODES, compositesForMode, isModeAvailable, modeTitle } from '../components/blinkModes';
+import { BLINK_MODES, compositesForMode, effectiveMode, isModeAvailable, modeHints, modeTitle } from '../components/blinkModes';
 import { CandidateList } from '../components/CandidateList';
 import { CandidatePanel } from '../components/CandidatePanel';
 import { SkyMap } from '../components/SkyMap';
@@ -41,9 +41,11 @@ export function FieldPage({ fieldId }: { fieldId: string }) {
     const all = [...(field?.frames ?? [])].sort((a, b) => a.mjd - b.mjd);
     return detector === 'all' ? all : all.filter((f) => f.detector === detector);
   }, [field, detector]);
+  // A mode the current field has no composites for (e.g. after switching fields) shows B/W.
+  const shownMode = effectiveMode(mode, field?.composites);
   const composites = useMemo(
-    () => (mode === 'bw' ? null : compositesForMode(field?.composites, mode)),
-    [field, mode],
+    () => (shownMode === 'bw' ? null : compositesForMode(field?.composites, shownMode)),
+    [field, shownMode],
   );
   const detectors = useMemo(() => [...new Set(field?.frames.map((f) => f.detector))].sort(), [field]);
   const selected = candidates.find((c) => c.id === selectedId) ?? null;
@@ -74,7 +76,7 @@ export function FieldPage({ fieldId }: { fieldId: string }) {
                 <button
                   key={m}
                   type="button"
-                  aria-pressed={mode === m}
+                  aria-pressed={shownMode === m}
                   disabled={!isModeAvailable(m, field.composites)}
                   title={modeTitle(m, field.composites)}
                   onClick={() => setMode(m)}
@@ -83,11 +85,11 @@ export function FieldPage({ fieldId }: { fieldId: string }) {
                 </button>
               ))}
             </div>
-            <label title={mode === 'bw' ? undefined : 'The detector filter applies to the B/W frames only'}>
+            <label title={shownMode === 'bw' ? undefined : 'The detector filter applies to the B/W frames only'}>
               Detector{' '}
               <select
                 value={String(detector)}
-                disabled={mode !== 'bw'}
+                disabled={shownMode !== 'bw'}
                 onChange={(e) => setDetector(e.target.value === 'all' ? 'all' : Number(e.target.value))}
               >
                 <option value="all">all ({field.frames.length} frames)</option>
@@ -100,6 +102,9 @@ export function FieldPage({ fieldId }: { fieldId: string }) {
             </label>
             <span className="muted small">Space = play/pause · ←/→ = step</span>
           </div>
+          <p className="mode-hint muted small" aria-live="polite">
+            {modeHints(mode, field.composites).join(' ')}
+          </p>
           <BlinkViewer
             field={field}
             frames={frames}
