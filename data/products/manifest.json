@@ -1,0 +1,31 @@
+{
+  "schema_version": "0.2.1",
+  "generated_at": "2026-11-14T17:52:02.302348Z",
+  "synthetic": false,
+  "fields": [
+    {
+      "id": "barnards-star",
+      "name": "Barnard's Star",
+      "description": "Official test target. Highest proper-motion star in the sky (~10.4\"/yr): ~1.9 SPHEREx pixels over the DR1+QR3 baseline.",
+      "tags": [
+        "official-target",
+        "proper-motion",
+        "validation"
+      ],
+      "center": {
+        "ra": 269.44623,
+        "dec": 4.7687
+      },
+      "size_deg": 0.15,
+      "n_frames": 40,
+      "n_candidates": 0,
+      "mjd_range": [
+        60908.642174167,
+        61281.662087234
+      ],
+      "thumbnail": "thumb.png",
+      "synthetic": false
+    }
+  ],
+  "systems": []
+}
