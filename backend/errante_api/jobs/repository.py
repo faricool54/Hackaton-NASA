@@ -49,7 +49,6 @@ def _connect(db_path: Path) -> Generator[sqlite3.Connection, None, None]:
     con.row_factory = sqlite3.Row
     try:
         con.execute("PRAGMA foreign_keys = ON")
-        con.execute("PRAGMA journal_mode = DELETE")
         yield con
         con.commit()
     except Exception:
@@ -70,6 +69,10 @@ class JobRepository:
         self._db = db_path
         self._db.parent.mkdir(parents=True, exist_ok=True)
         self._migrate()
+
+    @property
+    def db_path(self) -> Path:
+        return self._db
 
     # ------------------------------------------------------------------
     # Schema migration
@@ -161,20 +164,19 @@ class JobRepository:
         """
         now = _now()
         with _connect(self._db) as con:
+            con.execute("BEGIN IMMEDIATE")
+            dup = con.execute(
+                "SELECT id FROM jobs WHERE cache_key=? AND status IN ('queued','running','publishing')",
+                (cache_key,),
+            ).fetchone()
+            if dup:
+                raise DuplicateActive(dup["id"])
             # Check active count (queued + running + publishing)
             active_count = con.execute(
                 "SELECT COUNT(*) FROM jobs WHERE status IN ('queued','running','publishing')"
             ).fetchone()[0]
             if active_count >= _MAX_QUEUE:
                 raise QueueFull(f"Queue is full ({active_count}/{_MAX_QUEUE} active jobs)")
-
-            # Check for duplicate active job with same cache key
-            dup = con.execute(
-                "SELECT id FROM jobs WHERE cache_key = ? AND status IN ('queued','running','publishing')",
-                (cache_key,),
-            ).fetchone()
-            if dup:
-                raise DuplicateActive(dup["id"])
 
             con.execute(
                 """
@@ -202,8 +204,9 @@ class JobRepository:
         """
         now = _now()
         with _connect(self._db) as con:
+            con.execute("BEGIN IMMEDIATE")
             # Only allow _MAX_ACTIVE concurrent runs
-            running = con.execute("SELECT COUNT(*) FROM jobs WHERE status = 'running'").fetchone()[0]
+            running = con.execute("SELECT COUNT(*) FROM jobs WHERE status IN ('running','publishing')").fetchone()[0]
             if running >= _MAX_ACTIVE:
                 return None
 
@@ -339,6 +342,46 @@ class JobRepository:
                 (stage, _iso(_now()), job_id),
             )
 
+    def latest_attempt(self, job_id: str) -> Attempt | None:
+        with _connect(self._db) as con:
+            row = con.execute("SELECT * FROM attempts WHERE job_id=? ORDER BY rowid DESC LIMIT 1", (job_id,)).fetchone()
+        return _row_to_attempt(row) if row else None
+
+    def owns_attempt(self, job_id: str, attempt_id: str, generation: int) -> bool:
+        attempt = self.latest_attempt(job_id)
+        return bool(
+            attempt
+            and attempt.id == attempt_id
+            and attempt.generation == generation
+            and self.get(job_id).status in (JobStatus.running, JobStatus.publishing)
+        )
+
+    def publication(self, job_id: str) -> dict | None:
+        with _connect(self._db) as con:
+            row = con.execute(
+                "SELECT * FROM publications WHERE job_id=? ORDER BY rowid DESC LIMIT 1", (job_id,)
+            ).fetchone()
+        return dict(row) if row else None
+
+    def record_publication_hashes(self, job_id: str, fingerprint: dict[str, str]) -> None:
+        with _connect(self._db) as con:
+            con.execute(
+                "UPDATE publications SET file_hashes=?,stage='prepared' WHERE job_id=? AND stage!='done'",
+                (json.dumps(fingerprint, sort_keys=True), job_id),
+            )
+
+    def inflight(self) -> list[Job]:
+        with _connect(self._db) as con:
+            rows = con.execute("SELECT * FROM jobs WHERE status IN ('running','publishing')").fetchall()
+        return [_row_to_job(row) for row in rows]
+
+    def invalidate_ready(self, job_id: str) -> None:
+        with _connect(self._db) as con:
+            con.execute(
+                "UPDATE jobs SET status='failed',stage='failed',reuse_until=NULL,error_detail='Published artifact unavailable',updated_at=? WHERE id=? AND status='ready'",
+                (_iso(_now()), job_id),
+            )
+
     # ------------------------------------------------------------------
     # Reutilisation
     # ------------------------------------------------------------------
@@ -355,6 +398,13 @@ class JobRepository:
                 ORDER BY updated_at DESC LIMIT 1
                 """,
                 (cache_key, now),
+            ).fetchone()
+        return _row_to_job(row) if row else None
+
+    def find_active(self, cache_key: str) -> Job | None:
+        with _connect(self._db) as con:
+            row = con.execute(
+                "SELECT * FROM jobs WHERE cache_key=? AND status IN ('queued','running','publishing')", (cache_key,)
             ).fetchone()
         return _row_to_job(row) if row else None
 

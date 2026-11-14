@@ -5,6 +5,7 @@ Expected numbers verified live on 2026-11-14 (docs/DATA.md §3.0). IRSA can be d
 transport level the IRSA tests skip with the reason; any other failure (parsing, counts) fails.
 """
 
+import math
 import os
 import time
 from collections import Counter
@@ -19,6 +20,15 @@ pytestmark = [
 
 BARNARD = (269.44623, 4.76870)
 WISE_0855 = (133.75980, -7.24219)
+OFFICIAL = ("barnards-star", "eps-indi-b", "wise-0855", "rw-aurigae", "r-draconis")
+
+
+@pytest.fixture(autouse=True)
+def _live_only(monkeypatch):
+    """Live checks must reach IRSA: a committed search snapshot would hide an outage behind old data."""
+    from errante.data import irsa
+
+    monkeypatch.setattr(irsa, "SNAPSHOT_DIR", None)
 
 
 def _live(fn, *args, **kwargs):
@@ -119,6 +129,75 @@ def test_overflow_is_flagged_and_not_cached(monkeypatch, tmp_path):
     print(f"R Dra deep, MAXREC=200: {len(rep.rows)} rows via {rep.service} in {rep.elapsed_s:.1f} s")
     assert rep.overflow and len(rep.rows) <= 200
     assert not (tmp_path / "queries").exists()
+
+
+def test_tap_circle_query_is_accepted():
+    """IRSA TAP rejects INTERSECTS(CIRCLE(...), p.poly) as unsupported ADQL; build_query puts p.poly first."""
+    from errante.data import irsa
+
+    t0 = time.monotonic()
+    cols = ("spherex_dr1", "spherex_qr3")
+    try:
+        rows, _ = irsa._search_tap(*BARNARD, 0.01, 61100.0, 61200.0, cols, deadline=t0 + 75)
+    except (requests.Timeout, requests.ConnectionError) as e:
+        pytest.skip(f"IRSA TAP unreachable (the query was not rejected): {e}")
+    except requests.HTTPError as e:
+        if e.response is not None and e.response.status_code >= 500:
+            pytest.skip(f"IRSA TAP outage: {e}")
+        raise
+    # An 'unsupported ADQL' answer raises SearchError above (parse_tap_csv) and fails the test.
+    print(f"TAP circle+time: {len(rows)} rows in {time.monotonic() - t0:.1f} s")
+    assert rows and all(61100 - 0.01 <= r.ref.mjd <= 61200 + 0.01 for r in rows)
+    assert {r.collection for r in rows} <= set(cols)
+
+
+@pytest.mark.parametrize("field_id", OFFICIAL)
+def test_committed_snapshot_matches_live_sia(field_id):
+    """The committed snapshot replays live SIA answers: centre point search and an off-centre 0.02 deg circle."""
+    from errante.data import irsa
+
+    snap = irsa.load_snapshot(irsa.snapshot_path(field_id, irsa.DEFAULT_SNAPSHOT_DIR))
+    last_mjd = max(s.row.ref.mjd for s in snap.rows)
+    # Off-centre position ~0.06 deg north-east, still inside the 0.1 deg disk with its 0.02 deg circle.
+    ra2 = snap.ra + 0.0424 / math.cos(math.radians(snap.dec))
+    probes = [(snap.ra, snap.dec, 0.0), (ra2, snap.dec + 0.0424, 0.02)]
+    for ra, dec, radius in probes:
+        assert snap.covers(ra, dec, max(radius, irsa.MIN_RADIUS_DEG), snap.collections)
+        live = _live(
+            irsa.search_frames_report,
+            ra,
+            dec,
+            radius,
+            collections=snap.collections,
+            use_cache=False,
+            use_snapshot=False,
+        )
+        live_keys = {(f.obs_id, f.detector): f for f in live.result.frames}
+        replay = {(r.ref.obs_id, r.ref.detector) for r in snap.frames(ra, dec, max(radius, irsa.MIN_RADIUS_DEG))}
+        newer = {k for k in live_keys.keys() - replay if live_keys[k].mjd > last_mjd}
+        print(
+            f"{field_id} ({ra:.5f}, {dec:.5f}) r={radius}: live {len(live_keys)} replay {len(replay)} newer {len(newer)}"
+        )
+        assert replay <= live_keys.keys(), sorted(replay - live_keys.keys())[:5]
+        assert live_keys.keys() - replay == newer  # only frames published after the snapshot are missing
+
+
+def test_snapshot_generation_live(tmp_path):
+    from errante.data import irsa
+
+    try:
+        doc = irsa.fetch_snapshot("barnards-star", *BARNARD, radius_deg=0.05, rounds=2, pause_s=5)
+    except irsa.SearchError as e:
+        if e.is_outage:
+            pytest.skip(f"IRSA SIA outage: {e}")
+        raise
+    path = irsa.write_snapshot(doc, tmp_path / "barnards-star.json")
+    snap = irsa.load_snapshot(path)
+    check = doc["provenance"]["point_check"]
+    print(f"snapshot r=0.05: {len(snap.rows)} frames, {path.stat().st_size} B, point check {check}")
+    assert len(snap.rows) > 350 and doc["provenance"]["queries"][0]["pos"].endswith(" 0.05")
+    if "error" not in check:
+        assert check["only_live"] == [] and check["only_replayed"] == []
 
 
 def test_search_key_is_readable_on_s3():

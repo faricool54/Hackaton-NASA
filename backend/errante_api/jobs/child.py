@@ -16,7 +16,10 @@ It never modifies the public product tree directly.
 from __future__ import annotations
 
 import json
+import os
 import sys
+import threading
+import time
 import traceback
 from pathlib import Path
 
@@ -67,6 +70,16 @@ def _run(request_path: Path, result_path: Path) -> None:
 
     # Execute pipeline
     try:
+        from errante.data.irsa import search_frames
+
+        # Only a successful empty archive query establishes no coverage. Generic
+        # pipeline ValueErrors (bad metadata, projection, downloads) are failures.
+        coverage = search_frames(
+            req.ra, req.dec, detectors=list(req.detectors) or None, mjd_min=req.mjd_min, mjd_max=req.mjd_max
+        )
+        if not coverage.frames:
+            _write_result(result_path, success=False, status="no_coverage", error="No SPHEREx coverage", stage="build")
+            return
         from errante.build import build_field
 
         build_field(cfg, out_dir, analyze=False)
@@ -80,12 +93,7 @@ def _run(request_path: Path, result_path: Path) -> None:
         )
         return
     except ValueError as exc:
-        # build_field raises ValueError when no frames are found
-        msg = str(exc)
-        if "no usable" in msg.lower() or "no products" in msg.lower():
-            _write_result(result_path, success=False, status="no_coverage", error=msg, stage="build")
-        else:
-            _write_result(result_path, success=False, status="failed", error=msg, stage="build")
+        _write_result(result_path, success=False, status="failed", error=str(exc), stage="build")
         return
     except Exception as exc:
         tb = traceback.format_exc()
@@ -111,13 +119,33 @@ def _write_result(
         "error": error,
         "stage": stage,
     }
-    result_path.write_text(json.dumps(doc), encoding="utf-8")
+    from ..publication import atomic_bytes
+
+    atomic_bytes(result_path, json.dumps(doc, allow_nan=False).encode())
+
+
+def _watch_parent():
+    """Check owner identity without a blocking read on Python's stdin buffer."""
+    import psutil
+
+    from .process import kill_tree
+
+    try:
+        owner = psutil.Process(int(os.environ["ERRANTE_JOB_OWNER_PID"]))
+        created = float(os.environ["ERRANTE_JOB_OWNER_CREATED"])
+        while owner.is_running() and owner.create_time() == created:
+            time.sleep(0.5)
+    except psutil.NoSuchProcess:
+        pass
+    kill_tree(psutil.Process(os.getpid()), grace=1)
 
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
         print(f"usage: {sys.argv[0]} <request_path> <result_path>", file=sys.stderr)
         sys.exit(2)
+    if os.environ.get("ERRANTE_JOB_SUPERVISED") == "1":
+        threading.Thread(target=_watch_parent, daemon=True).start()
     _run(Path(sys.argv[1]), Path(sys.argv[2]))
     # Exit code reflects the result, so the supervisor doesn't need to parse
     # the result JSON just to know if it crashed vs. wrote a failure result.

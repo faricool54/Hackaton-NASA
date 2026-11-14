@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SPHEREx DR1 sky map · Aladin Lite</title>
+<style>
+  html, body, #map { margin: 0; width: 100%; height: 100%; background: #060b15; overflow: hidden; }
+  /* Aladin 3.8.2's native cube selector picks incorrect IRSA planes. See RECON_SPHEREX §5.4. */
+  .aladin-lite-spectra-displayer { display: none !important; }
+</style>
+<div id="map"></div>
+<script type="module">
+  // Isolated browsing context: leaving the page releases Aladin's WebGL/WASM and listeners.
+  import A from 'https://cdn.jsdelivr.net/npm/aladin-lite@3.8.2/dist/aladin.js';
+  const hips = 'https://irsa.ipac.caltech.edu/data/hips/SPHEREx/spherex_allsky_cube';
+  const send = (data) => parent.postMessage({ source: 'errante-sky', ...data }, location.origin);
+  try {
+    await A.init;
+    const response = await fetch(hips + '/properties');
+    if (!response.ok) throw new Error('SPHEREx metadata unavailable');
+    const metadata = await response.text();
+    const wavelengths = metadata.match(/^data_cube_crval3_arr\s*=\s*(.*)$/m)?.[1].trim().split(/\s+/).map(Number);
+    if (wavelengths?.length !== 102 || wavelengths.some((v) => !Number.isFinite(v)))
+      throw new Error('Unexpected SPHEREx wavelength metadata');
+    const map = A.aladin('#map', { survey: hips, target: '269.44623 4.76870', fov: 3,
+      showReticle: true, showLayersControl: false, showShareControl: false,
+      showSimbadPointerControl: false, showFullscreenControl: false });
+    const layer = await map.setBaseImageLayer(hips);
+    const setPlane = (k) => {
+      if (!Number.isInteger(k) || k < 1 || k > 101 || k === 50 || k === 51) return;
+      const c = 299792458, min = c / 5.009e-6, max = c / 7.43e-7;
+      layer.setFrequency({ value: min + (k + 0.5) / 102 * (max - min), unit: 'Hz' });
+    };
+    setPlane(90);
+    let allwise;
+    let allwiseLoading = false;
+    let allwiseVisible = false;
+    map.on('click', (p) => { if (p && Number.isFinite(p.ra) && Number.isFinite(p.dec))
+      send({ type: 'select', ra: p.ra, dec: p.dec }); });
+    addEventListener('message', (event) => {
+      if (event.source !== parent || event.origin !== location.origin || event.data?.source !== 'errante-ui') return;
+      const p = event.data;
+      if (p.type === 'position' && Number.isFinite(p.ra) && p.ra >= 0 && p.ra < 360 &&
+        Number.isFinite(p.dec) && p.dec >= -90 && p.dec <= 90) map.gotoRaDec(p.ra, p.dec);
+      if (p.type === 'plane') setPlane(p.plane);
+      if (p.type === 'allwise') {
+        allwiseVisible = !!p.show;
+        if (allwise) { allwise.setOpacity(allwiseVisible ? 0.45 : 0); return; }
+        if (!allwiseVisible || allwiseLoading) return;
+        allwiseLoading = true;
+        map.setOverlayImageLayer('https://skies.esac.esa.int/AllWISEColor', 'allwise-context')
+          .then((overlay) => { allwise = overlay; overlay.setOpacity(allwiseVisible ? 0.45 : 0); })
+          .catch(() => { allwiseLoading = false; send({ type: 'error', message: 'AllWISE context layer unavailable' }); });
+      }
+    });
+    send({ type: 'ready', wavelengths });
+  } catch (error) { send({ type: 'error', message: String(error) }); }
+</script>
+</html>

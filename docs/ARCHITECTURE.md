@@ -42,10 +42,10 @@ Ni candidatos, ni JPL/SkyBoT, ni inferencia de distancia son dependencias del vi
 | `pipeline/errante/imaging/` (WS2) | Registro WCS, máscara de calidad y PNGs comparables | Coadds por detector/visita; suma/resta de épocas; metadatos de contaminación |
 | `pipeline/errante/science/` (WS3) | Identidad, astrometría y protocolo de los cinco blancos | Fotometría de variables, espectros en cualquier posición, Gaia DR3; detección y Planeta X como extras |
 | `pipeline/errante/build.py`, `cli.py` | Publicar primero el campo visible | `--analyze` opta por detección y cruce sin impedir conservar las imágenes |
-| `backend/` (WS4) | Servir productos y conectar consulta → construcción de campo | Jobs de coordenadas arbitrarias, límites de recursos y operaciones científicas bajo demanda |
-| `frontend/` (WS5) | RA/Dec → secuencia temporal pública | FOV, λ, suma/resta, flags, capas, URL restaurable y modo embebido |
+| `backend/` (WS4) | Servir productos y ejecutar jobs persistentes por coordenadas con límites | Operaciones científicas bajo demanda y publicación pública |
+| `frontend/` (WS5) | Mapa/nombre/RA-Dec → job → secuencia local; FOV/λ/capas y URL | Suma/resta, flags, modo embebido compacto y recorrido público |
 | `docs/submission/` (WS6) | Demo pública, evidencia, fuentes, límites y entrega | Todos los puntos C01–C08 declarados con su estado real |
-| `pipeline/errante/systems/`, `frontend/src/three/` (WS7) | Galería 3D opcional (P2), fichas y modelos animados | Parámetros verificados, enlaces a observaciones reales cuando existan |
+| `pipeline/errante/systems/`, `frontend/src/three/` (WS7) | Galería ilustrativa actual; migración P1 a modelos físicos | Mediciones WS3, incertidumbre/fuentes y compañeras confirmadas |
 
 Los módulos de ampliación nuevos se crean cuando se implementa su tarea; no agregar carpetas vacías ni
 funciones que aparenten estar disponibles. NEOSSat/CADC son recursos opcionales de comparación,
@@ -69,14 +69,15 @@ errante validate --dir data/products
 python scripts/dev.py web                                 # abrir ?dataset=real
 ```
 
-**Bloqueo actual:** IRSA search, cutouts y reproyección siguen sin implementar. Separar las etapas elimina
-la dependencia del análisis, pero no convierte en reales los datos demo ni completa por sí solo R02.
+**Estado actual:** búsqueda/cutouts/reproyección y selección por temporada están implementados. #17 aporta
+los cinco campos reales, #19 las comparaciones y #31 fotometría por exposición. Las mediciones y su
+interpretación/validación científica siguen siendo tareas separadas; la demo continúa siendo sintética.
 
-## Coordenadas arbitrarias y despliegue público: diseño pendiente
+## Coordenadas arbitrarias implementadas; publicación pendiente
 
 La web estática actual sirve campos preconstruidos; es útil para desarrollo, demostración y caché.
-**No cumple sola R03** para posiciones arbitrarias. El despliegue completo necesita WS4-5 (servicio de
-construcción o equivalente verificable), además de WS5-7 (formulario).
+**No cumple sola R03** para posiciones arbitrarias. El servicio WS4-5 y formulario/mapa WS5-7 están implementados y probados localmente;
+falta elegir destino/URL y verificar el recorrido público (WS4-4/6). No hace falta hosting para uso local.
 
 1. La UI acepta RA/Dec con unidades claras, valida rangos y muestra FOV; formato sexagesimal se normaliza
    a grados ICRS. C04 agrega elección pública del FOV dentro de límites del servidor.
@@ -88,8 +89,11 @@ construcción o equivalente verificable), además de WS5-7 (formulario).
    servicio. Debe publicar la misma estructura JSON/PNG que los campos curados.
 5. Cuando termina, el visor abre el campo devuelto. Encontrar URIs sin generar una secuencia no cierra R03.
 
-Rutas de jobs, estados y campos de request/respuesta son **propuestas para WS4-10**, no endpoints existentes.
-El contrato actual y la API existente están en [CONTRACT.md](CONTRACT.md).
+POST `/api/jobs` y GET `/api/jobs/{id}` usan contrato 0.3.0. El mapa Aladin/IRSA y el formulario comparten
+ese flujo; Sesame/CfA resuelve nombres. El HiPS es un coadd estático; la secuencia usa exposiciones reales.
+Productos servidos y construidos comparten raíz; SQLite serializa admisión y un supervisor posee el worker.
+Batch y jobs comparten lock de publicación, validación PNG y manifest atómico. Límites y recuperación en
+[backend/README.md](../backend/README.md), tipos/estados en [CONTRACT.md](CONTRACT.md).
 
 ## Consideraciones opcionales dentro del flujo (P1)
 
@@ -103,19 +107,19 @@ El contrato actual y la API existente están en [CONTRACT.md](CONTRACT.md).
 - **C04, FOV:** limitar área, píxeles, frames, concurrencia y descarga; mostrar costo estimado/progreso.
 - **C05, contexto:** Gaia DR3 con propagación cuando exista astrometría; WISE con misión/banda/fecha visibles.
   Aladin es una capa de contexto, sin reemplazar el blink de observaciones SPHEREx.
-- **C06, enlaces:** URL propuesta `?mode=api&ra=<deg>&dec=<deg>&fov=<deg>&detector=<1..6>`; restaurar el estado
+- **C06, enlaces:** URL implementada `?mode=api&ra=<deg>&dec=<deg>&fov=<deg>&detector=<1..6>`; restaurar el estado
   al abrirla, y ofrecer modo embebido. El host debe permitir el iframe de prueba desde otro origen.
-  Es una interfaz planificada; actualmente solo se interpretan `mode` y `dataset` y rutas hash por campo.
+  `job` opcional retoma el polling; sin él no se construye al cargar. Modo compacto y prueba de iframe externo pendientes.
 - **C07, calidad:** panel por frame con MJD/fecha, release, origen, detector, λ/ancho, fracción válida y flags;
   las flags deben tener significado y procedencia. Si falta una medida, mostrar desconocido.
 - **C08, herramientas:** Astropy ya se usa para FITS/WCS; evaluar notebooks IRSA, Aladin y licencias antes
   de agregar dependencias. Ver el registro de recursos en DATA.md.
 
-## Galería 3D integrada (WS7, P2)
+## Galería 3D integrada y migración a mediciones (WS7, P1)
 
 Se conserva la ampliación importada: `SystemModel`, `Manifest.systems`, `errante systems`,
 `GET /api/systems/{id}`, rutas `#/systems` y `#/system/<id>[/<body>]`. `demo` incluye seis modelos.
-Three.js se importa dinámicamente al abrir el visor 3D. Los cinco modelos de blancos usan parámetros
+La migración a modelos físicos desde mediciones es P1 según VISION.md. Three.js se importa dinámicamente al abrir el visor 3D. Los cinco modelos de blancos usan parámetros
 introducidos a mano y `verified=False`; el modelo orbital del demo es sintético. Ver VISION_3D.md.
 Son ilustraciones educativas, no observaciones, inferencias 3D desde un punto luminoso ni cinco ensayos R05.
 Verificar los valores y publicar sus fuentes es condición para presentarlos como datos medidos.
@@ -123,9 +127,9 @@ Verificar los valores y publicar sus fuentes es condición para presentarlos com
 ## Contrato y compatibilidad
 
 Se mantiene `models.py` → `shared/schema/` → `frontend/src/api/types.ts` como contrato vigente.
-La versión integrada es **0.2.0**, ampliación aditiva de sistemas 3D con schema y espejo TS importados juntos.
+La versión integrada es **0.3.0**: sistemas 3D previos más solicitud/estado de jobs y resolver, con schema y espejo TS sincronizados.
 La separación del build usa los campos actuales, sin otro cambio de schema.
-WS4-10 coordina ampliaciones aditivas para jobs, cobertura/calidad, productos combinados y espectros en
+WS4-10 coordina las próximas ampliaciones aditivas para cobertura/calidad, productos combinados y espectros en
 posiciones arbitrarias. Cada cambio real requiere versión, schema, tipos TS y pruebas en el mismo PR.
 No escribir campos propuestos en los JSON publicados hasta implementar su contrato.
 

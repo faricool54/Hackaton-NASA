@@ -411,6 +411,177 @@ def test_read_range_retries_and_guards(monkeypatch):
     assert s3range.read_range("k", 10, 14) == b"klmn" and len(sess.ranges) == 2
 
 
+def test_read_tail_suffix_range(monkeypatch):
+    """One ``bytes=-N`` request returns the tail and the object size (from Content-Range)."""
+    monkeypatch.setattr(s3range.time, "sleep", lambda s: None)
+    sess = _Session([_Resp(503), _Resp(206, b"wxyz", {"Content-Range": "bytes 96-99/100"})])
+    monkeypatch.setattr(s3range, "_session", lambda: sess)
+    assert s3range.read_tail("k", 4) == (b"wxyz", 100) and sess.ranges == ["bytes=-4"] * 2
+    sess = _Session([_Resp(206, b"tiny", {"Content-Range": "bytes 0-3/4"})])  # object shorter than asked
+    monkeypatch.setattr(s3range, "_session", lambda: sess)
+    assert s3range.read_tail("k", 5760) == (b"tiny", 4)
+    for bad in (
+        _Resp(206, b"wx", {"Content-Range": "bytes 96-99/100"}),  # short body
+        _Resp(206, b"wxyz", {}),  # no Content-Range: the size is unknown
+        _Resp(206, b"wxyz", {"Content-Range": "bytes 90-93/100"}),  # not the tail
+    ):
+        monkeypatch.setattr(s3range, "_session", lambda bad=bad: _Session([bad] * s3range.RANGE_RETRIES))
+        with pytest.raises(OSError, match="suffix read failed"):
+            s3range.read_tail("k", 4)
+    monkeypatch.setattr(s3range, "_session", lambda: _Session([_Resp(200, b"whole file")]))
+    with pytest.raises(OSError, match="ignored the Range"):
+        s3range.read_tail("k", 4)
+    with pytest.raises(ValueError):
+        s3range.read_tail("k", 0)
+
+
+def test_session_loads_the_ca_bundle_once_and_keeps_verifying(monkeypatch):
+    """Stock requests re-parses the CA bundle on every new TLS connection (~0.2-0.7 s of CPU each, measured):
+    the adapter shares one pre-loaded SSLContext, still CERT_REQUIRED with hostname checks."""
+    import ssl
+
+    monkeypatch.delenv("REQUESTS_CA_BUNDLE", raising=False)
+    monkeypatch.delenv("CURL_CA_BUNDLE", raising=False)
+    adapter = s3range._adapter()
+    assert isinstance(adapter, s3range._PreloadedCAAdapter)
+    ctx = adapter._ssl_context
+    assert ctx.verify_mode == ssl.CERT_REQUIRED and ctx.check_hostname
+    assert ctx.cert_store_stats()["x509_ca"] > 50  # requests' default bundle, loaded once
+
+    class Pool:
+        ca_certs = ca_cert_dir = cert_reqs = None
+
+        def __init__(self, ssl_context=None):
+            self.conn_kw = {"ssl_context": ssl_context}
+
+    pool = Pool(ctx)
+    adapter.cert_verify(pool, "https://nasa-irsa-spherex.s3.us-east-1.amazonaws.com/x", True, None)
+    assert pool.cert_reqs == "CERT_REQUIRED" and pool.ca_certs is None  # verified with the shared context
+    other = Pool()  # a pool without the shared context (e.g. through a proxy manager) keeps the bundle path
+    adapter.cert_verify(other, "https://nasa-irsa-spherex.s3.us-east-1.amazonaws.com/x", True, None)
+    assert other.ca_certs == requests.utils.DEFAULT_CA_BUNDLE_PATH
+    custom = Pool()
+    adapter.cert_verify(custom, "https://example.org/x", str(REAL_HEADER), None)  # a custom bundle path
+    assert custom.ca_certs == str(REAL_HEADER)  # stock behaviour for anything but the default bundle
+    monkeypatch.setenv("REQUESTS_CA_BUNDLE", str(REAL_HEADER))
+    assert type(s3range._adapter()) is requests.adapters.HTTPAdapter
+
+
+def test_preloaded_adapter_sends_custom_trust_through_a_stock_adapter(monkeypatch):
+    """urllib3 loads a custom CA (verify=<path>), a client cert or CERT_NONE INTO the pool's SSLContext: those
+    requests must never reach the shared one."""
+    monkeypatch.delenv("REQUESTS_CA_BUNDLE", raising=False)
+    monkeypatch.delenv("CURL_CA_BUNDLE", raising=False)
+    adapter = s3range._adapter()
+    seen = []
+    monkeypatch.setattr(adapter._stock, "send", lambda req, **kw: seen.append((kw["verify"], kw["cert"])) or "stock")
+    req = requests.Request("GET", "https://127.0.0.1:9/").prepare()
+    assert adapter.send(req, verify="custom.pem") == "stock"
+    assert adapter.send(req, verify=False) == "stock"
+    assert adapter.send(req, verify=True, cert="client.pem") == "stock"
+    assert seen == [("custom.pem", None), (False, None), (True, "client.pem")]
+    with pytest.raises(requests.ConnectionError):  # the default goes through the shared context (port 9: closed)
+        adapter.send(req, verify=True, timeout=5)
+
+
+def _self_signed(tmp_path: Path) -> tuple[Path, Path]:
+    import shutil
+    import subprocess
+
+    openssl = shutil.which("openssl")
+    if openssl is None:
+        pytest.skip("openssl not available to make a test certificate")
+    crt, key = tmp_path / "self.crt", tmp_path / "self.key"
+    cmd = [openssl, "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "2", "-subj", "/CN=localhost"]
+    cmd += ["-addext", "subjectAltName=DNS:localhost,IP:127.0.0.1", "-keyout", str(key), "-out", str(crt)]
+    try:
+        subprocess.run(cmd, check=True, capture_output=True, timeout=60)
+    except (OSError, subprocess.SubprocessError) as e:
+        pytest.skip(f"openssl could not make a test certificate: {e}")
+    return crt, key
+
+
+def _https_server(crt: Path, key: Path):
+    import ssl
+
+    class Ok(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("Content-Length", "2")
+            self.end_headers()
+            self.wfile.write(b"ok")
+
+        def log_message(self, *a):
+            pass
+
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), Ok)
+    httpd.handle_error = lambda *a: None  # failed handshakes are the point of the test
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ctx.load_cert_chain(str(crt), str(key))
+    httpd.socket = ctx.wrap_socket(httpd.socket, server_side=True)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    return httpd
+
+
+def test_shared_session_rejects_untrusted_certs_even_after_custom_trust(tmp_path, monkeypatch):
+    """End to end on localhost: a self-signed certificate is rejected; trusting it for ONE request
+    (verify=<its path>) or skipping verification (verify=False) never makes the shared session trust it."""
+    import ssl
+    import warnings as _w
+
+    crt, key = _self_signed(tmp_path)
+    for var in ("REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE", "HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy"):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setenv("NO_PROXY", "localhost,127.0.0.1")
+    monkeypatch.setenv("no_proxy", "localhost,127.0.0.1")
+    monkeypatch.setattr(s3range, "_SESSION", None)
+    servers = [_https_server(crt, key), _https_server(crt, key)]
+    sess = s3range._session()
+    try:
+        ctx = sess.adapters["https://"]._ssl_context
+        n_ca = ctx.cert_store_stats()["x509_ca"]
+        url = f"https://localhost:{servers[0].server_address[1]}/"
+        with pytest.raises(requests.exceptions.SSLError):
+            sess.get(url, timeout=10)
+        assert sess.get(url, timeout=10, verify=str(crt)).content == b"ok"
+        with _w.catch_warnings():
+            _w.simplefilter("ignore")
+            assert sess.get(url, timeout=10, verify=False).content == b"ok"
+        for port in (servers[0].server_address[1], servers[1].server_address[1]):
+            with pytest.raises(requests.exceptions.SSLError):
+                sess.get(f"https://localhost:{port}/", timeout=10)
+        assert ctx.verify_mode == ssl.CERT_REQUIRED and ctx.check_hostname
+        assert ctx.cert_store_stats()["x509_ca"] == n_ca  # nothing was added to the shared trust store
+    finally:
+        sess.close()
+        for httpd in servers:
+            httpd.shutdown()
+            httpd.server_close()
+
+
+def test_read_range_meta_reports_object_size_and_etag(monkeypatch):
+    sess = _Session([_Resp(206, b"abcd", {"Content-Range": "bytes 10-13/100", "ETag": '"e1"'})])
+    monkeypatch.setattr(s3range, "_session", lambda: sess)
+    assert s3range.read_range_meta("k", 10, 14) == (b"abcd", 100, '"e1"')
+    monkeypatch.setattr(s3range, "_session", lambda: _Session([_Resp(206, b"abcd", {})]))
+    assert s3range.read_range_meta("k", 10, 14) == (b"abcd", None, "")
+    monkeypatch.setattr(s3range, "_session", lambda: _Session([_Resp(416)]))
+    assert s3range.read_range_meta("k", 200, 300) == (b"", None, "")
+
+
+def test_parse_header_helper():
+    h = fits.Header([("XTENSION", "IMAGE"), ("BITPIX", -32), ("NAXIS", 0), ("EXTNAME", "X")])
+    raw = h.tostring().encode("ascii")
+    got, hlen = s3range.parse_header(raw + b"\0" * 100)
+    assert got["EXTNAME"] == "X" and hlen == 2880
+    assert s3range.parse_header(raw[:1600]) is None  # END not read yet
+    assert s3range.parse_header(b"") is None
+    with pytest.raises(ValueError, match="no FITS header"):
+        s3range.parse_header(b"\0" * 2880)
+    assert s3range.data_size(fits.Header([("BITPIX", -32), ("NAXIS", 2), ("NAXIS1", 3), ("NAXIS2", 2)])) == 24
+    assert s3range.padded(1) == 2880 and s3range.padded(2880) == 2880
+
+
 def test_read_range_retries_a_body_cut_mid_transfer(monkeypatch):
     """S3 closes the connection after the 206 status and half the body (requests raises
     ChunkedEncodingError, not ConnectionError): the read must be retried, not fail the frame."""
@@ -484,6 +655,24 @@ def test_real_directory(tmp_path, monkeypatch):
     assert (fl["ZCMPTYPE"].strip(), fl["ZTILE1"], fl["ZTILE2"]) == ("RICE_1", 2040, 1)
     assert d["WCS-WAVE"].header["TDIM3"] == "(2,9,14)"  # D3 grid is 9x14
     assert d.hdus[-1].end % 2880 == 0
+
+
+@pytest.mark.network
+@needs_network
+def test_real_tail_and_verified_tls():
+    tail, size = s3range.read_tail(BARNARD_KEY, 5760)
+    assert size % 2880 == 0 and tail.startswith(b"XTENSION= 'BINTABLE'") and b"WCS-WAVE" in tail[:2880]
+    assert s3range.read_range(BARNARD_KEY, size - 5760, size) == tail
+    adapter = s3range._session().adapters["https://"]
+    pools = list(adapter.poolmanager.pools._container.values())
+    conns = [
+        c for pool in pools for c in list(pool.pool.queue) if c is not None and getattr(c, "sock", None) is not None
+    ]
+    assert conns and all(c.is_verified for c in conns)
+    if isinstance(adapter, s3range._PreloadedCAAdapter):  # the bundle is not re-loaded per connection
+        assert all(pool.conn_kw.get("ssl_context") is adapter._ssl_context and pool.ca_certs is None for pool in pools)
+    data, size2, etag = s3range.read_range_meta(BARNARD_KEY, 0, 80)
+    assert data.startswith(b"SIMPLE  =") and size2 == size and len(etag) > 2  # S3 names the object it read
 
 
 @pytest.mark.network
