@@ -11,7 +11,7 @@ from test_imaging_reproject import DEC0, RA0, fake_image
 
 from errante.cli import main
 from errante.data import cutouts, fits_io
-from errante.detect.difference import fit_scale, residuals, static_sky
+from errante.detect.difference import aperture_flux, fit_scale, residuals, star_flux_scale, static_sky
 from errante.imaging import compare as compare_mod
 from errante.imaging.compare import (
     GridFrame,
@@ -22,7 +22,9 @@ from errante.imaging.compare import (
     difference_limit,
     diverging_rgba,
     flux_scale,
+    halo_radius,
     load_from_cutouts,
+    target_exclusion,
 )
 from errante.imaging.grid import make_grid, sky_to_png_xy
 from errante.imaging.reproject import reproject_to_grid, reproject_variance
@@ -37,15 +39,15 @@ STARS = [
 ]  # fmt: skip
 
 
-def scene(stars=STARS, scale=1.0, sky=0.0, noise=0.05, seed=0, extra=()):
-    """Gaussian stars on a N x N grid (PNG orientation), MJy/sr-like units.
+def scene(stars=STARS, scale=1.0, sky=0.0, noise=0.05, seed=0, extra=(), n=N):
+    """Gaussian stars on a n x n grid (PNG orientation), MJy/sr-like units.
 
     ``scale`` multiplies the field stars only (the wavelength change); ``extra``
     sources (x, y, amp[, sigma]) are added as given.
     """
     rng = np.random.default_rng(seed)
-    yy, xx = np.mgrid[0:N, 0:N]
-    img = sky + noise * rng.standard_normal((N, N))
+    yy, xx = np.mgrid[0:n, 0:n]
+    img = sky + noise * rng.standard_normal((n, n))
     for x, y, amp in stars:
         img += scale * amp * np.exp(-((xx - x) ** 2 + (yy - y) ** 2) / 2.0)
     for x, y, amp, *rest in extra:
@@ -114,6 +116,58 @@ def test_a_bright_variable_target_does_not_set_the_scale():
         assert abs(d.data[y, x]) < 1.0  # static field stars do not look variable
 
 
+def test_a_star_on_a_local_pedestal_and_gradient_gets_the_right_ratio():
+    """Review finding (R Draconis): with a global sky, a halo pedestal under a star biased its ratio."""
+    yy, xx = np.mgrid[0:N, 0:N]
+    early = scene(seed=1) + 4.0 + 0.15 * xx  # pedestal + gradient (MJy/sr) ...
+    late = scene(scale=0.6, seed=2) + 1.0 + 0.12 * yy - 0.05 * xx  # ... that is NOT 0.6 x the early one
+    x, y, amp = STARS[9]
+    box = amp * sum(np.exp(-(d**2) / 2) for d in range(-2, 3)) ** 2  # the star alone in the 5x5 box
+    assert aperture_flux(early, x, y) == pytest.approx(box, rel=0.01)
+    assert aperture_flux(early, x, y, sky_annulus=None) > 1.5 * box  # without the local sky
+    local = star_flux_scale(late, early, 0.05)
+    assert local.fitted and local.n_stars == len(STARS) and local.scale == pytest.approx(0.6, rel=0.01)
+    assert abs(star_flux_scale(late, early, 0.05, sky_annulus=None).scale - 0.6) > 0.05
+
+
+M = 88  # real fields are ~88 x 88 px
+C = (M - 1) / 2
+FAR_STARS = [(6, 6, 40.0), (81, 6, 30.0), (6, 81, 35.0), (81, 81, 50.0), (75, 12, 45.0), (10, 76, 28.0), (43, 4, 38.0)]
+HALO_STARS = [  # 14-21 px from the target: inside its halo
+    (43, 29, 30.0), (58, 43, 25.0), (34, 58, 40.0), (30, 33, 35.0), (57, 57, 30.0), (26, 48, 45.0),
+    (56, 32, 28.0), (49, 62, 33.0), (36, 24, 26.0), (62, 50, 36.0), (28, 58, 32.0), (52, 26, 30.0),
+]  # fmt: skip
+
+
+def test_a_bright_target_with_a_wide_halo_does_not_bias_the_scale():
+    """Review finding (R Draconis): the halo reached 25-30 px but only 13 px were excluded."""
+    target = [(C, C, 400.0, 1.0), (C, C, 100.0, 8.0)]  # core + halo (sigma 8 px)
+    brighter = [(x, y, 1.6 * a, s) for x, y, a, s in target]  # the target brightens, field stars x 0.7
+    early_img = scene(FAR_STARS + HALO_STARS, seed=3, extra=target, n=M)
+    late_img = scene(FAR_STARS + HALO_STARS, scale=0.7, seed=4, extra=brighter, n=M)
+    for img in (early_img, late_img):
+        img[41:47, 41:47] = np.nan  # saturated core
+    early = coadd([frame("e", 2, 60900.0, early_img)])
+    late = coadd([frame("l", 2, 61270.0, late_img)])
+    d = difference(late, early)
+    assert 26 <= halo_radius(early.data) <= 30 and d.target_exclude_px == pytest.approx(1.2 * halo_radius(early.data))
+    assert d.scale.fitted and d.scale.n_stars == len(FAR_STARS) and d.scale.scale == pytest.approx(0.7, rel=0.02)
+    for x, y, _ in FAR_STARS:
+        assert abs(d.data[y, x]) < 0.5  # static field stars cancel (peaks 20-35 after scaling)
+    assert d.data[40, 47] > 50  # the brightening halo survives
+    # the old fit (13-px circle, global sky) and the local sky alone both follow the variable halo
+    e, la = early.data.astype(np.float64), late.data.astype(np.float64)
+    assert star_flux_scale(la, e, 0.05, exclude=(C, C, 13.2), sky_annulus=None).scale > 0.9
+    assert star_flux_scale(la, e, 0.05, exclude=(C, C, 13.2)).scale > 0.75
+
+
+def test_target_exclusion_follows_the_halo_within_its_limits():
+    faint = scene(FAR_STARS + HALO_STARS, seed=5, extra=[(C, C, 30.0)], n=M)
+    assert target_exclusion(faint) == (C, C, 8.0)  # point-like target: the 8-px minimum
+    wide = scene(seed=6, extra=[(23.5, 23.5, 1000.0, 5.0)])  # 1.2 x its halo radius would pass 45% of the grid
+    assert 1.2 * halo_radius(wide) > 0.45 * N and target_exclusion(wide)[2] == pytest.approx(0.45 * N)
+
+
 def test_a_moving_star_becomes_a_dipole_and_a_variable_a_monopole():
     early = coadd([frame("e", 1, 60900.0, scene(seed=3, extra=[(22, 26, 80.0), (30, 34, 40.0)]))])
     late = coadd([frame("l", 1, 61270.0, scene(scale=0.8, seed=4, extra=[(22, 25, 64.0), (30, 34, 64.0)]))])
@@ -130,7 +184,7 @@ def test_too_few_field_stars_falls_back_to_one_with_a_note():
     late = coadd([frame("l", 4, 61270.0, scene(stars=STARS[:2], scale=0.5, seed=6))])
     d = difference(late, early)
     assert not d.scale.fitted and d.scale.scale == 1.0
-    assert "not fitted" in d.notes[0]
+    assert "not fitted" in d.notes[0] and "8-px circle" in d.notes[0]
 
 
 def test_build_comparisons_pairs_seasons_within_each_detector_only():
@@ -205,6 +259,7 @@ def test_compare_field_writes_products_and_strict_json(tmp_path):
     assert meta["coadds"][0]["frame_ids"] == ["AD2", "BD2"] and meta["coadds"][0]["n_frames"] == 2
     assert [d["id"] for d in meta["differences"]] == ["D2_S1-S0", "D5_S1-S0"]
     assert meta["differences"][0]["flux_scale_fitted"] is True
+    assert meta["differences"][0]["target_exclude_px"] == 8.0  # no halo in these scenes
     assert meta["field_frame_ids"] == [f.id for f in fld.frames]
     assert "not part of the data contract" in meta["format"] and meta["limitations"]
 
