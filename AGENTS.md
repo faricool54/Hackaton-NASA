@@ -29,6 +29,14 @@ la ventana del PDF es de 38 h 59 min. El horario de evaluación local se confirm
 **Prioridades:** P0 = recorrido obligatorio y publicación; P1 = consideraciones opcionales del enunciado;
 P2 = ampliaciones propias. No iniciar detección/Planeta X dejando bloqueado RA/Dec → imágenes → blink.
 
+## Cómo trabajamos sin pisarnos (obligatorio)
+
+Leé [`docs/COLLABORATION.md`](docs/COLLABORATION.md) antes de tocar nada. Resumen: una persona = un workstream =
+sus carpetas; una rama `wsN/...` por tarea; un worktree por agente; nunca `git add -A` (stageá por nombre), nunca
+`push --force` ni commits en `main`; `git pull origin main` (merge) antes de pushear; `python scripts/dev.py check`
+(incluye la guardia de ownership `scripts/owners.py`) antes de cada push. La tabla detallada de dueños está en
+`docs/COLLABORATION.md` §1 y la aplica `scripts/owners.py`.
+
 ## Mapa del repo y dueños
 
 | Ruta | Qué es | Dueño |
@@ -49,7 +57,7 @@ P2 = ampliaciones propias. No iniciar detección/Planeta X dejando bloqueado RA/
 1. **Quedate en tu carpeta.** Solo editá archivos de tu workstream. Si necesitás algo de otra carpeta, dejá un
    `TODO(WSx): ...` o pedilo en el chat del equipo / issue. Nada de "arreglos de paso" en carpetas ajenas.
 2. **El contrato es sagrado.** `models.py` es la fuente de verdad. Cambiarlo = PR con título `contract: ...`,
-   `make schema`, actualizar `frontend/src/api/types.ts` en el mismo PR, subir `SCHEMA_VERSION`, avisar a WS4+WS5.
+   `python scripts/dev.py schema`, actualizar `frontend/src/api/types.ts` en el mismo PR, subir `SCHEMA_VERSION`, avisar a WS4+WS5.
    Preferí **agregar campos opcionales** antes que renombrar o borrar.
 3. **Nunca hagas pasar datos falsos por reales.** Todo lo sintético lleva `synthetic: true` y la UI muestra el
    badge "SYNTHETIC DATA". Objetos inyectados → `status: "injected"`. Nada de imágenes de otras misiones
@@ -62,7 +70,7 @@ P2 = ampliaciones propias. No iniciar detección/Planeta X dejando bloqueado RA/
 5. **No inventes datos de servicios externos.** Nombres de tablas, endpoints, coordenadas, bits de flags:
    verificalos contra la fuente (o contra un archivo real) y anotá el hallazgo en `docs/DATA.md`. Si no pudiste
    verificar, escribilo explícitamente.
-6. **`make check` antes de cada push.** Lint + tests + schema + build del frontend. CI corre lo mismo.
+6. **`python scripts/dev.py check` antes de cada push.** Lint + tests + schema + build del frontend. CI corre lo mismo.
 7. **PRs chicos y frecuentes** a `main` (cada 1–3 h). Rama `wsN/descripcion-corta`. Ver `docs/WORKFLOW.md`.
 8. **Nada pesado al repo.** FITS y descargas van a `data/cache/` (ignorado). Productos reales: solo campos
    curados y livianos (< ~20 MB en total).
@@ -106,12 +114,12 @@ P2 = ampliaciones propias. No iniciar detección/Planeta X dejando bloqueado RA/
 ## Comandos
 
 ```bash
-make setup          # venv + paquetes Python + npm ci
-make setup-science  # libs científicas pesadas (WS1/WS2/WS3)
-make demo           # regenera datos sintéticos en data/demo
-make api            # backend en :8000 (docs en /docs)
-make web            # frontend en :5173 (lee data/demo por defecto)
-make check          # lo mismo que CI: correr antes de push
+python scripts/dev.py setup          # venv + paquetes Python + npm ci
+python scripts/dev.py setup-science  # libs científicas pesadas (WS1/WS2/WS3)
+python scripts/dev.py demo           # regenera datos sintéticos en data/demo
+python scripts/dev.py api            # backend en :8000 (docs en /docs)
+python scripts/dev.py web            # frontend en :5173 (lee data/demo por defecto)
+python scripts/dev.py check          # lo mismo que CI: correr antes de push
 errante --help      # CLI: demo | schema | validate | search | systems | build
 ```
 

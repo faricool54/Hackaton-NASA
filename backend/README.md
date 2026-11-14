@@ -1,7 +1,7 @@
 # backend/ — `errante_api` (FastAPI) · WS4
 
 ```bash
-make api                     # = cd backend && uvicorn errante_api.main:app --reload --port 8000
+python scripts/dev.py api   # = cd backend && uvicorn errante_api.main:app --reload --port 8000 (API_PORT to change it)
 open http://localhost:8000/docs
 ```
 

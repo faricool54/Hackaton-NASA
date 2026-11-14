@@ -4,12 +4,12 @@
 
 - `main` siempre verde (CI pasa) y desplegable. **Nadie pushea directo a `main`**: todo por PR.
 - Ramas: `ws1/tap-search`, `ws5/aladin-map`, `contract/add-difference-image`. Cortas (1–3 h de trabajo).
-- Antes de abrir PR: `git pull --rebase origin main` y `make check`.
+- Antes de abrir PR: `git pull --rebase origin main` y `python scripts/dev.py check`.
 - PR chico, con la plantilla. Lo revisa **otra persona** (o su agente) en ≤ 15 min; si es solo de tu carpeta y
   CI está verde, se puede mergear con 1 aprobación. Squash merge.
 - Conflictos: casi no debería haber, porque cada WS tiene su carpeta. Los archivos compartidos
   (`models.py`, `types.ts`, `build.py`, `Makefile`, docs de coordinación) se tocan solo con aviso en el chat.
-- `data/demo/` se regenera con `make demo`; si dos PRs lo tocan, regenerarlo después de rebasear en vez de
+- `data/demo/` se regenera con `python scripts/dev.py demo`; si dos PRs lo tocan, regenerarlo después de rebasear en vez de
   resolver el conflicto a mano.
 
 ## Trabajar con agentes (Claude Code / Codex)
@@ -18,7 +18,7 @@
 2. Pegale el **prompt de arranque** que está al final de tu `tasks/WSx-*.md` (o escribí "trabajá en la tarea
    WSx-N de tasks/WSx-....md").
 3. **Una tarea por sesión/PR.** Pedile que: lea el archivo de tareas, implemente, agregue tests, corra
-   `make check`, y te muestre el diff antes de commitear.
+   `python scripts/dev.py check`, y te muestre el diff antes de commitear.
 4. **Vos revisás.** El agente no decide cambios de contrato ni toca carpetas ajenas: si lo propone, frenalo y
    coordiná con el equipo.
 5. Si el agente no puede acceder a un servicio (IRSA, JPL), que **no invente** respuestas: dejá un test
@@ -57,7 +57,7 @@ Sync rápido (10 min) cada ~4–6 h: qué hice, qué sigue, qué me bloquea. Act
 
 ## Definición de "terminado"
 
-- Código + tests (o justificación de por qué no) + `make check` verde.
+- Código + tests (o justificación de por qué no) + `python scripts/dev.py check` verde.
 - Si toca la UI: probado en el navegador, desktop y celular.
 - Si aprendiste algo de los datos: anotado en `docs/DATA.md`.
 - Nada sintético presentado como real; nada que diga "descubrimos".
