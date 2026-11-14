@@ -196,3 +196,17 @@ def reproject_to_grid(
         bad |= (nearest_sample(flagged, xi, yi, fill=True) | (share >= BAD_WEIGHT)).reshape(shape)
 
     return fits_to_png_orientation(data.astype(np.float32)), fits_to_png_orientation(bad)
+
+
+def reproject_variance(image: SpherexImage, grid: Grid) -> np.ndarray | None:
+    """VARIANCE plane on ``grid`` (PNG orientation), (MJy/sr)^2; None if the file has none.
+
+    Bilinear with the same weights as the data. sum(w * var) slightly
+    OVERestimates the variance of the interpolated value (the exact value is
+    sum(w^2 * var)), which keeps signal-to-noise estimates conservative.
+    """
+    if image.variance is None:
+        return None
+    xi, yi = _input_pixel_coords(image, grid)
+    var = bilinear_sample(np.asarray(image.variance, dtype=np.float64), xi, yi)
+    return fits_to_png_orientation(var.reshape(grid.height_px, grid.width_px).astype(np.float32))

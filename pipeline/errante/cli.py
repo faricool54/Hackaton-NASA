@@ -99,6 +99,21 @@ def cmd_build(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_compare(args: argparse.Namespace) -> int:
+    """Season coadds + flux-matched season differences of a built field (WS2-7)."""
+    from .imaging.compare import compare_field, load_from_cutouts
+    from .products import ProductStore
+
+    store = ProductStore(Path(args.dir))
+    field = store.read_field(args.field_id)
+    meta = compare_field(field, store.field_dir(field.id), load_from_cutouts(field))
+    print(
+        f"{field.id}: {len(meta['coadds'])} season coadds and {len(meta['differences'])} differences in "
+        f"{store.field_dir(field.id) / 'compare'}"
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="errante", description="SPHEREx temporal sky explorer pipeline")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -131,6 +146,11 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--out", default=str(settings.PRODUCTS_DIR))
     s.add_argument("--analyze", action="store_true", help="also run automatic detection and catalog matching")
     s.set_defaults(func=cmd_build)
+
+    s = sub.add_parser("compare", help="season coadds and season differences of a built field (WS2-7)")
+    s.add_argument("field_id")
+    s.add_argument("--dir", default=str(settings.PRODUCTS_DIR))
+    s.set_defaults(func=cmd_compare)
 
     args = p.parse_args(argv)
     return args.func(args)
