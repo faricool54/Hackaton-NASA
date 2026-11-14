@@ -19,13 +19,14 @@ The internal "publishing" state is collapsed to "running" in responses.
 
 from __future__ import annotations
 
+import sqlite3
 from datetime import datetime
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Path, Request
 from pydantic import BaseModel, Field
 
-from ..jobs.errors import InvalidRequest, QueueFull
+from ..jobs.errors import InvalidRequest, JobNotFound, QueueFull
 from ..jobs.types import Job, JobRequest, JobStatus
 
 router = APIRouter(tags=["jobs"])
@@ -108,7 +109,15 @@ def _job_to_response(job: Job) -> JobStatusResponse:
         created_at=job.created_at,
         updated_at=job.updated_at,
         result_field_id=job.result_field_id,
-        error_detail=job.error_detail,
+        error_detail=(
+            "No SPHEREx coverage for these parameters."
+            if job.status == JobStatus.no_coverage
+            else "The requested pipeline capability is unavailable."
+            if job.status == JobStatus.pipeline_not_ready
+            else "The build failed. Retry later or change the request."
+            if job.error_detail
+            else None
+        ),
     )
 
 
@@ -149,7 +158,10 @@ def submit_job(body: JobSubmitRequest, request: Request) -> JobStatusResponse:
         raise HTTPException(
             status_code=429,
             detail=f"Build queue is full: {exc}. Retry after a moment.",
+            headers={"Retry-After": "2"},
         ) from exc
+    except sqlite3.DatabaseError as exc:
+        raise HTTPException(503, "Job storage is temporarily unavailable.", headers={"Retry-After": "2"}) from exc
 
     return _job_to_response(job)
 
@@ -168,7 +180,9 @@ def get_job(
     engine = _engine(request)
     try:
         job = engine.service.get(job_id)
-    except Exception as exc:
+    except JobNotFound as exc:
         raise HTTPException(status_code=404, detail=f"Job not found: {job_id!r}") from exc
+    except sqlite3.DatabaseError as exc:
+        raise HTTPException(503, "Job storage is temporarily unavailable.", headers={"Retry-After": "2"}) from exc
 
     return _job_to_response(job)

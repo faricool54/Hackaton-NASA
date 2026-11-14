@@ -18,12 +18,13 @@ JPL y análisis automático no son requisitos para abrir un campo.
 Implementación y validación de esta etapa: [PR #6](https://github.com/faricool54/Hackaton-NASA/pull/6).
 
 - ✅ `/api/health`, `/api/manifest`, `/api/fields/{id}`, `/candidates`, `/known`, `/data/*` (con tests).
-- ⛔ `/api/search`, `/api/known-objects` devuelven 501 hasta que WS1/WS3 implementen.
+- ✅ `/api/search` conectado a WS1. `/api/known-objects` sigue dependiendo de WS3.
 - ✅ Frontera de archivos robusta: deadline, cupos que sobreviven al timeout, caché TTL memoria/disco,
   errores JSON y validación de entradas/rutas. Tests offline; sin cambios de contrato 0.2.0.
 - ✅ Runner `python scripts/dev.py build-fields`, staging/validación/rollback, contenedor y workflow Pages
-  preparados. ⛔ Datos reales dependen de WS1/WS2; URL pública y activación de hosting siguen pendientes.
-- ⛔ Jobs: propuesta concreta en `backend/README.md`, pendiente de dueño WS3/PR de contrato con WS5.
+  preparados. ✅ Los cinco campos se reconstruyeron con WS1/WS2 reales; URL pública y hosting siguen pendientes.
+- ✅ Motor y POST/GET de jobs implementados; correcciones de CORS, destino, publicación, admisión y recuperación
+  con regresiones. Contrato compartido/conexión WS5 se formalizan por separado.
 
 ## Tareas
 
@@ -31,11 +32,12 @@ Implementación y validación de esta etapa: [PR #6](https://github.com/faricool
   revisar PRs de contrato.
 - [x] **WS4-2 (P0) Endpoints en vivo robustos**: timeouts, caché en memoria (TTL) + disco, errores 502/504 con
   JSON claro, límite de concurrencia hacia IRSA. *Acepta:* tests con funciones mockeadas (lento, error, ok).
-- [ ] **WS4-3 (P0) Integración continua de campos reales**: script/target `make build-fields` que construya los
+- [x] **WS4-3 (P0) Integración continua de campos reales**: script/target `make build-fields` que construya los
   cinco blancos de `fields.toml` y valide (`errante validate --dir data/products`). Build básico sin análisis;
   selección temporal útil y actualización por release (C01). No marcar un campo sin datos como éxito.
   Runner implementado con timeout duro por campo, verificación de PNGs/épocas/procedencia y rollback.
-  Aceptación real pendiente de WS1/WS2; no se marca completa por pasar tests con dobles del pipeline.
+  Aceptación real verificada el 14/11: cinco campos, 40 imágenes cada uno, `synthetic=False`,
+  `errante validate` correcto (revisión previa: 139,9 s). No equivale a validación científica R05.
 - [x] **WS4-3a (P0) Separar imágenes y análisis** (2026-11-14): build básico sin detección/cruce,
   `--analyze` optativo, campo conservado ante fallo del análisis y error explícito sin cobertura.
   Regresión offline en `pipeline/tests/test_build.py`; no implica que IRSA/cutouts/reproyección estén implementados.
@@ -51,7 +53,7 @@ Implementación y validación de esta etapa: [PR #6](https://github.com/faricool
   RA/Dec/FOV/filtros, job ID y polling; reutilizar `build.build_field` básico. Validar rangos, FOV/píxeles/frames,
   concurrencia y tiempos. Caché por todos los parámetros y releases/versiones. Estados: en curso, listo,
   sin cobertura y fallo; errores parciales explícitos. *Acepta:* entrada no precargada abre una secuencia real.
-  Las rutas concretas de jobs se definen con WS4-10; todavía no existen.
+  Rutas implementadas: POST `/api/jobs`, GET `/api/jobs/{id}`. Falta cerrar contrato compartido y UI.
 - [ ] **WS4-6 (P0, R01) GitHub Pages / Vercel** para el frontend estático (con WS6): workflow que construye
   `frontend/` con `VITE_BASE` y publica.
   Para S03, probar app/demo/materiales finales sin login, permisos ni registro; videos/documentos se alojan
@@ -68,17 +70,13 @@ Implementación y validación de esta etapa: [PR #6](https://github.com/faricool
   S08 requiere metadata de atribución para código/datos generados con SI: el inventario actual está en
   `docs/submission/ai-usage.json`; coordinar procedencia de futuros productos sin confundir simulación numérica con imagen IA.
 
-## Hechos verificados (2026-11-14) — leelos antes de implementar
+## Estado técnico actualizado (14/11/2026)
 
-- **IRSA no tiene CORS** (TAP, SIA, cutouts): el backend es obligatorio como proxy para el flujo RA/Dec → video.
-  S3 sí tiene CORS. Detalle en [`docs/DATA.md`](../docs/DATA.md) §3.0.
-- Tiempos medidos: SIA 1–4 s, TAP 8–19 s, cutout IBE 4–15 s y ~4 MB, lectura por Range en S3 ~1 s por frame a 5′.
-  Hace falta caché en disco, timeouts y respuestas 502/504 en JSON (hoy `live.py` solo maneja `NotImplementedError`).
-- **Path traversal:** `field_id` llega sin validar a `root / "fields" / field_id` (en Windows `..\..\x` escapa del
-  data dir). Validar con el patrón slug de `SkyField.id` antes de exponer el backend.
-- El test de `/api/search` va a pegarle a IRSA en CI cuando WS1 implemente `search_frames`: mockearlo con
-  `monkeypatch` y dejar lo real en `@pytest.mark.network`.
-- `ERRANTE_CORS_ORIGINS` se separa por coma sin `strip()`; `/api/health` expone la ruta absoluta del data dir.
+- WS1: búsqueda/recortes/λ implementados; WS2: reproyección y épocas por temporada × detector implementadas.
+- WS4: CORS POST, productos servidos en el destino del motor, locks entre procesos y manifest atómico.
+- Jobs: admisión transaccional, resultados verificados, recuperación por huellas y logs/almacenamiento acotados.
+- Errores públicos sanitizados; los tests de backend no dependen de IRSA/JPL.
+- Pendientes P1: fotometría/espectros WS3 y comparaciones WS2 con contrato. Hosting público pendiente de destino.
 
 ## Prompt de arranque
 

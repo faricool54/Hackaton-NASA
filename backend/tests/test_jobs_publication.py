@@ -11,10 +11,13 @@ Covers:
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from io import BytesIO
 from pathlib import Path
 
 import pytest
+from PIL import Image
 
+from errante.models import CandidateList, KnownObjectList
 from errante_api.jobs.errors import PublicationError
 from errante_api.jobs.publication import validate_product
 from errante_api.jobs.repository import JobRepository, _new_id
@@ -23,7 +26,9 @@ from errante_api.jobs.repository import JobRepository, _new_id
 # Helpers
 # ---------------------------------------------------------------------------
 
-_PNG_HEADER = b"\x89PNG\r\n\x1a\n" + b"\x00" * 50
+_buffer = BytesIO()
+Image.new("L", (32, 32)).save(_buffer, format="PNG")
+_PNG_HEADER = _buffer.getvalue()
 
 
 def _write_valid_product(root: Path, field_id: str, *, two_distinct_mjds: bool = True) -> None:
@@ -76,7 +81,8 @@ def _write_valid_product(root: Path, field_id: str, *, two_distinct_mjds: bool =
                 detector=1,
                 mjd=mjds[i],
                 date_obs=datetime(2026, 1, 1 + i, tzinfo=UTC),
-                release="synthetic",
+                release="dr1",
+                source_uri="test-double-only",
                 image=f"frames/f{i}.png",
             )
             for i in range(2)
@@ -88,6 +94,8 @@ def _write_valid_product(root: Path, field_id: str, *, two_distinct_mjds: bool =
         ),
     )
     store.write_field(field)
+    store.write_candidates(CandidateList(field_id=field.id, candidates=[]))
+    store.write_known(KnownObjectList(field_id=field.id, objects=[]))
     store.write_candidates(CandidateList(field_id=field_id, candidates=[]))
     store.write_known(KnownObjectList(field_id=field_id, objects=[]))
 
@@ -151,13 +159,16 @@ def test_validate_rejects_too_few_frames(tmp_path: Path) -> None:
                 detector=1,
                 mjd=60000.0,
                 date_obs=datetime(2026, 1, 1, tzinfo=UTC),
-                release="synthetic",
+                release="dr1",
+                source_uri="test-double-only",
                 image="frames/f0.png",
             )
         ],
         provenance=Provenance(pipeline_version="0.0.0", built_at=datetime.now(UTC), synthetic=False),
     )
     store.write_field(field)
+    store.write_candidates(CandidateList(field_id=field.id, candidates=[]))
+    store.write_known(KnownObjectList(field_id=field.id, objects=[]))
 
     with pytest.raises(ValueError, match="at least 2"):
         validate_product(root, "f1")
@@ -218,7 +229,8 @@ def test_validate_rejects_path_traversal(tmp_path: Path) -> None:
                 detector=1,
                 mjd=60000.0 + i * 10,
                 date_obs=datetime(2026, 1, 1 + i, tzinfo=UTC),
-                release="synthetic",
+                release="dr1",
+                source_uri="test-double-only",
                 image=f"../../escape{i}.png",
             )
             for i in range(2)
@@ -226,6 +238,8 @@ def test_validate_rejects_path_traversal(tmp_path: Path) -> None:
         provenance=Provenance(pipeline_version="0.0.0", built_at=datetime.now(UTC), synthetic=False),
     )
     store.write_field(field)
+    store.write_candidates(CandidateList(field_id=field.id, candidates=[]))
+    store.write_known(KnownObjectList(field_id=field.id, objects=[]))
 
     with pytest.raises(ValueError, match="escapes staging|PNG missing"):
         validate_product(root, "trav")

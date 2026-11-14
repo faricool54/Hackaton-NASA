@@ -62,9 +62,9 @@ muere y queda `.build.lock`, confirmar que no hay otro build antes de retirarlo 
 Si también falla la restauración, el reporte incluye `recovery_dir`: conserva el producto anterior allí;
 no retirar ese directorio hasta recuperarlo. Un proceso muerto requiere revisión manual del staging/backup.
 
-**Dependencia pendiente WS1/WS2:** sus stubs impiden construir datos reales hoy. El runner lo informa como
-`pipeline_not_ready`, no éxito. La selección de los primeros 40 frames en el pipeline puede ser rechazada por
-falta de temporadas: WS2 debe corregirla con WS1/3. No se modifican sus módulos desde WS4.
+**WS1/WS2 integrados:** búsqueda, recortes, reproyección y selección de temporadas ya construyen los cinco
+objetivos con el pipeline oficial. Un stub futuro se informa como `pipeline_not_ready`, nunca éxito.
+La validación científica de señal/variabilidad sigue separada de esta validación técnica.
 
 ## Despliegue preparado; URL pública pendiente (WS4-4/6)
 
@@ -96,53 +96,50 @@ Solo preparar/ejecutar el workflow no demuestra el flujo de jobs, todavía pendi
 Referencias de configuración: [GitHub Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)
 y [contexto Docker/Dockerfile específico](https://docs.docker.com/build/concepts/context/#dockerignore-files).
 
-## Propuesta para WS3 + WS5 (WS4-10): jobs por coordenadas
+## Jobs por coordenadas: implementación y conexión
 
-**Diseño para revisar, no implementado ni publicado en OpenAPI.** WS3 todavía no tiene responsable confirmado
-al redactar esto. Su PR `contract:` debe agregar modelos/schema/tipos TS/versionado juntos y recibir revisión
-de consumidores. WS4 no añade modelos compartidos ni publica rutas de jobs por separado.
+Activar con `ERRANTE_ENABLE_JOBS=1`. El backend sirve y construye en **el mismo directorio**:
+`ERRANTE_DATA_DIR` si se definió, o `ERRANTE_PRODUCTS_DIR` aunque todavía no haya manifest. Al activar jobs
+se prepara el directorio público antes de montar `/data`. La demo sigue disponible con jobs desactivados.
 
-Propuesta de rutas: `POST /api/field-jobs` → 202; `GET /api/field-jobs/{job_id}` → 200.
-Solicitud propuesta (tamaño es lado del campo cuadrado, no radio):
-
-```json
-{
-  "center": {"ra": 269.44623, "dec": 4.76870},
-  "size_deg": 0.25,
-  "detectors": [1],
-  "mjd_min": null,
-  "mjd_max": null,
-  "max_frames": 40
-}
-```
-
-Límites propuestos: RA [0,360), Dec [-90,90], valores finitos; lado [0.01,0.5] grados, detectores únicos 1–6,
-MJD mínimo ≤ máximo, frames 2–120 y grilla ≤512×512. El cliente recibe los límites definitivos documentados.
-El servidor determina releases/versiones y los registra: WS1 debe exponer esa selección al adaptador. La clave
-de reutilización incluye TODOS los parámetros normalizados, releases/versiones, método de selección y pipeline.
-
-Respuesta propuesta:
+- `POST /api/jobs` devuelve 202, también al reutilizar un job activo/listo compatible.
+- `GET /api/jobs/{id}` devuelve estado persistido; `publishing` se representa públicamente como `running`.
+- Estados terminales: `ready`, `failed`, `no_coverage`, `pipeline_not_ready`. En `ready`, abrir
+  `/api/fields/{result_field_id}` y las imágenes en `/data/fields/{result_field_id}/...`.
+- Parámetros inválidos: 422; cola/capacidad agotada: 429 con Retry-After; almacenamiento ocupado/indisponible:
+  503; ID desconocido: 404. Los errores públicos no incluyen tracebacks ni rutas locales.
+- CORS admite GET y POST. Configurar el origen completo del frontend (puerto incluido).
 
 ```json
-{
-  "job_id": "server-generated-id",
-  "status": "queued",
-  "field_id": null,
-  "error": null,
-  "warnings": [],
-  "poll_after_s": 2
-}
+{"ra":269.44623,"dec":4.76870,"size_deg":0.25,"detectors":[1],"max_frames":40}
 ```
 
-Estados propuestos: `queued`, `running`, `ready`, `no_coverage`, `failed`. Decidir con WS2/3 si producto parcial
-es `ready` con advertencias y reporte de entradas fallidas o un estado aparte. `ready` requiere imágenes
-legibles ya publicadas; `field_id` usa los endpoints existentes de campos/PNGs. `no_coverage` exige búsqueda
-válida sin datos, nunca todas las descargas fallidas. Error estructurado sugerido: `code`, `message`, `retryable`.
-Polling hasta estado terminal; 404 para ID desconocido/expirado, 422 para solicitud inválida, 503/Retry-After
-para cola llena. Progreso solo si la etapa lo conoce; no inventar porcentajes.
+`mjd_min`/`mjd_max` son opcionales. RA [0,360), Dec [-90,90], lado [0.01,0.5] grados, detectores 1–6 y
+2–120 frames. Se conservan las coordenadas; no se redondea RA a 360. La clave de reutilización incluye
+parámetros, contexto de colecciones/fuentes, revisión de procesamiento y versiones de pipeline/schema.
+Las publicaciones usan IDs inmutables por intento, imágenes verificadas y un manifest atómico. Batch y jobs
+comparten lock de publicación entre procesos. Un fallo del manifest no se confirma como éxito.
 
-Implementación prevista después del acuerdo: cola/estado persistente, límite de trabajos y bytes/frames,
-deduplicación de solicitudes iguales, proceso aislado con deadline duro, publicación validada y recuperación
-de estados interrumpidos al reiniciar. No reutilizar los hilos de búsqueda para ejecutar builds largos.
-La función `build_field(FieldConfig, out, analyze=False)` es el adaptador de WS2; si cambian firmas/resultados
-parciales o selección de releases, WS1/2 avisan antes de conectar. Espectros, operaciones y JPL quedan posteriores.
+### Recuperación y recursos
+
+Una sola instancia/supervisor por directorio privado, protegido por lock del SO. SQLite serializa admisión y
+claims. Un shutdown que no terminó mantiene la exclusividad. Al reiniciar, se verifica la identidad de un
+hijo anterior antes de detenerlo; se reconcilian publicaciones con sus huellas y se repara el manifest antes
+de confirmar `ready`. No se mata un PID ajeno reutilizado. `psutil` permite controlar y verificar procesos en
+Windows/Linux; es una dependencia runtime del backend.
+
+| Variable | Default | Uso |
+|---|---|---|
+| `ERRANTE_JOBS_DIR` | `data/cache/jobs` | SQLite, solicitudes/resultados y logs; fuera del árbol público |
+| `ERRANTE_JOB_MAX_BYTES` | 768 MiB | Presupuesto supervisado del staging de un intento, incluida su caché |
+| `ERRANTE_JOBS_MAX_BYTES` | 2 GiB | Admisión: espacio utilizado por estado privado y productos públicos |
+
+Un build activo, hasta ocho trabajos activos/en cola y 900 s de deadline por build. Los logs se drenan sin
+crecer por encima de 5 MiB. Se limpia caché/productos de staging terminales; diagnóstico privado por 24 h.
+Los productos públicos no se borran automáticamente: al alcanzar el presupuesto se rechaza trabajo nuevo.
+Hay que mantener al menos 128 MiB libres. El muestreo de disco es aproximado; cuotas duras de memoria/CPU/disco
+son responsabilidad del host/contenedor. Los resultados desaparecidos o inválidos no se reutilizan.
+
+`no_coverage` requiere una consulta válida vacía; errores genéricos de proyección/descarga no se interpretan
+como ausencia de cobertura. Una secuencia técnica correcta tampoco certifica movimiento/variabilidad R05.
+La integración de espectros, comparaciones y fichas científicas sigue las dependencias de WS2/WS3 de VISION.md.

@@ -13,7 +13,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from errante import settings as core
-from errante_api.jobs.errors import QueueFull
+from errante_api.jobs.errors import JobNotFound, QueueFull
 from errante_api.jobs.types import Job, JobStatus
 from errante_api.main import create_app
 from errante_api.settings import Settings
@@ -159,7 +159,8 @@ def test_submit_failed_job_returns_error_detail(client_with_engine):
     assert r.status_code == 202
     data = r.json()
     assert data["status"] == "failed"
-    assert data["error_detail"] == "cutout download failed"
+    assert "build failed" in data["error_detail"]
+    assert "cutout download failed" not in data["error_detail"]
 
 
 def test_submit_no_coverage(client_with_engine):
@@ -230,7 +231,7 @@ def test_poll_known_job_returns_200(client_with_engine):
 
 def test_poll_unknown_job_returns_404(client_with_engine):
     engine = MagicMock()
-    engine.service.get.side_effect = KeyError("not found")
+    engine.service.get.side_effect = JobNotFound("not found")
     client = client_with_engine(engine)
     r = client.get("/api/jobs/doesnotexist")
     assert r.status_code == 404

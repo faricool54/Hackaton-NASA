@@ -1,367 +1,276 @@
-"""Supervisor: runs in a dedicated thread, claims jobs and manages child processes.
-
-Design (from INTERNAL_ENGINE_PLAN.md §6):
-- One active build at a time (_MAX_ACTIVE = 1 in repository.py).
-- Uses a cross-platform process group / Job Object to kill descendants too.
-- Deadline enforced with a monotonic clock; UTC timestamps stored for audit.
-- Graceful shutdown: stops claiming, waits for the active child, then exits.
-- Exclusive start: a file lock prevents a second supervisor from starting on
-  the same jobs directory.
-"""
+"""Exclusive build supervision, bounded resources and verifiable recovery."""
 
 from __future__ import annotations
 
 import json
 import logging
 import os
+import secrets
+import shutil
+import subprocess
 import sys
 import threading
 import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import psutil
+
+from ..locking import FileLock
+from ..publication import AtomicProductStore, atomic_bytes, field_path, hashes, publication_lock, validate_product
+from .process import collect_log, kill_tree, stop_saved_child, tree_bytes
+from .publication import publish_job
 from .repository import JobRepository, _new_id
-from .types import ChildResult, JobRequest
+from .types import ChildResult, JobRequest, JobStatus
 
 log = logging.getLogger(__name__)
-
 _POLL_INTERVAL_S = 2.0
 _DEADLINE_S = 900
-_GRACE_S = 5
-_LOG_MAX_BYTES = 5 * 1024 * 1024  # 5 MiB per attempt
+_LOG_MAX_BYTES = 5 * 1024 * 1024
 
 
 class Supervisor:
-    """Single-instance supervisor for the job queue.
-
-    Usage::
-
-        sup = Supervisor(repo, jobs_dir, products_dir)
-        sup.start()   # starts background thread; raises if already running
-        ...
-        sup.stop()    # signals and waits
-    """
-
-    def __init__(
-        self,
-        repo: JobRepository,
-        jobs_dir: Path,
-        products_dir: Path,
-        *,
-        builder: _BuilderProtocol | None = None,
-    ) -> None:
+    def __init__(self, repo: JobRepository, jobs_dir: Path, products_dir: Path, *, builder=None):
         self._repo = repo
-        self._jobs_dir = jobs_dir
-        self._products_dir = products_dir
-        self._builder = builder  # injectable for tests
+        self._jobs_dir = jobs_dir.resolve()
+        self._products_dir = products_dir.resolve()
+        self._builder = builder
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
-        self._lock_path = jobs_dir / "supervisor.lock"
-        self._lock_fd: int | None = None
+        self._lock = FileLock(self._jobs_dir / "supervisor.lock", timeout=0)
         self._generation = 0
+        self._max_bytes = int(os.environ.get("ERRANTE_JOB_MAX_BYTES", str(768 * 1024**2)))
+        if self._max_bytes <= 0:
+            raise ValueError("ERRANTE_JOB_MAX_BYTES must be positive")
 
-    # ------------------------------------------------------------------
-    # Public lifecycle
-    # ------------------------------------------------------------------
+    def start(self):
+        try:
+            self._lock.acquire()
+        except BlockingIOError as error:
+            raise RuntimeError("Another supervisor is already running") from error
+        try:
+            self._generation = secrets.randbits(63)
+            self._stop_event.clear()
+            self._recover()
+            self._thread = threading.Thread(target=self._loop, name="errante-supervisor", daemon=True)
+            self._thread.start()
+        except BaseException:
+            self._lock.release()
+            raise
 
-    def start(self) -> None:
-        """Start the supervisor background thread.
-
-        Raises RuntimeError if another supervisor is already running on the
-        same jobs directory (detected via a file lock).
-        """
-        self._acquire_lock()
-        self._stop_event.clear()
-        self._repo.reconcile_interrupted()
-        self._thread = threading.Thread(target=self._loop, name="errante-supervisor", daemon=True)
-        self._thread.start()
-        log.info("supervisor started (generation=%d)", self._generation)
-
-    def stop(self, timeout: float = 15.0) -> None:
-        """Signal the supervisor to stop and wait for the thread."""
+    def stop(self, timeout=15.0):
         self._stop_event.set()
         if self._thread is not None:
-            self._thread.join(timeout=timeout)
-        self._release_lock()
-        log.info("supervisor stopped")
+            self._thread.join(timeout)
+        if self.is_running:
+            raise RuntimeError("Supervisor has not stopped; its lock remains held")
+        self._lock.release()
 
     @property
-    def is_running(self) -> bool:
+    def is_running(self):
         return self._thread is not None and self._thread.is_alive()
 
-    # ------------------------------------------------------------------
-    # Main loop
-    # ------------------------------------------------------------------
+    def _loop(self):
+        try:
+            while not self._stop_event.is_set():
+                try:
+                    self._recover()
+                    self._tick()
+                    self._cleanup()
+                except Exception:
+                    log.exception("Supervisor tick failed")
+                self._stop_event.wait(_POLL_INTERVAL_S)
+        finally:
+            self._lock.release()
 
-    def _loop(self) -> None:
-        self._generation += 1
-        while not self._stop_event.is_set():
+    def _recover(self):
+        for job in self._repo.inflight():
+            attempt = self._repo.latest_attempt(job.id)
+            if attempt is not None:
+                stop_saved_child(attempt.pid, self._jobs_dir / "staging" / attempt.id / "request.json")
+                self._repo.finish_attempt(attempt.id)
+            record = self._repo.publication(job.id)
+            if job.status != JobStatus.publishing or not record or not record["file_hashes"]:
+                self._repo.mark_failed(job.id, "failed", "interrupted before a verified publication")
+                continue
+            field_id = record["field_id"]
+            root = self._products_dir
+            expected_hashes = json.loads(record["file_hashes"])
             try:
-                self._tick()
-            except Exception:
-                log.exception("supervisor tick error")
-            self._stop_event.wait(timeout=_POLL_INTERVAL_S)
+                validate_product(root, field_id)
+                found = hashes(root, field_id)
+                if found != expected_hashes:
+                    raise ValueError("Published files do not match the attempt receipt")
+            except (ValueError, OSError):
+                stage = Path(record["staging_dir"]).resolve()
+                if not stage.is_relative_to(self._jobs_dir / "staging"):
+                    raise RuntimeError("Unowned recovery staging path") from None
+                try:
+                    validate_product(stage / "products", field_id)
+                    if hashes(stage / "products", field_id) != expected_hashes:
+                        raise ValueError("Recovery staging does not match the publication receipt")
+                except (ValueError, OSError):
+                    self._repo.mark_failed(job.id, "failed", "verified recovery staging is unavailable")
+                    continue
+                if field_path(root, field_id).exists():
+                    with publication_lock(root):
+                        quarantine = root.parent / f".errante-recovery-{_new_id()}"
+                        quarantine.mkdir()
+                        os.replace(field_path(root, field_id), quarantine / field_id)
+                        AtomicProductStore(root).rebuild_manifest()
+                try:
+                    publish_job(staging_dir=stage, field_id=field_id, products_dir=root, repo=self._repo, job_id=job.id)
+                except Exception:
+                    self._repo.mark_failed(job.id, "failed", "interrupted publication could not be recovered")
+                    continue
+            else:
+                with publication_lock(root):
+                    AtomicProductStore(root).rebuild_manifest()
+            self._repo.mark_ready(job.id, field_id)
 
-    def _tick(self) -> None:
-        from .publication import publish_job
-
+    def _tick(self):
         attempt_id = _new_id()
-        deadline_at = datetime.now(UTC) + timedelta(seconds=_DEADLINE_S)
-
         claimed = self._repo.claim_next(
-            attempt_id=attempt_id,
-            generation=self._generation,
-            deadline_at=deadline_at,
+            attempt_id, self._generation, datetime.now(UTC) + timedelta(seconds=_DEADLINE_S)
         )
         if claimed is None:
             return
-
         job, attempt = claimed
-        log.info("claimed job %s (attempt %s)", job.id, attempt_id)
-
-        staging_dir = self._jobs_dir / "staging" / attempt_id
-        staging_dir.mkdir(parents=True, exist_ok=True)
-
+        stage = self._jobs_dir / "staging" / attempt_id
+        stage.mkdir(parents=True)
+        request_path, result_path = stage / "request.json", stage / "result.json"
+        field_id = _field_id_for_job(job.id, attempt_id)
         request = JobRequest.from_dict(job.params)
-        field_id = _field_id_for_job(job.id)
-        request_path = staging_dir / "request.json"
-        result_path = staging_dir / "result.json"
-
-        request_payload = {
-            "request": request.to_dict(),
-            "staging_dir": str(staging_dir),
-            "field_id": field_id,
-        }
-        request_path.write_text(json.dumps(request_payload), encoding="utf-8")
-
-        success = False
-        child_result: ChildResult | None = None
-
+        atomic_bytes(
+            request_path,
+            json.dumps({"request": request.to_dict(), "staging_dir": str(stage), "field_id": field_id}).encode(),
+        )
+        self._repo.record_result_path(attempt_id, str(result_path))
+        proc = None
         try:
-            proc = self._launch_child(request_path, result_path, staging_dir, attempt_id)
-            if proc is None:
-                # injected builder (tests) already wrote result
-                child_result = _read_child_result(result_path)
-                success = child_result.success
-            else:
-                self._repo.record_pid(attempt_id, proc.pid, str(staging_dir))
-
-                # Wait with deadline
-                mono_deadline = time.monotonic() + _DEADLINE_S
-                timed_out = False
+            proc = self._launch_child(request_path, result_path, stage, attempt_id)
+            if proc is not None:
+                self._repo.record_pid(attempt_id, proc.pid, str(stage))
+                deadline = time.monotonic() + _DEADLINE_S
                 while proc.poll() is None:
-                    if time.monotonic() > mono_deadline or self._stop_event.is_set():
-                        timed_out = True
-                        break
-                    self._repo.heartbeat(attempt_id)
-                    time.sleep(1.0)
-
-                if timed_out:
-                    _kill_tree(proc)
-                    proc.wait()
-                    self._repo.finish_attempt(attempt_id)
-                    self._repo.mark_failed(
-                        job.id,
-                        "failed" if self._stop_event.is_set() else "failed",
-                        "timeout" if not self._stop_event.is_set() else "interrupted by shutdown",
+                    reason = (
+                        "interrupted by shutdown"
+                        if self._stop_event.is_set()
+                        else "timeout"
+                        if time.monotonic() >= deadline
+                        else "job disk budget exceeded"
+                        if tree_bytes(stage) > self._max_bytes
+                        else None
                     )
-                    return
-
-                _drain_proc(proc)
-                self._repo.finish_attempt(attempt_id)
-                child_result = _read_child_result(result_path)
-                success = child_result.success
-
-        except Exception as exc:
-            log.exception("error managing child for job %s", job.id)
-            self._repo.mark_failed(job.id, "failed", str(exc))
+                    if reason:
+                        kill_tree(proc)
+                        proc.wait(timeout=5)
+                        raise RuntimeError(reason)
+                    self._repo.heartbeat(attempt_id)
+                    self._stop_event.wait(0.2)
+            result = _read_child_result(result_path)
+            if proc is not None and proc.returncode != 0 and result.success:
+                raise RuntimeError("Child exited unsuccessfully after writing its result")
+            if not self._repo.owns_attempt(job.id, attempt_id, self._generation):
+                return
+            if not result.success:
+                status = result.status if result.status in ("failed", "no_coverage", "pipeline_not_ready") else "failed"
+                self._repo.mark_failed(job.id, status, result.error or "build failed")
+                return
+            if result.field_id != field_id:
+                raise ValueError("Child returned the wrong field identity")
+            field = validate_product(stage / "products", field_id)
+            if (field.center.ra, field.center.dec, field.size_deg) != (request.ra, request.dec, request.size_deg):
+                raise ValueError("Child product does not match requested coordinates/FOV")
+            if len(field.frames) > request.max_frames:
+                raise ValueError("Child exceeded the frame budget")
+        except Exception as error:
+            log.exception("Build failed for %s", job.id)
+            if proc is not None and proc.poll() is None:
+                kill_tree(proc)
+                proc.wait(timeout=5)
+            if self._repo.owns_attempt(job.id, attempt_id, self._generation):
+                self._repo.mark_failed(job.id, "failed", str(error))
             return
+        finally:
+            if proc is not None:
+                proc._output_thread.join(timeout=5)
+            self._repo.finish_attempt(attempt_id)
 
-        if child_result is None:
-            self._repo.mark_failed(job.id, "failed", "no result written by child")
+        if not self._repo.owns_attempt(job.id, attempt_id, self._generation):
             return
-
-        if not success:
-            status = child_result.status or "failed"
-            self._repo.mark_failed(job.id, status, child_result.error or "child reported failure")
-            return
-
-        # Publish
+        self._repo.mark_publishing(job.id, attempt_id, field_id, str(stage))
         try:
-            self._repo.mark_publishing(job.id, attempt_id, field_id, str(staging_dir))
-            self._repo.update_stage(job.id, "publish")
-            published_field_id = publish_job(
-                staging_dir=staging_dir,
-                field_id=field_id,
-                products_dir=self._products_dir,
-                repo=self._repo,
-                job_id=job.id,
+            publish_job(
+                staging_dir=stage, field_id=field_id, products_dir=self._products_dir, repo=self._repo, job_id=job.id
             )
-            self._repo.mark_ready(job.id, published_field_id)
-            log.info("job %s ready → field %s", job.id, published_field_id)
-        except Exception as exc:
-            log.exception("publication failed for job %s", job.id)
-            self._repo.mark_failed(job.id, "failed", f"publication error: {exc}", from_status="publishing")
+        except Exception as error:
+            log.exception("Publication failed for %s", job.id)
+            self._repo.mark_failed(job.id, "failed", f"publication error: {error}", from_status="publishing")
+            return
+        self._repo.mark_ready(job.id, field_id)
 
-    # ------------------------------------------------------------------
-    # Child launcher
-    # ------------------------------------------------------------------
-
-    def _launch_child(self, request_path: Path, result_path: Path, staging_dir: Path, attempt_id: str):
-        """Launch the child process (or use injected builder for tests).
-
-        Returns a Popen object, or None if an injected builder was used.
-        """
+    def _launch_child(self, request_path, result_path, staging_dir, attempt_id):
         if self._builder is not None:
             self._builder(request_path, result_path)
             return None
-
-        import subprocess
-
-        log_path = staging_dir / "child.log"
-        log_file = open(log_path, "w", encoding="utf-8")  # noqa: SIM115
-
-        cmd = [
-            sys.executable,
-            "-m",
-            "errante_api.jobs.child",
-            str(request_path),
-            str(result_path),
-        ]
-
-        kwargs: dict = {
-            "stdout": log_file,
-            "stderr": log_file,
-            "shell": False,
+        request = json.loads(request_path.read_text())["request"]
+        env = {
+            **os.environ,
+            "ERRANTE_CACHE_DIR": str(staging_dir / "cache"),
+            "ERRANTE_JOB_SUPERVISED": "1",
+            "ERRANTE_JOB_OWNER_PID": str(os.getpid()),
+            "ERRANTE_JOB_OWNER_CREATED": str(psutil.Process().create_time()),
+            "ERRANTE_COLLECTIONS": ",".join(request["build_context"]["collections"]),
         }
-
-        if sys.platform == "win32":
-            CREATE_NEW_PROCESS_GROUP = 0x00000200
-            kwargs["creationflags"] = CREATE_NEW_PROCESS_GROUP
-        else:
-            kwargs["start_new_session"] = True
-
-        proc = subprocess.Popen(cmd, **kwargs)
-        # Keep log_file open; it will be flushed when proc finishes
+        kwargs = (
+            {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+            if sys.platform == "win32"
+            else {"start_new_session": True}
+        )
+        proc = subprocess.Popen(
+            [sys.executable, "-m", "errante_api.jobs.child", str(request_path), str(result_path)],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            shell=False,
+            env=env,
+            **kwargs,
+        )
+        proc._output_thread = collect_log(proc, staging_dir / "child.log", _LOG_MAX_BYTES)
         return proc
 
-    # ------------------------------------------------------------------
-    # Lock management
-    # ------------------------------------------------------------------
-
-    def _acquire_lock(self) -> None:
-        self._jobs_dir.mkdir(parents=True, exist_ok=True)
-        try:
-            if sys.platform == "win32":
-                import msvcrt
-
-                fd = os.open(str(self._lock_path), os.O_CREAT | os.O_RDWR)
-                try:
-                    msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
-                except OSError as exc:
-                    os.close(fd)
-                    raise RuntimeError(
-                        f"Another supervisor is already running on {self._jobs_dir}. "
-                        "Only one supervisor per jobs directory is allowed."
-                    ) from exc
-                self._lock_fd = fd
-            else:
-                import fcntl
-
-                fd = os.open(str(self._lock_path), os.O_CREAT | os.O_RDWR)
-                try:
-                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                except OSError as exc:
-                    os.close(fd)
-                    raise RuntimeError(f"Another supervisor is already running on {self._jobs_dir}.") from exc
-                self._lock_fd = fd
-        except RuntimeError:
-            raise
-        except Exception as exc:
-            log.warning("could not acquire supervisor lock: %s", exc)
-            # Non-fatal on platforms where locking is unavailable
-
-    def _release_lock(self) -> None:
-        if self._lock_fd is not None:
+    def _cleanup(self):
+        staging = self._jobs_dir / "staging"
+        if not staging.exists():
+            return
+        for path in staging.iterdir():
+            if path.is_symlink() or not path.is_dir() or path.parent.resolve() != staging.resolve():
+                continue
             try:
-                if sys.platform == "win32":
-                    import msvcrt
-
-                    msvcrt.locking(self._lock_fd, msvcrt.LK_UNLCK, 1)
-                else:
-                    import fcntl
-
-                    fcntl.flock(self._lock_fd, fcntl.LOCK_UN)
-                os.close(self._lock_fd)
+                attempt = self._repo.get_attempt(path.name)
+                job = self._repo.get(attempt.job_id)
             except Exception:
-                pass
-            finally:
-                self._lock_fd = None
+                continue
+            if attempt.finished_at is None or job.status in (JobStatus.running, JobStatus.publishing):
+                continue
+            for name in ("cache", "products"):
+                child = path / name
+                if child.exists() and not child.is_symlink() and child.resolve().is_relative_to(staging.resolve()):
+                    shutil.rmtree(child)
+            if (datetime.now(UTC) - attempt.finished_at).total_seconds() > 86400:
+                shutil.rmtree(path)
 
 
-# ------------------------------------------------------------------
-# Protocol for injected builders (tests)
-# ------------------------------------------------------------------
+def _field_id_for_job(job_id, attempt_id=None):
+    return f"job-{job_id}-{attempt_id}" if attempt_id is not None else f"job-{job_id[:12]}"
 
 
-class _BuilderProtocol:
-    """Callable(request_path, result_path) used in tests instead of a child process."""
-
-
-# ------------------------------------------------------------------
-# Helpers
-# ------------------------------------------------------------------
-
-
-def _field_id_for_job(job_id: str) -> str:
-    """Generate a stable, URL-safe field ID from the job ID."""
-    return f"job-{job_id[:12]}"
-
-
-def _read_child_result(result_path: Path) -> ChildResult:
+def _read_child_result(path):
     try:
-        doc = json.loads(result_path.read_text(encoding="utf-8"))
-        return ChildResult(
-            success=doc.get("success", False),
-            field_id=doc.get("field_id"),
-            status=doc.get("status", "failed"),
-            error=doc.get("error"),
-            stage=doc.get("stage"),
-        )
-    except Exception as exc:
-        return ChildResult(success=False, status="failed", error=f"cannot read result: {exc}")
-
-
-def _kill_tree(proc) -> None:  # type: ignore[no-untyped-def]
-    """Terminate the process and its descendants."""
-    try:
-        if sys.platform == "win32":
-            import subprocess
-
-            subprocess.run(
-                ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
-                capture_output=True,
-            )
-        else:
-            import signal as sig
-
-            os.killpg(os.getpgid(proc.pid), sig.SIGTERM)
-            time.sleep(_GRACE_S)
-            if proc.poll() is None:
-                os.killpg(os.getpgid(proc.pid), sig.SIGKILL)
-    except Exception:
-        try:
-            proc.terminate()
-        except Exception:
-            pass
-
-
-def _drain_proc(proc) -> None:  # type: ignore[no-untyped-def]
-    """Ensure stdout/stderr are fully flushed (for file-based redirects)."""
-    try:
-        if proc.stdout:
-            proc.stdout.read()
-        if proc.stderr:
-            proc.stderr.read()
-    except Exception:
-        pass
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(doc.get("success"), bool):
+            raise ValueError("Invalid success flag")
+        return ChildResult(**doc)
+    except Exception as error:
+        return ChildResult(success=False, error=f"Cannot read child result: {error}")
