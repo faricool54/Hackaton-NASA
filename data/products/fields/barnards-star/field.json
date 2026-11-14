@@ -1,0 +1,813 @@
+{
+  "id": "barnards-star",
+  "name": "Barnard's Star",
+  "description": "Official test target. Highest proper-motion star in the sky (~10.4\"/yr): ~1.9 SPHEREx pixels over the DR1+QR3 baseline.",
+  "tags": [
+    "official-target",
+    "proper-motion",
+    "validation"
+  ],
+  "center": {
+    "ra": 269.44623,
+    "dec": 4.7687
+  },
+  "size_deg": 0.15,
+  "grid": {
+    "center": {
+      "ra": 269.44623,
+      "dec": 4.7687
+    },
+    "width_px": 88,
+    "height_px": 88,
+    "pixel_scale_arcsec": 6.15,
+    "wcs": {
+      "CTYPE1": "RA---TAN",
+      "CTYPE2": "DEC--TAN",
+      "CRVAL1": 269.44623,
+      "CRVAL2": 4.7687,
+      "CRPIX1": 44.5,
+      "CRPIX2": 44.5,
+      "CDELT1": -0.0017083333333333334,
+      "CDELT2": 0.0017083333333333334,
+      "CUNIT1": "deg",
+      "CUNIT2": "deg",
+      "NAXIS1": 88,
+      "NAXIS2": 88
+    }
+  },
+  "frames": [
+    {
+      "id": "2025W34_2B_0030_3D3",
+      "obs_id": "2025W34_2B_0030_3",
+      "detector": 3,
+      "mjd": 60908.642840356,
+      "date_obs": "2025-08-21T15:25:41.407000Z",
+      "wavelength_um": 1.9169985806369771,
+      "bandwidth_um": 0.047528784319520165,
+      "release": "dr1",
+      "image": "frames/2025W34_2B_0030_3D3.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2025W34_2B/l2b-v27-2026-229/3/level2_2025W34_2B_0030_3D3_spx_l2b-v27-2026-229.fits",
+      "valid_fraction": 0.984245867768595,
+      "stretch": {
+        "vmin": -0.04043354094028473,
+        "vmax": 9.688066396862268,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2025W34_2B_0030_3D6",
+      "obs_id": "2025W34_2B_0030_3",
+      "detector": 6,
+      "mjd": 60908.642840356,
+      "date_obs": "2025-08-21T15:25:41.407000Z",
+      "wavelength_um": 4.647633147263771,
+      "bandwidth_um": 0.03709927517481175,
+      "release": "dr1",
+      "image": "frames/2025W34_2B_0030_3D6.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2025W34_2B/l2b-v27-2026-229/6/level2_2025W34_2B_0030_3D6_spx_l2b-v27-2026-229.fits",
+      "valid_fraction": 0.9833419421487604,
+      "stretch": {
+        "vmin": -0.0097406767308712,
+        "vmax": 3.903356719762087,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2025W34_2B_0030_4D3",
+      "obs_id": "2025W34_2B_0030_4",
+      "detector": 3,
+      "mjd": 60908.644332613,
+      "date_obs": "2025-08-21T15:27:50.338000Z",
+      "wavelength_um": 1.9610364891418628,
+      "bandwidth_um": 0.048377555514704955,
+      "release": "dr1",
+      "image": "frames/2025W34_2B_0030_4D3.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2025W34_2B/l2b-v27-2026-229/3/level2_2025W34_2B_0030_4D3_spx_l2b-v27-2026-229.fits",
+      "valid_fraction": 0.9830836776859504,
+      "stretch": {
+        "vmin": -0.037139877676963806,
+        "vmax": 9.69136006012559,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2025W34_2B_0030_4D6",
+      "obs_id": "2025W34_2B_0030_4",
+      "detector": 6,
+      "mjd": 60908.644332613,
+      "date_obs": "2025-08-21T15:27:50.338000Z",
+      "wavelength_um": 4.68142420122026,
+      "bandwidth_um": 0.03734769302795504,
+      "release": "dr1",
+      "image": "frames/2025W34_2B_0030_4D6.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2025W34_2B/l2b-v27-2026-229/6/level2_2025W34_2B_0030_4D6_spx_l2b-v27-2026-229.fits",
+      "valid_fraction": 0.9872159090909091,
+      "stretch": {
+        "vmin": -0.010907944291830063,
+        "vmax": 3.902189452201128,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2025W35_1A_0146_2D2",
+      "obs_id": "2025W35_1A_0146_2",
+      "detector": 2,
+      "mjd": 60912.716305055,
+      "date_obs": "2025-08-25T17:11:28.757000Z",
+      "wavelength_um": 1.5537454213663622,
+      "bandwidth_um": 0.03790274903907661,
+      "release": "dr1",
+      "image": "frames/2025W35_1A_0146_2D2.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2025W35_1A/l2b-v27-2026-230/2/level2_2025W35_1A_0146_2D2_spx_l2b-v27-2026-230.fits",
+      "valid_fraction": 0.9832128099173554,
+      "stretch": {
+        "vmin": -0.05631867051124573,
+        "vmax": 9.921519458293915,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2025W35_1A_0146_3D2",
+      "obs_id": "2025W35_1A_0146_3",
+      "detector": 2,
+      "mjd": 60912.7177973,
+      "date_obs": "2025-08-25T17:13:37.687000Z",
+      "wavelength_um": 1.5910751312967393,
+      "bandwidth_um": 0.038714444299570536,
+      "release": "dr1",
+      "image": "frames/2025W35_1A_0146_3D2.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2025W35_1A/l2b-v27-2026-230/2/level2_2025W35_1A_0146_3D2_spx_l2b-v27-2026-230.fits",
+      "valid_fraction": 0.9784349173553719,
+      "stretch": {
+        "vmin": -0.039518147706985474,
+        "vmax": 9.938319981098175,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2025W35_1A_0146_3D5",
+      "obs_id": "2025W35_1A_0146_3",
+      "detector": 5,
+      "mjd": 60912.717797312,
+      "date_obs": "2025-08-25T17:13:37.688000Z",
+      "wavelength_um": 4.37000544877402,
+      "bandwidth_um": 0.037778462393306525,
+      "release": "dr1",
+      "image": "frames/2025W35_1A_0146_3D5.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2025W35_1A/l2b-v27-2026-230/5/level2_2025W35_1A_0146_3D5_spx_l2b-v27-2026-230.fits",
+      "valid_fraction": 0.9830836776859504,
+      "stretch": {
+        "vmin": -0.009038802236318588,
+        "vmax": 3.9150299951434135,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2025W35_1A_0146_4D2",
+      "obs_id": "2025W35_1A_0146_4",
+      "detector": 2,
+      "mjd": 60912.719289557,
+      "date_obs": "2025-08-25T17:15:46.618000Z",
+      "wavelength_um": 1.629240168678,
+      "bandwidth_um": 0.03944239136082847,
+      "release": "dr1",
+      "image": "frames/2025W35_1A_0146_4D2.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2025W35_1A/l2b-v27-2026-230/2/level2_2025W35_1A_0146_4D2_spx_l2b-v27-2026-230.fits",
+      "valid_fraction": 0.9806301652892562,
+      "stretch": {
+        "vmin": -0.03203049302101135,
+        "vmax": 9.94580763578415,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2025W35_1A_0146_4D5",
+      "obs_id": "2025W35_1A_0146_4",
+      "detector": 5,
+      "mjd": 60912.719289557,
+      "date_obs": "2025-08-25T17:15:46.618000Z",
+      "wavelength_um": 4.40721162556501,
+      "bandwidth_um": 0.037490130393359064,
+      "release": "dr1",
+      "image": "frames/2025W35_1A_0146_4D5.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2025W35_1A/l2b-v27-2026-230/5/level2_2025W35_1A_0146_4D5_spx_l2b-v27-2026-230.fits",
+      "valid_fraction": 0.9882489669421488,
+      "stretch": {
+        "vmin": -0.012155633419752121,
+        "vmax": 3.91191316395998,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2025W35_2A_0611_4D1",
+      "obs_id": "2025W35_2A_0611_4",
+      "detector": 1,
+      "mjd": 60918.628476305,
+      "date_obs": "2025-08-31T15:05:00.353000Z",
+      "wavelength_um": 0.9931296789898182,
+      "bandwidth_um": 0.026091044975358926,
+      "release": "dr1",
+      "image": "frames/2025W35_2A_0611_4D1.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2025W35_2A/l2b-v27-2026-231/1/level2_2025W35_2A_0611_4D1_spx_l2b-v27-2026-231.fits",
+      "valid_fraction": 0.9854080578512396,
+      "stretch": {
+        "vmin": 0.027561649680137634,
+        "vmax": 8.002872318029404,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2025W36_1A_0024_1D1",
+      "obs_id": "2025W36_1A_0024_1",
+      "detector": 1,
+      "mjd": 60919.103706131,
+      "date_obs": "2025-09-01T02:29:20.210000Z",
+      "wavelength_um": 1.0166954258432885,
+      "bandwidth_um": 0.027033526501240347,
+      "release": "dr1",
+      "image": "frames/2025W36_1A_0024_1D1.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2025W36_1A/l2b-v27-2026-232/1/level2_2025W36_1A_0024_1D1_spx_l2b-v27-2026-232.fits",
+      "valid_fraction": 0.9832128099173554,
+      "stretch": {
+        "vmin": 0.02651180326938629,
+        "vmax": 8.001822471618652,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2025W36_1A_0024_1D4",
+      "obs_id": "2025W36_1A_0024_1",
+      "detector": 4,
+      "mjd": 60919.103706131,
+      "date_obs": "2025-09-01T02:29:20.210000Z",
+      "wavelength_um": 3.449649029655893,
+      "bandwidth_um": 0.09830979316542982,
+      "release": "dr1",
+      "image": "frames/2025W36_1A_0024_1D4.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2025W36_1A/l2b-v27-2026-232/4/level2_2025W36_1A_0024_1D4_spx_l2b-v27-2026-232.fits",
+      "valid_fraction": 0.9797262396694215,
+      "stretch": {
+        "vmin": -0.0063302479684352875,
+        "vmax": 5.038150358945131,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2025W36_2B_0123_1D1",
+      "obs_id": "2025W36_2B_0123_1",
+      "detector": 1,
+      "mjd": 60923.107869337,
+      "date_obs": "2025-09-05T02:35:19.911000Z",
+      "wavelength_um": 0.9037606378175534,
+      "bandwidth_um": 0.023000037252746967,
+      "release": "dr1",
+      "image": "frames/2025W36_2B_0123_1D1.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2025W36_2B/l2b-v27-2026-234/1/level2_2025W36_2B_0123_1D1_spx_l2b-v27-2026-234.fits",
+      "valid_fraction": 0.981146694214876,
+      "stretch": {
+        "vmin": 0.009725674986839294,
+        "vmax": 7.985036343336105,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2025W36_2B_0123_1D4",
+      "obs_id": "2025W36_2B_0123_1",
+      "detector": 4,
+      "mjd": 60923.107869337,
+      "date_obs": "2025-09-05T02:35:19.911000Z",
+      "wavelength_um": 3.0148486734784803,
+      "bandwidth_um": 0.08962172420535885,
+      "release": "dr1",
+      "image": "frames/2025W36_2B_0123_1D4.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2025W36_2B/l2b-v27-2026-234/4/level2_2025W36_2B_0123_1D4_spx_l2b-v27-2026-234.fits",
+      "valid_fraction": 0.9803719008264463,
+      "stretch": {
+        "vmin": -0.00319049134850502,
+        "vmax": 5.041290115565062,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2026W11_1A_0511_1D1",
+      "obs_id": "2026W11_1A_0511_1",
+      "detector": 1,
+      "mjd": 61110.433724395,
+      "date_obs": "2026-03-11T10:24:33.788000Z",
+      "wavelength_um": 0.8041644232858061,
+      "bandwidth_um": 0.01995886372156392,
+      "release": "dr1",
+      "image": "frames/2026W11_1A_0511_1D1.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2026W11_1A/l2b-v27-2026-232/1/level2_2026W11_1A_0511_1D1_spx_l2b-v27-2026-232.fits",
+      "valid_fraction": 0.9456353305785123,
+      "stretch": {
+        "vmin": 0.002850279211997986,
+        "vmax": 7.978160947561264,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2026W11_1A_0511_1D4",
+      "obs_id": "2026W11_1A_0511_1",
+      "detector": 4,
+      "mjd": 61110.433724395,
+      "date_obs": "2026-03-11T10:24:33.788000Z",
+      "wavelength_um": 2.6365865066368106,
+      "bandwidth_um": 0.07398944552101115,
+      "release": "dr1",
+      "image": "frames/2026W11_1A_0511_1D4.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2026W11_1A/l2b-v27-2026-232/4/level2_2026W11_1A_0511_1D4_spx_l2b-v27-2026-232.fits",
+      "valid_fraction": 0.9755940082644629,
+      "stretch": {
+        "vmin": -0.0005896426737308502,
+        "vmax": 5.043890964239836,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2026W11_1A_0511_2D1",
+      "obs_id": "2026W11_1A_0511_2",
+      "detector": 1,
+      "mjd": 61110.435216664,
+      "date_obs": "2026-03-11T10:26:42.720000Z",
+      "wavelength_um": 0.8232154458947742,
+      "bandwidth_um": 0.020478984399504418,
+      "release": "dr1",
+      "image": "frames/2026W11_1A_0511_2D1.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2026W11_1A/l2b-v27-2026-232/1/level2_2026W11_1A_0511_2D1_spx_l2b-v27-2026-232.fits",
+      "valid_fraction": 0.9403409090909091,
+      "stretch": {
+        "vmin": 0.011459574103355408,
+        "vmax": 7.9867702424526215,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2026W11_1A_0511_2D4",
+      "obs_id": "2026W11_1A_0511_2",
+      "detector": 4,
+      "mjd": 61110.435216664,
+      "date_obs": "2026-03-11T10:26:42.720000Z",
+      "wavelength_um": 2.7083995749569647,
+      "bandwidth_um": 0.07624643526119985,
+      "release": "dr1",
+      "image": "frames/2026W11_1A_0511_2D4.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2026W11_1A/l2b-v27-2026-232/4/level2_2026W11_1A_0511_2D4_spx_l2b-v27-2026-232.fits",
+      "valid_fraction": 0.971849173553719,
+      "stretch": {
+        "vmin": -0.0011064894497394562,
+        "vmax": 5.043374117463827,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2026W11_1A_0511_3D1",
+      "obs_id": "2026W11_1A_0511_3",
+      "detector": 1,
+      "mjd": 61110.436708909,
+      "date_obs": "2026-03-11T10:28:51.650000Z",
+      "wavelength_um": 0.842856957089712,
+      "bandwidth_um": 0.021166690346890144,
+      "release": "dr1",
+      "image": "frames/2026W11_1A_0511_3D1.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2026W11_1A/l2b-v27-2026-232/1/level2_2026W11_1A_0511_3D1_spx_l2b-v27-2026-232.fits",
+      "valid_fraction": 0.9573863636363636,
+      "stretch": {
+        "vmin": 0.014090761542320251,
+        "vmax": 7.989401429891586,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2026W12_1A_0311_3D2",
+      "obs_id": "2026W12_1A_0311_3",
+      "detector": 2,
+      "mjd": 61116.683801918,
+      "date_obs": "2026-03-17T16:24:40.486000Z",
+      "wavelength_um": 1.378710697821547,
+      "bandwidth_um": 0.03308181162174665,
+      "release": "dr1",
+      "image": "frames/2026W12_1A_0311_3D2.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2026W12_1A/l2b-v27-2026-235/2/level2_2026W12_1A_0311_3D2_spx_l2b-v27-2026-235.fits",
+      "valid_fraction": 0.9434400826446281,
+      "stretch": {
+        "vmin": -0.05548819899559021,
+        "vmax": 9.92234992980957,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2026W12_1A_0311_3D5",
+      "obs_id": "2026W12_1A_0311_3",
+      "detector": 5,
+      "mjd": 61116.683801918,
+      "date_obs": "2026-03-17T16:24:40.486000Z",
+      "wavelength_um": 4.151364434998991,
+      "bandwidth_um": 0.03678558929217749,
+      "release": "dr1",
+      "image": "frames/2026W12_1A_0311_3D5.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2026W12_1A/l2b-v27-2026-235/5/level2_2026W12_1A_0311_3D5_spx_l2b-v27-2026-235.fits",
+      "valid_fraction": 0.9816632231404959,
+      "stretch": {
+        "vmin": -0.014886971563100815,
+        "vmax": 3.9091818258166313,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2026W12_1A_0311_4D2",
+      "obs_id": "2026W12_1A_0311_4",
+      "detector": 2,
+      "mjd": 61116.685294175,
+      "date_obs": "2026-03-17T16:26:49.417000Z",
+      "wavelength_um": 1.4116565311089713,
+      "bandwidth_um": 0.034069104605487295,
+      "release": "dr1",
+      "image": "frames/2026W12_1A_0311_4D2.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2026W12_1A/l2b-v27-2026-235/2/level2_2026W12_1A_0311_4D2_spx_l2b-v27-2026-235.fits",
+      "valid_fraction": 0.9575154958677686,
+      "stretch": {
+        "vmin": -0.06151854991912842,
+        "vmax": 9.916319578886032,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2026W12_1A_0311_4D5",
+      "obs_id": "2026W12_1A_0311_4",
+      "detector": 5,
+      "mjd": 61116.685294187,
+      "date_obs": "2026-03-17T16:26:49.418000Z",
+      "wavelength_um": 4.187303422782711,
+      "bandwidth_um": 0.0367448344410269,
+      "release": "dr1",
+      "image": "frames/2026W12_1A_0311_4D5.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2026W12_1A/l2b-v27-2026-235/5/level2_2026W12_1A_0311_4D5_spx_l2b-v27-2026-235.fits",
+      "valid_fraction": 0.9865702479338843,
+      "stretch": {
+        "vmin": -0.017388347536325455,
+        "vmax": 3.9066804498434067,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2026W13_1A_0549_1D3",
+      "obs_id": "2026W13_1A_0549_1",
+      "detector": 3,
+      "mjd": 61124.894932277,
+      "date_obs": "2026-03-25T21:28:42.149000Z",
+      "wavelength_um": 1.7793062008705816,
+      "bandwidth_um": 0.04360495703736434,
+      "release": "dr1",
+      "image": "frames/2026W13_1A_0549_1D3.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2026W13_1A/l2b-v27-2026-236/3/level2_2026W13_1A_0549_1D3_spx_l2b-v27-2026-236.fits",
+      "valid_fraction": 0.9598398760330579,
+      "stretch": {
+        "vmin": -0.0015213340520858765,
+        "vmax": 9.726978603750467,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2026W13_1A_0549_1D6",
+      "obs_id": "2026W13_1A_0549_1",
+      "detector": 6,
+      "mjd": 61124.894932277,
+      "date_obs": "2026-03-25T21:28:42.149000Z",
+      "wavelength_um": 4.539926520495253,
+      "bandwidth_um": 0.03642861662915598,
+      "release": "dr1",
+      "image": "frames/2026W13_1A_0549_1D6.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2026W13_1A/l2b-v27-2026-236/6/level2_2026W13_1A_0549_1D6_spx_l2b-v27-2026-236.fits",
+      "valid_fraction": 0.9895402892561983,
+      "stretch": {
+        "vmin": -0.02309395745396614,
+        "vmax": 3.890003439038992,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2026W15_2A_0137_1D3",
+      "obs_id": "2026W15_2A_0137_1",
+      "detector": 3,
+      "mjd": 61140.030727046,
+      "date_obs": "2026-04-10T00:44:14.817000Z",
+      "wavelength_um": 1.7932849835965343,
+      "bandwidth_um": 0.0441793221311362,
+      "release": "dr1",
+      "image": "frames/2026W15_2A_0137_1D3.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2026W15_2A/l2b-v27-2026-240/3/level2_2026W15_2A_0137_1D3_spx_l2b-v27-2026-240.fits",
+      "valid_fraction": 0.9759814049586777,
+      "stretch": {
+        "vmin": -0.030064329504966736,
+        "vmax": 9.698435608297586,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2026W15_2A_0137_1D6",
+      "obs_id": "2026W15_2A_0137_1",
+      "detector": 6,
+      "mjd": 61140.030727046,
+      "date_obs": "2026-04-10T00:44:14.817000Z",
+      "wavelength_um": 4.551021026063337,
+      "bandwidth_um": 0.035842799950293325,
+      "release": "dr1",
+      "image": "frames/2026W15_2A_0137_1D6.png",
+      "source_uri": "ibe/data/spherex/dr1/level2/2026W15_2A/l2b-v27-2026-240/6/level2_2026W15_2A_0137_1D6_spx_l2b-v27-2026-240.fits",
+      "valid_fraction": 0.9878615702479339,
+      "stretch": {
+        "vmin": -0.017468255013227463,
+        "vmax": 3.8956291414797306,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2026W34_1A_0308_3D3",
+      "obs_id": "2026W34_1A_0308_3",
+      "detector": 3,
+      "mjd": 61270.598429696,
+      "date_obs": "2026-08-18T14:21:44.326000Z",
+      "wavelength_um": 1.9377070123447804,
+      "bandwidth_um": 0.04736446477096402,
+      "release": "qr3",
+      "image": "frames/2026W34_1A_0308_3D3.png",
+      "source_uri": "ibe/data/spherex/qr3/level2/2026W34_1A/l2b-v27-2026-243/3/level2_2026W34_1A_0308_3D3_spx_l2b-v27-2026-243.fits",
+      "valid_fraction": 0.981404958677686,
+      "stretch": {
+        "vmin": -0.0298691987991333,
+        "vmax": 9.69863073900342,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2026W34_1A_0308_3D6",
+      "obs_id": "2026W34_1A_0308_3",
+      "detector": 6,
+      "mjd": 61270.598429696,
+      "date_obs": "2026-08-18T14:21:44.326000Z",
+      "wavelength_um": 4.663838072067322,
+      "bandwidth_um": 0.037048182171267416,
+      "release": "qr3",
+      "image": "frames/2026W34_1A_0308_3D6.png",
+      "source_uri": "ibe/data/spherex/qr3/level2/2026W34_1A/l2b-v27-2026-243/6/level2_2026W34_1A_0308_3D6_spx_l2b-v27-2026-243.fits",
+      "valid_fraction": 0.9865702479338843,
+      "stretch": {
+        "vmin": -0.009196270257234573,
+        "vmax": 3.9039011262357235,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2026W34_1A_0308_4D3",
+      "obs_id": "2026W34_1A_0308_4",
+      "detector": 3,
+      "mjd": 61270.599921953,
+      "date_obs": "2026-08-18T14:23:53.257000Z",
+      "wavelength_um": 1.9825667502626507,
+      "bandwidth_um": 0.04851230728299123,
+      "release": "qr3",
+      "image": "frames/2026W34_1A_0308_4D3.png",
+      "source_uri": "ibe/data/spherex/qr3/level2/2026W34_1A/l2b-v27-2026-243/3/level2_2026W34_1A_0308_4D3_spx_l2b-v27-2026-243.fits",
+      "valid_fraction": 0.9851497933884298,
+      "stretch": {
+        "vmin": -0.03151174634695053,
+        "vmax": 9.696988191455603,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2026W34_1A_0308_4D6",
+      "obs_id": "2026W34_1A_0308_4",
+      "detector": 6,
+      "mjd": 61270.599921953,
+      "date_obs": "2026-08-18T14:23:53.257000Z",
+      "wavelength_um": 4.697720782985797,
+      "bandwidth_um": 0.037276788115179524,
+      "release": "qr3",
+      "image": "frames/2026W34_1A_0308_4D6.png",
+      "source_uri": "ibe/data/spherex/qr3/level2/2026W34_1A/l2b-v27-2026-243/6/level2_2026W34_1A_0308_4D6_spx_l2b-v27-2026-243.fits",
+      "valid_fraction": 0.9857954545454546,
+      "stretch": {
+        "vmin": -0.011490140110254288,
+        "vmax": 3.901607256382704,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2026W35_1A_0092_1D2",
+      "obs_id": "2026W35_1A_0092_1",
+      "detector": 2,
+      "mjd": 61276.438350992,
+      "date_obs": "2026-08-24T10:31:13.526000Z",
+      "wavelength_um": 1.6139930259748978,
+      "bandwidth_um": 0.03907132143248969,
+      "release": "qr3",
+      "image": "frames/2026W35_1A_0092_1D2.png",
+      "source_uri": "ibe/data/spherex/qr3/level2/2026W35_1A/l2b-v27-2026-243/2/level2_2026W35_1A_0092_1D2_spx_l2b-v27-2026-243.fits",
+      "valid_fraction": 0.9829545454545454,
+      "stretch": {
+        "vmin": -0.02498602867126465,
+        "vmax": 9.952852100133896,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2026W35_1A_0092_1D5",
+      "obs_id": "2026W35_1A_0092_1",
+      "detector": 5,
+      "mjd": 61276.438351004,
+      "date_obs": "2026-08-24T10:31:13.527000Z",
+      "wavelength_um": 4.392239904468216,
+      "bandwidth_um": 0.03772537938655641,
+      "release": "qr3",
+      "image": "frames/2026W35_1A_0092_1D5.png",
+      "source_uri": "ibe/data/spherex/qr3/level2/2026W35_1A/l2b-v27-2026-243/5/level2_2026W35_1A_0092_1D5_spx_l2b-v27-2026-243.fits",
+      "valid_fraction": 0.9907024793388429,
+      "stretch": {
+        "vmin": -0.00943855568766594,
+        "vmax": 3.914630241692066,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2026W35_2A_0126_1D2",
+      "obs_id": "2026W35_2A_0126_1",
+      "detector": 2,
+      "mjd": 61280.166927671,
+      "date_obs": "2026-08-28T04:00:22.551000Z",
+      "wavelength_um": 1.6524068974125623,
+      "bandwidth_um": 0.0396965344015674,
+      "release": "qr3",
+      "image": "frames/2026W35_2A_0126_1D2.png",
+      "source_uri": "ibe/data/spherex/qr3/level2/2026W35_2A/l2b-v27-2026-246/2/level2_2026W35_2A_0126_1D2_spx_l2b-v27-2026-246.fits",
+      "valid_fraction": 0.9165805785123967,
+      "stretch": {
+        "vmin": -0.022838279604911804,
+        "vmax": 9.954999849200249,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2026W35_2A_0126_1D5",
+      "obs_id": "2026W35_2A_0126_1",
+      "detector": 5,
+      "mjd": 61280.166927671,
+      "date_obs": "2026-08-28T04:00:22.551000Z",
+      "wavelength_um": 4.429416991061983,
+      "bandwidth_um": 0.036872073443405734,
+      "release": "qr3",
+      "image": "frames/2026W35_2A_0126_1D5.png",
+      "source_uri": "ibe/data/spherex/qr3/level2/2026W35_2A/l2b-v27-2026-246/5/level2_2026W35_2A_0126_1D5_spx_l2b-v27-2026-246.fits",
+      "valid_fraction": 0.8716425619834711,
+      "stretch": {
+        "vmin": -0.0006919018924236298,
+        "vmax": 3.9233768954873085,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2026W35_2A_0412_1D1",
+      "obs_id": "2026W35_2A_0412_1",
+      "detector": 1,
+      "mjd": 61281.659768909,
+      "date_obs": "2026-08-29T15:50:04.034000Z",
+      "wavelength_um": 0.9361403234670472,
+      "bandwidth_um": 0.02394448730088004,
+      "release": "qr3",
+      "image": "frames/2026W35_2A_0412_1D1.png",
+      "source_uri": "ibe/data/spherex/qr3/level2/2026W35_2A/l2b-v27-2026-246/1/level2_2026W35_2A_0412_1D1_spx_l2b-v27-2026-246.fits",
+      "valid_fraction": 0.984504132231405,
+      "stretch": {
+        "vmin": 0.007804244756698608,
+        "vmax": 7.983114913105965,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2026W35_2A_0412_1D4",
+      "obs_id": "2026W35_2A_0412_1",
+      "detector": 4,
+      "mjd": 61281.659768909,
+      "date_obs": "2026-08-29T15:50:04.034000Z",
+      "wavelength_um": 3.139369473994852,
+      "bandwidth_um": 0.0919159223902793,
+      "release": "qr3",
+      "image": "frames/2026W35_2A_0412_1D4.png",
+      "source_uri": "ibe/data/spherex/qr3/level2/2026W35_2A/l2b-v27-2026-246/4/level2_2026W35_2A_0412_1D4_spx_l2b-v27-2026-246.fits",
+      "valid_fraction": 0.9815340909090909,
+      "stretch": {
+        "vmin": -0.009917374700307846,
+        "vmax": 5.034563232213259,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2026W35_2A_0412_2D1",
+      "obs_id": "2026W35_2A_0412_2",
+      "detector": 1,
+      "mjd": 61281.661261178,
+      "date_obs": "2026-08-29T15:52:12.966000Z",
+      "wavelength_um": 0.9582314458872991,
+      "bandwidth_um": 0.02445945300660506,
+      "release": "qr3",
+      "image": "frames/2026W35_2A_0412_2D1.png",
+      "source_uri": "ibe/data/spherex/qr3/level2/2026W35_2A/l2b-v27-2026-246/1/level2_2026W35_2A_0412_2D1_spx_l2b-v27-2026-246.fits",
+      "valid_fraction": 0.9863119834710744,
+      "stretch": {
+        "vmin": 0.021298184990882874,
+        "vmax": 7.996608853340149,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2026W35_2A_0412_2D4",
+      "obs_id": "2026W35_2A_0412_2",
+      "detector": 4,
+      "mjd": 61281.661261178,
+      "date_obs": "2026-08-29T15:52:12.966000Z",
+      "wavelength_um": 3.2256106501298674,
+      "bandwidth_um": 0.09422978667128275,
+      "release": "qr3",
+      "image": "frames/2026W35_2A_0412_2D4.png",
+      "source_uri": "ibe/data/spherex/qr3/level2/2026W35_2A/l2b-v27-2026-246/4/level2_2026W35_2A_0412_2D4_spx_l2b-v27-2026-246.fits",
+      "valid_fraction": 0.9826962809917356,
+      "stretch": {
+        "vmin": -0.001174088567495346,
+        "vmax": 5.043306518346071,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    },
+    {
+      "id": "2026W35_2A_0412_3D1",
+      "obs_id": "2026W35_2A_0412_3",
+      "detector": 1,
+      "mjd": 61281.662753423,
+      "date_obs": "2026-08-29T15:54:21.896000Z",
+      "wavelength_um": 0.9813741226488931,
+      "bandwidth_um": 0.025582212019833784,
+      "release": "qr3",
+      "image": "frames/2026W35_2A_0412_3D1.png",
+      "source_uri": "ibe/data/spherex/qr3/level2/2026W35_2A/l2b-v27-2026-246/1/level2_2026W35_2A_0412_3D1_spx_l2b-v27-2026-246.fits",
+      "valid_fraction": 0.9836002066115702,
+      "stretch": {
+        "vmin": 0.01692204177379608,
+        "vmax": 7.992232710123062,
+        "unit": "MJy/sr",
+        "method": "asinh"
+      }
+    }
+  ],
+  "provenance": {
+    "pipeline_version": "0.1.0",
+    "built_at": "2026-11-14T18:53:08.415377Z",
+    "synthetic": false,
+    "data_releases": [
+      "dr1",
+      "qr3"
+    ],
+    "notes": [
+      "Automatic detection and catalog matching were not run.",
+      "Pixel values and stretch limits are IMAGE - ZODI (SPHEREx zodiacal model subtracted) in MJy/sr; PNGs use an asinh mapping with the same contrast for every frame of a detector, and transparent pixels mean no data. Saturated star cores and detector-defect pixels are filled from their neighbours for display only; they count as invalid in valid_fraction."
+    ]
+  }
+}
