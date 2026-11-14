@@ -27,9 +27,9 @@ How (verified on real DR1 files, 2026-11-14; see docs/DATA.md §2-§3):
      pixels, alternate 'W' = WAVE-TAB lookup). IRSA writes no LTV1/LTV2; we add
      PATCH_X0/PATCH_Y0 (0-based offset of the patch in the detector) for convenience.
 
-``fetch_patches`` has the same signature and aligned output as ``cutouts.fetch_cutouts``
-and writes small MEF files (IMAGE, FLAGS if known, VARIANCE, ZODI, WCS-WAVE; no EPSF)
-that ``fits_io.read_spherex`` opens, so build.py can switch with one line.
+``fetch_patch`` writes small MEF files (IMAGE, FLAGS if known, VARIANCE, ZODI, WCS-WAVE; no EPSF)
+that ``fits_io.read_spherex`` opens. ``cutouts.fetch_cutouts`` (what build.py calls) uses it first and
+falls back to an IBE cutout per frame; ``fetch_patches`` is the S3-only variant.
 """
 
 from __future__ import annotations
@@ -59,12 +59,11 @@ from astropy.wcs.utils import proj_plane_pixel_scales
 
 from .. import settings
 from ..models import FrameRef
-from .cutouts import TRANSIENT_BODY_ERRORS, FetchError, KeyedLocks, NoOverlap, fetch_report
+from .cutouts import TRANSIENT_BODY_ERRORS, KeyedLocks, NoOverlap, fetch_aligned, fetch_report
 from .fits_io import SpherexImage
 from .s3 import irsa_uri_to_s3_key
 
 __all__ = [
-    "FetchError",
     "HduDirectory",
     "HduInfo",
     "NoOverlap",
@@ -779,13 +778,6 @@ def fetch_patches_report(
     return fetch_report(lambda f: fetch_patch(f, ra, dec, size_arcmin), frames, max_workers or MAX_PARALLEL_S3)
 
 
-def fetch_patches(frames: list[FrameRef], ra: float, dec: float, size_arcmin: float) -> list[Path]:
-    """Drop-in replacement for ``cutouts.fetch_cutouts``: paths aligned 1:1 with ``frames``.
-
-    If any frame fails (no overlap, network...), raises :class:`FetchError` carrying the
-    partial results and the failures.
-    """
-    results, failures = fetch_patches_report(frames, ra, dec, size_arcmin)
-    if failures:
-        raise FetchError(results, failures)
-    return [p for _, p in results]
+def fetch_patches(frames: list[FrameRef], ra: float, dec: float, size_arcmin: float) -> list[Path | None]:
+    """S3-only variant of ``cutouts.fetch_cutouts``: one path per frame, in order, ``None`` where it failed."""
+    return fetch_aligned(lambda f: fetch_patch(f, ra, dec, size_arcmin), frames, MAX_PARALLEL_S3)[0]

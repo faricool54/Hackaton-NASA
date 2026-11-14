@@ -1,9 +1,15 @@
-"""Server-side cutouts from IRSA IBE (WS1): the fallback path for pixels.
+"""Pixels of each frame around a position (WS1): S3 Range patches first, IRSA IBE cutouts as fallback.
 
-The fast path is :mod:`errante.data.s3range` (HTTP Range reads on the public S3
-bucket). This module asks IRSA to cut the file instead: append
-``?center=<ra>,<dec>&size=<s>arcmin`` to the IBE file URL and get a multi-extension
-FITS with the same HDUs (IMAGE/FLAGS/VARIANCE/ZODI/EPSF/WCS-WAVE).
+:func:`fetch_cutouts` is what ``build.py`` calls. For every frame it returns a small multi-extension FITS
+(IMAGE/FLAGS/VARIANCE/ZODI/WCS-WAVE) that ``fits_io.read_spherex`` opens, or ``None`` if that frame could
+not be fetched, so one bad frame never aborts a field:
+
+  1. :mod:`errante.data.s3range` reads only the rows of the box from the public S3 bucket (HTTP Range):
+     ~0.4-0.7 s and ~1.4 MB per 5' frame, bit-identical to an IBE cutout (verified live on D1-D6, dr1/qr3);
+  2. if that fails for any reason other than "no overlap", the frame is asked to IRSA IBE instead
+     (``?center=<ra>,<dec>&size=<s>arcmin`` on the file URL), which also returns the EPSF table.
+
+``ERRANTE_PIXEL_SOURCE=ibe`` skips step 1 (e.g. if S3 is unreachable from a deploy host).
 
 Verified live (2026-11-14, docs/DATA.md §3.0):
   * every cutout carries the WHOLE EPSF table: ~4 MB minimum even for a 5' box,
@@ -21,6 +27,7 @@ Verified live (2026-11-14, docs/DATA.md §3.0):
 
 from __future__ import annotations
 
+import logging
 import os
 import shutil
 import threading
@@ -37,7 +44,11 @@ from .. import settings
 from ..models import FrameRef
 from . import cache
 
+log = logging.getLogger(__name__)
+
 IBE_PREFIX = "ibe/data/spherex/"
+PIXEL_SOURCE = os.environ.get("ERRANTE_PIXEL_SOURCE", "s3").strip().lower()
+"""'s3' (default): S3 Range patch, IBE cutout as per-frame fallback. 'ibe': IBE cutouts only."""
 CUTOUT_RETRIES = 5
 """Attempts per cutout; ``cache.cached_download`` backs off 1, 2, 4, 8 s between them."""
 BODY_RETRIES = 3
@@ -80,22 +91,6 @@ _url_locks = KeyedLocks()
 
 class NoOverlap(ValueError):
     """The requested box does not overlap the detector (IBE answers HTTP 422)."""
-
-
-class FetchError(RuntimeError):
-    """Some frames failed. Carries what succeeded and what did not, in input order.
-
-    ``results``: list of (FrameRef, Path) that worked; ``failures``: list of (FrameRef, reason).
-    """
-
-    def __init__(self, results: list[tuple[FrameRef, Path]], failures: list[tuple[FrameRef, str]]):
-        self.results = results
-        self.failures = failures
-        first = failures[0][1] if failures else ""
-        super().__init__(f"{len(failures)} of {len(results) + len(failures)} frames failed (first: {first})")
-
-    def __reduce__(self):  # picklable across process pools despite the 2-argument __init__
-        return (type(self), (self.results, self.failures))
 
 
 def frame_irsa_uri(frame: FrameRef) -> str:
@@ -171,25 +166,35 @@ def fetch_cutout(frame: FrameRef, ra: float, dec: float, size_arcmin: float, out
         return dest
 
 
-def fetch_report(
+def fetch_aligned(
     fetch_one: Callable[[FrameRef], Path], frames: list[FrameRef], max_workers: int
-) -> tuple[list[tuple[FrameRef, Path]], list[tuple[FrameRef, str]]]:
+) -> tuple[list[Path | None], list[tuple[FrameRef, str]]]:
     """Run ``fetch_one`` over ``frames`` in a thread pool, never aborting on one failure.
 
-    Returns (results, failures), both in input order; every frame lands in exactly one list.
+    Returns (paths, failures): ``paths`` is aligned 1:1 with ``frames`` (``None`` where the frame failed) and
+    ``failures`` lists (frame, "<ExceptionType>: <message>") in input order.
     """
     if not frames:
         return [], []
+    paths: list[Path | None] = []
+    failures: list[tuple[FrameRef, str]] = []
     with ThreadPoolExecutor(max_workers=max(1, min(max_workers, len(frames)))) as pool:
         futures = [pool.submit(fetch_one, f) for f in frames]
-        results: list[tuple[FrameRef, Path]] = []
-        failures: list[tuple[FrameRef, str]] = []
         for frame, fut in zip(frames, futures, strict=True):
             try:
-                results.append((frame, fut.result()))
+                paths.append(fut.result())
             except Exception as e:  # noqa: BLE001  (reported to the caller, never swallowed)
+                paths.append(None)
                 failures.append((frame, f"{type(e).__name__}: {e}"))
-    return results, failures
+    return paths, failures
+
+
+def fetch_report(
+    fetch_one: Callable[[FrameRef], Path], frames: list[FrameRef], max_workers: int
+) -> tuple[list[tuple[FrameRef, Path]], list[tuple[FrameRef, str]]]:
+    """Like :func:`fetch_aligned` but returns ([(frame, path)], [(frame, reason)]), both in input order."""
+    paths, failures = fetch_aligned(fetch_one, frames, max_workers)
+    return [(f, p) for f, p in zip(frames, paths, strict=True) if p is not None], failures
 
 
 def fetch_cutouts_report(
@@ -203,13 +208,61 @@ def fetch_cutouts_report(
     )
 
 
-def fetch_cutouts(frames: list[FrameRef], ra: float, dec: float, size_arcmin: float) -> list[Path]:
-    """Parallel :func:`fetch_cutout`; returns paths aligned 1:1 with ``frames``.
+_ibe_slots = threading.BoundedSemaphore(max(1, settings.MAX_PARALLEL_DOWNLOADS))
+"""IRSA throttles parallel requests: IBE fallbacks share these slots even inside the wider S3 pool."""
 
-    If any frame fails, raises :class:`FetchError` with the partial results and the
-    failures, so the caller can never zip misaligned ``frames`` and ``paths``.
+
+def fetch_frame(frame: FrameRef, ra: float, dec: float, size_arcmin: float) -> Path:
+    """Best available pixels of one frame: S3 Range patch, else IBE cutout. Raises if both fail.
+
+    :class:`NoOverlap` is raised as is (IBE would answer 422 for the same box). Any other S3 failure
+    (network, missing key, unexpected layout) falls back to IBE; if that fails too the error names both.
     """
-    results, failures = fetch_cutouts_report(frames, ra, dec, size_arcmin)
+    if PIXEL_SOURCE == "ibe":
+        with _ibe_slots:
+            return fetch_cutout(frame, ra, dec, size_arcmin)
+    from . import s3range  # lazy: s3range imports helpers from this module
+
+    try:
+        return s3range.fetch_patch(frame, ra, dec, size_arcmin)
+    except NoOverlap:
+        raise
+    except Exception as s3_error:  # noqa: BLE001  (falls back, and is reported if the fallback fails too)
+        log.info("S3 patch failed for %sD%s (%s); trying IBE", frame.obs_id, frame.detector, s3_error)
+        try:
+            with _ibe_slots:
+                return fetch_cutout(frame, ra, dec, size_arcmin)
+        except NoOverlap:
+            raise
+        except Exception as ibe_error:
+            raise RuntimeError(
+                f"S3: {type(s3_error).__name__}: {s3_error}; IBE: {type(ibe_error).__name__}: {ibe_error}"
+            ) from ibe_error
+
+
+def fetch_frames_report(
+    frames: list[FrameRef], ra: float, dec: float, size_arcmin: float, max_workers: int | None = None
+) -> tuple[list[Path | None], list[tuple[FrameRef, str]]]:
+    """:func:`fetch_frame` for every frame in parallel: (paths aligned with ``frames``, [(frame, reason)])."""
+    if PIXEL_SOURCE == "ibe":
+        workers = max_workers or settings.MAX_PARALLEL_DOWNLOADS
+    else:
+        from .s3range import MAX_PARALLEL_S3
+
+        workers = max_workers or MAX_PARALLEL_S3
+    return fetch_aligned(lambda f: fetch_frame(f, ra, dec, size_arcmin), frames, workers)
+
+
+def fetch_cutouts(frames: list[FrameRef], ra: float, dec: float, size_arcmin: float) -> list[Path | None]:
+    """Pixels of every frame around (ra, dec): one path per frame, in order, ``None`` where it failed.
+
+    This is the entry point of ``build.py``: the caller skips (and may replace) the ``None`` frames, so one
+    missing or unreachable frame never aborts a field. Each failure is logged with its reason; use
+    :func:`fetch_frames_report` to get the reasons programmatically.
+    """
+    paths, failures = fetch_frames_report(frames, ra, dec, size_arcmin)
+    for frame, reason in failures:
+        log.warning("no pixels for %sD%s: %s", frame.obs_id, frame.detector, reason)
     if failures:
-        raise FetchError(results, failures)
-    return [p for _, p in results]
+        log.warning("fetch_cutouts: %d of %d frames failed", len(failures), len(frames))
+    return paths

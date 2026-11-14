@@ -26,7 +26,7 @@ from astropy.wcs import WCS
 
 from errante import settings
 from errante.data import fits_io, s3range
-from errante.data.cutouts import FetchError, NoOverlap
+from errante.data.cutouts import NoOverlap
 from errante.models import FrameRef
 
 FIXTURES = Path(__file__).parent / "fixtures" / "ws1"
@@ -300,10 +300,8 @@ def test_fetch_patches_aligned_cached_and_reports_failures(monkeypatch, tmp_path
     results, failures = s3range.fetch_patches_report([*frames, _frame("dr1/missing.fits")], *far, 1.0)
     assert results == [] and [f.s3_key for f, _ in failures][2] == "dr1/missing.fits"
     assert all(msg.startswith(("NoOverlap", "KeyError")) for _, msg in failures)
-    with pytest.raises(FetchError) as ei:
-        s3range.fetch_patches([frames[0], _frame("dr1/missing.fits"), frames[1]], ra, dec, 2.0)
-    assert [f.s3_key for f, _ in ei.value.results] == [kb, None]
-    assert [f.s3_key for f, _ in ei.value.failures] == ["dr1/missing.fits"]
+    mixed = s3range.fetch_patches([frames[0], _frame("dr1/missing.fits"), frames[1]], ra, dec, 2.0)
+    assert mixed == [paths[0], None, paths[1]]  # aligned, None for the failed frame, never raises
 
 
 def test_concurrent_reads_of_one_key_walk_once_and_never_fail(l2, monkeypatch):

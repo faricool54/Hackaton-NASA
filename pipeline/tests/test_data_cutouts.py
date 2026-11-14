@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import pickle
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -15,7 +14,7 @@ from astropy.io import fits
 
 from errante import settings
 from errante.data import cache, cutouts
-from errante.data.cutouts import FetchError, NoOverlap
+from errante.data.cutouts import NoOverlap
 from errante.models import FrameRef
 
 KEY = "dr1/level2/2025W33_2C/l2b-v27-2026-228/3/level2_2025W33_2C_0321_1D3_spx_l2b-v27-2026-228.fits"
@@ -152,12 +151,6 @@ def test_concurrent_requests_for_one_cutout_download_once(fake_http, monkeypatch
     assert not list((tmp_path / "o").glob("*.part"))
 
 
-def test_fetch_error_survives_pickle(tmp_path):
-    err = FetchError([(_frame(), tmp_path / "a.fits")], [(_frame("dr1/b.fits"), "NoOverlap: x")])
-    back = pickle.loads(pickle.dumps(err))
-    assert (back.results, back.failures, str(back)) == (err.results, err.failures, str(err))
-
-
 def test_batch_is_aligned_and_reports_failures(monkeypatch, tmp_path):
     frames = [_frame(f"dr1/level2/w/v/3/level2_2025W33_2C_000{i}_1D3_spx_v.fits") for i in range(5)]
 
@@ -174,12 +167,50 @@ def test_batch_is_aligned_and_reports_failures(monkeypatch, tmp_path):
     assert [(f.s3_key, p.name) for f, p in results] == [(frames[i].s3_key, f"{i}.fits") for i in (0, 2, 4)]
     assert [f.s3_key for f, _ in failures] == [frames[1].s3_key, frames[3].s3_key]
     assert failures[0][1].startswith("NoOverlap") and failures[1][1].startswith("RuntimeError")
-    with pytest.raises(FetchError) as ei:
-        cutouts.fetch_cutouts(frames, *BARNARD, 5.0)
-    assert ei.value.results == results and ei.value.failures == failures
+
+    # build.py's contract (WS2): one entry per frame, in order, None where the frame failed; never raises.
+    monkeypatch.setattr(cutouts, "PIXEL_SOURCE", "ibe")
+    paths = cutouts.fetch_cutouts(frames, *BARNARD, 5.0)
+    assert [p.name if p else None for p in paths] == ["0.fits", None, "2.fits", None, "4.fits"]
     ok = [frames[i] for i in (4, 0, 2)]
     assert [p.name for p in cutouts.fetch_cutouts(ok, *BARNARD, 5.0)] == ["4.fits", "0.fits", "2.fits"]
     assert cutouts.fetch_cutouts([], *BARNARD, 5.0) == []
+
+
+def test_fetch_cutouts_prefers_s3_and_falls_back_to_ibe(monkeypatch, tmp_path):
+    from errante.data import s3range
+
+    frames = [_frame(f"dr1/level2/w/v/3/level2_2025W33_2C_000{i}_1D3_spx_v.fits") for i in range(4)]
+
+    def idx(frame):
+        return int(Path(frame.s3_key).stem.split("_")[3])
+
+    def fake_patch(frame, ra, dec, size_arcmin):
+        i = idx(frame)
+        if i == 0:
+            return tmp_path / "s3_0.fits"
+        if i == 1:
+            raise NoOverlap("no overlap")  # IBE would 422 too: not retried there
+        raise requests.ConnectionError("S3 unreachable")
+
+    ibe_calls = []
+
+    def fake_ibe(frame, ra, dec, size_arcmin, out_dir=None):
+        ibe_calls.append(idx(frame))
+        if idx(frame) == 3:
+            raise RuntimeError("Download failed after 5 attempts")
+        return tmp_path / f"ibe_{idx(frame)}.fits"
+
+    monkeypatch.setattr(cutouts, "PIXEL_SOURCE", "s3")
+    monkeypatch.setattr(s3range, "fetch_patch", fake_patch)
+    monkeypatch.setattr(cutouts, "fetch_cutout", fake_ibe)
+    paths, failures = cutouts.fetch_frames_report(frames, *BARNARD, 5.0)
+    assert [p.name if p else None for p in paths] == ["s3_0.fits", None, "ibe_2.fits", None]
+    assert sorted(ibe_calls) == [2, 3]
+    assert [idx(f) for f, _ in failures] == [1, 3]
+    assert failures[0][1].startswith("NoOverlap")
+    assert "S3: ConnectionError" in failures[1][1] and "IBE: RuntimeError" in failures[1][1]
+    assert cutouts.fetch_cutouts(frames, *BARNARD, 5.0) == paths
 
 
 @pytest.mark.network
