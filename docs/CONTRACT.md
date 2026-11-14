@@ -90,6 +90,8 @@ centros propagados documentados en `fields.toml`. CfA puede devolver decimal o j
 
 ## Extensiones aún sin contrato publicado
 
+- #39 propone `Field.composites` (falso color por temporada), todavía en revisión sobre 0.2.2. Si entra
+  después de #32, actualizarlo a 0.3.1 con schema/TS; no mezclar cambios de versión de ramas distintas.
 - C01/C07: metadatos ampliados de selección, cobertura y flags con significado.
 - C02/C03: WS2 #19 implementa comparaciones; `compare/compare.json` es provisional. Acordar miembros,
   pesos, método, fechas/bandas, máscaras, unidades y limitaciones antes de integrarlo en API/UI.

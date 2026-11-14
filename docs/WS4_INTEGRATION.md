@@ -53,6 +53,14 @@ con IA. La evidencia gráfica local y los caches/FITS pesados no se agregan al r
 
 ## Qué falta y de quién depende
 
+PRs abiertos vistos al cerrar: #35 mejora selección/λ y #37 las restas; todavía no están integrados.
+Al entrar #35, revisar/subir `JobRequest.build_context.build_revision` para no reutilizar imágenes con la
+selección anterior. #39 propone composites de falso color sobre versión 0.2.2: si #32 entra primero,
+su autor debe actualizarlo a 0.3.1, regenerar schema/TS y traer main. No renumerar ambos por separado.
+La publicación actual copia/hashea el árbol completo, incluido `color/`; al adoptar el modelo Composite,
+ampliar también la validación de sus PNG antes de declararlos listos. El frontend de composites debe
+integrarse encima de #34 para conservar precarga, errores y los atajos acotados al visor.
+
 - WS4-4/6: destino/URL pública y prueba desde el origen final. Hosting aún no definido; no se contrató nada.
 - WS4-8/9/10 (extras): WS2 #19/#31 ya aporta comparación/fotometría; falta contrato científico acordado,
   API y vistas con WS3/WS5. No consumir `compare.json` provisional como contrato estable.
