@@ -89,3 +89,15 @@ This statement covers observed work, not every asset a contributor might add lat
   not replace attribution in the project.
 
 No unreviewed attribution, originality or eligibility claim is made by this draft.
+
+## WS4 review and frontend integration (November 14, 2026)
+
+At rpccp's request, OpenAI Codex reviewed and repaired job concurrency, publication/recovery, served/build
+roots, browser CORS and child-process supervision; formalized the additive 0.3.0 job/resolver contract; and
+connected the map, coordinate/name input, polling, sharing and real-image playback. Real browser testing
+found and fixed Sesame's colon-formatted coordinates. Local tests included three 40-frame real builds,
+desktop/mobile playback and shared-link restoration. These checks do not establish R05 scientific recovery.
+
+Component metadata: [backend/ai-usage.json](backend/ai-usage.json),
+[frontend/ai-usage.json](frontend/ai-usage.json). Human review remains pending. No AI-generated sky imagery
+or new physical measurements were used; Aladin, IRSA and ESA imagery retain their source credits.
