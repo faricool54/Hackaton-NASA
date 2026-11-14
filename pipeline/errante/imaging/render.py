@@ -1,18 +1,75 @@
 """Turn a float image (MJy/sr) into an 8-bit PNG for the browser (WS2).
 
-Basic version implemented so the demo works. Ideas for WS2: per-field common
-stretch (so blinking doesn't flicker in brightness), zscale, colormaps,
+``field_stretches`` gives every frame of a detector the same contrast so the
+blink does not flicker in brightness. Ideas left for WS2: zscale, colormaps,
 WebP output, difference images (frame - median stack) as an extra layer.
 """
 
 from __future__ import annotations
 
+from collections.abc import Hashable, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 from PIL import Image
 
 from ..models import Stretch
+
+
+@dataclass(frozen=True)
+class _SkyStats:
+    background: float
+    sigma: float
+    bright: float  # hi_pct percentile minus background
+
+
+def _sky_stats(img: np.ndarray, hi_pct: float) -> _SkyStats | None:
+    finite = img[np.isfinite(img)]
+    if finite.size == 0:
+        return None
+    med = float(np.median(finite))
+    sigma = float(1.4826 * np.median(np.abs(finite - med)))
+    return _SkyStats(background=med, sigma=sigma, bright=float(np.percentile(finite, hi_pct)) - med)
+
+
+def field_stretches(
+    images: Sequence[np.ndarray],
+    groups: Sequence[Hashable],
+    sigma_low: float = 2.0,
+    sigma_high: float = 40.0,
+    hi_pct: float = 99.9,
+    group_pct: float = 90.0,
+) -> list[Stretch]:
+    """One stretch per image with a CONTRAST shared by its group (WS2-2).
+
+    Blinking frames that were each normalised on their own makes the whole
+    image pulse in brightness. Here every frame of a group (use the detector:
+    each one sees a different wavelength range) gets the same display width,
+    taken from the group's typical noise and bright end, anchored at the
+    frame's own sky level. Each Stretch stays in true MJy/sr, so a colorbar is
+    still correct, and a source that really changes brightness between epochs
+    still looks brighter or fainter.
+    """
+    if len(images) != len(groups):
+        raise ValueError("images and groups must have the same length")
+    stats = [_sky_stats(img, hi_pct) for img in images]
+    spans: dict[Hashable, tuple[float, float]] = {}
+    for key in dict.fromkeys(groups):
+        members = [s for s, g in zip(stats, groups, strict=True) if g == key and s is not None]
+        if not members:
+            continue
+        sigma = float(np.median([s.sigma for s in members])) or 1e-6
+        bright = float(np.percentile([s.bright for s in members], group_pct))
+        spans[key] = (sigma_low * sigma, max(bright, sigma_high * sigma))
+    out = []
+    for s, g in zip(stats, groups, strict=True):
+        if s is None:
+            out.append(Stretch(vmin=0.0, vmax=1.0, method="asinh"))
+            continue
+        low, high = spans[g]
+        out.append(Stretch(vmin=s.background - low, vmax=s.background + high, method="asinh"))
+    return out
 
 
 def compute_stretch(img: np.ndarray, sigma_low: float = 2.0, sigma_high: float = 40.0, hi_pct: float = 99.9) -> Stretch:
