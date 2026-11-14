@@ -2,8 +2,10 @@
 
 Fuente de verdad: [`pipeline/errante/models.py`](../pipeline/errante/models.py).
 Generado: [`shared/schema/*.schema.json`](../shared/schema/) (`python scripts/dev.py schema`). Espejo TS:
-[`frontend/src/api/types.ts`](../frontend/src/api/types.ts). Versión actual: **0.2.1** (0.2.0 agregó los sistemas 3D; 0.2.1 agregó `Orbit.quality`/`note`; ambos aditivos. **0.3.0** queda reservado para el contrato de datos reales de WS3).
-Ejemplos reales del formato: [`data/demo/`](../data/demo/).
+[`frontend/src/api/types.ts`](../frontend/src/api/types.ts). Versión actual: **0.3.0** (#32): agrega `JobSubmitRequest`, `JobStatusResponse` y `ResolvedRegion`.
+0.2.0 agregó sistemas 3D y 0.2.1 `Orbit.quality`/`note`. Los productos anteriores siguen siendo compatibles.
+Ejemplos sintéticos: [`data/demo/`](../data/demo/). Los cinco campos reales de WS2 están en
+[`data/products/`](../data/products/); sus imágenes no equivalen a cinco validaciones científicas R05.
 
 ## Archivos en disco (= lo que lee el frontend estático)
 
@@ -30,7 +32,10 @@ leer `Provenance.synthetic`, notas y `Fact.verified`. Un SystemModel es un model
 | `GET /api/fields/{id}/known` | `KnownObjectList` | ✅ |
 | `GET /data/fields/{id}/...` | PNGs | ✅ |
 | `GET /api/systems/{id}` | `SystemModel` | ✅ |
-| `GET /api/search?ra&dec[&detector]` | `SearchResult` (frames SPHEREx que cubren el punto) | 501 → WS1+WS4 |
+| `GET /api/search?ra&dec[&detector]` | `SearchResult` (frames SPHEREx que cubren el punto) | ✅ WS1+WS4; 502/504 ante fallo/timeout externo |
+| `POST /api/jobs` | `JobStatusResponse`, HTTP 202 | ✅ habilitar `ERRANTE_ENABLE_JOBS=1` |
+| `GET /api/jobs/{id}` | `JobStatusResponse` | ✅ |
+| `GET /api/resolve-name?name=...` | `ResolvedRegion` | ✅ Sesame/CfA |
 | `GET /api/known-objects?ra&dec&mjd[&radius_deg]` | `KnownObject[]` | 501 → WS3+WS4 |
 
 ## Convenciones
@@ -57,22 +62,46 @@ leer `Provenance.synthetic`, notas y `Fact.verified`. Un SystemModel es un model
 negativa si el análisis no se ejecutó.** `--analyze` opta por esas etapas una vez guardado el campo básico.
 Esta separación no cambia `SCHEMA_VERSION` ni agrega campos al contrato actual.
 
-## Extensiones diseñadas, todavía sin contrato publicado
+## Construcción por coordenadas (0.3.0, R03/C04/C06)
 
-WS4-10 coordina, en cambios aditivos versionados, lo necesario para:
+POST recibe `ra` [0,360), `dec` [-90,90], `size_deg` [0.01,0.5] (default 0.25), `detectors` 1–6
+(vacío = todos), `mjd_min`/`mjd_max` opcionales ordenados y `max_frames` 2–120 (default 40).
+Todos los números son finitos. JSON Schema y modelos son la fuente de validación; OpenAPI usa esos modelos.
 
-- R03/C04: solicitud por RA/Dec/FOV/filtros, caché, job ID y estados/progreso/error/sin cobertura.
-- C01/C07: versión de procesamiento, selección de épocas, cobertura y flags de contaminación con significado.
-- C02/C03: coadds y suma/resta con miembros, pesos/método, fechas, bandas, máscaras y unidades.
-- C02: espectro en una posición elegida, independiente de candidatos, con λ/ancho, flujo/error y fecha.
-- C05: contexto Gaia DR3/WISE con catálogo/misión, época, propagación y procedencia.
+```json
+{"ra":269.44623,"dec":4.76870,"size_deg":0.15,"detectors":[2],"max_frames":40}
+```
 
-Estos puntos son **diseño pendiente**, no nuevas rutas API ni campos que el frontend pueda consumir hoy.
-La URL propuesta de exploración está en ARCHITECTURE.md; la restauración de coordenadas aún no existe.
+POST devuelve 202 incluso si reutiliza un job compatible. GET devuelve el mismo formato:
+`id`, `status`, `stage`, `created_at`, `updated_at`, `result_field_id` y `error_detail` (ambos nullable).
+Estados públicos: `queued`, `running`, `ready`, `failed`, `no_coverage`, `pipeline_not_ready`.
+La transición interna `publishing` se representa como `running`. Stage describe una etapa, no un porcentaje.
+En `ready`, `result_field_id` abre `/api/fields/{id}`; cada `Frame.image` se lee bajo `/data/fields/{id}/`.
+Los resultados se confirman solo tras validar y publicar JSON/PNG/manifest.
+
+422 = validación (detail puede ser string o lista estándar FastAPI), 429 = cupo/cola con Retry-After,
+503 = motor desactivado/almacenamiento no disponible, 404 = job desconocido. Un fallo genérico de descarga
+no es `no_coverage`. El frontend no reenvía un POST al fallar el polling y “Stop watching” no cancela el worker.
+Los errores públicos no exponen tracebacks; diagnóstico en directorio privado.
+
+El resolver devuelve `ra`, `dec`, `object_type`, `resolved_name`, `source`. Su coordenada de catálogo no
+certifica cobertura ni está propagada automáticamente a la época SPHEREx; los cinco presets sí tienen
+centros propagados documentados en `fields.toml`. CfA puede devolver decimal o jpos sexagesimal con dos puntos.
+
+## Extensiones aún sin contrato publicado
+
+- C01/C07: metadatos ampliados de selección, cobertura y flags con significado.
+- C02/C03: WS2 #19 implementa comparaciones; `compare/compare.json` es provisional. Acordar miembros,
+  pesos, método, fechas/bandas, máscaras, unidades y limitaciones antes de integrarlo en API/UI.
+- C02: WS2 #31 implementa fotometría forzada por exposición. Falta acordar un contrato público de espectro
+  por posición, con λ/ancho, flujo/error, fecha, calidad y fallos parciales, con WS3/4/5.
+- C05: ficha Gaia y mediciones para modelos físicos 3D; no usar el esquema ilustrativo como mediciones nuevas.
+
+Las coordenadas/FOV/detector/job en URL ya se restauran en el frontend. Modo compacto/iframe externo pendiente.
 
 ## Cómo cambiar el contrato
 
 1. Rama `contract/<cambio>`; editar `models.py` (preferir campos **opcionales nuevos**).
-2. `python scripts/dev.py schema` y actualizar `frontend/src/api/types.ts` en el mismo PR.
-3. Si el cambio rompe compatibilidad: subir la versión mayor de `SCHEMA_VERSION` y regenerar `data/demo` (`python scripts/dev.py demo`).
-4. PR titulado `contract: ...`, avisar en el chat a WS4 y WS5. CI falla si el schema commiteado quedó viejo.
+2. Subir versión, regenerar `python scripts/dev.py schema` y actualizar tipos/constante TS en el mismo PR.
+3. Si rompe compatibilidad: versión mayor y regeneración de `data/demo`.
+4. PR `contract: ...` con revisión afectada WS4/WS5; CI verifica schema y versión TS.
