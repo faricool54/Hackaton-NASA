@@ -168,8 +168,7 @@ export function BlinkViewer({ field, frames, composites, imageUrl, candidates, k
         <div className="blink-caption">
           {composite ? (
             <>
-              <strong>{stepDate}</strong> · <span title={composite.notes.join('
-')}>False color (infrared)</span> ·{' '}
+              <strong>{stepDate}</strong> · <span title={composite.notes.join('\n')}>False color (infrared)</span> ·{' '}
               {channelLegend(composite)}
               {loaded[composite.id] === 'error' && ' · IMAGE UNAVAILABLE'}
             </>
