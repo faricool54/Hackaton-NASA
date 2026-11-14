@@ -60,10 +60,64 @@ def cmd_validate(args: argparse.Namespace) -> int:
 
 
 def cmd_search(args: argparse.Namespace) -> int:
-    from .data.irsa import search_frames
+    from collections import Counter
 
-    res = search_frames(args.ra, args.dec, detectors=args.detector)
-    print(res.model_dump_json(indent=2))
+    from astropy.time import Time
+
+    from .data.epochs import group_visits, season_summary
+    from .data.irsa import SearchError, search_frames_report
+
+    try:
+        rep = search_frames_report(
+            args.ra,
+            args.dec,
+            args.radius,
+            detectors=args.detector,
+            mjd_min=args.mjd_min,
+            mjd_max=args.mjd_max,
+            collections=args.collections,
+            use_cache=not args.no_cache,
+        )
+    except (SearchError, ValueError) as e:
+        print(f"Search failed: {e}", file=sys.stderr)
+        return 2
+    if args.json:
+        print(rep.result.model_dump_json(indent=2))
+        return 0
+
+    frames = rep.result.frames
+    origin = rep.service.upper()
+    if rep.stale:
+        origin += " (EXPIRED cache: IRSA unavailable)"
+    elif rep.from_cache:
+        origin += " (cache)"
+    print(
+        f"{len(frames)} frames at ({rep.result.center.ra:.5f}, {rep.result.center.dec:.5f}) "
+        f"r={rep.result.radius_deg:.6g} deg via {origin} in {rep.elapsed_s:.2f} s"
+    )
+    print(f"  collections searched: {', '.join(rep.collections)}")
+    for err in rep.errors:
+        print(f"  fallback after: {err}")
+    if rep.overflow:
+        print("  WARNING: result truncated at MAXREC (raise ERRANTE_SIA_MAXREC or narrow the search)")
+    if rep.n_duplicates:
+        print(f"  duplicates removed (same obs_id+detector): {rep.n_duplicates}")
+    if not frames:
+        return 0
+
+    def counts(values) -> str:
+        return ", ".join(f"{k}: {n}" for k, n in sorted(Counter(values).items()))
+
+    print(f"  by collection: {counts(r.collection or '?' for r in rep.rows)}")
+    print(f"  by release:    {counts(f.release for f in frames)}")
+    print(f"  by detector:   {counts(f'D{f.detector}' for f in frames)}")
+    print(f"  visits (gap > 6 h): {len(group_visits(frames))}")
+    print("  seasons (gap > 30 d):")
+    for i, s in enumerate(season_summary(frames), 1):
+        d0, d1 = (Time(m, format="mjd").to_value("iso", subfmt="date") for m in (s["mjd_min"], s["mjd_max"]))
+        print(
+            f"    {i}. MJD {s['mjd_min']:.2f}-{s['mjd_max']:.2f} ({d0} -> {d1}): {s['n']} frames, {s['visits']} visits"
+        )
     return 0
 
 
@@ -119,7 +173,18 @@ def main(argv: list[str] | None = None) -> int:
     s = sub.add_parser("search", help="list SPHEREx frames covering a position (WS1)")
     s.add_argument("--ra", type=float, required=True)
     s.add_argument("--dec", type=float, required=True)
-    s.add_argument("--detector", type=int, action="append")
+    s.add_argument("--detector", type=int, action="append", choices=range(1, 7), help="repeat for several")
+    s.add_argument("--radius", type=float, default=0.0, help="search radius [deg]; 0 = point (1 arcsec)")
+    s.add_argument("--mjd-min", type=float, default=None)
+    s.add_argument("--mjd-max", type=float, default=None)
+    s.add_argument(
+        "--collections",
+        default=None,
+        help="comma-separated IRSA collections (default: ERRANTE_COLLECTIONS or spherex_dr1,spherex_qr3; "
+        "deep fields: spherex_dr1_deep,spherex_qr3_deep)",
+    )
+    s.add_argument("--no-cache", action="store_true", help="ignore and do not write the query cache")
+    s.add_argument("--json", action="store_true", help="print the SearchResult JSON instead of the summary")
     s.set_defaults(func=cmd_search)
 
     s = sub.add_parser("systems", help="write the curated 3D system models (WS7)")
