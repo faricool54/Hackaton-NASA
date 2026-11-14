@@ -1,6 +1,6 @@
 {
-  "schema_version": "0.2.0",
-  "generated_at": "2026-11-14T14:28:54.562668Z",
+  "schema_version": "0.2.1",
+  "generated_at": "2026-11-14T15:09:55.683365Z",
   "synthetic": true,
   "fields": [
     {
@@ -79,8 +79,8 @@
         "solar-system"
       ],
       "center": {
-        "ra": 180.0,
-        "dec": 0.0
+        "ra": 150.0,
+        "dec": 11.0
       },
       "n_bodies": 6,
       "kinds": [
@@ -159,7 +159,7 @@
     {
       "id": "wise-0855",
       "name": "WISE 0855−0714",
-      "description": "Challenge test target: the coldest known brown dwarf, about as cold as the North Pole.",
+      "description": "Challenge test target: the coldest known brown dwarf, around the freezing point of water.",
       "tags": [
         "test-target",
         "brown-dwarf",

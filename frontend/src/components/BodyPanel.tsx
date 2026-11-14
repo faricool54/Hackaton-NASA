@@ -31,7 +31,12 @@ export function BodyPanel({ system, body, fieldExists }: Props) {
         {body.orbit && (
           <>
             <dt>Orbit size</dt>
-            <dd>{formatAu(body.orbit.semi_major_axis_au)}</dd>
+            <dd>
+              {formatAu(body.orbit.semi_major_axis_au)}
+              {body.orbit.quality && body.orbit.quality !== 'fitted' && (
+                <span className="unverified"> {body.orbit.quality === 'assumed' ? 'assumed, not fitted' : 'hypothetical'}</span>
+              )}
+            </dd>
             <dt>Orbital period</dt>
             <dd>{formatPeriod(body.orbit.period_days)}</dd>
             {body.orbit.eccentricity > 0 && (
@@ -53,6 +58,7 @@ export function BodyPanel({ system, body, fieldExists }: Props) {
           </>
         )}
       </dl>
+      {body.orbit?.note && <p className="muted small">Orbit: {body.orbit.note}</p>}
 
       {body.facts.length > 0 && (
         <table className="facts">

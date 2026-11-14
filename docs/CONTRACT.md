@@ -2,7 +2,7 @@
 
 Fuente de verdad: [`pipeline/errante/models.py`](../pipeline/errante/models.py).
 Generado: [`shared/schema/*.schema.json`](../shared/schema/) (`python scripts/dev.py schema`). Espejo TS:
-[`frontend/src/api/types.ts`](../frontend/src/api/types.ts). Versión actual: **0.2.0** (0.2.0 agregó los sistemas 3D, aditivo).
+[`frontend/src/api/types.ts`](../frontend/src/api/types.ts). Versión actual: **0.2.1** (0.2.0 agregó los sistemas 3D; 0.2.1 agregó `Orbit.quality`/`note`; ambos aditivos. **0.3.0** queda reservado para el contrato de datos reales de WS3).
 Ejemplos reales del formato: [`data/demo/`](../data/demo/).
 
 ## Archivos en disco (= lo que lee el frontend estático)
@@ -46,6 +46,7 @@ leer `Provenance.synthetic`, notas y `Fact.verified`. Un SystemModel es un model
 - **Provenance.synthetic = true** ⇒ la UI DEBE mostrar el badge de datos sintéticos.
 - **SystemModel** (3D): unidades `radius_km`, `mass_kg`, `teff_k`, órbitas en AU/días/grados, `Orbit.parent` =
   `Body.id` del padre (`orbit = null` ⇒ cuerpo raíz en el origen), `epoch_mjd = null` ⇒ fase arbitraria.
+  `Orbit.quality`: `fitted` | `assumed` (no ajustada) | `hypothetical`; la UI marca todo lo que no sea `fitted`.
   `Fact.verified = false` ⇒ la UI marca el valor como "unverified". Siempre se muestra `representation_note`.
   `Manifest.systems` puede faltar en productos viejos (tratar como `[]`).
 

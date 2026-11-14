@@ -26,6 +26,8 @@ export interface SceneCallbacks {
 }
 
 const AU_PER_KM = 1 / 1.495978707e8;
+/** Longest model-time span before wrapping back to the start (~6,800 yr keeps dates in 4-digit years). */
+const MAX_SPAN_DAYS = 2.5e6;
 const DEFAULT_OPTIONS: SceneOptions = { distanceMode: 'compressed', showOrbits: true, showLabels: true };
 
 export function nowMjd(): number {
@@ -119,7 +121,10 @@ interface BodyNode {
   body: Body;
   group: THREE.Group; // positioned each frame
   mesh: THREE.Object3D;
-  radius: number;
+  baseRadius: number; // radius the geometry was built with (compressed mode)
+  radiusByMode: Record<DistanceMode, number>;
+  radius: number; // current display radius
+  focusRadius: number; // what the camera frames when entering this body
   glow?: THREE.Sprite;
   label?: CSS2DObject;
   orbitLine?: THREE.Line;
@@ -137,6 +142,8 @@ export class SystemScene {
   private linearScale: number;
   private options: SceneOptions = { ...DEFAULT_OPTIONS };
   private mjd = nowMjd();
+  private startMjd = this.mjd;
+  private spanDays: number;
   private speed: number; // days per second
   private playing = true;
   private focusId: string | null = null;
@@ -167,6 +174,10 @@ export class SystemScene {
     );
     this.linearScale = maxExtent > 0 ? 30 / maxExtent : 1;
     this.speed = suggestedSpeed(system);
+    const periods = system.bodies
+      .flatMap((b) => [b.orbit?.period_days, b.variability?.period_days])
+      .filter((p): p is number => typeof p === 'number' && p > 0);
+    this.spanDays = Math.min(MAX_SPAN_DAYS, Math.max(3650, ...periods.map((p) => p * 4)));
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true }); // throws if WebGL is unavailable
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -207,16 +218,22 @@ export class SystemScene {
   }
   setTime(mjd: number) {
     this.mjd = mjd;
+    this.startMjd = mjd;
     this.updatePositions();
     this.callbacks.onTick?.(mjd);
   }
   getTime() {
     return this.mjd;
   }
+  /** Model time when the animation started (orbit phases are arbitrary, so show elapsed time). */
+  getStartTime() {
+    return this.startMjd;
+  }
   setOptions(partial: Partial<SceneOptions>) {
     const modeChanged = partial.distanceMode && partial.distanceMode !== this.options.distanceMode;
     this.options = { ...this.options, ...partial };
     if (modeChanged) {
+      this.applyModeRadii();
       this.rebuildOrbits();
       this.updatePositions();
       if (!this.focusId) this.fitCamera();
@@ -232,7 +249,9 @@ export class SystemScene {
     this.focusId = node ? node.body.id : null;
     if (node) {
       this.lastFocusPos.copy(node.group.position);
-      this.zoomTarget = Math.max(node.radius * 6, 2.5);
+      const fovHalf = THREE.MathUtils.degToRad(this.camera.fov / 2);
+      this.zoomTarget =
+        node.body.kind === 'disk' ? (node.focusRadius / Math.sin(fovHalf)) * 1.1 : Math.max(node.radius * 6, 2.5);
     } else {
       this.zoomTarget = null;
       this.fitCamera();
@@ -248,8 +267,16 @@ export class SystemScene {
     this.scene.traverse((obj) => {
       if (obj instanceof CSS2DObject) obj.element.remove();
     });
+    for (const n of this.nodes.values()) {
+      if (n.orbitLine) {
+        n.orbitLine.geometry.dispose();
+        (n.orbitLine.material as THREE.Material).dispose();
+        n.orbitLine = undefined;
+      }
+    }
     this.disposables.forEach((d) => d.dispose());
     this.renderer.dispose();
+    this.renderer.forceContextLoss(); // free the WebGL context now, not at garbage collection
     el.remove();
     this.labelRenderer.domElement.remove();
   }
@@ -276,30 +303,57 @@ export class SystemScene {
     this.scene.add(new THREE.Points(geo, mat));
   }
 
-  /** Cap child radii so siblings on neighbouring orbits don't overlap in compressed mode. */
-  private radiusCaps(): Map<string, number> {
-    const caps = new Map<string, number>();
+  private childrenByParent(): Map<string, Body[]> {
     const byParent = new Map<string, Body[]>();
     for (const b of this.system.bodies) {
       if (b.orbit && b.kind !== 'disk') byParent.set(b.orbit.parent, [...(byParent.get(b.orbit.parent) ?? []), b]);
     }
-    for (const [parentId, kids] of byParent) {
-      const parent = this.system.bodies.find((b) => b.id === parentId);
-      const dists = kids.map((k) => compressDistance(k.orbit!.semi_major_axis_au, this.refAu)).sort((a, b) => a - b);
-      const gaps = [dists[0] - (parent ? displayRadius(parent) : 0), ...dists.slice(1).map((d, i) => d - dists[i])];
-      const cap = Math.max(0.12, 0.4 * Math.min(...gaps));
-      kids.forEach((k) => caps.set(k.id, cap));
+    return byParent;
+  }
+
+  /**
+   * Cap child radii so siblings don't overlap, measuring gaps between closest approaches
+   * (periapsis of the outer body vs apoapsis of the inner one) with the mode's distance mapping.
+   * In linear mode parents are also capped so their children are not swallowed.
+   */
+  private radiusCaps(mode: DistanceMode, base: Map<string, number>): Map<string, number> {
+    const map = (au: number) => (mode === 'compressed' ? compressDistance(au, this.refAu) : au * this.linearScale);
+    const floor = mode === 'compressed' ? 0.12 : 0.03;
+    const radius = new Map(base);
+    const byParent = this.childrenByParent();
+    if (mode === 'linear') {
+      for (const [parentId, kids] of byParent) {
+        const nearest = Math.min(...kids.map((k) => map(k.orbit!.semi_major_axis_au * (1 - k.orbit!.eccentricity))));
+        radius.set(parentId, Math.max(floor, Math.min(radius.get(parentId) ?? Infinity, 0.6 * nearest)));
+      }
     }
-    return caps;
+    for (const body of this.order) {
+      const kids = byParent.get(body.id);
+      if (!kids) continue;
+      const spans = kids
+        .map((k) => {
+          const { semi_major_axis_au: a, eccentricity: e } = k.orbit!;
+          return { peri: map(a * (1 - e)), apo: map(a * (1 + e)) };
+        })
+        .sort((x, y) => x.peri - y.peri);
+      const gaps = [spans[0].peri - (radius.get(body.id) ?? 0)];
+      for (let i = 1; i < spans.length; i++) gaps.push(spans[i].peri - spans[i - 1].apo);
+      const cap = Math.max(floor, 0.4 * Math.min(...gaps));
+      kids.forEach((k) => radius.set(k.id, Math.min(radius.get(k.id) ?? Infinity, cap)));
+    }
+    return radius;
   }
 
   private buildBodies() {
     const glowTex = glowTexture();
     if (glowTex) this.track(glowTex);
-    const caps = this.radiusCaps();
+    const base = new Map(this.order.map((b) => [b.id, displayRadius(b)]));
+    const compressed = this.radiusCaps('compressed', base);
+    const linear = this.radiusCaps('linear', compressed);
     for (const body of this.order) {
       const group = new THREE.Group();
-      const radius = Math.min(displayRadius(body), caps.get(body.id) ?? Infinity);
+      const radius = compressed.get(body.id) ?? displayRadius(body);
+      let focusRadius = radius;
       const color = bodyColor(body);
       let mesh: THREE.Object3D;
       let glow: THREE.Sprite | undefined;
@@ -316,6 +370,8 @@ export class SystemScene {
         mesh = new THREE.Mesh(geo, mat);
         mesh.rotation.x = -Math.PI / 2;
         mesh.userData.labelOffset = new THREE.Vector3(outer, 0.15, 0);
+        mesh.userData.diskOuter = { compressed: outer, linear: Math.max(outerAu * this.linearScale, inner * 1.2) };
+        focusRadius = outer;
       } else if (body.appearance.model === 'star') {
         const geo = this.track(new THREE.SphereGeometry(radius, 48, 24));
         const mat = this.track(new THREE.MeshBasicMaterial({ color }));
@@ -372,7 +428,37 @@ export class SystemScene {
       }
 
       this.scene.add(group);
-      this.nodes.set(body.id, { body, group, mesh, radius, glow, label });
+      this.nodes.set(body.id, {
+        body,
+        group,
+        mesh,
+        baseRadius: radius,
+        radiusByMode: { compressed: radius, linear: linear.get(body.id) ?? radius },
+        radius,
+        focusRadius,
+        glow,
+        label,
+      });
+    }
+  }
+
+  /** Resize bodies (by scaling, no geometry rebuild) for the current distance mode. */
+  private applyModeRadii() {
+    const mode = this.options.distanceMode;
+    for (const n of this.nodes.values()) {
+      const disk = n.mesh.userData.diskOuter as { compressed: number; linear: number } | undefined;
+      if (disk) {
+        const k = disk[mode] / disk.compressed;
+        n.mesh.scale.setScalar(k);
+        n.focusRadius = disk[mode];
+        n.label?.position.set(disk[mode], 0.15, 0);
+        continue;
+      }
+      n.radius = n.radiusByMode[mode];
+      n.focusRadius = n.radius;
+      n.mesh.scale.setScalar(n.radius / n.baseRadius);
+      n.glow?.scale.setScalar(n.radius * 5);
+      n.label?.position.set(0, n.radius * 1.25 + 0.15, 0);
     }
   }
 
@@ -395,11 +481,11 @@ export class SystemScene {
       if (!orbit) continue;
       const pts = orbitPath(orbit).map((p) => this.displayOffset(p));
       const geo = new THREE.BufferGeometry().setFromPoints(pts);
-      const unknownOrbit = node.body.facts.some((f) => /not fitted|assumed/i.test(f.value));
+      const quality = orbit.quality ?? 'fitted';
       const mat = new THREE.LineBasicMaterial({
-        color: unknownOrbit ? 0xfbbf24 : 0x3a4a6b,
+        color: quality === 'assumed' ? 0xfbbf24 : quality === 'hypothetical' ? 0xc084fc : 0x3a4a6b,
         transparent: true,
-        opacity: unknownOrbit ? 0.5 : 0.8,
+        opacity: quality === 'fitted' ? 0.8 : 0.55,
       });
       const line = new THREE.Line(geo, mat);
       line.visible = this.options.showOrbits;
@@ -423,7 +509,7 @@ export class SystemScene {
       if (body.variability) {
         const f = variabilityFactor(body, this.mjd);
         const s = Math.pow(f, 0.08); // pulsating stars change size a little, brightness a lot
-        node.mesh.scale.setScalar(s);
+        node.mesh.scale.setScalar(s * (node.radius / node.baseRadius));
         if (node.glow) {
           node.glow.scale.setScalar(node.radius * 5 * Math.pow(f, 0.3));
           (node.glow.material as THREE.SpriteMaterial).opacity = Math.min(1, 0.35 + 0.4 * Math.log10(1 + f * 3));
@@ -485,6 +571,8 @@ export class SystemScene {
     this.lastFrame = t;
     if (this.playing && dt > 0) {
       this.mjd += this.speed * dt;
+      // Wrap long runs so model time never leaves a displayable date range.
+      if (this.mjd - this.startMjd > this.spanDays) this.mjd = this.startMjd + ((this.mjd - this.startMjd) % this.spanDays);
       this.updatePositions();
     }
     for (const n of this.nodes.values()) if (n.body.kind !== 'disk') n.mesh.rotation.y += dt * 0.25;

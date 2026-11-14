@@ -2,7 +2,7 @@
 // blink viewer and the rest of the site stay light.
 import { useEffect, useRef, useState } from 'react';
 import type { SystemModel } from '../api/types';
-import { formatMjd } from '../api/format';
+import { formatElapsed, formatMjd } from '../api/format';
 import type { DistanceMode, SystemScene } from '../three/SystemScene';
 
 interface Props {
@@ -23,6 +23,11 @@ export function SystemViewer({ system, selectedId, onSelect }: Props) {
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
   const [mjd, setMjd] = useState<number | null>(null);
+  const [startMjd, setStartMjd] = useState<number | null>(null);
+  // Phases without an epoch (and all variability) are arbitrary: show elapsed time, not a calendar date.
+  const arbitraryPhase = system.bodies.some(
+    (b) => (b.orbit && b.orbit.epoch_mjd == null) || (b.variability?.period_days ?? 0) > 0,
+  );
   const [playing, setPlaying] = useState(true);
   const [speedMul, setSpeedMul] = useState(1);
   const [distanceMode, setDistanceMode] = useState<DistanceMode>('compressed');
@@ -42,6 +47,7 @@ export function SystemViewer({ system, selectedId, onSelect }: Props) {
         });
         baseSpeedRef.current = suggestedSpeed(system);
         sceneRef.current = scene;
+        setStartMjd(scene.getStartTime());
         setStatus('ready');
       })
       .catch((e: Error) => {
@@ -111,7 +117,13 @@ export function SystemViewer({ system, selectedId, onSelect }: Props) {
         )}
       </div>
       <p className="muted small">
-        Model time: {mjd !== null ? formatMjd(mjd) : '—'} · drag to rotate, scroll to zoom, click a body to enter it
+        Model time:{' '}
+        {mjd === null
+          ? '—'
+          : arbitraryPhase && startMjd !== null
+            ? `${formatElapsed(mjd - startMjd)} (arbitrary starting phase, not a prediction for a real date)`
+            : formatMjd(mjd)}{' '}
+        · drag to rotate, scroll to zoom, click a body to enter it
       </p>
     </div>
   );

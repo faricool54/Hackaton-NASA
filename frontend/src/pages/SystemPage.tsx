@@ -4,6 +4,7 @@ import { client } from '../api/client';
 import type { SystemModel } from '../api/types';
 import { formatRaDec } from '../api/format';
 import { BodyPanel } from '../components/BodyPanel';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 import { SyntheticBadge } from '../components/SyntheticBadge';
 import { SystemViewer } from '../components/SystemViewer';
 
@@ -54,7 +55,9 @@ export function SystemPage({ systemId, bodyId }: { systemId: string; bodyId: str
 
       <div className="field-layout">
         <section>
-          <SystemViewer system={system} selectedId={body?.id ?? null} onSelect={select} />
+          <ErrorBoundary what="The 3D view">
+            <SystemViewer system={system} selectedId={body?.id ?? null} onSelect={select} />
+          </ErrorBoundary>
           <p className="muted small">{system.representation_note}</p>
         </section>
         <aside>
@@ -75,7 +78,7 @@ export function SystemPage({ systemId, bodyId }: { systemId: string; bodyId: str
           <div className="panel small">
             <h3>Where it is</h3>
             <p>
-              Sky position: {formatRaDec(system.center.ra, system.center.dec)}
+              Sky position{m?.epoch ? ` (${m.epoch})` : ''}: {formatRaDec(system.center.ra, system.center.dec)}
               {m?.distance_pc && (
                 <>
                   <br />
