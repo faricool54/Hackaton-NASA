@@ -50,15 +50,19 @@ HDUList, and is what a browser can reproduce from a 5760-byte Range read of the 
 
 from __future__ import annotations
 
+import logging
 import math
 import warnings
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import numpy as np
 import numpy.typing as npt
 from astropy.io import fits
 from astropy.wcs import WCS, FITSFixedWarning
+
+log = logging.getLogger(__name__)
 
 WAVE_EXTNAME = "WCS-WAVE"
 SIP_KEY_PREFIXES = ("A_", "B_", "AP_", "BP_")
@@ -161,6 +165,7 @@ def detector_pixel(
     """
     x, y = np.broadcast_arrays(np.asarray(x, dtype=float), np.asarray(y, dtype=float))
     p = np.stack([x + 1.0, y + 1.0])  # FITS 1-based
+    mapped: dict[str, np.ndarray] = {}
     for key, offset in (("W", 0.0), ("A", 1.0)):
         alt = _linear_alt(header, key)
         if alt is None:
@@ -168,7 +173,16 @@ def detector_pixel(
         crpix, cdelt, crval, pc = alt
         d = p - crpix.reshape((2,) + (1,) * x.ndim)
         inter = np.einsum("ij,j...->i...", pc, d) * cdelt.reshape((2,) + (1,) * x.ndim)
-        out = inter + crval.reshape((2,) + (1,) * x.ndim) + offset
+        mapped[key] = inter + crval.reshape((2,) + (1,) * x.ndim) + offset
+    if "W" in mapped and "A" in mapped and not np.allclose(mapped["W"], mapped["A"], rtol=0, atol=1e-6):
+        # A sub-image writer that shifted CRPIXn/CRPIXnA but forgot CRPIXnW (or vice versa) would otherwise
+        # yield a wrong wavelength silently (118 nm off in a measured D3 case).
+        raise ValueError(
+            "Inconsistent sub-image header: the 'W' and 'A' alternate WCSs place this array at different detector "
+            "pixels (CRPIXnW and CRPIXnA must be shifted together, see errante.data.fits_io)."
+        )
+    if mapped:
+        out = mapped.get("W", mapped.get("A"))
         return out[0], out[1]
     if table is not None and (header.get("NAXIS1"), header.get("NAXIS2")) == (
         int(table.x_nodes[-1]),
@@ -299,7 +313,7 @@ class SpherexImage:
     obs_id: str
     detector: int
     mjd: float  # MID-exposure MJD (see mid_exposure_mjd); the start is extra['mjd_obs']
-    date_obs: str  # DATE-OBS (start of the exposure, ISO); the midpoint is extra['date_avg']
+    date_obs: str  # ISO UTC of the SAME instant as ``mjd`` (DATE-AVG); the start (DATE-OBS) is extra['date_beg']
     source: str = ""
     extra: dict = field(default_factory=dict)
     wave: WaveTable | None = None  # WCS-WAVE table (None if the file has no WCS-WAVE HDU)
@@ -326,26 +340,51 @@ def _maybe(hdul: fits.HDUList, name: str) -> np.ndarray | None:
         return None
 
 
+_MJD_EPOCH = datetime(1858, 11, 17)
+
+
+def mid_exposure_date(header: fits.Header, mjd: float, mjd_source: str) -> str:
+    """ISO UTC string of the same instant as ``mjd`` (from :func:`mid_exposure_mjd`).
+
+    ``DATE-AVG`` when ``mjd`` came from ``MJD-AVG``; ``DATE-OBS`` when only the start is known; otherwise
+    computed from ``mjd`` (millisecond precision, like the headers).
+    """
+    if mjd_source == "MJD-AVG" and "DATE-AVG" in header:
+        return str(header["DATE-AVG"])
+    if mjd_source == "MJD-OBS" and "DATE-OBS" in header:
+        return str(header["DATE-OBS"])
+    return (_MJD_EPOCH + timedelta(milliseconds=round(mjd * 86_400_000))).isoformat(timespec="milliseconds")
+
+
 def read_spherex(path: str | Path, with_planes: bool = True) -> SpherexImage:
     """Read a full file, an IRSA cutout or a patch (same HDU names, smaller arrays).
 
-    ``mjd`` is the MID-exposure time (``MJD-AVG``, see :func:`mid_exposure_mjd`). ``extra`` keeps the raw
-    ``mjd_obs`` (start), ``mjd_end``, ``date_avg``, ``xposure_s`` and ``mjd_source`` (the rule that was used).
+    ``mjd`` is the MID-exposure time (``MJD-AVG``, see :func:`mid_exposure_mjd`) and ``date_obs`` the ISO string
+    of that same instant (``DATE-AVG``). ``extra`` keeps the raw ``mjd_obs`` and ``date_beg`` (start),
+    ``mjd_end``, ``date_avg``, ``xposure_s`` and ``mjd_source`` (the rule that was used). A ``WCS-WAVE`` table
+    that cannot be parsed leaves ``wave=None`` (reason in ``extra['wave_error']``) instead of failing the read.
     """
     with fits.open(path, memmap=False) as hdul:
         hdr = hdul["IMAGE"].header
         mjd, mjd_source = mid_exposure_mjd(hdr)
+        wave_error = None
         try:
             wave = WaveTable.from_hdu(hdul[WAVE_EXTNAME])
         except KeyError:
             wave = None
+        except (ValueError, TypeError, IndexError) as e:  # one odd file must not abort a whole field build
+            wave, wave_error = None, f"{type(e).__name__}: {e}"
+            log.warning("%s: unusable %s table (%s); wavelength lookup disabled", path, WAVE_EXTNAME, wave_error)
         extra = {
             "mjd_obs": float(hdr["MJD-OBS"]) if "MJD-OBS" in hdr else None,
             "mjd_end": float(hdr["MJD-END"]) if "MJD-END" in hdr else None,
+            "date_beg": str(hdr["DATE-OBS"]) if "DATE-OBS" in hdr else None,
             "date_avg": str(hdr["DATE-AVG"]) if "DATE-AVG" in hdr else None,
             "xposure_s": float(hdr["XPOSURE"]) if "XPOSURE" in hdr else None,
             "mjd_source": mjd_source,
         }
+        if wave_error:
+            extra["wave_error"] = wave_error
         img = SpherexImage(
             data=np.asarray(hdul["IMAGE"].data, dtype=np.float32),
             flags=_maybe(hdul, "FLAGS") if with_planes else None,
@@ -356,7 +395,7 @@ def read_spherex(path: str | Path, with_planes: bool = True) -> SpherexImage:
             obs_id=str(hdr.get("OBSID", "")),
             detector=int(hdr.get("DETECTOR", 0)),
             mjd=mjd,
-            date_obs=str(hdr.get("DATE-OBS", "")),
+            date_obs=mid_exposure_date(hdr, mjd, mjd_source),
             source=str(path),
             extra=extra,
             wave=wave,

@@ -250,13 +250,45 @@ def test_read_spherex_uses_mid_exposure_and_keeps_the_wave_table(tmp_path):
     assert img.extra["mjd_end"] == 60902.866046939
     assert img.extra["date_avg"] == "2025-08-15T20:46:08.897"
     assert img.extra["mjd_source"] == "MJD-AVG"
-    assert img.date_obs == "2025-08-15T20:45:11.338"
+    assert img.date_obs == "2025-08-15T20:46:08.897"  # DATE-AVG: the same instant as img.mjd
+    assert img.extra["date_beg"] == "2025-08-15T20:45:11.338"
     assert (img.obs_id, img.detector) == ("2025W33_2C_0321_1", 3)
     assert img.data.shape == img.flags.shape == img.variance.shape == img.zodi.shape == (49, 49)
     assert img.wave is not None and img.wave.shape == (9, 14)
     expected = (REF["cutout"]["wavelength_um"], REF["cutout"]["bandwidth_um"])
     assert img.wavelength_at(RA, DEC) == pytest.approx(expected, abs=1e-9)
     assert img.wavelength_at(RA, DEC + 0.2) is None
+
+
+def test_mid_exposure_date_names_the_same_instant_as_the_mjd():
+    h = _header("cutout")
+    assert fits_io.mid_exposure_date(h, *fits_io.mid_exposure_mjd(h)) == "2025-08-15T20:46:08.897"
+    del h["MJD-AVG"]  # computed from (MJD-OBS + MJD-END) / 2: within a millisecond of DATE-AVG
+    assert fits_io.mid_exposure_date(h, *fits_io.mid_exposure_mjd(h)) == "2025-08-15T20:46:08.897"
+    del h["MJD-END"], h["XPOSURE"]  # only the start is known: DATE-OBS, consistent with mjd == MJD-OBS
+    assert fits_io.mid_exposure_date(h, *fits_io.mid_exposure_mjd(h)) == "2025-08-15T20:45:11.338"
+
+
+def test_read_spherex_survives_an_unusable_wave_table(tmp_path, caplog):
+    doc = json.loads(json.dumps(DOC))
+    doc["wcs_wave"]["header"]["TDIM3"] = "(2,14,9)"  # swapped axes -> WaveTable.from_hdu raises
+    path = _write_mef(tmp_path / "odd.fits", _header("cutout"), _wave_hdu(doc))
+    img = fits_io.read_spherex(path)
+    assert img.wave is None and "VALUES shape" in img.extra["wave_error"]
+    assert img.wavelength_at(RA, DEC) is None
+    assert img.data.shape == (49, 49) and img.mjd == 60902.865380749
+    assert "unusable WCS-WAVE" in caplog.text
+
+
+def test_inconsistent_w_and_a_shifts_are_rejected():
+    wave = _wave_hdu()
+    bad = _header("cutout")
+    bad["CRPIX1W"] = bad["CRPIX1W"] + 1600  # a patch writer that forgot to shift CRPIXnW
+    bad["CRPIX2W"] = bad["CRPIX2W"] + 250
+    with pytest.raises(ValueError, match="Inconsistent sub-image header"):
+        fits_io.wavelength_from_table(wave, bad, *_sky_pixel(bad))
+    ok = _header("cutout")  # real IBE cutout: W and A agree to the pixel
+    assert np.isfinite(fits_io.wavelength_from_table(wave, ok, *_sky_pixel(ok))[0])
 
 
 # --------------------------------------------------------------------------- live (network)
@@ -288,11 +320,18 @@ def _get(url: str, range_: str | None = None, tries: int = 4):
     import requests
 
     for attempt in range(tries):
-        r = requests.get(url, headers={"Range": range_} if range_ else {}, timeout=120)
+        try:
+            r = requests.get(url, headers={"Range": range_} if range_ else {}, timeout=120)
+        except (requests.ConnectionError, requests.Timeout):  # IRSA/S3 hiccups: retry like a 5xx
+            if attempt == tries - 1:
+                raise
+            time.sleep(2**attempt)
+            continue
         if r.status_code < 500:
             r.raise_for_status()
             return r.content
-        time.sleep(2**attempt)
+        if attempt < tries - 1:
+            time.sleep(2**attempt)
     r.raise_for_status()
 
 
