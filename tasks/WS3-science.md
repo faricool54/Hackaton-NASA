@@ -60,11 +60,24 @@ y registros de validación; luego espectros/contexto. `Candidate`/cruce/distanci
 - Efemérides siempre a la fecha de cada frame (`mjd`), nunca una posición fija para objetos que se mueven.
 - Citá fuentes (Brown & Batygin 2021, JPL, IMCCE) en la UI y la entrega.
 
+## Hechos verificados (2026-11-14) — leelos antes de implementar
+
+- **Los 5 objetivos ya están en `fields.toml`** con astrometría de Sesame/SIMBAD (CfA) propagada a la época media
+  de los datos; tabla completa, movimiento esperado y notas en [`docs/SCIENCE.md`](../docs/SCIENCE.md) §0.
+- **WISE 0855:** la coordenada del enunciado es de ~2010; hoy el objeto está **~126″ al oeste**. Solo tiene datos
+  DR1. Probablemente solo se ve en coadds D5/D6 (inferido por magnitudes: medirlo antes de usarlo en el video).
+- **ε Ind B:** SPHEREx no separa Ba/Bb (una sola fuente); ε Ind A, brillante, está a ~402″.
+- **Variables:** RW Aur y R Dra no se mueven; el método honesto (coadds y espectros por temporada, estrellas de
+  comparación) está en `SCIENCE.md` §0.4. R Dra (2493 frames, ~2 ciclos) es el mejor caso para curva de luz.
+- **CDS Estrasburgo está caído:** usar Sesame/VizieR de CfA y no depender de SIMBAD en vivo.
+- `Release` es un `Literal` fijo en `models.py`: un release nuevo rompe la validación (proponerlo como `str` con
+  patrón en el próximo PR de contrato). El docstring de `Frame.mjd` dice MJD-OBS: debería ser MJD-AVG.
+
 ## Prompt de arranque
 
 > Sos el agente del workstream WS3 (ciencia) del repo Errante para NASA Space Apps 2026. Leé `AGENTS.md`,
 > `docs/SCIENCE.md`, `docs/DATA.md`, `docs/CONTRACT.md` y `tasks/WS3-science.md`. Trabajá SOLO en
 > `pipeline/errante/science/`, `pipeline/errante/config/fields.toml` y sus tests. Empezá por WS3-3 y WS3-9,
 > siguiendo `docs/VALIDATION.md`; JPL/SkyBoT son posteriores al MVP. No inventes
-> coordenadas ni parámetros orbitales: obtenelos de los servicios o papers y citá la fuente. Corré `make check`
+> coordenadas ni parámetros orbitales: obtenelos de los servicios o papers y citá la fuente. Corré `python scripts/dev.py check`
 > y mostrame el diff antes de commitear.

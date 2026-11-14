@@ -16,7 +16,9 @@ jurado desde `Candidate.score`. La revisión interna queda separada en `submissi
 
 No rellenar coordenadas faltantes a partir de la memoria ni tomar una posición antigua como posición actual.
 `config/fields.toml` contiene presets de desarrollo; no es un registro de validaciones aprobadas.
-WS3-3 agrega los tres presets faltantes cuando tenga identidades y coordenadas verificadas.
+✅ 2026-11-14: los cinco presets están en `fields.toml` con astrometría de Sesame/SIMBAD (CfA) propagada a la
+época media de los datos SPHEREx ([`SCIENCE.md`](SCIENCE.md) §0). Siguen siendo presets: la validación con
+imágenes reales está pendiente.
 Los cinco SystemModel de WS7 son modelos ilustrativos de esos nombres, no registros de ensayo.
 No copiar posiciones, períodos u órbitas de `systems/catalog.py` como datos verificados para esta validación.
 

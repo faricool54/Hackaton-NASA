@@ -14,6 +14,8 @@ GET /data/...                         static files (frame PNGs, thumbnails)
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -22,16 +24,27 @@ from errante import __version__
 from errante.models import SCHEMA_VERSION
 from errante.products import ProductStore
 
+from .live_service import LiveService
 from .routes import live, products
 from .settings import Settings
+from .store import PublicProductStore
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        try:
+            yield
+        finally:
+            app.state.live.close()
+
     app = FastAPI(
         title="Errante API",
         version=__version__,
         description="SPHEREx moving-object explorer",
+        lifespan=lifespan,
     )
     app.add_middleware(
         CORSMiddleware,
@@ -39,7 +52,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_methods=["GET"],
         allow_headers=["*"],
     )
-    app.state.store = ProductStore(settings.data_dir)
+    app.state.store = PublicProductStore(settings.data_dir)
+    app.state.live = LiveService(settings)
 
     @app.get("/api/health")
     def health() -> dict:
@@ -49,7 +63,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "status": "ok" if has_manifest else "no-data",
             "version": __version__,
             "schema_version": SCHEMA_VERSION,
-            "data_dir": str(store.root),
+            "data_dir": "configured",
             "synthetic": store.read_manifest().synthetic if has_manifest else None,
         }
 
