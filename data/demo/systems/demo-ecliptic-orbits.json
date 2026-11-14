@@ -264,7 +264,7 @@
   "representation_note": "Illustrative model of a SYNTHETIC system (synthetic candidates, approximate planet orbits) - not an image. Sizes and distances may be exaggerated for visibility.",
   "provenance": {
     "pipeline_version": "0.1.0",
-    "built_at": "2026-11-14T15:59:36.946637Z",
+    "built_at": "2026-11-14T16:18:25.188120Z",
     "synthetic": true,
     "data_releases": [
       "synthetic"

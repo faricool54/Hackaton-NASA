@@ -17,7 +17,7 @@
     "pm_ra_cosdec_mas_yr": -8123.7,
     "pm_dec_mas_yr": 673.2,
     "radial_velocity_km_s": null,
-    "epoch": "MJD 57633.39 (J2016.67, Kirkpatrick et al. 2021)"
+    "epoch": "J2016.67"
   },
   "field_id": "wise-0855",
   "bodies": [
@@ -89,7 +89,7 @@
   "representation_note": "3D model drawn from published catalog and literature values (each fact shows its source) - not an image. Sizes and distances may be exaggerated for visibility.",
   "provenance": {
     "pipeline_version": "0.1.0",
-    "built_at": "2026-11-14T15:59:36.946637Z",
+    "built_at": "2026-11-14T16:18:25.188120Z",
     "synthetic": false,
     "data_releases": [],
     "notes": [

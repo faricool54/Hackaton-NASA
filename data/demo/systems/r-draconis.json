@@ -16,7 +16,7 @@
     "pm_ra_cosdec_mas_yr": -20.643,
     "pm_dec_mas_yr": 6.149,
     "radial_velocity_km_s": -132.8,
-    "epoch": "J2016.0 (Gaia DR3)"
+    "epoch": "J2016.0"
   },
   "field_id": null,
   "bodies": [
@@ -100,7 +100,7 @@
   "representation_note": "3D model drawn from published catalog and literature values (each fact shows its source) - not an image. Sizes and distances may be exaggerated for visibility.",
   "provenance": {
     "pipeline_version": "0.1.0",
-    "built_at": "2026-11-14T15:59:36.946637Z",
+    "built_at": "2026-11-14T16:18:25.188120Z",
     "synthetic": false,
     "data_releases": [],
     "notes": [

@@ -176,7 +176,7 @@ def barnards_star() -> SystemModel:
             pm_ra_cosdec_mas_yr=-801.551,
             pm_dec_mas_yr=10362.394,
             radial_velocity_km_s=-110.47,
-            epoch="J2016.0 (Gaia DR3)",
+            epoch="J2016.0",  # Gaia DR3 reference epoch
         ),
         field_id="barnards-star",
         bodies=bodies,
@@ -214,7 +214,7 @@ def epsilon_indi() -> SystemModel:
             pm_ra_cosdec_mas_yr=3966.661,
             pm_dec_mas_yr=-2536.192,
             radial_velocity_km_s=-40.43,
-            epoch="J2016.0 (Gaia DR3)",
+            epoch="J2016.0",  # Gaia DR3 reference epoch
         ),
         field_id=None,  # TODO(WS3/WS7): add an epsilon-indi field to config/fields.toml
         bodies=[
@@ -360,7 +360,7 @@ def wise_0855() -> SystemModel:
             parallax_mas=439.0,
             pm_ra_cosdec_mas_yr=-8123.7,
             pm_dec_mas_yr=673.2,
-            epoch="MJD 57633.39 (J2016.67, Kirkpatrick et al. 2021)",
+            epoch="J2016.67",  # Kirkpatrick et al. 2021 astrometric epoch, MJD 57633.39
         ),
         field_id="wise-0855",
         bodies=[
@@ -414,7 +414,7 @@ def r_draconis() -> SystemModel:
             pm_ra_cosdec_mas_yr=-20.643,
             pm_dec_mas_yr=6.149,
             radial_velocity_km_s=-132.8,
-            epoch="J2016.0 (Gaia DR3)",
+            epoch="J2016.0",  # Gaia DR3 reference epoch
         ),
         field_id=None,  # TODO(WS3/WS7): add an r-draconis field to config/fields.toml
         bodies=[
@@ -484,7 +484,7 @@ def rw_aurigae() -> SystemModel:
             pm_ra_cosdec_mas_yr=2.641,
             pm_dec_mas_yr=-27.398,
             radial_velocity_km_s=15.0,
-            epoch="J2016.0 (Gaia DR3)",
+            epoch="J2016.0",  # Gaia DR3 reference epoch
         ),
         field_id=None,  # TODO(WS3/WS7): add an rw-aurigae field to config/fields.toml
         bodies=[
