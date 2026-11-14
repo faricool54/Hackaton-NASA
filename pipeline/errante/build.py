@@ -57,6 +57,12 @@ MAD_TO_SIGMA = 1.4826
 DOWNLOAD_FAILED = "download failed"
 OUTSIDE_CUTOUT = "target outside the cutout"
 BAD_FRAME = "bad frame"
+# A frame whose field stars sit more than imaging.register.MAX_OFFSET_PX (0.5 px) from their position in the
+# other frames of its detector has a wrong archive WCS: the blink would show a false jump of the whole field.
+# Measured 2026-11-14 on the 1460 vetted candidates of the seven configured fields: good frames 0.00-0.19 px
+# (median 0.03 px); the one outlier is 2026W38_1A_0162_3D6 (RW Aurigae) at 1.34 px, the WCS error that
+# docs/validation/rw-aurigae.md found against Gaia (-1.21 to -1.36 px in x).
+MISREGISTERED = "misregistered frame"
 
 GroupKey = tuple[int, int]  # (season, detector)
 _T = TypeVar("_T")
@@ -346,6 +352,65 @@ class _Selection:
     pool: list[_Projected] = field(default_factory=list)  # every vetted, projected candidate (final included)
     n_topup: int = 0  # extra D2/D3 cutouts obtained for the J/H/Ks composites only
     topup_note: str = ""  # why the J/H/Ks top-up did not run, if it failed
+    registration_note: str = ""  # what the per-frame registration check measured and rejected
+
+
+@dataclass
+class _RegistrationCheck:
+    n_frames: int = 0
+    offsets: list[float] = field(default_factory=list)  # registration error of every checked frame that was kept
+    rejected: list[tuple[_Projected, float]] = field(default_factory=list)  # (frame, offset px)
+
+    def note(self) -> str:
+        from .imaging.register import MAX_OFFSET_PX, MIN_FRAMES, MIN_STARS
+
+        n_unchecked = self.n_frames - len(self.offsets) - len(self.rejected)
+        kept = (
+            f" (kept frames: median {float(np.median(self.offsets)):.2f} px, max {max(self.offsets):.2f} px)"
+            if self.offsets
+            else ""
+        )
+        text = (
+            "Registration check: each candidate's field stars were compared with their median position in the "
+            f"other frames of the same detector; {len(self.offsets) + len(self.rejected)} of {self.n_frames} "
+            f"candidate frame(s) checked{kept}, {n_unchecked} not checkable (fewer than {MIN_FRAMES} frames of "
+            f"their detector or {MIN_STARS} measurable field stars, e.g. around a saturated target)."
+        )
+        if self.rejected:
+            listed = ", ".join(f"{p.frame_id} ({off:.2f} px)" for p, off in self.rejected)
+            text += (
+                f" Rejected {len(self.rejected)} misregistered frame(s) whose stars are off by more than "
+                f"{MAX_OFFSET_PX:g} px (archive WCS error; they would fake a jump of the whole field): {listed}."
+            )
+        return text
+
+
+def _drop_misregistered(
+    frames: list[_Projected], check: _RegistrationCheck, judged: set[str] | None = None
+) -> list[_Projected]:
+    """``frames`` without the misregistered ones among ``judged`` (default: all), see ``imaging.register``.
+
+    Every frame of ``frames`` serves as reference (the consensus star positions of its detector), but only
+    the ``judged`` ones are counted in ``check`` and may be dropped: the J/H/Ks top-up judges its new frames
+    against the whole pool without touching the frames already chosen.
+    """
+    from .imaging import register
+
+    found = register.registrations(frames)
+    out = []
+    for p in frames:
+        if judged is not None and p.frame_id not in judged:
+            out.append(p)
+            continue
+        check.n_frames += 1
+        r = found.get(p.frame_id)
+        if r is not None and r.offset > register.MAX_OFFSET_PX:
+            check.rejected.append((p, r.offset))
+            continue
+        if r is not None:
+            check.offsets.append(r.offset)
+        out.append(p)
+    return out
 
 
 def _key_of(ranked: Mapping[GroupKey, list[FrameRef]]) -> dict[tuple[str, int], GroupKey]:
@@ -472,7 +537,9 @@ def _select_and_project(cfg: FieldConfig, grid, refs: list[FrameRef], *, jhk_top
     unique: dict[str, _Projected] = {}
     for p in sorted(projected, key=lambda p: (p.mjd, p.detector)):
         unique.setdefault(p.frame_id, p)
-    vetted = list(unique.values())
+    check = _RegistrationCheck()
+    vetted = _drop_misregistered(list(unique.values()), check)
+    skipped += [(p.ref, f"{MISREGISTERED}: field stars {off:.2f} px off the other frames") for p, off in check.rejected]
     final, references = _pick_final(vetted, ranked, cfg.max_frames)
     n_downloaded = n_tried - sum(why == DOWNLOAD_FAILED for _, why in skipped)
     n_topup, topup_note = 0, ""
@@ -485,9 +552,11 @@ def _select_and_project(cfg: FieldConfig, grid, refs: list[FrameRef], *, jhk_top
             topup_note = f"J/H/Ks top-up: not run ({type(e).__name__}: {e})."
         else:
             known = {p.frame_id for p in vetted}
-            vetted += [p for p in more if p.frame_id not in known]  # composites only; final frames unchanged
+            new = [p for p in more if p.frame_id not in known]
+            # composites only; the final frames are unchanged. Judge the new frames against the whole pool.
+            vetted = _drop_misregistered(vetted + new, check, judged={p.frame_id for p in new})
             n_topup = n_more - sum(why == DOWNLOAD_FAILED for _, why in more_skipped)
-    return _Selection(final, skipped, n_downloaded, references, vetted, n_topup, topup_note)
+    return _Selection(final, skipped, n_downloaded, references, vetted, n_topup, topup_note, check.note())
 
 
 def _skip_reasons(skipped: list[tuple[FrameRef, str]]) -> str:
@@ -624,6 +693,7 @@ def build_field(
         "pixels mean no data. Saturated star cores and detector-defect pixels are filled from their neighbours "
         "for display only; they count as invalid in valid_fraction.",
         _selection_note(sel, cfg.max_frames),
+        *([sel.registration_note] if sel.registration_note else []),
         color_note,
     ]
     if sel.skipped:
