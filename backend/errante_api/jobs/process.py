@@ -38,10 +38,12 @@ def kill_tree(proc, grace: float = 2) -> None:
             except psutil.NoSuchProcess:
                 pass
         _, alive = psutil.wait_procs(alive, timeout=grace)
-        if alive:
+        # POSIX descendants are reaped by their parent/init, not by this process.
+        # A zombie has exited and cannot be killed again; still stop its parent.
+        if any(_executing(child) for child in alive):
             raise RuntimeError("Unable to terminate owned build processes")
         if parent.pid == os.getpid():
-            parent.kill()  # Parent-pipe watchdog: descendants are already gone.
+            parent.kill()  # Owner watchdog: descendants are already gone.
         parent.terminate()
         try:
             parent.wait(timeout=grace)
@@ -57,6 +59,13 @@ def kill_tree(proc, grace: float = 2) -> None:
             os.killpg(proc.pid, signal.SIGKILL)
         except ProcessLookupError:
             pass
+
+
+def _executing(process) -> bool:
+    try:
+        return process.is_running() and process.status() != psutil.STATUS_ZOMBIE
+    except psutil.NoSuchProcess:
+        return False
 
 
 def stop_saved_child(pid: int | None, request_path: Path) -> None:
