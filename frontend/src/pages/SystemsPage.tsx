@@ -20,9 +20,10 @@ export function SystemsPage() {
       <section className="hero">
         <h1>Explore the objects in 3D</h1>
         <p>
-          Explore illustrative models of the challenge targets and a synthetic example. The current presets use
-          hand-entered parameters that have not yet been verified against catalogs. Watch model orbits and
-          pulsations, or select a body to inspect its facts, sources and verification status.
+          Explore models of the challenge targets and a synthetic example. Their parameters were checked against
+          the NASA Exoplanet Archive, SIMBAD, Gaia DR3 and the cited papers; values that are only estimates are
+          marked as such. Watch model orbits and pulsations, or select a body to inspect its facts, sources and
+          verification status.
         </p>
         <p className="muted small">
           These are model representations, not images: sizes are exaggerated and distances can be compressed so

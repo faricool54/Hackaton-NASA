@@ -85,3 +85,65 @@ desplegable (`npm run build`) que también funciona contra el backend (`?mode=ap
 > `src/api/types.ts`; si necesitás un dato nuevo, proponelo como
 > PR `contract:` aparte. Verificá en el navegador (desktop y ancho de celular), corré `npm run build` y
 > `npm test`, y mostrame el diff antes de commitear.
+
+---
+
+## Mejoras de UI planificadas (2026-11-14)
+
+### UI-1 — Ecualizador de bandas infrarrojas (Band Equalizer)
+
+**Objetivo:** reemplazar el `<select>` de detector por un control visual interactivo que permita
+activar/desactivar múltiples bandas SPHEREx simultáneamente.
+
+**Componente nuevo:** `frontend/src/components/BandEqualizer.tsx`
+- Props: `detectors: number[]`, `frameCountByDetector: Record<number, number>`, `selected: Set<number>`, `onChange`
+- 6 botones toggle (uno por detector disponible en el campo), con colores por banda:
+  - D1 `0.75–1.11 µm` → `#a78bfa` (violeta/NIR)
+  - D2 `1.11–1.64 µm` → `#60a5fa` (azul)
+  - D3 `1.64–2.42 µm` → `#34d399` (verde)
+  - D4 `2.42–3.82 µm` → `#fbbf24` (ámbar)
+  - D5 `3.82–4.42 µm` → `#f97316` (naranja)
+  - D6 `4.42–5.00 µm` → `#ef4444` (rojo/MIR)
+- Bandas inactivas: grisadas; activas: opacidad 100%
+- Botones rápidos `All` / `None`
+- Contador `X frames selected`
+- Hover: tooltip con rango λ y cantidad de frames del detector
+- Accesibilidad: `role="checkbox"`, `aria-checked`, soporte teclado (Space/Enter)
+
+**Modifica:** `frontend/src/pages/FieldPage.tsx`
+- Estado `detector: number | 'all'` → `selectedDetectors: Set<number>` (todos activos por defecto)
+- Reemplaza el `<select>` del toolbar por `<BandEqualizer>`
+- `frames` filtrado por `selectedDetectors.has(f.detector)`
+
+**Sin cambio de contrato** — puramente presentacional.
+
+---
+
+### UI-2 — Rediseño del playback (Blink Viewer controls)
+
+**Objetivo:** reemplazar el `<input type="range">` plano por un scrubber estilo media player
+(inspirado en iOS Music) adaptado al dominio astronómico.
+
+**Modifica:** `frontend/src/components/BlinkViewer.tsx`
+
+**Scrubber custom:**
+- Barra de progreso con fill proporcional (`var(--accent)`) y track (`var(--border)`)
+- **Thumb circular** arrastrable con soporte pointer events (mouse + touch)
+- **Tick marks** verticales equidistantes sobre la barra, uno por frame; el tick activo se ilumina
+- **Izquierda de la barra**: fecha del frame actual vía `formatMjd()` (ej. `2026-01-15 UTC`)
+- **Derecha de la barra**: total de frames (ej. `8 frames`)
+- Click en la barra → salta al frame más cercano al tick
+
+**Controles:**
+- Disposición centrada: `◀◀  ❚❚  ▶▶`
+- Control de velocidad reubicado debajo, más discreto
+- Toggle de markers se mantiene
+
+**Estilos:** clases `.scrubber-*` en `frontend/src/styles.css`
+
+---
+
+### Checklist de implementación
+
+- [x] **UI-2a** Rediseñar controles de `BlinkViewer.tsx` (scrubber custom + ticks)
+- [x] **UI-2b** Agregar estilos `.scrubber-*` en `styles.css`

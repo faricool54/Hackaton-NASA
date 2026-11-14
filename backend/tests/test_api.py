@@ -52,3 +52,17 @@ def test_systems_roundtrip(client):
     system = client.get(f"/api/systems/{sid}").json()
     assert system["id"] == sid and system["bodies"]
     assert client.get("/api/systems/nope").status_code == 404
+
+
+def test_systems_only_products_do_not_hide_the_demo(tmp_path, monkeypatch):
+    """`errante systems` writes a manifest with zero fields: the backend must keep serving the demo."""
+    from errante.products import ProductStore
+    from errante.systems.build import write_systems
+    from errante.systems.catalog import curated_systems
+
+    store = ProductStore(tmp_path)
+    write_systems(store, curated_systems())
+    store.rebuild_manifest()
+    monkeypatch.delenv("ERRANTE_DATA_DIR", raising=False)
+    monkeypatch.setattr(core, "PRODUCTS_DIR", tmp_path)
+    assert Settings.from_env().data_dir == core.DEMO_DIR
