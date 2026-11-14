@@ -186,3 +186,40 @@ def test_fetch_cutouts_must_return_one_entry_per_frame(monkeypatch, tmp_path):
 def test_synthetic_frames_are_labelled_synthetic(monkeypatch, tmp_path):
     cfg = _archive(monkeypatch, synthetic=True)
     assert build_field(cfg, tmp_path).provenance.synthetic is True
+
+
+def test_frames_carry_the_wavelength_at_the_field_centre(monkeypatch, tmp_path):
+    """Frame.wavelength_um/bandwidth_um come from each file's WCS-WAVE table (fits_io.wavelength_at, WS1)."""
+    cfg = _archive(monkeypatch, n=2)
+    read = fits_io.read_spherex
+    asked = []
+
+    def read_with_wave(path):
+        img = read(path)
+        lam = 1.25 if img.mjd < 61000 else 1.31  # each exposure sees another wavelength
+
+        def wavelength_at(ra, dec, lam=lam):
+            asked.append((ra, dec))
+            return lam, 0.03
+
+        img.wavelength_at = wavelength_at
+        return img
+
+    monkeypatch.setattr(fits_io, "read_spherex", read_with_wave)
+    field = build_field(cfg, tmp_path)
+    assert [(f.wavelength_um, f.bandwidth_um) for f in field.frames] == [(1.25, 0.03), (1.31, 0.03)]
+    assert set(asked) == {(cfg.ra, cfg.dec)}
+
+
+def test_frames_without_a_wavelength_table_keep_none(monkeypatch, tmp_path):
+    cfg = _archive(monkeypatch, n=2)
+    read = fits_io.read_spherex
+
+    def read_without_wave(path):
+        img = read(path)
+        img.wavelength_at = lambda ra, dec: None  # file without WCS-WAVE
+        return img
+
+    monkeypatch.setattr(fits_io, "read_spherex", read_without_wave)
+    field = build_field(cfg, tmp_path)
+    assert all(f.wavelength_um is None and f.bandwidth_um is None for f in field.frames)
