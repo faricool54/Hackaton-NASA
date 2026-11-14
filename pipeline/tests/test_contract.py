@@ -8,7 +8,7 @@ import pytest
 
 from errante import settings
 from errante.cli import main
-from errante.models import ALL_MODELS, JobStatusResponse, JobSubmitRequest, SkyField
+from errante.models import ALL_MODELS, SCHEMA_VERSION, JobStatusResponse, JobSubmitRequest, SkyField
 from errante.products import ProductStore
 
 SCHEMA_DIR = settings.REPO_ROOT / "shared" / "schema"
@@ -16,6 +16,11 @@ SCHEMA_DIR = settings.REPO_ROOT / "shared" / "schema"
 
 def test_schema_is_up_to_date():
     assert main(["schema", "--check", "--out", str(SCHEMA_DIR)]) == 0
+
+
+def test_frontend_contract_version_matches_pipeline():
+    types = (settings.REPO_ROOT / "frontend/src/api/types.ts").read_text(encoding="utf-8")
+    assert f"export const SCHEMA_VERSION = '{SCHEMA_VERSION}';" in types
 
 
 @pytest.mark.parametrize("name", list(ALL_MODELS))
