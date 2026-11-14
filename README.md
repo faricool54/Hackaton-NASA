@@ -64,6 +64,7 @@ Cada persona trabaja con su agente (Claude Code / Codex) usando el prompt que es
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — arquitectura y flujo de datos
 - [docs/CONTRACT.md](docs/CONTRACT.md) — formato de datos/API entre pipeline, backend y frontend
 - [docs/VISION_3D.md](docs/VISION_3D.md) — la capa 3D: objetos, sistemas animados, fichas; reglas de honestidad
+- [docs/RECON_SPHEREX.md](docs/RECON_SPHEREX.md) — **relevamiento técnico** (endpoints probados, CORS, colecciones DR1/QR3, LVF, objetos de prueba con coordenadas propagadas, arquitecturas)
 - [docs/DATA.md](docs/DATA.md) — **hechos verificados** sobre los datos SPHEREx (S3, FITS, flags, IRSA)
 - [docs/SCIENCE.md](docs/SCIENCE.md) — física necesaria: velocidades, paralaje, límites, encuadre honesto
 - [docs/WORKFLOW.md](docs/WORKFLOW.md) — git, PRs, cómo usar los agentes, cronograma del hackatón
