@@ -448,7 +448,7 @@
       "$ref": "#/$defs/SkyCoord"
     },
     "composites": {
-      "description": "Optional FALSE-COLOR infrared composites per observing season (infrared wavelengths mapped to RGB, not true color). Empty when none were built; absent in products older than 0.3.0.",
+      "description": "Optional FALSE-COLOR infrared composites per observing season (infrared wavelengths mapped to RGB, not true color). Empty when none were built; absent in products older than 0.2.2.",
       "items": {
         "$ref": "#/$defs/Composite"
       },

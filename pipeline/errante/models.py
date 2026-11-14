@@ -25,7 +25,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-SCHEMA_VERSION = "0.3.0"
+SCHEMA_VERSION = "0.2.2"
 
 Release = Literal["dr1", "qr2", "qr3", "synthetic"]
 """SPHEREx data release a frame comes from (see docs/DATA.md)."""
@@ -273,7 +273,7 @@ class SkyField(_Model):
     composites: list[Composite] = Field(
         default_factory=list,
         description="Optional FALSE-COLOR infrared composites per observing season (infrared wavelengths mapped "
-        "to RGB, not true color). Empty when none were built; absent in products older than 0.3.0.",
+        "to RGB, not true color). Empty when none were built; absent in products older than 0.2.2.",
     )
 
     @model_validator(mode="after")
