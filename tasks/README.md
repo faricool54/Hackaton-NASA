@@ -1,7 +1,7 @@
 # Tareas por workstream
 
 **Para arrancar en paralelo:** leer [plan compartido y dependencias](../docs/PARALLEL_PLAN.md).
-**WS4 está reservado por este frente (usuario + Codex)**; los otros responsables deben confirmar su reserva.
+**WS4 está reservado por rpccp (rocco) con Codex**; los otros responsables deben confirmar su reserva.
 
 Cada archivo es **autocontenido**: objetivo, rutas que te pertenecen, qué recibís y qué entregás, tareas con
 criterio de aceptación y un **prompt de arranque** para pegarle a tu agente (Claude Code o Codex).

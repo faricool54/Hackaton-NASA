@@ -1,7 +1,7 @@
 # Cómo trabajamos en paralelo sin pisarnos
 
 Plan de ejecución actual: [PARALLEL_PLAN.md](PARALLEL_PLAN.md) (pendientes, entregables y dependencias).
-WS4 está reservado por el usuario de esta sesión con Codex; ver [TEAM.md](TEAM.md).
+WS4 está reservado por **rpccp** (rocco) con Codex; ver [TEAM.md](TEAM.md).
 
 Somos 5 personas, cada una con uno o más agentes (Claude Code / Codex), todos sobre el mismo repo y con
 ~36 h. La idea es que **los conflictos no puedan pasar por diseño**, y que cuando pasen sean chicos y obvios.
