@@ -8,10 +8,13 @@ served by a fake Range reader. Live checks are marked ``network``.
 
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import math
 import os
+import threading
+import time
 import warnings
 from pathlib import Path
 
@@ -124,22 +127,38 @@ def make_l2(
 
 
 class FakeS3:
-    """Serves byte ranges (b"" past the end) and suffix reads of in-memory objects, like the S3 bucket."""
+    """Serves byte ranges (b"" past the end) and suffix reads of in-memory objects, like the S3 bucket,
+    with the object's size and ETag (an MD5 of its bytes, as S3 gives for single-part uploads)."""
 
     def __init__(self, objects: dict[str, bytes]):
         self.objects = objects
         self.calls = 0
         self.tails = 0
         self.bytes = 0
+        self._etags: dict[int, str] = {}
+        self._lock = threading.Lock()
 
     def __call__(self, key: str, start: int, stop: int) -> bytes:
-        self.calls += 1
+        with self._lock:
+            self.calls += 1
         data = self.objects[key][start:stop]
-        self.bytes += len(data)
+        with self._lock:
+            self.bytes += len(data)
         return data
 
+    def etag(self, key: str) -> str:
+        obj = self.objects[key]
+        if id(obj) not in self._etags:
+            self._etags[id(obj)] = '"' + hashlib.md5(obj).hexdigest() + '"'
+        return self._etags[id(obj)]
+
+    def meta(self, key: str, start: int, stop: int) -> tuple[bytes, int | None, str]:
+        data = self(key, start, stop)
+        return data, len(self.objects[key]), self.etag(key)
+
     def tail(self, key: str, nbytes: int) -> tuple[bytes, int]:
-        self.tails += 1
+        with self._lock:
+            self.tails += 1
         obj = self.objects[key]
         return obj[-nbytes:], len(obj)
 
@@ -169,6 +188,7 @@ def fake(monkeypatch):
     objects: dict[str, bytes] = {}
     f = FakeS3(objects)
     monkeypatch.setattr(s3range, "read_range", f)
+    monkeypatch.setattr(s3range, "read_range_meta", f.meta, raising=False)
     monkeypatch.setattr(s3range, "read_tail", f.tail)
     return f
 
@@ -558,7 +578,9 @@ def test_save_load_roundtrip_with_clipped_and_missing_planes(fake, tmp_path):
     assert edge.shape == (7, 7) and mid.flags is None and mid.variance is None
     series = point.PointSeries(ra=1.0, dec=2.0, box_px=11, samples=[edge, mid], failures=[(_frame(key), "X: y")])
     npz, js = series.save(tmp_path / "out")
-    assert npz.name == "out.npz" and js.name == "out.json" and json.loads(js.read_text())["format"] == 1
+    assert (
+        npz.name == "out.npz" and js.name == "out.json" and json.loads(js.read_text())["format"] == point.SERIES_FORMAT
+    )
     back = point.PointSeries.load(npz)
     for a, b in zip(series.samples, back.samples, strict=True):
         np.testing.assert_array_equal(a.image, b.image)
@@ -593,6 +615,358 @@ def test_cli_point(series_setup, capsys, tmp_path):
     assert cli.main(["point", "--ra", "1", "--dec", "99"]) == 2
 
 
+# --- review regressions (2026-11-14) ----------------------------------------------------------------------------
+
+
+def _series_files() -> list[Path]:
+    d = settings.CACHE_DIR / "point" / "series"
+    return sorted(d.glob("*.npz")) if d.exists() else []
+
+
+def test_transient_wave_error_is_retried_once_and_never_cached(series_setup, fake, monkeypatch):
+    """An S3 error on the WCS-WAVE suffix read is network trouble, not a property of the file: the frame keeps
+    its stamp, the wavelength is retried ONCE per calibration at the end (not by every frame thread in turn),
+    and a series still missing wavelengths is never cached."""
+    ra, dec, frames, planes, _ = series_setup
+    real_tail = fake.tail
+    state = {"fail": 10**9, "calls": 0}
+
+    def flaky_tail(key, nbytes):
+        state["calls"] += 1
+        if state["fail"] > 0:
+            state["fail"] -= 1
+            raise OSError("S3 suffix read failed after 4 attempts (simulated 503s)")
+        return real_tail(key, nbytes)
+
+    monkeypatch.setattr(s3range, "read_tail", flaky_tail)
+    s = point.point_series(ra, dec)  # S3 down for the whole call
+    assert len(s.samples) == 3 and s.failures == []  # the stamps are still there (time video)
+    assert all(x.wavelength_um is None and x.meta["wave_error"].startswith("OSError") for x in s.samples)
+    assert all(x.meta.get("wave_error_transient") for x in s.samples)
+    assert s.timings["wave_errors"] == 3
+    assert state["calls"] == 4  # 2 calibrations (D3, D6) x (main pass + one retry): no serialized retries
+    assert _series_files() == []  # NOT cached
+
+    state.update(fail=2, calls=0)  # a short burst: the first try of each calibration fails, the retry works
+    point._layout_mem.clear()
+    s = point.point_series(ra, dec)
+    assert state["calls"] == 4 and s.timings["wave_errors"] == 0 and s.timings["wave_retried"] == 3
+    for x in s.samples:
+        hdr, table = _full(fake.objects[x.frame.s3_key])
+        lam, bw = fits_io.wavelength_from_table(table, hdr, x.x_detector, x.y_detector)
+        assert (x.wavelength_um, x.bandwidth_um) == pytest.approx((float(lam), float(bw)), abs=1e-12)
+        assert x.frame.wavelength_um == x.wavelength_um and "wave_error" not in x.meta
+    assert len(_series_files()) == 1  # complete: cached
+
+    again = point.point_series(ra, dec)
+    assert again.timings["from_cache"] is True and all(x.wavelength_um is not None for x in again.samples)
+
+
+def test_s3_outage_on_wcs_wave_never_serves_a_series_without_wavelengths(series_setup, fake, monkeypatch):
+    """Review M1, black-box (only the API of the first version): every WCS-WAVE suffix read fails during one
+    call; once S3 is healthy again the next call must NOT come from a cache holding samples without wavelength."""
+    ra, dec, *_ = series_setup
+    healthy = fake.tail
+
+    def down(key, nbytes):
+        raise OSError("S3 suffix read failed after 4 attempts (simulated 503s)")
+
+    monkeypatch.setattr(s3range, "read_tail", down)
+    first = point.point_series(ra, dec)
+    assert len(first.samples) == 3 and all(x.wavelength_um is None for x in first.samples)
+    assert first.timings.get("wave_errors") == 3  # visible in the result, not only in each sample's meta
+    monkeypatch.setattr(s3range, "read_tail", healthy)
+    second = point.point_series(ra, dec)
+    assert second.timings["from_cache"] is False
+    assert all(x.wavelength_um is not None for x in second.samples)
+
+
+def test_cli_point_reports_missing_wavelengths_and_takes_a_deadline(series_setup, fake, monkeypatch, capsys):
+    ra, dec, *_ = series_setup
+
+    def down(key, nbytes):
+        raise OSError("simulated 503s")
+
+    monkeypatch.setattr(s3range, "read_tail", down)
+    assert cli.main(["point", "--ra", str(ra), "--dec", str(dec), "--deadline", "60"]) == 0
+    out = capsys.readouterr()
+    doc = json.loads(out.out)
+    assert doc["timings"]["wave_errors"] == 3 and "3 samples have no wavelength" in out.err
+    assert all(r["wavelength_um"] is None and r["wave_error"].startswith("OSError") for r in doc["samples"])
+    assert cli.main(["point", "--ra", str(ra), "--dec", str(dec), "--deadline", "0"]) == 2
+
+
+def test_format_wave_errors_are_not_transient(fake):
+    """A file whose tail is not a WCS-WAVE HDU is a property of the file (not retried, cacheable)."""
+    key = _key("2025W33_2C_0321_1")
+    blob, _ = make_l2()
+    fake.objects[key] = blob[: -2 * 2880] + b"\0" * (2 * 2880)
+    s = point.read_point_sample(_frame(key), *_sky(150.0, 100.0))
+    assert s.wavelength_um is None and s.meta["wave_error"].startswith("ValueError")
+    assert "wave_error_transient" not in s.meta
+
+
+def test_empty_and_all_no_overlap_series_are_not_cached(series_setup, fake, monkeypatch):
+    """irsa never caches an empty answer (suspicious for an all-sky survey): neither does point_series."""
+    ra, dec, frames, _, _ = series_setup
+    monkeypatch.setattr(irsa, "search_frames_report", lambda *a, **k: _report([], ra, dec))
+    assert point.point_series(ra, dec).samples == [] and _series_files() == []
+    monkeypatch.setattr(irsa, "search_frames_report", lambda *a, **k: _report(list(frames), ra, dec))
+    s = point.point_series(ra, dec)
+    assert s.timings["from_cache"] is False and len(s.samples) == 3
+    far = point.point_series(*_sky(-200.0, 100.0))  # every frame NoOverlap
+    assert far.samples == [] and far.timings["no_overlap"] == 3
+    assert len(_series_files()) == 1  # only the real series
+
+
+def test_corrupt_or_mismatched_series_cache_is_recomputed(series_setup, fake):
+    ra, dec, *_ = series_setup
+    point.point_series(ra, dec)
+    (npz,) = _series_files()
+    js = npz.with_suffix(".json")
+    good_npz, good_json = npz.read_bytes(), js.read_text()
+
+    npz.write_bytes(good_npz[:100])  # truncated npz (BadZipFile)
+    s = point.point_series(ra, dec)
+    assert s.timings["from_cache"] is False and len(s.samples) == 3
+
+    doc = json.loads(good_json)  # a json from another writer: one more sample than its npz
+    doc["samples"].append(doc["samples"][-1])
+    npz.write_bytes(good_npz)
+    js.write_text(json.dumps(doc))
+    s = point.point_series(ra, dec)
+    assert s.timings["from_cache"] is False and len(s.samples) == 3
+
+    other = point.point_series(ra, dec, max_frames=2, use_cache=False)  # same sample count, other content
+    other.save(npz.with_name("other.npz"))
+    js.write_text(good_json)
+    npz.write_bytes(npz.with_name("other.npz").read_bytes())
+    with pytest.raises(ValueError, match="not the npz"):  # the json names the npz it was written with (sha256)
+        point.PointSeries.load(npz)
+    s = point.point_series(ra, dec)
+    assert s.timings["from_cache"] is False and len(s.samples) == 3
+
+
+def test_rewritten_object_invalidates_its_cached_layout(fake, monkeypatch):
+    """S3 objects are rewritten under the same key (RECON §2.4): a cached layout is checked against the
+    object's ETag/size that every Range answer carries, and re-read when the object changed."""
+    key = _key("2025W33_2C_0321_1")
+    fake.objects[key], _ = make_l2(seed=1)
+    ra, dec = _sky(150.0, 100.0)
+    point.read_point_sample(_frame(key), ra, dec)  # layout cached (memory + disk)
+    fake.objects[key], planes = make_l2(seed=1, var_extra_cards=150)  # VARIANCE header 4 blocks longer
+    for clear_memory in (False, True):
+        if clear_memory:
+            fake.objects[key], planes = make_l2(seed=2)  # rewritten again; the old layout only on disk
+            point._layout_mem.clear()
+        s = point.read_point_sample(_frame(key), ra, dec)
+        assert s.io["layout"] == "cold" and s.io["stale_layout"] is True
+        sl = (slice(s.y0, s.y0 + 11), slice(s.x0, s.x0 + 11))
+        for name, arr in (("IMAGE", s.image), ("VARIANCE", s.variance), ("ZODI", s.zodi), ("FLAGS", s.flags)):
+            np.testing.assert_array_equal(arr, planes[name][sl])
+    again = point.read_point_sample(_frame(key), *_sky(60.0, 140.0))
+    assert again.io["layout"] == "cached" and "stale_layout" not in again.io
+    np.testing.assert_array_equal(
+        again.variance, planes["VARIANCE"][again.y0 : again.y0 + 11, again.x0 : again.x0 + 11]
+    )
+
+
+def test_rewritten_object_invalidates_a_cached_s3range_directory(fake):
+    key = _key("2025W33_2C_0321_1")
+    fake.objects[key], _ = make_l2(seed=1)
+    s3range.hdu_directory(key)  # what read_patch leaves behind
+    fake.objects[key], planes = make_l2(seed=1, var_extra_cards=150)
+    s = point.read_point_sample(_frame(key), *_sky(150.0, 100.0))
+    assert s.io["layout"] == "cold" and s.io["stale_layout"] is True
+    sl = (slice(s.y0, s.y0 + 11), slice(s.x0, s.x0 + 11))
+    np.testing.assert_array_equal(s.variance, planes["VARIANCE"][sl])
+    np.testing.assert_array_equal(s.zodi, planes["ZODI"][sl])
+    assert s3range.cached_directory(key) is None  # forgotten: read_patch walks the new object next time
+
+
+@pytest.mark.parametrize("core_px", [1, 2, 3, 4, 5])
+def test_core_is_exactly_core_px_square(fake, core_px):
+    """``core_px`` x ``core_px`` pixels picked with the stamp's own rule (``ceil(c - n/2)``), even sizes too."""
+    key = _key("2025W33_2C_0321_1")
+    fake.objects[key], planes = make_l2()
+    ra, dec = _sky(150.3, 99.8)
+    s = point.read_point_sample(_frame(key), ra, dec, 11, core_px=core_px)
+    hdr, _ = _full(fake.objects[key])
+    xf, yf = _wcs(hdr).all_world2pix([[ra, dec]], 0)[0]
+    x0, y0 = math.ceil(xf - core_px / 2), math.ceil(yf - core_px / 2)
+    core = planes["FLAGS"][y0 : y0 + core_px, x0 : x0 + core_px]
+    assert core.shape == (core_px, core_px)
+    assert s.core_flags == int(np.bitwise_or.reduce(core.astype(np.uint32).ravel()))
+
+
+def test_detector_list_must_not_be_empty_and_duplicate_frames_are_read_once(series_setup, fake):
+    ra, dec, frames, _, _ = series_setup
+    with pytest.raises(ValueError, match="detectors"):
+        point.point_series(ra, dec, detectors=[])
+    s = point.point_series(ra, dec, frames=[frames[0], frames[0], frames[1]], use_cache=False)
+    assert len(s.samples) == 2 and s.search["n_found"] == 2 and s.search["n_duplicates"] == 1
+
+
+def test_series_counts_every_request_and_caches_no_overlap_layouts(series_setup, fake, monkeypatch):
+    """Requests of failed frames and the WCS-WAVE suffix read are counted; a NoOverlap frame's layout is cached,
+    so asking again costs it no request."""
+    ra, dec, frames, _, _ = series_setup
+    off = _key("2025W33_2C_0098_1")
+    blob = bytearray(make_l2(seed=9)[0])
+    i = blob.index(b"CRVAL1  =")
+    blob[i : i + 80] = f"{'CRVAL1':8s}= {100.0:20.10f}".ljust(80).encode()
+    fake.objects[off] = bytes(blob)
+    every = [*frames, _frame(off, mjd=60960.0)]
+    monkeypatch.setattr(irsa, "search_frames_report", lambda *a, **k: _report(every, ra, dec))
+    before = fake.calls + fake.tails
+    s = point.point_series(ra, dec, use_cache=False)
+    assert s.timings["no_overlap"] == 1
+    assert s.timings["requests"] == fake.calls + fake.tails - before  # the NoOverlap frame's reads included
+    assert s.timings["requests"] > sum(x.io["requests"] for x in s.samples)
+    before = fake.calls + fake.tails
+    s = point.point_series(ra, dec, use_cache=False)
+    assert s.timings["no_overlap"] == 1 and s.timings["layouts"] == {"cached": 3}
+    assert s.timings["requests"] == fake.calls + fake.tails - before == sum(x.io["requests"] for x in s.samples)
+
+
+def test_wave_suffix_read_is_a_round_of_its_own(fake, monkeypatch):
+    monkeypatch.setattr(point, "MERGE_GAP", 0)
+    k1, k2 = _key("2025W33_2C_0001_1"), _key("2025W33_2C_0002_1")
+    fake.objects[k1], _ = make_l2(seed=1)
+    fake.objects[k2], _ = make_l2(seed=2, swcs="another-calibration")
+    ra, dec = _sky(150.0, 100.0)
+    point.read_point_sample(_frame(k1), ra, dec)  # learn the hints
+    s = point.read_point_sample(_frame(k2), ra, dec)  # learned hints, but a new calibration: 8 + 1 requests
+    assert (s.io["requests"], s.io["rounds"]) == (9, 3) and fake.tails == 2
+
+
+def test_max_workers_caps_concurrent_requests(fake, monkeypatch):
+    ra, dec = _sky(150.0, 100.0)
+    frames = []
+    for i in range(8):
+        k = _key(f"2025W33_2C_00{i:02d}_1")
+        fake.objects[k], _ = make_l2(seed=i)
+        frames.append(_frame(k, mjd=60900.0 + i))
+    lock = threading.Lock()
+    state = {"now": 0, "peak": 0}
+
+    def tracked(fn):
+        def wrapper(*a):
+            with lock:
+                state["now"] += 1
+                state["peak"] = max(state["peak"], state["now"])
+            try:
+                time.sleep(0.005)
+                return fn(*a)
+            finally:
+                with lock:
+                    state["now"] -= 1
+
+        return wrapper
+
+    monkeypatch.setattr(s3range, "read_range", tracked(fake))
+    monkeypatch.setattr(s3range, "read_range_meta", tracked(fake.meta), raising=False)
+    monkeypatch.setattr(s3range, "read_tail", tracked(fake.tail))
+    s = point.point_series(ra, dec, frames=frames, max_workers=2, use_cache=False)
+    assert len(s.samples) == 8 and state["peak"] <= 2
+
+
+def test_deadline_turns_unfinished_frames_into_failures(series_setup, fake, monkeypatch):
+    ra, dec, frames, _, _ = series_setup
+    release = threading.Event()
+    slow = frames[0].s3_key
+
+    def stalled(key, start, stop):
+        if key == slow:
+            release.wait(20)
+        return fake.meta(key, start, stop)
+
+    monkeypatch.setattr(s3range, "read_range_meta", stalled, raising=False)
+    t0 = time.perf_counter()
+    try:
+        s = point.point_series(ra, dec, deadline_s=0.5)
+        elapsed = time.perf_counter() - t0
+    finally:
+        release.set()
+    assert elapsed < 5
+    assert len(s.samples) == 2 and [f.s3_key for f, _ in s.failures] == [slow]
+    assert s.failures[0][1].startswith("TimeoutError") and s.timings["timed_out"] == 1
+    assert _series_files() == []  # incomplete: not cached
+
+
+def _same_spherex_image(img: fits_io.SpherexImage, s: point.PointSample, full: fits.Header, ra: float, dec: float):
+    ny, nx = s.shape
+    assert (img.header["NAXIS1"], img.header["NAXIS2"]) == (nx, ny) and img.data.shape == (ny, nx)
+    assert (img.header["PATCH_X0"], img.header["PATCH_Y0"]) == (s.x0, s.y0)
+    shifted = [k for k in full if s3range._CRPIX.match(k)]
+    assert {"CRPIX1", "CRPIX2", "CRPIX1A", "CRPIX2A", "CRPIX1W", "CRPIX2W"} <= set(shifted)
+    for k in shifted:  # sub-image convention: EVERY CRPIXn<key> moved by the stamp origin
+        assert img.header[k] == pytest.approx(full[k] - (s.x0 if k[5] == "1" else s.y0), abs=1e-12)
+    x, y = img.wcs.all_world2pix([[ra, dec]], 0)[0]
+    assert (x, y) == pytest.approx((s.x, s.y), abs=1e-6)
+    assert img.wavelength_at(ra, dec) == pytest.approx((s.wavelength_um, s.bandwidth_um), abs=1e-12)
+    assert img.header["OMEGA_MEDIAN"] == full["OMEGA_MEDIAN"] and img.header["BUNIT"] == full["BUNIT"]
+    assert (img.obs_id, img.detector, img.mjd) == (s.obs_id, s.detector, s.mjd)
+    assert img.date_obs == full["DATE-AVG"]  # the same instant as mjd (mid-exposure)
+    np.testing.assert_array_equal(img.data, s.image)
+    np.testing.assert_array_equal(img.flags, s.flags)
+    np.testing.assert_array_equal(img.data_minus_zodi, s.image - s.zodi)
+
+
+def test_to_spherex_image_follows_the_subimage_convention(fake, tmp_path):
+    """Review S8: a stamp usable where a cutout/patch SpherexImage is (WS2 photometry), equal to the cutout
+    path (read_patch -> write_patch_fits -> read_spherex) on the same pixels."""
+    key = _key("2025W33_2C_0321_1")
+    blob, planes = make_l2(seed=3)
+    fake.objects[key] = blob
+    full, _ = _full(blob)
+    ra, dec = _sky(150.3, 99.8)
+    s = point.read_point_sample(_frame(key), ra, dec, 21)
+    img = point.to_spherex_image(s)
+    _same_spherex_image(img, s, full, ra, dec)
+    sl = (slice(s.y0, s.y0 + 21), slice(s.x0, s.x0 + 21))
+    np.testing.assert_array_equal(img.variance, planes["VARIANCE"][sl])
+    assert img.extra["bbox"] == (s.x0, s.x0 + 20, s.y0, s.y0 + 20) and img.extra["flags"] == "ok"
+
+    ref = fits_io.read_spherex(s3range.write_patch_fits(s3range.read_patch(key, ra, dec, 3.0), tmp_path / "p.fits"))
+    dx, dy = s.x0 - ref.header["PATCH_X0"], s.y0 - ref.header["PATCH_Y0"]
+    np.testing.assert_array_equal(img.data, ref.data[dy : dy + 21, dx : dx + 21])
+    rx, ry = ref.wcs.all_world2pix([[ra, dec]], 0)[0]
+    assert (rx - dx, ry - dy) == pytest.approx(tuple(img.wcs.all_world2pix([[ra, dec]], 0)[0]), abs=1e-9)
+    assert img.wavelength_at(ra, dec) == pytest.approx(ref.wavelength_at(ra, dec), abs=1e-12)
+    assert (img.mjd, img.date_obs) == (ref.mjd, ref.date_obs)
+
+    # A sample loaded from disk has no cards: they come from the cached layout (no request) ...
+    npz, _ = point.PointSeries(ra=ra, dec=dec, box_px=21, samples=[s], failures=[]).save(tmp_path / "s")
+    back = point.PointSeries.load(npz).samples[0]
+    point._layout_mem.clear()
+    point._wave_mem.clear()
+    before = fake.calls + fake.tails
+    _same_spherex_image(point.to_spherex_image(back), s, full, ra, dec)
+    assert fake.calls + fake.tails == before
+    # ... or from S3 again when nothing is cached (round 1 of a cold read + the WCS-WAVE suffix read).
+    import shutil
+
+    shutil.rmtree(settings.CACHE_DIR)
+    for cache in (point._layout_mem, point._wave_mem, s3range._mem):  # read_patch cached a directory too
+        cache.clear()
+    calls, tails = fake.calls, fake.tails
+    _same_spherex_image(point.to_spherex_image(back), s, full, ra, dec)
+    assert fake.calls - calls == 2 and fake.tails - tails == 1
+
+
+def test_to_spherex_image_without_flags_or_wave_table(fake):
+    key = _key("2025W33_2C_0321_1")
+    blob, _ = make_l2()
+    fake.objects[key] = blob[: -2 * 2880] + b"\0" * (2 * 2880)  # no WCS-WAVE HDU at the end
+    s = point.read_point_sample(_frame(key), *_sky(150.0, 100.0), 15, planes=("IMAGE",))
+    img = point.to_spherex_image(s)
+    assert img.flags is None and img.variance is None and img.extra["flags"] == "unavailable"
+    assert img.header["PATCHFLG"] == "unavailable"  # unknown, NOT clean
+    assert img.wave is None and img.extra["wave_error"].startswith("ValueError")
+    assert img.wavelength_at(*_sky(150.0, 100.0)) is None
+
+
 # --- live -------------------------------------------------------------------------------------------------------
 
 needs_network = pytest.mark.skipif(os.environ.get("ERRANTE_NETWORK_TESTS") != "1", reason="set ERRANTE_NETWORK_TESTS=1")
@@ -612,8 +986,10 @@ TABLE_RANGE = {
 @needs_network
 def test_real_point_series_equals_read_patch():
     series = point.point_series(*BARNARD, max_frames=12, use_cache=False)
-    assert len(series.samples) == 12 and not series.failures
+    assert len(series.samples) == 12 and not series.failures and series.timings["wave_errors"] == 0
     assert {s.detector for s in series.samples} == set(range(1, 7))  # spread over every band
+    assert {s.release for s in series.samples} == {"dr1", "qr3"}  # spread over the baseline: both releases
+    assert series.timings["requests"] == sum(s.io["requests"] for s in series.samples)
     for s in series.samples:
         patch = s3range.read_patch(s.frame.s3_key, *BARNARD, 2.0)
         px0, _, py0, _ = patch.extra["bbox"]
@@ -627,7 +1003,14 @@ def test_real_point_series_equals_read_patch():
             np.testing.assert_array_equal(mine, theirs[sl])
         lo, hi = TABLE_RANGE[s.detector]
         assert lo <= s.wavelength_um <= hi and 0 < s.bandwidth_um < 0.2
-        assert s.shape == (11, 11) and s.io["requests"] <= 10 and s.io["rounds"] <= 2
+        # cold: 2 rounds (headers; stamps) + 1 suffix read of WCS-WAVE for the first file of a calibration
+        assert s.shape == (11, 11) and s.io["requests"] <= 11 and s.io["rounds"] <= 3
+        img = point.to_spherex_image(s)  # the sub-image convention on a real header (WS2 photometry input)
+        assert img.wavelength_at(*BARNARD) == pytest.approx((s.wavelength_um, s.bandwidth_um), abs=1e-12)
+        x, y = img.wcs.all_world2pix([[*BARNARD]], 0)[0]
+        assert (x, y) == pytest.approx((s.x, s.y), abs=1e-6)
+        px, py = patch.wcs.all_world2pix([[*BARNARD]], 0)[0]
+        assert (px - (s.x0 - px0), py - (s.y0 - py0)) == pytest.approx((x, y), abs=1e-6)
         # smoke: Barnard's Star (J ~ 5) dominates its core in every detector (its core may be NaN: saturated)
         r, c = s.center_pixel
         core = s.image[r - 1 : r + 2, c - 1 : c + 2]

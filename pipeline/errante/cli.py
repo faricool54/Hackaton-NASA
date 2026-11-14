@@ -145,6 +145,7 @@ def cmd_point(args: argparse.Namespace) -> int:
             max_frames=args.max_frames,
             max_workers=args.workers,
             use_cache=not args.no_cache,
+            deadline_s=args.deadline,
         )
     except (SearchError, ValueError) as e:
         print(f"Point series failed: {e}", file=sys.stderr)
@@ -193,6 +194,13 @@ def cmd_point(args: argparse.Namespace) -> int:
         if series.failures:
             reasons = Counter(r.split(":", 1)[0] for _, r in series.failures)
             print(f"  failures: {len(series.failures)} ({', '.join(f'{k}: {n}' for k, n in reasons.items())})")
+    if t.get("wave_errors"):
+        print(
+            f"WARNING: {t['wave_errors']} samples have no wavelength because S3 failed (not cached: ask again)",
+            file=sys.stderr,
+        )
+    if t.get("timed_out"):
+        print(f"WARNING: {t['timed_out']} frames not read within --deadline (not cached)", file=sys.stderr)
     if paths:
         print(f"Wrote {paths[0]} and {paths[1]}", file=sys.stderr)
     return 0
@@ -273,7 +281,12 @@ def main(argv: list[str] | None = None) -> int:
     s = sub.add_parser("point", help="stamps of every SPHEREx exposure at a position, read from S3 (WS1)")
     s.add_argument("--ra", type=float, required=True)
     s.add_argument("--dec", type=float, required=True)
-    s.add_argument("--box", type=int, default=11, help="stamp side [px] (default 11; 1 px = 6.15 arcsec)")
+    s.add_argument(
+        "--box",
+        type=int,
+        default=11,
+        help="stamp side [px] (default 11; 1 px = 6.15 arcsec; >= 15 for imaging.photometry's sky annulus)",
+    )
     s.add_argument("--detector", type=int, action="append", choices=range(1, 7), help="repeat for several")
     s.add_argument("--mjd-min", type=float, default=None)
     s.add_argument("--mjd-max", type=float, default=None)
@@ -284,7 +297,13 @@ def main(argv: list[str] | None = None) -> int:
         "spherex_dr1_deep,spherex_qr3_deep)",
     )
     s.add_argument("--max-frames", type=int, default=None, help="cap, spread over detectors and visits")
-    s.add_argument("--workers", type=int, default=None, help="concurrent S3 requests (default 48)")
+    s.add_argument("--workers", type=int, default=None, help="max S3 requests in flight (default 48, at most 64)")
+    s.add_argument(
+        "--deadline",
+        type=float,
+        default=None,
+        help="seconds for the whole call; frames not read by then are failures (TimeoutError), not cached",
+    )
     s.add_argument("--out", default=None, help="write the series to OUT.npz + OUT.json")
     s.add_argument("--no-cache", action="store_true", help="ignore and do not write the series cache")
     s.add_argument("--summary", action="store_true", help="human-readable summary instead of the JSON")

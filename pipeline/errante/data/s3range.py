@@ -76,6 +76,7 @@ __all__ = [
     "fetch_patches",
     "fetch_patches_report",
     "flag_descriptor_dtype",
+    "forget_directory",
     "hdu_directory",
     "padded",
     "parse_header",
@@ -83,6 +84,7 @@ __all__ = [
     "patch_path",
     "read_patch",
     "read_range",
+    "read_range_meta",
     "read_tail",
     "write_patch_fits",
 ]
@@ -131,22 +133,41 @@ class _PreloadedCAAdapter(requests.adapters.HTTPAdapter):
     Stock requests sets ``ca_certs`` on every new connection, so urllib3 re-parses the ~280 KB bundle each
     time: ~0.2 s of CPU per connection, ~0.7 s each when 32 threads open connections at once (measured
     2026-11-14 on Windows: 24 s of CPU for 32 connections, 0.5 s with this adapter). Verification is
-    unchanged: CERT_REQUIRED + hostname check against the same bundle. A custom ``verify`` path (e.g.
-    REQUESTS_CA_BUNDLE) keeps the stock per-connection behaviour.
+    unchanged: CERT_REQUIRED + hostname check against the same bundle.
+
+    Only ``verify=True`` without a client certificate uses the shared context. urllib3 loads a custom CA
+    (``verify=<path>``, also REQUESTS_CA_BUNDLE set after the session was made), a client certificate and
+    ``verify=False`` (CERT_NONE) INTO the pool's SSLContext, so those requests go through a separate stock
+    adapter: the shared trust store can never be widened or switched off by one request (tested on
+    localhost with a self-signed certificate).
     """
 
     def __init__(self, ssl_context, **kwargs):
         self._ssl_context = ssl_context
+        self._stock = requests.adapters.HTTPAdapter(**kwargs)
         super().__init__(**kwargs)
 
     def init_poolmanager(self, connections, maxsize, block=False, **pool_kwargs):
         pool_kwargs.setdefault("ssl_context", self._ssl_context)
         super().init_poolmanager(connections, maxsize, block=block, **pool_kwargs)
 
+    def send(self, request, stream=False, timeout=None, verify=True, cert=None, proxies=None):
+        if verify is not True or cert is not None:
+            return self._stock.send(request, stream=stream, timeout=timeout, verify=verify, cert=cert, proxies=proxies)
+        return super().send(request, stream=stream, timeout=timeout, verify=verify, cert=cert, proxies=proxies)
+
     def cert_verify(self, conn, url, verify, cert):
         super().cert_verify(conn, url, verify, cert)
-        if verify is True and getattr(conn, "ca_certs", None) == requests.utils.DEFAULT_CA_BUNDLE_PATH:
+        if (
+            verify is True
+            and getattr(conn, "ca_certs", None) == requests.utils.DEFAULT_CA_BUNDLE_PATH
+            and getattr(conn, "conn_kw", {}).get("ssl_context") is self._ssl_context
+        ):
             conn.ca_certs = None  # already in the shared context: do not load it again per connection
+
+    def close(self):
+        self._stock.close()
+        super().close()
 
 
 def _adapter() -> requests.adapters.HTTPAdapter:
@@ -191,8 +212,18 @@ def read_range(key: str, start: int, stop: int) -> bytes:
     Refuses a 200 (whole-object) answer instead of silently downloading 60+ MB, and a 206
     for a range that does not start at ``start``.
     """
+    return read_range_meta(key, start, stop)[0]
+
+
+def read_range_meta(key: str, start: int, stop: int) -> tuple[bytes, int | None, str]:
+    """Like :func:`read_range`, plus WHICH object answered: (bytes, total object size, ETag).
+
+    Every 206 carries the object's size (``Content-Range: bytes a-b/<size>``) and its ``ETag``; they change
+    when S3 rewrites the object under the same key (RECON §2.4), so a caller that cached offsets can tell
+    they no longer apply. ``None`` / ``""`` where the answer did not say (e.g. a 416 past the end).
+    """
     if stop <= start:
-        return b""
+        return b"", None, ""
     url = f"{settings.S3_HTTPS}/{key.lstrip('/')}"
     last: Exception | None = None
     for attempt in range(RANGE_RETRIES):
@@ -203,7 +234,7 @@ def read_range(key: str, start: int, stop: int) -> bytes:
                 url, headers={"Range": f"bytes={start}-{stop - 1}"}, stream=True, timeout=settings.HTTP_TIMEOUT_S
             ) as r:
                 if r.status_code == 416:
-                    return b""
+                    return b"", None, ""
                 if r.status_code == 206:
                     first, total = _content_range(r.headers.get("Content-Range"))
                     if first is not None and first != start:
@@ -211,7 +242,7 @@ def read_range(key: str, start: int, stop: int) -> bytes:
                         continue
                     data = r.content
                     if len(data) == stop - start or (total is not None and start + len(data) == total):
-                        return data
+                        return data, total, str(r.headers.get("ETag") or "")
                     last = OSError(f"short read: {len(data)} of {stop - start} bytes")
                 elif r.status_code == 200:
                     raise OSError(f"server ignored the Range header for {url}")
@@ -510,6 +541,17 @@ def _cached_directory(mkey: tuple[str, str], key: str) -> HduDirectory | None:
 def cached_directory(key: str) -> HduDirectory | None:
     """The cached HDU directory of ``key`` (memory, then disk) or None. Never touches the network."""
     return _cached_directory((str(settings.CACHE_DIR), key), key)
+
+
+def forget_directory(key: str) -> None:
+    """Drop the cached HDU directory of ``key`` (memory and disk), e.g. when the object was rewritten."""
+    mkey = (str(settings.CACHE_DIR), key)
+    with _mem_lock:
+        _mem.pop(mkey, None)
+    try:
+        _dir_cache_path(key).unlink(missing_ok=True)
+    except OSError:
+        pass
 
 
 def hdu_directory(key: str, reader: RangeReader | None = None, use_cache: bool = True) -> HduDirectory:

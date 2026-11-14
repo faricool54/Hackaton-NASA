@@ -25,9 +25,14 @@ Why it is fast (layout verified live on 897 DR1+QR3 files at Barnard's Star and 
 * The WCS-WAVE table is identical in every file of one detector that names the same
   ``HISTORY [CALIB] spectral_wcs <id>`` calibration (897 files, 6 ids): it is read once (a 5760-byte
   suffix Range of one file) and cached by (detector, id).
-* The verified per-file layout (offsets, reduced IMAGE header, FLAGS descriptors) is cached, so a second
-  point on the same frames needs ONE round of <= 4 requests per frame; the whole series is cached too
-  (npz + json), so asking for the same point again is instant.
+* The verified per-file layout (offsets, reduced IMAGE header, FLAGS descriptors, object size and ETag) is
+  cached, so a second point on the same frames needs ONE round of <= 4 requests per frame; every answer's
+  ETag/size is checked against the cached layout (S3 rewrites objects under the same key: a stale layout is
+  dropped and the file read again). A WCS-WAVE suffix read, when needed, is one more request and round. The
+  whole series is cached too (npz + json) when it is complete, so asking for the same point again is instant.
+* Photometry needs bigger stamps than the default 11 px: WS2's ``imaging.photometry`` (4-7 px sky annulus,
+  7-10 px reference annulus) needs ``box_px >= 15`` (21 for the reference annulus); :func:`to_spherex_image`
+  turns a sample into the ``fits_io.SpherexImage`` it takes.
 * CPU matters as much as the network (one GIL): headers are scanned as raw cards and only the few cards
   needed are parsed, WCS() gets only the celestial cards, FLAGS rows go through astropy's RICE_1 codec
   directly (falling back to its compressed-HDU path), and s3range's session loads the CA bundle once.
@@ -47,6 +52,7 @@ enough. Bright stars saturate: Barnard's and R Dra's central pixels are often Na
 from __future__ import annotations
 
 import base64
+import contextlib
 import hashlib
 import io as _io
 import json
@@ -60,7 +66,7 @@ import warnings
 import zlib
 from collections import Counter, OrderedDict
 from collections.abc import Iterable, Sequence
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -84,6 +90,7 @@ __all__ = [
     "point_series",
     "read_point_sample",
     "select_frames",
+    "to_spherex_image",
 ]
 
 PLANES = ("IMAGE", "VARIANCE", "ZODI", "FLAGS")
@@ -94,8 +101,8 @@ MERGE_GAP = int(os.environ.get("ERRANTE_POINT_MERGE_GAP", "160000"))
 """Byte regions of one file closer than this are fetched in ONE request (one request ~ 100-150 KB of transfer)."""
 MAX_PARALLEL = int(os.environ.get("ERRANTE_POINT_MAX_PARALLEL", "48"))
 """Concurrent S3 requests of a series (32 -> 48 helped; 64 gave multi-second request tails in a benchmark)."""
-SERIES_FORMAT = 1
-LAYOUT_FORMAT = 1
+SERIES_FORMAT = 2  # 2: npz checksum in the json; never caches incomplete series
+LAYOUT_FORMAT = 2  # 2: object size + ETag, checked on every read
 LAYOUT_TTL_S = float(os.environ.get("ERRANTE_POINT_LAYOUT_TTL_S", str(7 * 86400)))
 """Cached per-file layouts older than this are re-read (S3 objects were rewritten on 2026-11-11)."""
 SERIES_TTL_S = float(os.environ.get("ERRANTE_POINT_TTL_S", str(settings.QUERY_CACHE_TTL_S)))
@@ -151,11 +158,33 @@ _FLAGS_CARD = re.compile(r"^(XTENSION|BITPIX|NAXIS\d*|PCOUNT|GCOUNT|TFIELDS|TTYP
 # --- byte bookkeeping ---------------------------------------------------------------------------------------
 
 
+class _ObjectChanged(OSError):
+    """Two answers of one read came from different versions of the object (rewritten meanwhile)."""
+
+
+class _StaleLayout(Exception):
+    """A cached layout (or s3range directory) describes an older version of the object."""
+
+
 class _Segments:
-    """Bytes already read from one S3 object, as merged non-overlapping (start, bytes) parts."""
+    """Bytes already read from one S3 object, as merged non-overlapping (start, bytes) parts, plus which
+    version of the object answered (size and ETag of every Range answer)."""
 
     def __init__(self) -> None:
         self.parts: list[tuple[int, bytes]] = []
+        self.size: int | None = None
+        self.etag = ""
+
+    def note(self, key: str, size: int | None, etag: str) -> None:
+        """Remember the object's size/ETag; raise if another version answers within the same read."""
+        if size is not None:
+            if self.size is not None and size != self.size:
+                raise _ObjectChanged(f"{key} changed size during the read ({self.size} -> {size} bytes)")
+            self.size = size
+        if etag:
+            if self.etag and etag != self.etag:
+                raise _ObjectChanged(f"{key} changed during the read (ETag {self.etag} -> {etag})")
+            self.etag = etag
 
     def add(self, start: int, data: bytes) -> None:
         if not data:
@@ -214,35 +243,78 @@ def _coalesce(regions: Iterable[tuple[int, int]], gap: int) -> list[tuple[int, i
 
 
 class _IO:
-    """Issues the Range requests of a frame: missing regions coalesced, then fetched in parallel."""
+    """Issues the Range requests of the frames of one series: missing regions coalesced, fetched in parallel.
 
-    def __init__(self, pool: ThreadPoolExecutor | None = None, gap: int | None = None):
+    ``max_parallel`` caps the requests in flight, whichever thread sends them (pool threads and the frame
+    threads' single-region reads). ``requests``/``bytes`` count every logical Range read of the series,
+    including those of frames that later fail (s3range's internal retries are not counted).
+    ``wave_failures`` remembers the WCS-WAVE reads that failed on the network during this series, so the
+    other frames of that calibration do not retry them one after another.
+    """
+
+    def __init__(self, pool: ThreadPoolExecutor | None = None, gap: int | None = None, max_parallel: int | None = None):
         self.pool = pool
         self.gap = MERGE_GAP if gap is None else gap
+        self._slots = threading.BoundedSemaphore(max_parallel) if max_parallel else None
+        self._lock = threading.Lock()
+        self.requests = 0
+        self.bytes = 0
+        self.wave_failures: dict[tuple[str, str], str] = {}
+        self.closed = False  # set when the series' deadline passed: no new request is sent
+
+    def _slot(self):
+        if self.closed:
+            raise TimeoutError("the point series' deadline passed")
+        return self._slots if self._slots is not None else contextlib.nullcontext()
+
+    def _count(self, nbytes: int) -> None:
+        with self._lock:
+            self.requests += 1
+            self.bytes += nbytes
+
+    def _get(self, key: str, a: int, b: int) -> tuple[int, bytes, int | None, str]:
+        with self._slot():
+            data, size, etag = s3range.read_range_meta(key, a, b)  # looked up at call time: monkeypatchable
+        self._count(len(data))
+        return a, data, size, etag
 
     def fetch(self, key: str, seg: _Segments, regions: Iterable[tuple[int, int]], stats: _Stats) -> None:
         plan = _coalesce([r for r in regions if not seg.covers(max(0, r[0]), r[1])], self.gap)
         if not plan:
             return
         stats.rounds += 1
-
-        def one(a: int, b: int) -> tuple[int, bytes]:
-            return a, s3range.read_range(key, a, b)  # looked up at call time: monkeypatchable
-
         if len(plan) == 1 or self.pool is None:
-            results = [one(a, b) for a, b in plan]
+            results = [self._get(key, a, b) for a, b in plan]
         else:
-            futures = [self.pool.submit(one, a, b) for a, b in plan]
+            futures = [self.pool.submit(self._get, key, a, b) for a, b in plan]
             results = [f.result() for f in futures]
-        for a, data in results:
+        for a, data, size, etag in results:
             stats.requests += 1
             stats.bytes += len(data)
+            seg.note(key, size, etag)
             seg.add(a, data)
 
+    def reader(self, seg: _Segments, stats: _Stats) -> s3range.RangeReader:
+        """An s3range reader (for an HDU walk) whose requests are counted, capped and identified."""
+
+        def read(key: str, a: int, b: int) -> bytes:
+            _, data, size, etag = self._get(key, a, b)
+            stats.requests += 1
+            stats.bytes += len(data)
+            stats.rounds += 1
+            seg.note(key, size, etag)
+            return data
+
+        return read
+
     def tail(self, key: str, nbytes: int, stats: _Stats) -> tuple[bytes, int]:
-        data, size = s3range.read_tail(key, nbytes)
+        """A suffix read: one more request and one more ROUND (it waits for the IMAGE header's calibration id)."""
+        with self._slot():
+            data, size = s3range.read_tail(key, nbytes)
+        self._count(len(data))
         stats.requests += 1
         stats.bytes += len(data)
+        stats.rounds += 1
         return data, size
 
 
@@ -475,6 +547,8 @@ class _Layout:
     zodi: _Plane | None = None
     wave_id: str = ""
     lengths: dict = field(default_factory=dict)  # verified header lengths (for the hints)
+    size: int | None = None  # object size and ETag the layout was read from (checked on every later read)
+    etag: str = ""
     _wcs: WCS | None = None
     _aux: fits.Header | None = None
 
@@ -506,6 +580,8 @@ class _Layout:
             "zodi": None if self.zodi is None else self.zodi.to_json(),
             "wave_id": self.wave_id,
             "lengths": self.lengths,
+            "size": self.size,
+            "etag": self.etag,
         }
         return zlib.compress(json.dumps(doc, separators=(",", ":")).encode("ascii"), 6)
 
@@ -527,6 +603,8 @@ class _Layout:
             zodi=None if doc.get("zodi") is None else _Plane(**doc["zodi"]),
             wave_id=str(doc.get("wave_id", "")),
             lengths=dict(doc.get("lengths") or {}),
+            size=None if doc.get("size") is None else int(doc["size"]),
+            etag=str(doc.get("etag") or ""),
         )
 
 
@@ -633,6 +711,35 @@ def _remember_layout(layout: _Layout, write: bool = True) -> None:
         s3range._atomic_write(_layout_path(layout.key), layout.to_bytes(), best_effort=True)
 
 
+def _forget_layout(key: str) -> None:
+    with _layout_lock:
+        _layout_mem.pop((str(settings.CACHE_DIR), key), None)
+    try:
+        _layout_path(key).unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def _check_object(layout: _Layout, seg: _Segments, source: str) -> None:
+    """Raise :class:`_StaleLayout` (forgetting the cached layout / s3range directory) when the bytes just read
+    come from another version of the object than the cached ``layout`` (ETag, else size). Then record the
+    identity seen, so a layout without one (from a directory) gets it."""
+    if source in ("cached", "directory"):
+        if layout.etag and seg.etag:
+            same = layout.etag == seg.etag
+        else:
+            same = layout.size is None or seg.size is None or layout.size == seg.size
+        if not same:
+            _forget_layout(layout.key)
+            if source == "directory":
+                s3range.forget_directory(layout.key)
+            raise _StaleLayout(f"{layout.key} was rewritten since its layout was cached")
+    if seg.size is not None:
+        layout.size = seg.size
+    if seg.etag:
+        layout.etag = seg.etag
+
+
 def _read_front(key: str, detector: int, io: _IO, seg: _Segments, stats: _Stats) -> _Layout:
     """Round 1 of a cold read: PRIMARY + IMAGE header and FLAGS header + row descriptors (hint-placed)."""
     h = _hints(detector)
@@ -681,7 +788,11 @@ def _raw(h: fits.Header) -> _RawHeader:
 
 
 def _layout_from_directory(d: s3range.HduDirectory, io: _IO, seg: _Segments, stats: _Stats) -> _Layout:
-    """A layout from an s3range HDU directory (already cached by a field build, or walked as a fallback)."""
+    """A layout from an s3range HDU directory (already cached by a field build, or walked as a fallback).
+
+    A directory does not hold the FLAGS row descriptors, so they are read here first: a frame whose directory
+    was cached still takes 2 rounds (~5 requests), not 1 (measured live by the review on 6 RW Aur frames).
+    The directory has no ETag: only a change of the object's SIZE reveals that it is stale."""
     names = [x.name for x in d.hdus]
     for name in ("IMAGE", "FLAGS", "VARIANCE", "ZODI"):
         if name not in names:
@@ -701,6 +812,7 @@ def _layout_from_directory(d: s3range.HduDirectory, io: _IO, seg: _Segments, sta
         variance=_Plane.from_header(var.header, var.data_offset),
         zodi=_Plane.from_header(zod.header, zod.data_offset),
         wave_id=_wave_id(iraw, int(img.header.get("DETECTOR", 0)), d.key),
+        size=d.hdus[-1].end,  # the walk reaches EOF: the object's size when the directory was made
     )
 
 
@@ -739,34 +851,74 @@ def _wave_from_hdu_bytes(raw: bytes) -> fits_io.WaveTable:
 
 
 def _wave_table(layout: _Layout, io: _IO, stats: _Stats) -> fits_io.WaveTable:
-    """The WCS-WAVE table of a file: memory, disk (by wave id), a cached s3range directory, or a suffix read."""
-    mkey = (str(settings.CACHE_DIR), layout.wave_id)
+    return _wave_table_for(layout.key, layout.wave_id, io, stats)
+
+
+def _wave_table_for(key: str, wave_id: str, io: _IO, stats: _Stats) -> fits_io.WaveTable:
+    """The WCS-WAVE table of a file: memory, disk (by wave id), a cached s3range directory, or a suffix read.
+
+    Network errors propagate as OSError and are remembered in ``io.wave_failures`` for the rest of the series
+    (the other frames of that calibration fail at once instead of retrying in turn behind the lock).
+    """
+    mkey = (str(settings.CACHE_DIR), wave_id)
     table = _wave_mem.get(mkey)
     if table is not None:
         return table
+    if mkey in io.wave_failures:
+        raise OSError(f"{fits_io.WAVE_EXTNAME} {wave_id} not read: {io.wave_failures[mkey]}")
     with _wave_locks.hold(mkey):
         table = _wave_mem.get(mkey)
         if table is not None:
             return table
-        path = _wave_path(layout.wave_id)
+        if mkey in io.wave_failures:
+            raise OSError(f"{fits_io.WAVE_EXTNAME} {wave_id} not read: {io.wave_failures[mkey]}")
+        path = _wave_path(wave_id)
         try:
             table = _wave_from_hdu_bytes(path.read_bytes()[BLOCK:])
         except (OSError, ValueError, KeyError, TypeError, IndexError):
             table = None  # not cached on disk (or unreadable): read it from the file
         if table is None:
-            d = s3range.cached_directory(layout.key)
+            d = s3range.cached_directory(key)
             raw = d.wcs_wave if d is not None and d.wcs_wave else None
             nbytes = _WAVE_TAIL
             while raw is None:
-                tail, size = io.tail(layout.key, nbytes, stats)
+                try:
+                    tail, size = io.tail(key, nbytes, stats)
+                except OSError as e:
+                    io.wave_failures[mkey] = f"{type(e).__name__}: {e}"
+                    raise
                 raw = _wave_hdu_in_tail(tail)
                 if raw is None and (len(tail) >= size or nbytes >= 64 * BLOCK):
-                    raise ValueError(f"no {fits_io.WAVE_EXTNAME} HDU at the end of {layout.key}")
+                    raise ValueError(f"no {fits_io.WAVE_EXTNAME} HDU at the end of {key}")
                 nbytes *= 4
             table = _wave_from_hdu_bytes(raw)
             s3range._atomic_write(path, fits.PrimaryHDU().header.tostring().encode("ascii") + raw, best_effort=True)
         _wave_mem[mkey] = table
         return table
+
+
+def _wavelength_at(
+    layout: _Layout, io: _IO, stats: _Stats, xf: float, yf: float, meta: dict
+) -> tuple[float | None, float | None]:
+    """Wavelength and bandwidth [um] at detector pixel (xf, yf) (bilinear WCS-WAVE lookup), or (None, None)
+    with ``meta['wave_error']``. A NETWORK failure also sets ``meta['wave_error_transient']``: the series
+    retries it once at the end and never caches a series that still has one."""
+    meta.pop("wave_error", None)
+    meta.pop("wave_error_transient", None)
+    try:
+        table = _wave_table(layout, io, stats)
+        lv, bv = fits_io.wavelength_from_table(table, layout.aux, xf, yf)
+    except OSError as e:  # requests' errors are OSErrors too
+        meta["wave_error"] = f"{type(e).__name__}: {e}"
+        meta["wave_error_transient"] = True
+        return None, None
+    except (ValueError, KeyError, TypeError, IndexError) as e:  # the file itself: deterministic
+        meta["wave_error"] = f"{type(e).__name__}: {e}"
+        return None, None
+    if np.isfinite(lv) and np.isfinite(bv):
+        return float(lv), float(bv)
+    meta["wave_error"] = "outside the WCS-WAVE table"
+    return None, None
 
 
 # --- one stamp ---------------------------------------------------------------------------------------------
@@ -810,6 +962,9 @@ class PointSample:
     mjd_source: str = "MJD-AVG"
     meta: dict = field(default_factory=dict)  # selected IMAGE header values (META_KEYS) + notes
     io: dict = field(default_factory=dict)  # requests, bytes, rounds, seconds, layout source
+    # (celestial WCS cards, 'A'/'W' + META cards, wave id) of the file, for to_spherex_image. Memory only:
+    # a sample loaded from disk finds them in the layout cache (or reads them again).
+    _cards: tuple[str, str, str] | None = field(default=None, repr=False)
 
     @property
     def shape(self) -> tuple[int, int]:
@@ -861,19 +1016,44 @@ def read_point_sample(
 ) -> PointSample:
     """Stamp of one frame around (ra, dec). Raises :class:`NoOverlap` if the point is off the detector.
 
-    Network and format errors propagate (``point_series`` turns them into per-frame failures).
+    Network and format errors propagate (``point_series`` turns them into per-frame failures). A cached
+    layout is checked against the object's ETag/size on every read; when S3 rewrote the object it is
+    forgotten and the file read again (``io['stale_layout']``).
     """
     t0 = time.perf_counter()
     io = io or _IO()
     stats = _Stats()
+    try:
+        sample = _read_sample(frame, ra, dec, box_px, planes, core_px, io, stats, trust_cache=True)
+    except _StaleLayout as e:
+        log.info("%s: reading it again", e)
+        sample = _read_sample(frame, ra, dec, box_px, planes, core_px, io, stats, trust_cache=False)
+        sample.io["stale_layout"] = True
+    sample.io.update(
+        requests=stats.requests, bytes=stats.bytes, rounds=stats.rounds, seconds=round(time.perf_counter() - t0, 4)
+    )
+    return sample
+
+
+def _read_sample(
+    frame: FrameRef,
+    ra: float,
+    dec: float,
+    box_px: int,
+    planes: Sequence[str],
+    core_px: int,
+    io: _IO,
+    stats: _Stats,
+    trust_cache: bool,
+) -> PointSample:
     seg = _Segments()
     key = s3range._frame_key(frame)
     want = set(planes) | {"IMAGE"}
 
-    layout = _cached_layout(key)
+    layout = _cached_layout(key) if trust_cache else None
     source = "cached"
     if layout is None:
-        d = s3range.cached_directory(key)
+        d = s3range.cached_directory(key) if trust_cache else None
         if d is not None:
             layout, source = _layout_from_directory(d, io, seg, stats), "directory"
         else:
@@ -881,11 +1061,14 @@ def read_point_sample(
                 layout, source = _read_front(key, frame.detector, io, seg, stats), "cold"
             except ValueError as e:  # an unexpected HDU order or header: walk the file like read_patch does
                 log.info("speculative layout failed for %s (%s); walking its HDUs", key, e)
-                d = s3range.hdu_directory(key)
+                d = s3range.hdu_directory(key, reader=io.reader(seg, stats), use_cache=False)
                 layout, source = _layout_from_directory(d, io, seg, stats), "walk"
+        _check_object(layout, seg, source)  # a directory read its FLAGS descriptors: same object?
 
     pix = fits_io._sky_to_array_pixel(layout.wcs, {"NAXIS1": layout.image.nx, "NAXIS2": layout.image.ny}, ra, dec)
     if pix is None:
+        if source != "cached":  # asking again costs this frame no request
+            _remember_layout(layout)
         raise NoOverlap(f"({ra}, {dec}) is not on {frame.obs_id}D{frame.detector}")
     xf, yf = pix
     box = _box(xf, yf, box_px, layout.image.nx, layout.image.ny)
@@ -917,7 +1100,9 @@ def read_point_sample(
         for name, plane in (("VARIANCE", layout.variance), ("ZODI", layout.zodi)):
             if name in want and plane is not None:
                 regions.append(plane.region(box))
+    known = (layout.size, layout.etag)
     io.fetch(key, seg, regions, stats)
+    _check_object(layout, seg, source)  # a cached layout: is the object still the one it was read from?
 
     if unknown:  # check the hints against the real headers (a miss only costs requests)
         try:
@@ -930,10 +1115,12 @@ def read_point_sample(
             _learn(frame.detector, layout.lengths)
         except ValueError as e:  # unexpected HDU order or header: walk the file like read_patch does
             log.info("VARIANCE/ZODI not where expected in %s (%s); walking its HDUs", key, e)
-            layout, source = _layout_from_directory(s3range.hdu_directory(key), io, seg, stats), "walk"
+            d = s3range.hdu_directory(key, reader=io.reader(seg, stats), use_cache=False)
+            layout, source = _layout_from_directory(d, io, seg, stats), "walk"
+            _check_object(layout, seg, source)
             fl = layout.flags
             use_heap = "FLAGS" in want and fl.desc is not None and not fl.error
-    if source != "cached" or unknown:
+    if source != "cached" or unknown or (layout.size, layout.etag) != known:
         _remember_layout(layout)
 
     # Extract every plane (fetching, in one more round, whatever a wrong hint left out).
@@ -958,24 +1145,13 @@ def read_point_sample(
     elif "FLAGS" in want and fl.error:
         meta["flags_error"] = fl.error
 
-    # Wavelength at the point (bilinear WCS-WAVE lookup at the full-detector pixel).
-    lam = bw = None
-    try:
-        table = _wave_table(layout, io, stats)
-        lv, bv = fits_io.wavelength_from_table(table, layout.aux, xf, yf)
-        if np.isfinite(lv) and np.isfinite(bv):
-            lam, bw = float(lv), float(bv)
-    except (OSError, ValueError, KeyError, TypeError, IndexError) as e:
-        meta["wave_error"] = f"{type(e).__name__}: {e}"
-    if lam is None and "wave_error" not in meta:
-        meta["wave_error"] = "outside the WCS-WAVE table"
+    lam, bw = _wavelength_at(layout, io, stats, xf, yf, meta)
 
     image = arrays["IMAGE"].astype(np.float32, copy=False)
     core = None
-    if flags_arr is not None:
-        half = max(0, int(core_px) // 2)
-        cy, cx = math.floor(yf + 0.5) - y0, math.floor(xf + 0.5) - x0
-        block = flags_arr[max(cy - half, 0) : cy + half + 1, max(cx - half, 0) : cx + half + 1]
+    if flags_arr is not None:  # core_px x core_px pixels by the stamp's own rule (exact for even sizes too)
+        cx0, cx1, cy0, cy1 = _box(xf, yf, max(1, int(core_px)), layout.image.nx, layout.image.ny)
+        block = flags_arr[max(cy0 - y0, 0) : max(cy1 - y0 + 1, 0), max(cx0 - x0, 0) : max(cx1 - x0 + 1, 0)]
         core = int(np.bitwise_or.reduce(block.astype(np.uint32).ravel())) if block.size else 0
     mjd, mjd_source = fits_io.mid_exposure_mjd(layout.aux)
     omega = meta.get("OMEGA_MEDIAN")
@@ -1001,13 +1177,86 @@ def read_point_sample(
         omega_arcsec2=float(omega) if isinstance(omega, (int, float)) and not isinstance(omega, bool) else None,
         mjd_source=mjd_source,
         meta=meta,
-        io={
-            "requests": stats.requests,
-            "bytes": stats.bytes,
-            "rounds": stats.rounds,
-            "seconds": round(time.perf_counter() - t0, 4),
-            "layout": source,
-        },
+        io={"layout": source},
+        _cards=(layout.wcs_text, layout.aux_text, layout.wave_id),
+    )
+
+
+def _layout_of(frame: FrameRef, io: _IO) -> _Layout:
+    """The cached layout of a frame's file, or one read now (round 1 of a cold read: 2 requests)."""
+    key = s3range._frame_key(frame)
+    layout = _cached_layout(key)
+    if layout is not None:
+        return layout
+    seg, stats = _Segments(), _Stats()
+    try:
+        layout, source = _read_front(key, frame.detector, io, seg, stats), "cold"
+    except ValueError as e:
+        log.info("speculative layout failed for %s (%s); walking its HDUs", key, e)
+        d = s3range.hdu_directory(key, reader=io.reader(seg, stats), use_cache=False)
+        layout, source = _layout_from_directory(d, io, seg, stats), "walk"
+    _check_object(layout, seg, source)
+    _remember_layout(layout)
+    return layout
+
+
+def to_spherex_image(sample: PointSample) -> fits_io.SpherexImage:
+    """The stamp as a :class:`fits_io.SpherexImage`, like ``s3range.read_patch`` or ``fits_io.read_spherex`` of a
+    cutout, so code written for those (e.g. WS2's ``imaging.photometry.measure``) runs on point stamps.
+
+    Sub-image convention (``errante.data.fits_io`` docstring): ``header`` holds the IMAGE cards of the celestial
+    TAN-SIP WCS, of the ``A`` and ``W`` alternate WCSs and :data:`META_KEYS` (OMEGA_MEDIAN, MJD-AVG, BUNIT...),
+    with NAXISn = the stamp and every CRPIXn<key> decreased by (``x0``, ``y0``), plus PATCH_X0/PATCH_Y0;
+    ``wave`` is the file's WCS-WAVE table, so ``wavelength_at(ra, dec)`` equals ``sample.wavelength_um``.
+    ``mjd`` is mid-exposure and ``date_obs`` the same instant (DATE-AVG). Arrays are the sample's (not copied).
+
+    The cards come with the sample when it was read in this process; a sample loaded from disk takes them
+    from the cached layout of its file, or reads them (2 S3 requests). Network errors propagate; a WCS-WAVE
+    table that cannot be parsed leaves ``wave=None`` with ``extra['wave_error']``.
+
+    Photometry needs room around the point: imaging.photometry's 4-7 px sky annulus needs ``box_px >= 15``
+    and its 7-10 px reference annulus ``box_px >= 21``. The default 11 px truncates the sky ring (biased sky).
+    """
+    io = _IO()
+    key = s3range._frame_key(sample.frame)
+    cards = sample._cards
+    if cards is None:
+        layout = _layout_of(sample.frame, io)
+        cards = (layout.wcs_text, layout.aux_text, layout.wave_id)
+    wcs_text, aux_text, wave_id = cards
+    ny, nx = sample.shape
+    hdr = s3range._shift_header(fits.Header.fromstring(wcs_text + aux_text), sample.x0, sample.y0, nx, ny)
+    hdr["PATCH_X0"] = (sample.x0, "0-based detector column of patch pixel 0")
+    hdr["PATCH_Y0"] = (sample.y0, "0-based detector row of patch pixel 0")
+    hdr["PATCHSRC"] = ("point", "errante.data.point stamp (S3 HTTP Range)")
+    if sample.flags is None:
+        hdr["PATCHFLG"] = ("unavailable", "FLAGS not in this patch: unknown, NOT clean")
+    extra: dict = {
+        "s3_key": key,
+        "bbox": (sample.x0, sample.x0 + nx - 1, sample.y0, sample.y0 + ny - 1),
+        "flags": "ok" if sample.flags is not None else "unavailable",
+        "mjd_source": sample.mjd_source,
+        "mjd_obs": float(hdr["MJD-OBS"]) if "MJD-OBS" in hdr else None,
+    }
+    wave = None
+    try:
+        wave = _wave_table_for(key, wave_id, io, _Stats())
+    except (ValueError, KeyError, TypeError, IndexError) as e:  # the file itself (network errors propagate)
+        extra["wave_error"] = f"{type(e).__name__}: {e}"
+    return fits_io.SpherexImage(
+        data=sample.image,
+        flags=sample.flags,
+        variance=sample.variance,
+        zodi=sample.zodi,
+        wcs=fits_io.celestial_wcs(hdr),
+        header=hdr,
+        obs_id=sample.obs_id,
+        detector=sample.detector,
+        mjd=sample.mjd,
+        date_obs=fits_io.mid_exposure_date(hdr, sample.mjd, sample.mjd_source),
+        source=f"{settings.S3_HTTPS}/{key}",
+        extra=extra,
+        wave=wave,
     )
 
 
@@ -1057,6 +1306,7 @@ class PointSeries:
                     "core_flags": s.core_flags,
                     "nan_fraction": round(s.nan_fraction, 4),
                     "s3_key": s.frame.s3_key,
+                    "wave_error": s.meta.get("wave_error"),  # why wavelength_um is None (None when it is set)
                 }
             )
         return rows
@@ -1098,9 +1348,12 @@ class PointSeries:
         }
         buf = _io.BytesIO()
         np.savez_compressed(buf, **arrays)
+        npz_bytes = buf.getvalue()
         doc = {
             "format": SERIES_FORMAT,
             "created": time.time(),
+            "n_samples": n,
+            "npz_sha256": hashlib.sha256(npz_bytes).hexdigest(),  # which npz this json goes with
             "ra": self.ra,
             "dec": self.dec,
             "box_px": self.box_px,
@@ -1122,7 +1375,7 @@ class PointSeries:
                 for s in self.samples
             ],
         }
-        ok1 = s3range._atomic_write(npz_path, buf.getvalue(), best_effort=best_effort)
+        ok1 = s3range._atomic_write(npz_path, npz_bytes, best_effort=best_effort)
         ok2 = s3range._atomic_write(json_path, json.dumps(doc, indent=1).encode("utf-8"), best_effort=best_effort)
         if best_effort and not (ok1 and ok2):
             log.warning("could not write the point-series cache %s", npz_path)
@@ -1130,14 +1383,24 @@ class PointSeries:
 
     @classmethod
     def load(cls, path: str | Path) -> PointSeries:
-        """Read what :meth:`save` wrote (``path`` = the .npz or the .json)."""
+        """Read what :meth:`save` wrote (``path`` = the .npz or the .json).
+
+        Raises ValueError when the two files do not belong together (another writer replaced one of them:
+        the json names its npz by SHA-256) or do not agree on the samples.
+        """
         p = Path(path)
         npz_path = p if p.suffix == ".npz" else p.with_suffix(".npz")
         doc = json.loads(npz_path.with_suffix(".json").read_text(encoding="utf-8"))
-        if doc.get("format") != SERIES_FORMAT:
+        if doc.get("format") not in (1, SERIES_FORMAT):  # format 1 files have the same arrays
             raise ValueError(f"unsupported point-series format {doc.get('format')!r} in {npz_path}")
-        with np.load(npz_path, allow_pickle=False) as z:
+        raw = npz_path.read_bytes()
+        if doc.get("npz_sha256") and hashlib.sha256(raw).hexdigest() != doc["npz_sha256"]:
+            raise ValueError(f"{npz_path} is not the npz its json was written with")
+        with np.load(_io.BytesIO(raw), allow_pickle=False) as z:
             a = {k: z[k] for k in z.files}
+        n = len(doc["samples"])
+        if len(a["shape"]) != n or int(np.prod(a["shape"], axis=1).sum()) != a["image"].size:
+            raise ValueError(f"{npz_path} holds {len(a['shape'])} stamps, its json {n} samples")
         samples: list[PointSample] = []
         start = 0
         for i, extra in enumerate(doc["samples"]):
@@ -1234,13 +1497,58 @@ def _series_path(ident: dict) -> Path:
 
 
 def _load_cached_series(path: Path) -> PointSeries | None:
+    """The cached series, or None when missing, expired or unreadable in ANY way (then it is recomputed)."""
     try:
         doc = json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))
         if doc.get("format") != SERIES_FORMAT or time.time() - float(doc.get("created", 0)) > SERIES_TTL_S:
             return None
         return PointSeries.load(path)
-    except (OSError, ValueError, KeyError, TypeError, zlib.error):
+    except FileNotFoundError:
         return None
+    except Exception as e:  # noqa: BLE001  (a cache: truncated/mismatched files mean "recompute", never a crash)
+        log.info("ignoring the unreadable point-series cache %s (%s: %s)", path, type(e).__name__, e)
+        return None
+
+
+def _unique(frames: Iterable[FrameRef]) -> tuple[list[FrameRef], int]:
+    """Frames without repeats (same S3 object), in order, and how many repeats were dropped."""
+    out, seen = [], set()
+    frames = list(frames)
+    for f in frames:
+        try:
+            k: object = s3range._frame_key(f)
+        except ValueError:
+            k = (f.obs_id, f.detector, f.release)
+        if k not in seen:
+            seen.add(k)
+            out.append(f)
+    return out, len(frames) - len(out)
+
+
+def _retry_wavelengths(samples: Sequence[PointSample], io: _IO, until: float | None = None) -> int:
+    """Second and last try of the WCS-WAVE reads that failed on the network during the series (one read per
+    calibration, as in the first pass), stopping at ``until`` (perf_counter). Returns how many samples got
+    their wavelength back."""
+    todo = [s for s in samples if s.meta.get("wave_error_transient")]
+    if not todo:
+        return 0
+    io.wave_failures.clear()
+    fixed = 0
+    for s in todo:
+        if until is not None and time.perf_counter() >= until:
+            break
+        layout = _cached_layout(s3range._frame_key(s.frame))
+        if layout is None:
+            continue
+        stats = _Stats()
+        lam, bw = _wavelength_at(layout, io, stats, s.x_detector, s.y_detector, s.meta)
+        for k in ("requests", "bytes", "rounds"):
+            s.io[k] = s.io.get(k, 0) + getattr(stats, k)
+        if lam is not None:
+            s.wavelength_um, s.bandwidth_um = lam, bw
+            s.frame = s.frame.model_copy(update={"wavelength_um": lam})
+            fixed += 1
+    return fixed
 
 
 def point_series(
@@ -1258,20 +1566,34 @@ def point_series(
     core_px: int = 3,
     frames: Sequence[FrameRef] | None = None,
     use_cache: bool = True,
+    deadline_s: float | None = None,
 ) -> PointSeries:
     """Stamps of EVERY SPHEREx exposure covering (ra, dec) [deg, ICRS], read from S3 in parallel.
 
     Frames come from ``irsa.search_frames_report`` (point search; ``collections`` defaults to
     ``settings.IRSA_COLLECTIONS`` = DR1 + QR3, deep fields via ``collections=['spherex_dr1_deep', ...]``),
-    filtered by ``detectors`` and the ``mjd_min``/``mjd_max`` exposure overlap, then capped to
-    ``max_frames`` with :func:`select_frames`; or pass ``frames`` to skip the search. ``planes`` picks
-    which planes to read (IMAGE always). ``max_workers`` = concurrent S3 requests (default
-    ``ERRANTE_POINT_MAX_PARALLEL`` = 48). One failing frame never aborts the series: it lands in
-    ``failures``. Raises ``irsa.SearchError`` when the archive search fails and nothing is cached.
+    filtered by ``detectors`` (None = all six) and the ``mjd_min``/``mjd_max`` exposure overlap, then capped
+    to ``max_frames`` with :func:`select_frames`; or pass ``frames`` to skip the search (repeats are read
+    once). ``planes`` picks which planes to read (IMAGE always). ``max_workers`` caps the S3 requests in
+    flight (default ``ERRANTE_POINT_MAX_PARALLEL`` = 48, at most 64). One failing frame never aborts the
+    series: it lands in ``failures``. Raises ``irsa.SearchError`` when the archive search fails and nothing
+    is cached.
+
+    ``box_px`` (default 11 = 68 arcsec, enough for the time video and a 3x3 core) must be >= 15 for WS2's
+    ``imaging.photometry`` sky annulus (4-7 px) and >= 21 for its reference annulus (7-10 px); pass each
+    sample through :func:`to_spherex_image` to get the ``fits_io.SpherexImage`` that module takes. The read
+    cost grows with the rows: one plane of a ``box_px`` stamp is ~``box_px`` x 8 KB (2040 x 4-byte rows).
+
+    ``deadline_s`` is a wall-clock budget for the whole call (for interactive use): frames not read by then
+    are ``failures`` with ``TimeoutError`` and the call returns at once (their requests finish in the
+    background, at most ``settings.HTTP_TIMEOUT_S`` per attempt). A WCS-WAVE read that failed on the network
+    is retried once at the end (``timings['wave_retried']``); samples still without it are counted in
+    ``timings['wave_errors']``.
 
     The result is cached (npz + json under CACHE_DIR/point/series) per (ra, dec, box, selection) for
-    ``ERRANTE_POINT_TTL_S`` (default: the query-cache TTL, 1 day) unless a frame failed for a reason other
-    than ``NoOverlap`` or the search was stale/truncated; ``use_cache=False`` skips both reading and writing.
+    ``ERRANTE_POINT_TTL_S`` (default: the query-cache TTL, 1 day) only when it is complete: at least one
+    sample, no failure other than ``NoOverlap`` (timeouts included), no network-missing wavelength, and a
+    search that was neither stale nor truncated. ``use_cache=False`` skips both reading and writing.
     """
     t0 = time.perf_counter()
     ra, dec = float(ra), float(dec)
@@ -1288,7 +1610,12 @@ def point_series(
         raise ValueError(f"planes must be among {PLANES}, got {planes}")
     if max_frames is not None and max_frames < 1:
         raise ValueError("max_frames must be >= 1")
-    dets = sorted({int(d) for d in detectors}) if detectors else None
+    if deadline_s is not None and not (deadline_s > 0):
+        raise ValueError(f"deadline_s must be > 0, got {deadline_s}")
+    det_list = None if detectors is None else list(detectors)
+    if det_list is not None and not det_list:
+        raise ValueError("detectors must not be empty (None means all six)")
+    dets = sorted({int(d) for d in det_list}) if det_list is not None else None
     if dets and not set(dets) <= set(range(1, 7)):
         raise ValueError(f"detectors must be 1-6, got {dets}")
     cols = list(irsa.normalize_collections(collections))
@@ -1308,7 +1635,9 @@ def point_series(
         "planes": sorted(planes),
         **selection,
     }
+    n_given_dups = 0
     if frames is not None:
+        frames, n_given_dups = _unique(frames)
         keys = "\n".join(sorted(s3range._frame_key(f) for f in frames))
         ident["frames"] = hashlib.sha256(keys.encode()).hexdigest()[:24]
         ident["collections"] = None
@@ -1324,7 +1653,7 @@ def point_series(
     search: dict
     if frames is None:
         rep = irsa.search_frames_report(ra, dec, 0.0, dets, mjd_min, mjd_max, collections=cols)
-        all_frames = list(rep.result.frames)
+        all_frames, extra_dups = _unique(rep.result.frames)
         search = {
             "service": rep.service,
             "from_cache": rep.from_cache,
@@ -1332,7 +1661,7 @@ def point_series(
             "overflow": rep.overflow,
             "collections": list(rep.collections),
             "n_found": len(all_frames),
-            "n_duplicates": rep.n_duplicates,
+            "n_duplicates": rep.n_duplicates + extra_dups,
             "elapsed_s": round(rep.elapsed_s, 3),
             "errors": list(rep.errors),
             "warnings": list(rep.warnings),
@@ -1345,6 +1674,7 @@ def point_series(
             "stale": False,
             "overflow": False,
             "n_found": len(all_frames),
+            "n_duplicates": n_given_dups,
         }
     chosen = select_frames(all_frames, max_frames)
     search["n_selected"] = len(chosen)
@@ -1353,29 +1683,45 @@ def point_series(
     workers = max(1, min(int(max_workers or MAX_PARALLEL), 64))
     samples: list[PointSample] = []
     failures: list[tuple[FrameRef, str]] = []
+    timed_out = wave_retried = 0
+    io = _IO(max_parallel=workers)
     t1 = time.perf_counter()
     if chosen:
         frame_workers = max(1, min(len(chosen), max(4, workers * 2 // 3)))
-        with (
-            ThreadPoolExecutor(workers, thread_name_prefix="point-io") as io_pool,
-            ThreadPoolExecutor(frame_workers, thread_name_prefix="point-frame") as frame_pool,
-        ):
-            io = _IO(io_pool)
+        io_pool = ThreadPoolExecutor(workers, thread_name_prefix="point-io")
+        frame_pool = ThreadPoolExecutor(frame_workers, thread_name_prefix="point-frame")
+        io.pool = io_pool
+        pending: set = set()
+        try:
             futures = [
                 frame_pool.submit(read_point_sample, f, ra, dec, box_px, planes=planes, core_px=core_px, io=io)
                 for f in chosen
             ]
+            left = None if deadline_s is None else max(0.0, deadline_s - (time.perf_counter() - t0))
+            _, pending = wait(futures, timeout=left)
             for f, fut in zip(chosen, futures, strict=True):
+                if fut in pending:
+                    fut.cancel()
+                    failures.append((f, f"TimeoutError: not read within the {deadline_s} s deadline"))
+                    timed_out += 1
+                    continue
                 try:
                     samples.append(fut.result())
                 except Exception as e:  # noqa: BLE001  (one bad frame never aborts the series)
                     failures.append((f, f"{type(e).__name__}: {e}"))
+        finally:
+            # Past the deadline: return now. Frames still running stop at their next request (io.closed,
+            # cancelled pool reads); a request already in flight ends alone. Their results are dropped.
+            io.closed = bool(pending)
+            frame_pool.shutdown(wait=not pending, cancel_futures=True)
+            io_pool.shutdown(wait=not pending, cancel_futures=True)
+        if not timed_out:
+            wave_retried = _retry_wavelengths(samples, io, None if deadline_s is None else t0 + deadline_s)
     t_fetch = time.perf_counter() - t1
     samples.sort(key=lambda s: (s.mjd, s.detector, s.obs_id))
 
-    n_req = sum(s.io.get("requests", 0) for s in samples)
-    n_bytes = sum(s.io.get("bytes", 0) for s in samples)
     no_overlap = sum(1 for _, r in failures if r.startswith("NoOverlap"))
+    wave_errors = sum(1 for s in samples if s.meta.get("wave_error_transient"))
     timings = {
         "from_cache": False,
         "search_s": round(t_search, 3),
@@ -1385,10 +1731,13 @@ def point_series(
         "samples": len(samples),
         "failures": len(failures),
         "no_overlap": no_overlap,
-        "requests": n_req,
-        "bytes": n_bytes,
-        "requests_per_frame": round(n_req / len(samples), 2) if samples else None,
-        "bytes_per_frame": round(n_bytes / len(samples)) if samples else None,
+        "timed_out": timed_out,
+        "wave_errors": wave_errors,
+        "wave_retried": wave_retried,
+        "requests": io.requests,  # every Range read of the series, failed frames included
+        "bytes": io.bytes,
+        "requests_per_frame": round(io.requests / len(chosen), 2) if chosen else None,
+        "bytes_per_frame": round(io.bytes / len(chosen)) if chosen else None,
         "max_rounds": max((s.io.get("rounds", 0) for s in samples), default=0),
         "layouts": dict(Counter(s.io.get("layout", "?") for s in samples)),
         "workers": workers,
@@ -1399,6 +1748,8 @@ def point_series(
         )
     if no_overlap:  # the archive footprint touched the point, the pixel is off the detector: expected, rare
         log.info("point_series(%.5f, %.5f): %d frames do not cover the pixel", ra, dec, no_overlap)
+    if wave_errors:
+        log.warning("point_series(%.5f, %.5f): %d samples without wavelength (S3 errors)", ra, dec, wave_errors)
     series = PointSeries(
         ra=ra,
         dec=dec,
@@ -1411,6 +1762,13 @@ def point_series(
         core_px=int(core_px),
         planes=planes,
     )
-    if cache_on and no_overlap == len(failures) and not search.get("stale") and not search.get("overflow"):
+    complete = (
+        bool(samples)  # an empty answer is suspicious for an all-sky survey (irsa never caches one either)
+        and no_overlap == len(failures)
+        and not wave_errors
+        and not search.get("stale")
+        and not search.get("overflow")
+    )
+    if cache_on and complete:
         series.save(cache_path, best_effort=True)
     return series
