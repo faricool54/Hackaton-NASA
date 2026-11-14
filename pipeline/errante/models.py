@@ -21,11 +21,11 @@ Pixel convention for every ``x``/``y`` in this contract ("PNG convention"):
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-SCHEMA_VERSION = "0.2.2"
+SCHEMA_VERSION = "0.3.1"
 
 Release = Literal["dr1", "qr2", "qr3", "synthetic"]
 """SPHEREx data release a frame comes from (see docs/DATA.md)."""
@@ -287,7 +287,7 @@ class SkyField(_Model):
     composites: list[Composite] = Field(
         default_factory=list,
         description="Optional FALSE-COLOR infrared composites per observing season (infrared wavelengths mapped "
-        "to RGB, not true color). Empty when none were built; absent in products older than 0.2.2.",
+        "to RGB, not true color). Empty when none were built; absent in products older than 0.3.1.",
     )
 
     @model_validator(mode="after")
@@ -465,6 +465,49 @@ class SearchResult(_Model):
     frames: list[FrameRef]
 
 
+class JobSubmitRequest(_Model):
+    """POST /api/jobs. Optional filters default to a bounded real-image build."""
+
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+    ra: float = Field(ge=0, lt=360)
+    dec: float = Field(ge=-90, le=90)
+    size_deg: float = Field(default=0.25, ge=0.01, le=0.5)
+    detectors: list[Annotated[int, Field(ge=1, le=6)]] = Field(default_factory=list)
+    mjd_min: float | None = None
+    mjd_max: float | None = None
+    max_frames: int = Field(default=40, ge=2, le=120)
+
+    @model_validator(mode="after")
+    def ordered_epochs(self):
+        if self.mjd_min is not None and self.mjd_max is not None and self.mjd_min > self.mjd_max:
+            raise ValueError("mjd_min must not exceed mjd_max")
+        return self
+
+
+PublicJobStatus = Literal["queued", "running", "ready", "failed", "no_coverage", "pipeline_not_ready"]
+
+
+class JobStatusResponse(_Model):
+    """POST /api/jobs (202) and GET /api/jobs/{id} (200). Publication maps to running."""
+
+    id: str
+    status: PublicJobStatus
+    stage: str
+    created_at: datetime
+    updated_at: datetime
+    result_field_id: str | None = None
+    error_detail: str | None = None
+
+
+class ResolvedRegion(SkyCoord):
+    """GET /api/resolve-name. A catalog coordinate, not proof of SPHEREx coverage."""
+
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+    object_type: ObjectType
+    resolved_name: str
+    source: str
+
+
 ALL_MODELS: dict[str, type[BaseModel]] = {
     "Manifest": Manifest,
     "Field": SkyField,
@@ -472,5 +515,8 @@ ALL_MODELS: dict[str, type[BaseModel]] = {
     "KnownObjectList": KnownObjectList,
     "SearchResult": SearchResult,
     "SystemModel": SystemModel,
+    "JobSubmitRequest": JobSubmitRequest,
+    "JobStatusResponse": JobStatusResponse,
+    "ResolvedRegion": ResolvedRegion,
 }
 """Top-level documents, one JSON Schema file each in shared/schema/."""

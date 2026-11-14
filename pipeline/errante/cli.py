@@ -81,7 +81,9 @@ def cmd_search(args: argparse.Namespace) -> int:
 
     frames = rep.result.frames
     origin = rep.service.upper()
-    if rep.stale:
+    if rep.service == "snapshot":
+        origin = "committed SNAPSHOT (IRSA unavailable)"  # the WARNING note gives its date
+    elif rep.stale:
         origin += " (EXPIRED cache: IRSA unavailable)"
     elif rep.from_cache:
         origin += " (cache)"
@@ -131,6 +133,199 @@ def cmd_search(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_point(args: argparse.Namespace) -> int:
+    from .data.irsa import SearchError
+    from .data.point import point_series
+
+    try:
+        series = point_series(
+            args.ra,
+            args.dec,
+            box_px=args.box,
+            detectors=args.detector,
+            mjd_min=args.mjd_min,
+            mjd_max=args.mjd_max,
+            collections=args.collections,
+            max_frames=args.max_frames,
+            max_workers=args.workers,
+            use_cache=not args.no_cache,
+            deadline_s=args.deadline,
+        )
+    except (SearchError, ValueError) as e:
+        print(f"Point series failed: {e}", file=sys.stderr)
+        return 2
+    paths = series.save(args.out) if args.out else None
+    t = series.timings
+    if not args.summary:
+        doc = {
+            "ra": series.ra,
+            "dec": series.dec,
+            "box_px": series.box_px,
+            "search": series.search,
+            "timings": t,
+            "failures": [{"obs_id": f.obs_id, "detector": f.detector, "reason": r} for f, r in series.failures],
+            "samples": series.summary_rows(),
+        }
+        print(json.dumps(doc, indent=1))
+    else:
+        from collections import Counter
+
+        origin = "cache" if t.get("from_cache") else f"{t.get('frames')} frames read from S3"
+        print(
+            f"{len(series.samples)} samples at ({series.ra:.5f}, {series.dec:.5f}), box {series.box_px} px "
+            f"({origin}) in {t.get('total_s')} s"
+        )
+        s = series.search
+        print(
+            f"  search: {s.get('n_found')} frames via {s.get('service')}"
+            f"{' (cache)' if s.get('from_cache') else ''}{' STALE' if s.get('stale') else ''}"
+            f"{' TRUNCATED' if s.get('overflow') else ''}, {s.get('n_selected')} selected"
+        )
+        if not t.get("from_cache"):
+            print(
+                f"  S3: {t.get('requests')} requests ({t.get('requests_per_frame')}/frame), "
+                f"{(t.get('bytes') or 0) / 1e6:.1f} MB ({(t.get('bytes_per_frame') or 0) / 1e3:.0f} KB/frame), "
+                f"fetch {t.get('fetch_s')} s, layouts {t.get('layouts')}"
+            )
+        by_det: dict[int, list] = {}
+        for smp in series.samples:
+            by_det.setdefault(smp.detector, []).append(smp)
+        for det, smps in sorted(by_det.items()):
+            lam = [x.wavelength_um for x in smps if x.wavelength_um is not None]
+            rng = f"{min(lam):.3f}-{max(lam):.3f} um" if lam else "no wavelength"
+            rel = ", ".join(f"{k}: {n}" for k, n in sorted(Counter(x.release for x in smps).items()))
+            print(f"  D{det}: {len(smps)} samples, {rng}, MJD {smps[0].mjd:.2f}-{smps[-1].mjd:.2f} ({rel})")
+        if series.failures:
+            reasons = Counter(r.split(":", 1)[0] for _, r in series.failures)
+            print(f"  failures: {len(series.failures)} ({', '.join(f'{k}: {n}' for k, n in reasons.items())})")
+    if t.get("wave_errors"):
+        print(
+            f"WARNING: {t['wave_errors']} samples have no wavelength because S3 failed (not cached: ask again)",
+            file=sys.stderr,
+        )
+    if t.get("timed_out"):
+        print(f"WARNING: {t['timed_out']} frames not read within --deadline (not cached)", file=sys.stderr)
+    if paths:
+        print(f"Wrote {paths[0]} and {paths[1]}", file=sys.stderr)
+    return 0
+
+
+def cmd_snapshot_search(args: argparse.Namespace) -> int:
+    """(Re)generate committed search snapshots (data/index/search/<field-id>.json) from a live SIA query."""
+    from .build import load_field_configs
+    from .data import irsa
+
+    cfgs = load_field_configs()
+    if args.all == bool(args.field_id):
+        print("Give one field id or --all (every field tagged 'official-target').", file=sys.stderr)
+        return 2
+    ids = [fid for fid, c in cfgs.items() if "official-target" in c.tags] if args.all else [args.field_id]
+    unknown = [fid for fid in ids if fid not in cfgs]
+    if unknown:
+        print(f"Unknown field {unknown}. Known: {sorted(cfgs)}", file=sys.stderr)
+        return 2
+    out_dir = Path(args.out) if args.out else (irsa.SNAPSHOT_DIR or irsa.DEFAULT_SNAPSHOT_DIR)
+    failed = []
+    unverified = []  # written, but the live point check failed or did not run: CI rejects such a file
+    for fid in ids:
+        cfg = cfgs[fid]
+        try:
+            doc = irsa.fetch_snapshot(
+                fid,
+                cfg.ra,
+                cfg.dec,
+                name=cfg.name,
+                radius_deg=irsa.SNAPSHOT_RADIUS_DEG if args.radius is None else args.radius,
+                collections=args.collections,
+                rounds=args.rounds,
+                pause_s=args.pause,
+            )
+        except (irsa.SearchError, ValueError) as e:
+            print(f"{fid}: snapshot NOT written: {e}", file=sys.stderr)
+            failed.append(fid)
+            continue
+        path = irsa.write_snapshot(doc, irsa.snapshot_path(fid, out_dir))
+        prov = doc["provenance"]
+        print(
+            f"{fid}: {prov['rows']} frames within {doc['radius_deg']:g} deg ({', '.join(doc['collections'])}) "
+            f"via SIA at {prov['queried_utc']} in {prov['elapsed_s']:.1f} s -> {path} ({path.stat().st_size / 1024:.0f} KB)"
+        )
+        check = prov["point_check"]
+        if "error" in check:
+            print(f"  point check NOT run (SIA failed): {check['error']}", file=sys.stderr)
+        elif check["only_live"] or check["only_replayed"]:
+            print(
+                f"  WARNING point check: live {check['rows_live']} vs replayed {check['rows_replayed']} "
+                f"(only live: {check['only_live']}; only replayed: {check['only_replayed']})",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                f"  point check OK: the replay at the centre matches the live point search ({check['rows_live']} frames)"
+            )
+            continue
+        unverified.append(fid)
+        print(
+            f"  {path.name} fails CI (test_committed_snapshot_files): run `errante snapshot-search {fid}` again "
+            f"once SIA answers, or restore the committed file (git checkout -- <path>)",
+            file=sys.stderr,
+        )
+    return 1 if failed or unverified else 0
+
+
+def cmd_cube_spectrum(args: argparse.Namespace) -> int:
+    from .data.cube import cube_spectrum
+
+    try:
+        spec = cube_spectrum(
+            args.ra,
+            args.dec,
+            aperture_px=args.aperture,
+            with_nhits=args.nhits,
+            with_flags=args.flags,
+            use_cache=not args.no_cache,
+        )
+    except ValueError as e:
+        print(f"Invalid request: {e}", file=sys.stderr)
+        return 2
+    except OSError as e:
+        print(f"Cube read failed: {e}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(spec.to_dict(), indent=2))
+        return 0
+
+    t = spec.timings
+    print(
+        f"SPHEREx DR1 cube spectrum at ({spec.ra:.6f}, {spec.dec:+.6f}): tile Norder{spec.tile.order}/Npix{spec.tile.npix} "
+        f"pixel x={spec.pixel[0]} y={spec.pixel[1]} (centre {spec.pixel_center[0]:.6f}, {spec.pixel_center[1]:+.6f}; "
+        f'{spec.pixel_scale_arcsec:.2f}"/px)'
+    )
+    ap = f"aperture r={spec.aperture_px} px ({spec.n_pixels} px)" if spec.aperture_px else "single pixel"
+    if t.get("from_cache"):
+        how = f"from the result cache in {t.get('total_s', 0):.3f} s"
+    else:
+        how = (
+            f"via {spec.source} in {t.get('total_s', 0):.2f} s ({t.get('mode', '?')}: "
+            f"{t.get('header_requests', 0)} header + {t.get('pixel_requests', 0)} pixel range requests)"
+        )
+    print(f"  {ap}; {int(spec.valid.sum())}/{len(spec.flux)} valid planes; {how}")
+    print(f"  {spec.tile.url}")
+    for note in spec.notes:
+        print(f"  note: {note}")
+    print(
+        f"  {'k':>3} {'det':>3} {'ch':>3} {'lambda_um':>9} {'dlam_um':>7} {'flux[' + spec.unit + ']':>14} {'nhits':>5}"
+    )
+    for k in range(len(spec.flux)):
+        flux = f"{spec.flux[k]:14.5g}" if spec.valid[k] else f"{'--':>14}"
+        hits = "" if spec.nhits is None else f"{int(spec.nhits[k]):5d}"
+        print(
+            f"  {k:3d} {int(spec.detector[k]):3d} {int(spec.channel[k]):3d} "
+            f"{spec.wavelength_um[k]:9.4f} {spec.bandwidth_um[k]:7.4f} {flux} {hits}"
+        )
+    return 0
+
+
 def cmd_systems(args: argparse.Namespace) -> int:
     from .products import ProductStore
     from .systems.build import write_systems
@@ -145,6 +340,13 @@ def cmd_systems(args: argparse.Namespace) -> int:
     return 0
 
 
+def _positive_int(text: str) -> int:
+    value = int(text)
+    if value < 1:
+        raise argparse.ArgumentTypeError(f"must be a positive integer, got {text}")
+    return value
+
+
 def cmd_build(args: argparse.Namespace) -> int:
     from .build import build_field, load_field_configs
 
@@ -152,8 +354,13 @@ def cmd_build(args: argparse.Namespace) -> int:
     if args.field_id not in cfgs:
         print(f"Unknown field '{args.field_id}'. Known: {sorted(cfgs)}", file=sys.stderr)
         return 2
+    overrides = {}
+    if args.max_frames is not None:
+        overrides["max_frames"] = args.max_frames
+    if args.detectors:
+        overrides["detectors"] = sorted(set(args.detectors))
     try:
-        build_field(cfgs[args.field_id], Path(args.out), analyze=args.analyze)
+        build_field(cfgs[args.field_id], Path(args.out), analyze=args.analyze, overrides=overrides)
     except NotImplementedError as e:
         print(f"Build stopped at a stage that is not implemented yet: {e}", file=sys.stderr)
         return 3
@@ -284,6 +491,64 @@ def main(argv: list[str] | None = None) -> int:
     )
     s.set_defaults(func=cmd_search)
 
+    s = sub.add_parser("point", help="stamps of every SPHEREx exposure at a position, read from S3 (WS1)")
+    s.add_argument("--ra", type=float, required=True)
+    s.add_argument("--dec", type=float, required=True)
+    s.add_argument(
+        "--box",
+        type=int,
+        default=11,
+        help="stamp side [px] (default 11; 1 px = 6.15 arcsec; >= 15 for imaging.photometry's sky annulus)",
+    )
+    s.add_argument("--detector", type=int, action="append", choices=range(1, 7), help="repeat for several")
+    s.add_argument("--mjd-min", type=float, default=None)
+    s.add_argument("--mjd-max", type=float, default=None)
+    s.add_argument(
+        "--collections",
+        default=None,
+        help="comma-separated IRSA collections (default: spherex_dr1,spherex_qr3; deep fields: "
+        "spherex_dr1_deep,spherex_qr3_deep)",
+    )
+    s.add_argument("--max-frames", type=int, default=None, help="cap, spread over detectors and visits")
+    s.add_argument("--workers", type=int, default=None, help="max S3 requests in flight (default 48, at most 64)")
+    s.add_argument(
+        "--deadline",
+        type=float,
+        default=None,
+        help="seconds for the whole call; frames not read by then are failures (TimeoutError), not cached",
+    )
+    s.add_argument("--out", default=None, help="write the series to OUT.npz + OUT.json")
+    s.add_argument("--no-cache", action="store_true", help="ignore and do not write the series cache")
+    s.add_argument("--summary", action="store_true", help="human-readable summary instead of the JSON")
+    s.set_defaults(func=cmd_point)
+
+    s = sub.add_parser(
+        "snapshot-search",
+        help="(re)generate the committed search snapshot of a field (IRSA-outage fallback, WS1)",
+        description="Query IRSA SIA live around a field of config/fields.toml and write data/index/search/<id>.json. "
+        "search_frames reads these snapshots only when SIA and TAP both fail and nothing is cached.",
+    )
+    s.add_argument("field_id", nargs="?", help="field id in config/fields.toml")
+    s.add_argument("--all", action="store_true", help="every field tagged 'official-target' (the five R05 targets)")
+    s.add_argument("--radius", type=float, default=None, help="snapshot disk radius [deg] (default: 0.1)")
+    s.add_argument("--collections", default=None, help="comma-separated (default: ERRANTE_COLLECTIONS or dr1,qr3)")
+    s.add_argument("--out", default=None, help="output directory (default: data/index/search)")
+    s.add_argument("--rounds", type=int, default=6, help="SIA rounds when IRSA keeps failing (default: 6)")
+    s.add_argument("--pause", type=float, default=20.0, help="seconds between rounds (default: 20)")
+    s.set_defaults(func=cmd_snapshot_search)
+
+    s = sub.add_parser(
+        "cube-spectrum", help="SPHEREx spectrum (102 planes) of a position from the DR1 all-sky cube on S3 (WS1)"
+    )
+    s.add_argument("--ra", type=float, required=True)
+    s.add_argument("--dec", type=float, required=True)
+    s.add_argument("--aperture", type=int, default=0, help='radius in cube pixels (12.9"); 0 = single pixel')
+    s.add_argument("--flags", action="store_true", help="also read the coadded FLAGS bits of the centre pixel")
+    s.add_argument("--nhits", action="store_true", help="also read NHITS, the input samples per plane (2x requests)")
+    s.add_argument("--no-cache", action="store_true", help="ignore and do not write the result cache")
+    s.add_argument("--json", action="store_true", help="print the full result as JSON")
+    s.set_defaults(func=cmd_cube_spectrum)
+
     s = sub.add_parser("systems", help="write the curated 3D system models (WS7)")
     s.add_argument("--out", default=str(settings.PRODUCTS_DIR))
     s.set_defaults(func=cmd_systems)
@@ -292,6 +557,18 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("field_id")
     s.add_argument("--out", default=str(settings.PRODUCTS_DIR))
     s.add_argument("--analyze", action="store_true", help="also run automatic detection and catalog matching")
+    s.add_argument(
+        "--max-frames", type=_positive_int, default=None, metavar="N", help="override max_frames of fields.toml"
+    )
+    s.add_argument(
+        "--detectors",
+        type=int,
+        nargs="+",
+        choices=range(1, 7),
+        default=None,
+        metavar="D",
+        help="override the detectors of fields.toml (1-6, several allowed)",
+    )
     s.set_defaults(func=cmd_build)
 
     s = sub.add_parser("compare", help="season coadds and season differences of a built field (WS2-7)")

@@ -151,7 +151,7 @@ def changed_files(base: str) -> list[str]:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--ws", help="ws1..ws7 | contract | chore")
-    ap.add_argument("--base", default="origin/main")
+    ap.add_argument("--base", default=os.environ.get("ERRANTE_BASE_REF", "origin/main"))
     ap.add_argument("--files", nargs="*", help="explicit file list instead of git diff")
     ap.add_argument("--who", help="print the owner of one path and exit")
     args = ap.parse_args()

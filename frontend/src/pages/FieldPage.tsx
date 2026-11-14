@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { client } from '../api/client';
 import type { Candidate, Field, KnownObject } from '../api/types';
-import { DETECTOR_BANDS } from '../api/format';
+import { DETECTOR_BANDS, formatRaDec } from '../api/format';
 import { BlinkViewer } from '../components/BlinkViewer';
 import type { BlinkMode } from '../components/blinkModes';
 import { BLINK_MODES, compositesForMode, effectiveMode, isModeAvailable, modeHints, modeTitle } from '../components/blinkModes';
@@ -10,7 +10,7 @@ import { CandidatePanel } from '../components/CandidatePanel';
 import { SkyMap } from '../components/SkyMap';
 import { SyntheticBadge } from '../components/SyntheticBadge';
 
-export function FieldPage({ fieldId }: { fieldId: string }) {
+export function FieldPage({ fieldId, embedded = false }: { fieldId: string; embedded?: boolean }) {
   const [field, setField] = useState<Field | null>(null);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [known, setKnown] = useState<KnownObject[]>([]);
@@ -50,17 +50,19 @@ export function FieldPage({ fieldId }: { fieldId: string }) {
   const detectors = useMemo(() => [...new Set(field?.frames.map((f) => f.detector))].sort(), [field]);
   const selected = candidates.find((c) => c.id === selectedId) ?? null;
 
-  if (error) return <main className="error">Could not load field "{fieldId}": {error}</main>;
-  if (!field) return <main className="muted">Loading…</main>;
+  const Container = embedded ? 'section' : 'main';
+  if (error) return <Container className="error">Could not load field "{fieldId}": {error}</Container>;
+  if (!field) return <Container className="muted">Loading sequence…</Container>;
 
   return (
-    <main>
-      <p>
+    <Container>
+      {!embedded && <p>
         <a href="#/">← All fields</a>
-      </p>
-      <h1>
-        {field.name} <SyntheticBadge synthetic={field.provenance.synthetic} />
-      </h1>
+      </p>}
+      <h2 className="field-title">
+        {field.id.startsWith('job-') ? `SPHEREx at ${formatRaDec(field.center.ra, field.center.dec)}` : field.name}
+        {' '}<SyntheticBadge synthetic={field.provenance.synthetic} />
+      </h2>
       <p className="muted">{field.description}</p>
       {systemId && (
         <p>
@@ -106,6 +108,7 @@ export function FieldPage({ fieldId }: { fieldId: string }) {
             {modeHints(mode, field.composites).join(' ')}
           </p>
           <BlinkViewer
+            key={`${field.id}/${detector}/${shownMode}`}
             field={field}
             frames={frames}
             composites={composites}
@@ -115,11 +118,14 @@ export function FieldPage({ fieldId }: { fieldId: string }) {
             selectedId={selectedId}
             onSelect={setSelectedId}
           />
-          <SkyMap field={field} />
+          {!embedded && <SkyMap field={field} />}
         </section>
         <aside>
-          <h2>What moved?</h2>
-          <CandidateList candidates={candidates} selectedId={selectedId} onSelect={setSelectedId} />
+          <h2>Evidence and provenance</h2>
+          {candidates.length > 0 ? <CandidateList candidates={candidates} selectedId={selectedId} onSelect={setSelectedId} /> :
+            <p className="muted">No candidate measurements provided. This is not a negative detection result.</p>}
+          {field.provenance.notes.map((note, index) => <p className="small muted" key={index}>{note}</p>)}
+          <p className="small muted">Spectra and physical 3D models require measured fluxes and catalog constraints; they are not inferred from this video.</p>
           {selected && <CandidatePanel candidate={selected} />}
           <p className="legend small">
             <span className="dot known" /> known object <span className="dot unconfirmed" /> unconfirmed{' '}
@@ -127,6 +133,6 @@ export function FieldPage({ fieldId }: { fieldId: string }) {
           </p>
         </aside>
       </div>
-    </main>
+    </Container>
   );
 }

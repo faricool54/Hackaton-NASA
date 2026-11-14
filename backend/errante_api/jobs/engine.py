@@ -40,9 +40,11 @@ class JobEngine:
     def __init__(self, jobs_dir: Path, products_dir: Path) -> None:
         self._jobs_dir = jobs_dir.resolve()
         self._products_dir = products_dir.resolve()
+        if self._jobs_dir.is_relative_to(self._products_dir):
+            raise ValueError("Private job state cannot be inside public products")
         db_path = self._jobs_dir / "jobs.db"
         self._repo = JobRepository(db_path)
-        self._service = JobService(self._repo)
+        self._service = JobService(self._repo, self._products_dir)
         self._supervisor = Supervisor(
             repo=self._repo,
             jobs_dir=self._jobs_dir,

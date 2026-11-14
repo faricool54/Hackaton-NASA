@@ -8,20 +8,22 @@ Indi B, WISE 0855, RW Aurigae and R Draconis. Automatic detection and Planet X e
 
 ## Current status
 
-**This repository currently provides a synthetic demonstration, not a completed real-data SPHEREx tool.**
+**Real SPHEREx fields and the local map → coordinate/name → time-sequence workflow are implemented.**
 
-Available: labelled synthetic fields, temporal playback, detector filtering, candidate/spectrum examples,
-a product-reading API, shared JSON schemas (version **0.2.0**) and an image-first build structure. The default build publishes
-images and metadata without automatic analysis; `--analyze` opts into detection and catalog matching.
+The home displays the SPHEREx DR1 sky through Aladin Lite/IRSA. Its wavelength selector and optional AllWISE
+context layer do not represent time. In live API mode, a map click or form submission builds real exposures
+through bounded background jobs; the viewer shows dates, wavelength, release and provenance. Five prebuilt
+real challenge fields are available with `?mode=static&dataset=real`; the default synthetic examples remain
+explicitly labelled. Shared contract: **0.3.0**.
 
-An optional 3D gallery is available at `#/systems` and `#/system/<id>[/<body>]`. It includes illustrative
-models of the five challenge targets and one synthetic system. Parameters are hand-entered and unverified;
-these views are models, not SPHEREx images, measured orbits, spectra or completed target-validation runs.
-The 3D extension does not replace the required coordinate-to-image workflow.
+The image build runs without automatic analysis; `--analyze` opts into detection/catalog matching. Empty
+candidate lists without analysis are not evidence that nothing was detected. Scientific validation of all
+five targets (R05) and a verified public deployment are still pending.
 
-Pending: real archive search, cutout downloads and reprojection; public coordinate-to-sequence requests;
-public deployment; and documented tests of all five required targets. Optional enhancements are also planned.
-No discovery, real-object recovery, real spectrum or sensitivity result is claimed from synthetic examples.
+The existing 3D gallery contains illustrative, unverified models and a synthetic system. Migrating it to
+models supported by measured spectra/catalog constraints is P1; the gallery is not a measured 3D result.
+Comparisons and forced photometry from WS2 are available in the pipeline; their API/UI contracts remain
+separate work. No discovery or sensitivity result is claimed from synthetic examples.
 
 ## Run the demonstration
 
@@ -34,7 +36,10 @@ python scripts/dev.py web
 
 The frontend opens at `http://localhost:5173` and uses synthetic products without a backend.
 Optionally run `python scripts/dev.py api` and use `?mode=api`; API documentation is at `http://localhost:8000/docs`.
-The current static mode serves prebuilt fields and does not implement arbitrary-coordinate exploration.
+Static mode serves prebuilt fields. For arbitrary coordinates, install `python scripts/dev.py setup-science`,
+set `ERRANTE_ENABLE_JOBS=1` (PowerShell: `$env:ERRANTE_ENABLE_JOBS='1'`), start the API, and open `?mode=api`.
+See [backend/README.md](backend/README.md) and [frontend/README.md](frontend/README.md) for roots, limits,
+CORS, shareable coordinates/job links and local configuration. Public hosting has not been selected.
 
 `scripts/dev.py` works the same on Windows, macOS and Linux (on Windows you can type `py` instead of `python`;
 `make <task>` still works where `make` exists). Run `python scripts/dev.py` to list all tasks.
@@ -44,8 +49,8 @@ Team rules for working in parallel without conflicts: [`docs/COLLABORATION.md`](
 
 ```bash
 errante demo                               # regenerate labelled numerical simulations
-errante search --ra 269.4463 --dec 4.7665   # real archive search: currently a stub
-errante build barnards-star                 # real image build: still blocked by data/reprojection stubs
+errante search --ra 269.4463 --dec 4.7665   # real archive search
+errante build barnards-star                 # real image build without optional analysis
 errante build barnards-star --analyze       # opt into optional analysis after saving image products
 errante systems                            # write illustrative 3D models; currently unverified parameters
 errante validate --dir data/demo
@@ -60,12 +65,12 @@ setup-science` for work on real-data processing. Downloads and FITS files belong
 | Location | Role |
 |---|---|
 | `pipeline/` | Archive/cutout access, FITS/WCS, aligned images and optional scientific analysis |
-| `backend/` | FastAPI product service; coordinate-build jobs are planned |
+| `backend/` | FastAPI product service and persistent coordinate-build jobs |
 | `frontend/` | React/TypeScript temporal viewer |
 | `pipeline/errante/systems/`, `frontend/src/three/` | Optional 3D models and procedural rendering, with verification caveats |
 | `shared/schema/` | Generated JSON contracts shared by pipeline, API and frontend |
 | `data/demo/` | Committed numerical simulations, explicitly labelled as synthetic |
-| `data/products/` | Curated real-data products when the real pipeline is implemented |
+| `data/products/` | Five curated real SPHEREx challenge fields (40 frames each) |
 | `data/cache/` | Ignored downloads and cached queries |
 | `docs/`, `tasks/` | Team planning, validation, sources and workstream assignments |
 

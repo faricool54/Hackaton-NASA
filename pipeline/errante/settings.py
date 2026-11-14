@@ -47,9 +47,14 @@ TAP_TIMEOUT_S = float(os.environ.get("ERRANTE_TAP_TIMEOUT_S", "60"))
 SEARCH_ATTEMPTS = int(os.environ.get("ERRANTE_SEARCH_ATTEMPTS", "4"))
 SEARCH_BACKOFF_S = float(os.environ.get("ERRANTE_SEARCH_BACKOFF_S", "1"))
 # Wall-clock budget of one search (SIA retries + TAP fallback): SIA gets at most half, TAP the rest.
-# Without it a dead IRSA held a backend worker ~2-3 min. 0 disables it. The API may lower it to
-# its own timeout (ERRANTE_API_TIMEOUT_S, 30 s) so a worker never outlives the HTTP request.
+# Without it a dead IRSA held a backend worker ~2-3 min. 0 disables it. The backend does NOT lower it
+# to its own ERRANTE_API_TIMEOUT_S (30 s): a search with nothing to fall back on can still answer
+# HTTP 504 while its worker runs on (TODO(WS4): keep ERRANTE_SEARCH_DEADLINE_S < ERRANTE_API_TIMEOUT_S).
 SEARCH_DEADLINE_S = float(os.environ.get("ERRANTE_SEARCH_DEADLINE_S", "60"))
+# Budget when the search can fall back on something (an expired cached answer, or a committed search
+# snapshot covering the position): IRSA gets at most this long, so the fallback still reaches an API
+# client before ERRANTE_API_TIMEOUT_S (30 s). 0 disables the cap (then SEARCH_DEADLINE_S alone).
+SEARCH_FALLBACK_DEADLINE_S = float(os.environ.get("ERRANTE_SEARCH_FALLBACK_DEADLINE_S", "20"))
 # Search results are cached as JSON in CACHE_DIR/queries/; 0 disables the cache. An expired
 # entry is still served (flagged stale) when both SIA and TAP fail.
 QUERY_CACHE_TTL_S = float(os.environ.get("ERRANTE_QUERY_CACHE_TTL_S", "86400"))
