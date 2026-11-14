@@ -56,7 +56,15 @@ const TIER_COLOR: Readonly<Record<string, string>> = {
 };
 
 const S: Record<string, CSSProperties> = {
-  root: { color: C.text },
+  // Same card look as the other SystemPage panels (SystemPage.tsx infoPanelStyle).
+  root: {
+    color: C.text,
+    padding: 18,
+    borderRadius: 16,
+    background:
+      'radial-gradient(ellipse at 100% 0%, rgba(124, 196, 255, 0.08), transparent 48%), linear-gradient(155deg, #121a2a, #0d111c 76%)',
+    boxShadow: '0 14px 36px rgba(0, 0, 0, 0.18)',
+  },
   h3: { margin: '0 0 4px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
   badge: { color: C.today, fontSize: '0.66rem' },
   caption: { margin: '0 0 6px', fontWeight: 600 },

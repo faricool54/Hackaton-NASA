@@ -66,6 +66,19 @@ const LOS_HEX = '#7dd3fc'; // same colour as the arrow drawn by SystemScene
 
 type TimeMode = 'free' | 'dataset';
 
+/** Clock buttons sit inside a group span, so the transport's pill styles do not reach them: match them here. */
+function clockButton(pressed: boolean): CSSProperties {
+  return {
+    minHeight: 34,
+    padding: '5px 12px',
+    borderRadius: 999,
+    color: pressed ? 'var(--text, #e6e9f2)' : '#b8c7da',
+    fontWeight: pressed ? 600 : 400,
+    background: pressed ? 'rgba(124, 196, 255, 0.12)' : 'rgba(255, 255, 255, 0.035)',
+    border: `1px solid ${pressed ? 'rgba(124, 196, 255, 0.55)' : 'rgba(184, 199, 218, 0.15)'}`,
+  };
+}
+
 export function SystemViewer({ system, selectedId, onSelect }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<SystemScene | null>(null);
@@ -260,21 +273,7 @@ export function SystemViewer({ system, selectedId, onSelect }: Props) {
         <DatasetTimeline window={win} mjd={mjd} onSeek={(m) => sceneRef.current?.setTime(m)} tracks={tracks} />
       )}
       <div className="blink-controls">
-        <span role="group" aria-label="Clock" style={MODE_GROUP}>
-          <button type="button" aria-pressed={timeMode === 'free'} onClick={() => chooseMode('free')} style={{ fontWeight: timeMode === 'free' ? 600 : 400 }}>
-            Free-running
-          </button>
-          <button
-            type="button"
-            aria-pressed={dataset}
-            disabled={!win || status !== 'ready'}
-            title={win ? 'Run the clock on the real SPHEREx pass dates of this target' : 'No SPHEREx coverage is known for this system'}
-            onClick={() => chooseMode('dataset')}
-            style={{ fontWeight: dataset ? 600 : 400 }}
-          >
-            Dataset time (SPHEREx 2025-2026)
-          </button>
-        </span>
+        {/* Play stays the first child: the shared transport styles (styles.css, WS5) make it the primary button. */}
         <button type="button" onClick={togglePlay} aria-label={playing ? 'Pause' : 'Play'}>
           {playing ? '❚❚ Pause' : '▶ Play'}
         </button>
@@ -292,6 +291,21 @@ export function SystemViewer({ system, selectedId, onSelect }: Props) {
           <span className="speed-value">×{Number(speedMul.toFixed(2))}</span>
         </label>
         <span className="muted small">{formatDaysPerSecond(daysPerSec)}</span>
+        <span role="group" aria-label="Clock" style={MODE_GROUP}>
+          <button type="button" aria-pressed={timeMode === 'free'} onClick={() => chooseMode('free')} style={clockButton(timeMode === 'free')}>
+            Free-running
+          </button>
+          <button
+            type="button"
+            aria-pressed={dataset}
+            disabled={!win || status !== 'ready'}
+            title={win ? 'Run the clock on the real SPHEREx pass dates of this target' : 'No SPHEREx coverage is known for this system'}
+            onClick={() => chooseMode('dataset')}
+            style={clockButton(dataset)}
+          >
+            Dataset time (SPHEREx 2025-2026)
+          </button>
+        </span>
         <label>
           Distances{' '}
           <select value={distanceMode} onChange={(e) => setDistanceMode(e.target.value as DistanceMode)}>
