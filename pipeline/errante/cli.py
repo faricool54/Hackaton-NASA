@@ -195,6 +195,59 @@ def cmd_snapshot_search(args: argparse.Namespace) -> int:
     return 1 if failed or unverified else 0
 
 
+def cmd_cube_spectrum(args: argparse.Namespace) -> int:
+    from .data.cube import cube_spectrum
+
+    try:
+        spec = cube_spectrum(
+            args.ra,
+            args.dec,
+            aperture_px=args.aperture,
+            with_nhits=args.nhits,
+            with_flags=args.flags,
+            use_cache=not args.no_cache,
+        )
+    except ValueError as e:
+        print(f"Invalid request: {e}", file=sys.stderr)
+        return 2
+    except OSError as e:
+        print(f"Cube read failed: {e}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(spec.to_dict(), indent=2))
+        return 0
+
+    t = spec.timings
+    print(
+        f"SPHEREx DR1 cube spectrum at ({spec.ra:.6f}, {spec.dec:+.6f}): tile Norder{spec.tile.order}/Npix{spec.tile.npix} "
+        f"pixel x={spec.pixel[0]} y={spec.pixel[1]} (centre {spec.pixel_center[0]:.6f}, {spec.pixel_center[1]:+.6f}; "
+        f'{spec.pixel_scale_arcsec:.2f}"/px)'
+    )
+    ap = f"aperture r={spec.aperture_px} px ({spec.n_pixels} px)" if spec.aperture_px else "single pixel"
+    if t.get("from_cache"):
+        how = f"from the result cache in {t.get('total_s', 0):.3f} s"
+    else:
+        how = (
+            f"via {spec.source} in {t.get('total_s', 0):.2f} s ({t.get('mode', '?')}: "
+            f"{t.get('header_requests', 0)} header + {t.get('pixel_requests', 0)} pixel range requests)"
+        )
+    print(f"  {ap}; {int(spec.valid.sum())}/{len(spec.flux)} valid planes; {how}")
+    print(f"  {spec.tile.url}")
+    for note in spec.notes:
+        print(f"  note: {note}")
+    print(
+        f"  {'k':>3} {'det':>3} {'ch':>3} {'lambda_um':>9} {'dlam_um':>7} {'flux[' + spec.unit + ']':>14} {'nhits':>5}"
+    )
+    for k in range(len(spec.flux)):
+        flux = f"{spec.flux[k]:14.5g}" if spec.valid[k] else f"{'--':>14}"
+        hits = "" if spec.nhits is None else f"{int(spec.nhits[k]):5d}"
+        print(
+            f"  {k:3d} {int(spec.detector[k]):3d} {int(spec.channel[k]):3d} "
+            f"{spec.wavelength_um[k]:9.4f} {spec.bandwidth_um[k]:7.4f} {flux} {hits}"
+        )
+    return 0
+
+
 def cmd_systems(args: argparse.Namespace) -> int:
     from .products import ProductStore
     from .systems.build import write_systems
@@ -374,6 +427,18 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--rounds", type=int, default=6, help="SIA rounds when IRSA keeps failing (default: 6)")
     s.add_argument("--pause", type=float, default=20.0, help="seconds between rounds (default: 20)")
     s.set_defaults(func=cmd_snapshot_search)
+
+    s = sub.add_parser(
+        "cube-spectrum", help="SPHEREx spectrum (102 planes) of a position from the DR1 all-sky cube on S3 (WS1)"
+    )
+    s.add_argument("--ra", type=float, required=True)
+    s.add_argument("--dec", type=float, required=True)
+    s.add_argument("--aperture", type=int, default=0, help='radius in cube pixels (12.9"); 0 = single pixel')
+    s.add_argument("--flags", action="store_true", help="also read the coadded FLAGS bits of the centre pixel")
+    s.add_argument("--nhits", action="store_true", help="also read NHITS, the input samples per plane (2x requests)")
+    s.add_argument("--no-cache", action="store_true", help="ignore and do not write the result cache")
+    s.add_argument("--json", action="store_true", help="print the full result as JSON")
+    s.set_defaults(func=cmd_cube_spectrum)
 
     s = sub.add_parser("systems", help="write the curated 3D system models (WS7)")
     s.add_argument("--out", default=str(settings.PRODUCTS_DIR))

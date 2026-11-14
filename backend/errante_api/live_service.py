@@ -110,6 +110,7 @@ class LiveService:
             "schema": SCHEMA_VERSION,
             "pipeline": __version__,
             "sources": [core.IRSA_SIA, core.IRSA_TAP_SYNC, core.JPL_SBIDENT, core.SKYBOT_CONESEARCH],
+            "collections": list(core.IRSA_COLLECTIONS),
         }
         key = hashlib.sha256(json.dumps(identity, sort_keys=True, allow_nan=False).encode()).hexdigest()
         cached = self._read(key, adapter)
