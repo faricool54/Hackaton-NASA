@@ -161,6 +161,10 @@ export function BlinkViewer({ field, frames, imageUrl, candidates, known, select
 
       {/* Scrubber */}
       <div className="scrubber-wrap">
+        <div className="scrubber-meta">
+          <span className="scrubber-date">{formatMjd(current.mjd)}</span>
+          <span className="scrubber-count">FRAME {String(index + 1).padStart(2, '0')} <span>/ {String(n).padStart(2, '0')}</span></span>
+        </div>
         <div
           className="scrubber-track-wrap"
           ref={trackRef}
@@ -196,15 +200,19 @@ export function BlinkViewer({ field, frames, imageUrl, candidates, known, select
       {/* Playback controls */}
       <div className="blink-playback">
         <div className="blink-playback-btns">
-          <button onClick={() => setIndex((i) => (i - 1 + n) % n)} aria-label="Previous frame">◀◀</button>
-          <button onClick={() => setPlaying((p) => !p)} aria-label={playing ? 'Pause' : 'Play'}>
-            {playing ? '❚❚' : '▶'}
+          <button className="transport-btn" onClick={() => { setPlaying(false); setIndex((i) => Math.max(0, i - 1)); }} aria-label="Previous frame" title="Previous frame">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v14M19 6l-9 6 9 6V6Z" /></svg>
           </button>
-          <button onClick={() => setIndex((i) => (i + 1) % n)} aria-label="Next frame">▶▶</button>
+          <button className="transport-btn transport-btn--primary" onClick={() => setPlaying((p) => !p)} aria-label={playing ? 'Pause' : 'Play'} title={playing ? 'Pause playback' : 'Play sequence'}>
+            {playing ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14" /></svg> : <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 12 7-12 7V5Z" /></svg>}
+          </button>
+          <button className="transport-btn" onClick={() => { setPlaying(false); setIndex((i) => Math.min(n - 1, i + 1)); }} aria-label="Next frame" title="Next frame">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 5v14M5 6l9 6-9 6V6Z" /></svg>
+          </button>
         </div>
         <div className="blink-playback-secondary">
-          <label>
-            speed
+          <label className="speed-control">
+            <span>Playback speed</span>
             <input
               type="range"
               min={150}
@@ -214,10 +222,12 @@ export function BlinkViewer({ field, frames, imageUrl, candidates, known, select
               onChange={(e) => setIntervalMs(2150 - Number(e.target.value))}
               aria-label="Blink speed"
             />
+            <span className="speed-value">{(1000 / intervalMs).toFixed(1)}×</span>
           </label>
-          <label>
-            <input type="checkbox" checked={showOverlays} onChange={(e) => setShowOverlays(e.target.checked)} /> markers
-          </label>
+          <button className={`overlay-toggle${showOverlays ? ' is-on' : ''}`} type="button" aria-pressed={showOverlays} onClick={() => setShowOverlays((shown) => !shown)}>
+            <span className="toggle-indicator" aria-hidden="true" />
+            Markers
+          </button>
         </div>
       </div>
       {/* TODO(WS5): difference-image layer, zoom/pan, crosshair with RA/Dec readout
