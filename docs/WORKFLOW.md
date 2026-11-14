@@ -26,19 +26,32 @@
 6. Para trabajos en paralelo con varios agentes en tu propia máquina usá `git worktree`
    (`git worktree add ../hn-ws2b ws2/linking`) para que no se pisen.
 
-## Cronograma sugerido (~48 h; ajustar al deadline oficial de su sede)
+## Sede y cronograma de entrega (S01/S05)
+
+Fuente: `docs/SUBMISSION_GUIDE.md`, PDF págs. 2/12. Sede confirmada por usuario: **Universidad de Palermo,
+Buenos Aires, Argentina**, zona **America/Argentina/Buenos_Aires, ART (UTC-3)**.
+Abre **14/11/2026 09:00 ART**; cierra **15/11/2026 23:59 ART** (**16/11 02:59 UTC**).
+Ventana: **38 h 59 min**. El cronograma anterior de 48 h/H+40 excedía el cierre y queda reemplazado.
+La evaluación/premiación local puede tener otro horario: consultarlo con Local Lead.
+
+H+0 corresponde a la apertura; horas orientativas para organizar trabajo, con envío interno a las 21:00.
 
 | Hora | Hito | Qué debería estar |
 |---|---|---|
-| H+0 | Kickoff (30 min) | Leer CHALLENGE + ARCHITECTURE; asignar WS en `docs/TEAM.md`; todos corren `make setup && make web` |
-| H+2 | Primeros PRs | WS1: búsqueda TAP real devuelve frames de un campo · WS5: UI pulida sobre demo · WS3: lista de campos validada |
-| H+6 | **I1** | Un campo real con frames SPHEREx reales en el blink (WS1 + WS2 reproject/render) |
-| H+12 | **I2** | Detección y linking de asteroides en el campo real + cruce con JPL/SkyBoT |
-| H+20 | Feature freeze de ciencia | 3–5 campos curados construidos; límites por inyección medidos |
-| H+24 | Deploy público v1 | URL pública funcionando (WS6) |
-| H+30 | Polish | UX, textos, accesibilidad, página About/Limits, video grabado |
-| H+36 | **Freeze total** | Solo bugs. Ensayo del pitch |
-| H+40 | Entrega | Formulario Space Apps completo (WS6), con margen ante problemas |
+| H+0 | Kickoff (30 min) | Leer CHALLENGE + REQUIREMENTS + VALIDATION + ARCHITECTURE; asignar WS; correr demo |
+| H+2 | Primeros PRs / inscripción | Consulta/render/identidades/jobs; WS6 verifica 1–6 integrantes UP, Team Owner y Members aceptados, sin waitlist |
+| H+6 | **I1 (P0)** | Campo SPHEREx real en el blink sin análisis automático |
+| H+12 | **I2 (P0)** | Entrada RA/Dec → construcción/caché → secuencia; preparar deploy público de UI y servicio |
+| H+20 | **I3 (P0)** | Cinco ensayos documentados, incluidos RW Aurigae/R Draconis; resultados y límites honestos |
+| H+24 (dom. 09:00 ART) | Deploy público verificable | Probar URL en incógnito/celular con coordenadas no precargadas |
+| H+28 (dom. 13:00 ART) | **I4 (P1), según tiempo** | Congelar extras; C01–C08 explícitos; revisar brechas de los cinco criterios en JUDGING_REVIEW.md |
+| H+30 (dom. 15:00 ART) | Demo y formulario | Video <= 30 s o <= 7 slides, inglés; fuentes, declaración SI y URLs comprobadas |
+| H+32 (dom. 17:00 ART) | **Freeze total** | Solo bugs; ensayo, S01–S10 y revisión de evidencia/relato en formulario y demo |
+| H+36 (dom. 21:00 ART) | **Envío interno objetivo** | Submit for Judging + banner/mensaje; guardar evidencia y verificar última versión |
+| H+38:59 (dom. 23:59 ART) | **Cierre según guía** | No usar como hora objetivo; cualquier reenvío debe estar confirmado antes |
+
+**I5 (P2)** — detección automática, JPL, distancias, inyección y Planeta X — solo después de estabilizar
+el recorrido obligatorio. Las horas intermedias son planificación interna; apertura/cierre provienen del PDF.
 
 Sync rápido (10 min) cada ~4–6 h: qué hice, qué sigue, qué me bloquea. Actualizar casillas en `tasks/`.
 
@@ -48,3 +61,13 @@ Sync rápido (10 min) cada ~4–6 h: qué hice, qué sigue, qué me bloquea. Act
 - Si toca la UI: probado en el navegador, desktop y celular.
 - Si aprendiste algo de los datos: anotado en `docs/DATA.md`.
 - Nada sintético presentado como real; nada que diga "descubrimos".
+- Tarea vinculada a Rxx/Cxx; REQUIREMENTS refleja el estado real. R05 tiene cinco ensayos con evidencia;
+  sin cobertura/señal se documenta como tal. Ninguna lista vacía sin análisis significa búsqueda negativa.
+- Entrega vinculada a S01–S10: demo dentro del límite, inglés, URLs anónimas, inventario y declaración SI,
+  formulario completo, envío confirmado. Coordinar una persona editora; el lock es solo una señal y puede quitarse.
+- Guardar avances con frecuencia; **Save Progress no envía** a evaluación. Tras editar una entrega,
+  reenviar y comprobar confirmación antes del cierre. El equipo revisa términos/originalidad antes de aceptarlos.
+- Rúbrica revisada según JUDGING_GUIDE.md: cinco criterios 1–5, sin pesos/fórmula inventados. Datos NASA
+  centrales y usabilidad tienen evidencia; la presentación no queda pospuesta por agregar extras.
+- Inscripción final revisada antes del cierre: después no se pueden agregar integrantes. Nominación/premios
+  son etapas posteriores de la organización; un premio local no garantiza Global Judging.

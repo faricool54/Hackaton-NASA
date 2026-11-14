@@ -351,8 +351,12 @@ def build_demo_field(spec: DemoFieldSpec, store: ProductStore) -> SkyField:
 
 
 def build_demo(out: Path) -> Path:
+    from .systems.build import write_systems
+    from .systems.catalog import demo_systems
+
     store = ProductStore(out)
     for spec in DEMO_FIELDS:
         build_demo_field(spec, store)
+    write_systems(store, demo_systems())
     store.rebuild_manifest()
     return out

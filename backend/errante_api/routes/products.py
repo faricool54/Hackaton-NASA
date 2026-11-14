@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request
 
-from errante.models import CandidateList, KnownObjectList, Manifest, SkyField
+from errante.models import CandidateList, KnownObjectList, Manifest, SkyField, SystemModel
 from errante.products import ProductStore
 
 router = APIRouter(tags=["products"])
@@ -49,3 +49,11 @@ def get_known(field_id: str, request: Request) -> KnownObjectList:
     store = _store(request)
     _require_field(store, field_id)
     return store.read_known(field_id)
+
+
+@router.get("/systems/{system_id}", response_model=SystemModel)
+def get_system(system_id: str, request: Request) -> SystemModel:
+    store = _store(request)
+    if not store.has_system(system_id):
+        raise HTTPException(status_code=404, detail=f"Unknown system '{system_id}'")
+    return store.read_system(system_id)

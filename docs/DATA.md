@@ -62,7 +62,7 @@ archivo inspeccionado). ⚠️ `OUTLIER`/`TRANSIENT` pueden dispararse **justo s
 (no está donde el modelo del cielo estático lo espera): no los enmascares a ciegas para buscar movers.
 Implementado en `errante.imaging.flags` (`DEFAULT_BAD`, `MAYBE_MOVER`, `bits_from_header`).
 
-## 3. Buscar y recortar con IRSA 📄 (sin verificar: IRSA no era accesible desde el entorno que generó esto)
+## 3. Buscar y recortar con IRSA 📄 (documentación accesible; consultas/descargas pendientes de verificar)
 
 Fuentes: [SPHEREx Data Access](https://caltech-ipac.github.io/spherex-archive-documentation/spherex-data-access/),
 [tutorial intro](https://caltech-ipac.github.io/irsa-tutorials/spherex-intro/),
@@ -87,6 +87,12 @@ Fuentes: [SPHEREx Data Access](https://caltech-ipac.github.io/spherex-archive-do
   detector** (filtro lineal variable). Calcularla en la posición del objeto con `WCS-WAVE`
   (`WCS(header, fobj=hdul, key="W")` según el tutorial) — ❓ verificar en cutouts.
 
+**Actualización documental 2026-11-14:** se leyeron los [notebooks SPHEREx](https://caltech-ipac.github.io/irsa-tutorials/spherex/)
+y la [introducción](https://caltech-ipac.github.io/irsa-tutorials/spherex-intro/). Enumeran `spherex_dr1`,
+`spherex_dr1_deep`, `spherex_qr3` y `spherex_qr3_deep`; recomiendan DR1/QR3 sobre QR2. Esta comprobación
+es **📄 documentación**, no una consulta SIA ejecutada ni una descarga validada por nosotros.
+La guía muestra WCS espectral `key="W"` con `sip = None`; comprobarlo sobre nuestros cutouts sigue pendiente.
+
 ## 4. Instrumento y survey 📄
 
 - 6 detectores H2RG 2040×2040 activos, píxel **6.15″**, campo ~3.5°×3.5° por detector; pares simultáneos
@@ -108,7 +114,36 @@ Fuentes: [SPHEREx Data Access](https://caltech-ipac.github.io/spherex-archive-do
 
 ## 6. Abierto ❓
 
-- Nombres de colecciones/tablas de DR1 en IRSA; si `irsa_uri` ↔ `s3_key` es solo quitar `ibe/data/spherex/`.
+- Respuesta real de las colecciones DR1 documentadas (§3) y tablas TAP; si `irsa_uri` ↔ `s3_key` es solo quitar `ibe/data/spherex/`.
 - Tamaño máximo de cutout y límites de tasa.
 - Política de cita/redistribución para publicar PNGs derivados (incluir créditos siempre).
 - ¿Hay HiPS de SPHEREx (imagen, no cubo) usable directo en Aladin Lite?
+
+## 7. Comprobación de los enlaces del enunciado (2026-11-14)
+
+Se comprobó acceso a las ocho URLs de recursos aportadas en `ENUNCIADO.md`. Se distinguen lectura de
+documentación, respuesta HTTP y funcionamiento de un servicio científico. No se desactivó TLS para reintentar.
+
+| Recurso / URL | Método y resultado | Qué queda pendiente |
+|---|---|---|
+| [IRSA SPHEREx](https://irsa.ipac.caltech.edu/Missions/spherex.html) | Página leída con navegador de investigación | Consultas y descargas de nuestro pipeline |
+| [Notebooks SPHEREx](https://caltech-ipac.github.io/irsa-tutorials/spherex/) | Índice, introducción y cutouts accesibles y leídos | Ejecutarlos con datos seleccionados para los cinco blancos |
+| [WiseView](http://byw.tools/wiseview) | Navegador: timeout; HTTP directo desde esta máquina: **200**, HTML leído con controles de RA/Dec, FOV y blink | Ejecución interactiva/servidor de imágenes no probados |
+| [Gaia en MAST](https://archive.stsci.edu/missions-and-data/gaia) | Página leída con navegador de investigación | Consulta de catálogo y overlay DR3 |
+| [CSA NEOSSat](https://www.asc-csa.gc.ca/eng/satellites/neossat/) | Página de misión leída con navegador de investigación | Comparación opcional y condiciones aplicables |
+| [CADC](https://www.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/en/) | Página leída con navegador de investigación | Acceso programático a datasets y condiciones |
+| [Tutorial NEOSSat](https://github.com/asc-csa/NEOSSAT_Tutorial) | Repositorio y descripción accesibles con navegador de investigación | Ejecutar notebooks y revisar licencia antes de reutilizar |
+| [Dataset NEOSSat](https://data.asc-csa.gc.ca/dataset/neossat) | Navegador: timeout; Python: certificado no validable; `Invoke-WebRequest` con confianza TLS de Windows: **200**, página recibida | Descarga y procesamiento del dataset no probados |
+
+**Enlace adicional ya presente en el repo:** la [página de Space Apps](https://www.spaceappschallenge.org/2026/challenges/planet-x-and-spherex/?tab=details)
+no abrió con el navegador de investigación. Python y el cliente HTTP de Windows fallaron al establecer TLS.
+Esto describe el acceso desde este entorno, no demuestra que la página esté caída para todo el mundo.
+El texto de CHALLENGE.md se tomó del archivo del usuario y no se cotejó con esa página.
+
+**Herramientas complementarias:** [Astropy](https://www.astropy.org/) y [Aladin Lite](https://aladin.cds.unistra.fr/AladinLite/)
+accesibles con navegador de investigación; su integración y pruebas específicas tienen tareas C08.
+Astropy ya se usa en FITS/WCS; Aladin sigue siendo un enlace externo en el frontend.
+
+Antes de la publicación, aplicar las condiciones de reconocimiento de IRSA y de cada fuente realmente usada.
+La página IRSA enlaza herramientas de fotometría, mosaicos y cutouts: evaluar reutilización antes de duplicarlas,
+sin asumir que sus endpoints o condiciones ya están integrados.

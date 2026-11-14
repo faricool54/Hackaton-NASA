@@ -1,7 +1,11 @@
 # Showcase fields for `errante build <id>`. WS3 curates this list, WS1 checks
 # that SPHEREx has enough epochs for each one (errante search --ra --dec).
-# Coordinates: ICRS degrees. Moving targets (track_object) must be re-centred
-# with a JPL Horizons ephemeris at the observation dates — never hard-code them.
+# Coordinates: ICRS degrees. Solar-system targets (track_object) need a JPL
+# ephemeris; stars/brown dwarfs need sourced astrometry propagated to each epoch.
+# R05 requires Barnard's Star, Epsilon Indi B, WISE 0855, RW Aurigae and R Draconis.
+# The three missing presets await verified coordinates/epochs (WS3-3); never
+# insert guessed positions. Existing presets are not completed validation runs.
+# See docs/VALIDATION.md for the evidence protocol and current status.
 
 [[field]]
 id = "barnards-star"

@@ -15,6 +15,7 @@ export function FieldPage({ fieldId }: { fieldId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detector, setDetector] = useState<number | 'all'>('all');
+  const [systemId, setSystemId] = useState<string | null>(null);
 
   useEffect(() => {
     setField(null);
@@ -26,6 +27,11 @@ export function FieldPage({ fieldId }: { fieldId: string }) {
         setKnown(k.objects);
       })
       .catch((e: Error) => setError(e.message));
+    // WS7: is there a 3D model of the objects in this field?
+    client
+      .getManifest()
+      .then((m) => setSystemId((m.systems ?? []).find((s) => s.field_id === fieldId)?.id ?? null))
+      .catch(() => setSystemId(null));
   }, [fieldId]);
 
   const frames = useMemo(() => {
@@ -47,6 +53,11 @@ export function FieldPage({ fieldId }: { fieldId: string }) {
         {field.name} <SyntheticBadge synthetic={field.provenance.synthetic} />
       </h1>
       <p className="muted">{field.description}</p>
+      {systemId && (
+        <p>
+          <a href={`#/system/${systemId}`}>Explore these objects in 3D →</a>
+        </p>
+      )}
 
       <div className="field-layout">
         <section>

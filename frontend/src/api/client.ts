@@ -11,6 +11,7 @@ import type {
   KnownObjectList,
   Manifest,
   SearchResult,
+  SystemModel,
 } from './types';
 
 export type DataMode = 'static' | 'api';
@@ -73,6 +74,11 @@ export function createClient(config: ClientConfig = envConfig()) {
     return `${root}fields/${fieldId}/${relPath}`;
   }
 
+  /** 3D system model (WS7): <root>/systems/<id>.json or /api/systems/<id>. */
+  function systemUrl(systemId: string): string {
+    return mode === 'api' ? `${apiBase}/api/systems/${systemId}` : `${staticBase}systems/${systemId}.json`;
+  }
+
   return {
     config,
     resourceUrl,
@@ -82,6 +88,8 @@ export function createClient(config: ClientConfig = envConfig()) {
     getField: (id: string) => getJson<Field>(resourceUrl('field', id)),
     getCandidates: (id: string) => getJson<CandidateList>(resourceUrl('candidates', id)),
     getKnown: (id: string) => getJson<KnownObjectList>(resourceUrl('known', id)),
+    systemUrl,
+    getSystem: (id: string) => getJson<SystemModel>(systemUrl(id)),
 
     /** Live archive search — only in api mode (WS1+WS4). */
     async searchArchive(ra: number, dec: number): Promise<SearchResult> {

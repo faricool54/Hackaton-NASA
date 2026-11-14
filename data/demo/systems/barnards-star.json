@@ -1,0 +1,297 @@
+{
+  "id": "barnards-star",
+  "name": "Barnard's Star system",
+  "description": "Challenge test target: the fastest-moving star in our sky, with four small planets.",
+  "tags": [
+    "test-target",
+    "proper-motion",
+    "exoplanets"
+  ],
+  "center": {
+    "ra": 269.4521,
+    "dec": 4.6934
+  },
+  "motion": {
+    "distance_pc": 1.83,
+    "parallax_mas": 546.98,
+    "pm_ra_cosdec_mas_yr": -801.6,
+    "pm_dec_mas_yr": 10362.4,
+    "radial_velocity_km_s": -110.6,
+    "epoch": "J2016.0"
+  },
+  "field_id": "barnards-star",
+  "bodies": [
+    {
+      "id": "barnards-star",
+      "name": "Barnard's Star",
+      "kind": "star",
+      "description": "A small, cool red dwarf. It moves faster across our sky than any other star.",
+      "radius_km": 130095.9,
+      "mass_kg": 3.1824e+29,
+      "teff_k": 3200.0,
+      "spectral_type": "M4V",
+      "rotation_period_hours": null,
+      "orbit": null,
+      "variability": null,
+      "appearance": {
+        "model": "star",
+        "color_hex": null,
+        "mesh_url": null,
+        "texture_url": null
+      },
+      "facts": [
+        {
+          "label": "Spectral type",
+          "value": "M4V",
+          "unit": null,
+          "source": "SIMBAD",
+          "verified": false
+        },
+        {
+          "label": "Temperature",
+          "value": "~3200",
+          "unit": "K",
+          "source": "SIMBAD / literature",
+          "verified": false
+        },
+        {
+          "label": "Distance",
+          "value": "1.83",
+          "unit": "pc",
+          "source": "Gaia DR3",
+          "verified": false
+        },
+        {
+          "label": "Proper motion",
+          "value": "~10.4",
+          "unit": "arcsec/yr",
+          "source": "Gaia DR3",
+          "verified": false
+        }
+      ],
+      "candidate_id": null
+    },
+    {
+      "id": "barnard-d",
+      "name": "Barnard d",
+      "kind": "planet",
+      "description": "Rocky sub-Earth found by radial velocity. Too hot for liquid water.",
+      "radius_km": 4459.7,
+      "mass_kg": 1.5527200000000002e+24,
+      "teff_k": null,
+      "spectral_type": null,
+      "rotation_period_hours": null,
+      "orbit": {
+        "parent": "barnards-star",
+        "semi_major_axis_au": 0.01873,
+        "period_days": 2.34,
+        "eccentricity": 0.0,
+        "inclination_deg": 0.0,
+        "ascending_node_deg": 0.0,
+        "arg_periapsis_deg": 0.0,
+        "mean_anomaly_deg": 0.0,
+        "epoch_mjd": null
+      },
+      "variability": null,
+      "appearance": {
+        "model": "rocky",
+        "color_hex": null,
+        "mesh_url": null,
+        "texture_url": null
+      },
+      "facts": [
+        {
+          "label": "Orbital period",
+          "value": "2.34",
+          "unit": "days",
+          "source": "Basant et al. 2025 (ApJL) / NASA Exoplanet Archive",
+          "verified": false
+        },
+        {
+          "label": "Minimum mass",
+          "value": "~0.26",
+          "unit": "Earth masses",
+          "source": "Basant et al. 2025 (ApJL) / NASA Exoplanet Archive",
+          "verified": false
+        },
+        {
+          "label": "Radius (model estimate)",
+          "value": "~0.7",
+          "unit": "Earth radii",
+          "source": "mass-radius relation; not measured",
+          "verified": false
+        }
+      ],
+      "candidate_id": null
+    },
+    {
+      "id": "barnard-b",
+      "name": "Barnard b",
+      "kind": "planet",
+      "description": "Rocky sub-Earth found by radial velocity. Too hot for liquid water.",
+      "radius_km": 4459.7,
+      "mass_kg": 1.7916e+24,
+      "teff_k": null,
+      "spectral_type": null,
+      "rotation_period_hours": null,
+      "orbit": {
+        "parent": "barnards-star",
+        "semi_major_axis_au": 0.02285,
+        "period_days": 3.154,
+        "eccentricity": 0.0,
+        "inclination_deg": 0.0,
+        "ascending_node_deg": 0.0,
+        "arg_periapsis_deg": 0.0,
+        "mean_anomaly_deg": 0.0,
+        "epoch_mjd": null
+      },
+      "variability": null,
+      "appearance": {
+        "model": "rocky",
+        "color_hex": null,
+        "mesh_url": null,
+        "texture_url": null
+      },
+      "facts": [
+        {
+          "label": "Orbital period",
+          "value": "3.154",
+          "unit": "days",
+          "source": "Basant et al. 2025 (ApJL) / NASA Exoplanet Archive",
+          "verified": false
+        },
+        {
+          "label": "Minimum mass",
+          "value": "~0.3",
+          "unit": "Earth masses",
+          "source": "Basant et al. 2025 (ApJL) / NASA Exoplanet Archive",
+          "verified": false
+        },
+        {
+          "label": "Radius (model estimate)",
+          "value": "~0.7",
+          "unit": "Earth radii",
+          "source": "mass-radius relation; not measured",
+          "verified": false
+        }
+      ],
+      "candidate_id": null
+    },
+    {
+      "id": "barnard-c",
+      "name": "Barnard c",
+      "kind": "planet",
+      "description": "Rocky sub-Earth found by radial velocity. Too hot for liquid water.",
+      "radius_km": 4459.7,
+      "mass_kg": 2.0304800000000002e+24,
+      "teff_k": null,
+      "spectral_type": null,
+      "rotation_period_hours": null,
+      "orbit": {
+        "parent": "barnards-star",
+        "semi_major_axis_au": 0.02732,
+        "period_days": 4.124,
+        "eccentricity": 0.0,
+        "inclination_deg": 0.0,
+        "ascending_node_deg": 0.0,
+        "arg_periapsis_deg": 0.0,
+        "mean_anomaly_deg": 0.0,
+        "epoch_mjd": null
+      },
+      "variability": null,
+      "appearance": {
+        "model": "rocky",
+        "color_hex": null,
+        "mesh_url": null,
+        "texture_url": null
+      },
+      "facts": [
+        {
+          "label": "Orbital period",
+          "value": "4.124",
+          "unit": "days",
+          "source": "Basant et al. 2025 (ApJL) / NASA Exoplanet Archive",
+          "verified": false
+        },
+        {
+          "label": "Minimum mass",
+          "value": "~0.34",
+          "unit": "Earth masses",
+          "source": "Basant et al. 2025 (ApJL) / NASA Exoplanet Archive",
+          "verified": false
+        },
+        {
+          "label": "Radius (model estimate)",
+          "value": "~0.7",
+          "unit": "Earth radii",
+          "source": "mass-radius relation; not measured",
+          "verified": false
+        }
+      ],
+      "candidate_id": null
+    },
+    {
+      "id": "barnard-e",
+      "name": "Barnard e",
+      "kind": "planet",
+      "description": "Rocky sub-Earth found by radial velocity. Too hot for liquid water.",
+      "radius_km": 4459.7,
+      "mass_kg": 1.1346800000000001e+24,
+      "teff_k": null,
+      "spectral_type": null,
+      "rotation_period_hours": null,
+      "orbit": {
+        "parent": "barnards-star",
+        "semi_major_axis_au": 0.03791,
+        "period_days": 6.739,
+        "eccentricity": 0.0,
+        "inclination_deg": 0.0,
+        "ascending_node_deg": 0.0,
+        "arg_periapsis_deg": 0.0,
+        "mean_anomaly_deg": 0.0,
+        "epoch_mjd": null
+      },
+      "variability": null,
+      "appearance": {
+        "model": "rocky",
+        "color_hex": null,
+        "mesh_url": null,
+        "texture_url": null
+      },
+      "facts": [
+        {
+          "label": "Orbital period",
+          "value": "6.739",
+          "unit": "days",
+          "source": "Basant et al. 2025 (ApJL) / NASA Exoplanet Archive",
+          "verified": false
+        },
+        {
+          "label": "Minimum mass",
+          "value": "~0.19",
+          "unit": "Earth masses",
+          "source": "Basant et al. 2025 (ApJL) / NASA Exoplanet Archive",
+          "verified": false
+        },
+        {
+          "label": "Radius (model estimate)",
+          "value": "~0.7",
+          "unit": "Earth radii",
+          "source": "mass-radius relation; not measured",
+          "verified": false
+        }
+      ],
+      "candidate_id": null
+    }
+  ],
+  "representation_note": "Model representation built from catalog parameters - not an image. Sizes and distances may be exaggerated for visibility.",
+  "provenance": {
+    "pipeline_version": "0.1.0",
+    "built_at": "2026-11-14T14:28:54.561060Z",
+    "synthetic": false,
+    "data_releases": [],
+    "notes": [
+      "Parameters typed by hand as a starting point; NOT yet verified against catalogs (tasks/WS7-3d-systems.md, WS7-2)."
+    ]
+  }
+}

@@ -6,6 +6,7 @@
     <root>/fields/<field_id>/known.json     KnownObjectList
     <root>/fields/<field_id>/frames/<frame_id>.png
     <root>/fields/<field_id>/thumb.png
+    <root>/systems/<system_id>.json         SystemModel (3D view, WS7)
 
 The static frontend reads exactly these files, and the backend serves them
 under /api/... (JSON) and /data/... (images). Keep this layout stable.
@@ -26,6 +27,8 @@ from .models import (
     KnownObjectList,
     Manifest,
     SkyField,
+    SystemModel,
+    SystemSummary,
 )
 
 M = TypeVar("M", bound=BaseModel)
@@ -38,6 +41,9 @@ class ProductStore:
     # --- paths -----------------------------------------------------------
     def field_dir(self, field_id: str) -> Path:
         return self.root / "fields" / field_id
+
+    def system_path(self, system_id: str) -> Path:
+        return self.root / "systems" / f"{system_id}.json"
 
     @property
     def manifest_path(self) -> Path:
@@ -64,8 +70,11 @@ class ProductStore:
     def write_known(self, known: KnownObjectList) -> Path:
         return self._write(self.field_dir(known.field_id) / "known.json", known)
 
+    def write_system(self, system: SystemModel) -> Path:
+        return self._write(self.system_path(system.id), system)
+
     def rebuild_manifest(self) -> Manifest:
-        """Scan fields/ and (re)write manifest.json. Call after building any field."""
+        """Scan fields/ and systems/ and (re)write manifest.json. Call after building any product."""
         summaries: list[FieldSummary] = []
         fields_root = self.root / "fields"
         for fdir in sorted(p for p in fields_root.glob("*") if (p / "field.json").exists()):
@@ -87,11 +96,28 @@ class ProductStore:
                     synthetic=field.provenance.synthetic,
                 )
             )
+        systems: list[SystemSummary] = []
+        for spath in sorted((self.root / "systems").glob("*.json")):
+            system = self._read(spath, SystemModel)
+            systems.append(
+                SystemSummary(
+                    id=system.id,
+                    name=system.name,
+                    description=system.description,
+                    tags=system.tags,
+                    center=system.center,
+                    n_bodies=len(system.bodies),
+                    kinds=sorted({b.kind for b in system.bodies}),
+                    field_id=system.field_id,
+                    synthetic=system.provenance.synthetic,
+                )
+            )
         manifest = Manifest(
             schema_version=SCHEMA_VERSION,
             generated_at=datetime.now(UTC),
-            synthetic=any(s.synthetic for s in summaries),
+            synthetic=any(s.synthetic for s in summaries) or any(s.synthetic for s in systems),
             fields=summaries,
+            systems=systems,
         )
         self._write(self.manifest_path, manifest)
         return manifest
@@ -117,3 +143,9 @@ class ProductStore:
 
     def has_field(self, field_id: str) -> bool:
         return (self.field_dir(field_id) / "field.json").exists()
+
+    def read_system(self, system_id: str) -> SystemModel:
+        return self._read(self.system_path(system_id), SystemModel)
+
+    def has_system(self, system_id: str) -> bool:
+        return self.system_path(system_id).exists()

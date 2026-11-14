@@ -4,7 +4,7 @@
 // Pixel convention for every x/y: PNG convention — origin at the TOP-LEFT pixel,
 // 0-based, x → right, y → DOWN, on the field's common north-up grid (east left).
 
-export const SCHEMA_VERSION = '0.1.0';
+export const SCHEMA_VERSION = '0.2.0';
 
 export type Release = 'dr1' | 'qr2' | 'qr3' | 'synthetic';
 export type ObjectType =
@@ -174,11 +174,114 @@ export interface FieldSummary {
   synthetic: boolean;
 }
 
+// --- 3D systems (WS7). MODEL REPRESENTATIONS from catalog parameters, never images. ---
+
+export type BodyKind =
+  | 'star'
+  | 'brown_dwarf'
+  | 'planet'
+  | 'dwarf_planet'
+  | 'moon'
+  | 'asteroid'
+  | 'comet'
+  | 'tno'
+  | 'disk'
+  | 'unknown';
+export type AppearanceModel = 'star' | 'brown_dwarf' | 'rocky' | 'icy' | 'gas_giant' | 'disk' | 'mesh';
+export type VariabilityKind = 'pulsation' | 'accretion' | 'eclipse' | 'rotation' | 'irregular';
+
+export interface Fact {
+  label: string;
+  value: string;
+  unit: string | null;
+  source: string | null;
+  /** True only if checked against `source`. The UI marks unverified values. */
+  verified: boolean;
+}
+
+export interface Orbit {
+  parent: string; // Body.id
+  semi_major_axis_au: number;
+  period_days: number;
+  eccentricity: number;
+  inclination_deg: number;
+  ascending_node_deg: number;
+  arg_periapsis_deg: number;
+  mean_anomaly_deg: number; // at epoch_mjd
+  epoch_mjd: number | null; // null = arbitrary phase
+}
+
+export interface Variability {
+  kind: VariabilityKind;
+  period_days: number | null;
+  amplitude_mag: number | null;
+  band: string | null;
+}
+
+export interface Appearance {
+  model: AppearanceModel;
+  color_hex: string | null;
+  mesh_url: string | null;
+  texture_url: string | null;
+}
+
+export interface Body {
+  id: string;
+  name: string;
+  kind: BodyKind;
+  description: string;
+  radius_km: number | null;
+  mass_kg: number | null;
+  teff_k: number | null;
+  spectral_type: string | null;
+  rotation_period_hours: number | null;
+  orbit: Orbit | null; // null = root body at the origin
+  variability: Variability | null;
+  appearance: Appearance;
+  facts: Fact[];
+  candidate_id: string | null;
+}
+
+export interface SpaceMotion {
+  distance_pc: number | null;
+  parallax_mas: number | null;
+  pm_ra_cosdec_mas_yr: number | null;
+  pm_dec_mas_yr: number | null;
+  radial_velocity_km_s: number | null;
+  epoch: string | null;
+}
+
+export interface SystemModel {
+  id: string;
+  name: string;
+  description: string;
+  tags: string[];
+  center: SkyCoord;
+  motion: SpaceMotion | null;
+  field_id: string | null;
+  bodies: Body[];
+  representation_note: string;
+  provenance: Provenance;
+}
+
+export interface SystemSummary {
+  id: string;
+  name: string;
+  description: string;
+  tags: string[];
+  center: SkyCoord;
+  n_bodies: number;
+  kinds: BodyKind[];
+  field_id: string | null;
+  synthetic: boolean;
+}
+
 export interface Manifest {
   schema_version: string;
   generated_at: string;
   synthetic: boolean;
   fields: FieldSummary[];
+  systems: SystemSummary[]; // added in 0.2.0 (may be absent in older products: treat as [])
 }
 
 export interface FrameRef {

@@ -1,0 +1,252 @@
+{
+  "id": "demo-ecliptic-orbits",
+  "name": "Demo: where the moving dots are",
+  "description": "SYNTHETIC. 3D orbits for the candidates of the synthetic 'demo-ecliptic' field.",
+  "tags": [
+    "synthetic",
+    "solar-system"
+  ],
+  "center": {
+    "ra": 180.0,
+    "dec": 0.0
+  },
+  "motion": null,
+  "field_id": "demo-ecliptic",
+  "bodies": [
+    {
+      "id": "sun",
+      "name": "Sun",
+      "kind": "star",
+      "description": "",
+      "radius_km": 695700.0,
+      "mass_kg": 1.989e+30,
+      "teff_k": 5772.0,
+      "spectral_type": "G2V",
+      "rotation_period_hours": null,
+      "orbit": null,
+      "variability": null,
+      "appearance": {
+        "model": "star",
+        "color_hex": null,
+        "mesh_url": null,
+        "texture_url": null
+      },
+      "facts": [],
+      "candidate_id": null
+    },
+    {
+      "id": "earth",
+      "name": "Earth",
+      "kind": "planet",
+      "description": "",
+      "radius_km": 6371.0,
+      "mass_kg": null,
+      "teff_k": null,
+      "spectral_type": null,
+      "rotation_period_hours": null,
+      "orbit": {
+        "parent": "sun",
+        "semi_major_axis_au": 1.0,
+        "period_days": 365.2,
+        "eccentricity": 0.017,
+        "inclination_deg": 0.0,
+        "ascending_node_deg": 0.0,
+        "arg_periapsis_deg": 0.0,
+        "mean_anomaly_deg": 0.0,
+        "epoch_mjd": null
+      },
+      "variability": null,
+      "appearance": {
+        "model": "rocky",
+        "color_hex": null,
+        "mesh_url": null,
+        "texture_url": null
+      },
+      "facts": [
+        {
+          "label": "Orbit size",
+          "value": "1.0",
+          "unit": "AU",
+          "source": null,
+          "verified": false
+        }
+      ],
+      "candidate_id": null
+    },
+    {
+      "id": "jupiter",
+      "name": "Jupiter",
+      "kind": "planet",
+      "description": "",
+      "radius_km": 71492.0,
+      "mass_kg": null,
+      "teff_k": null,
+      "spectral_type": null,
+      "rotation_period_hours": null,
+      "orbit": {
+        "parent": "sun",
+        "semi_major_axis_au": 5.2,
+        "period_days": 4331.1,
+        "eccentricity": 0.049,
+        "inclination_deg": 1.3,
+        "ascending_node_deg": 0.0,
+        "arg_periapsis_deg": 0.0,
+        "mean_anomaly_deg": 0.0,
+        "epoch_mjd": null
+      },
+      "variability": null,
+      "appearance": {
+        "model": "gas_giant",
+        "color_hex": null,
+        "mesh_url": null,
+        "texture_url": null
+      },
+      "facts": [
+        {
+          "label": "Orbit size",
+          "value": "5.2",
+          "unit": "AU",
+          "source": null,
+          "verified": false
+        }
+      ],
+      "candidate_id": null
+    },
+    {
+      "id": "neptune",
+      "name": "Neptune",
+      "kind": "planet",
+      "description": "",
+      "radius_km": 24622.0,
+      "mass_kg": null,
+      "teff_k": null,
+      "spectral_type": null,
+      "rotation_period_hours": null,
+      "orbit": {
+        "parent": "sun",
+        "semi_major_axis_au": 30.07,
+        "period_days": 60226.9,
+        "eccentricity": 0.009,
+        "inclination_deg": 1.8,
+        "ascending_node_deg": 0.0,
+        "arg_periapsis_deg": 0.0,
+        "mean_anomaly_deg": 0.0,
+        "epoch_mjd": null
+      },
+      "variability": null,
+      "appearance": {
+        "model": "icy",
+        "color_hex": null,
+        "mesh_url": null,
+        "texture_url": null
+      },
+      "facts": [
+        {
+          "label": "Orbit size",
+          "value": "30.07",
+          "unit": "AU",
+          "source": null,
+          "verified": false
+        }
+      ],
+      "candidate_id": null
+    },
+    {
+      "id": "syn-2026-aa",
+      "name": "SYN 2026 AA (synthetic asteroid)",
+      "kind": "asteroid",
+      "description": "Synthetic main-belt asteroid matching candidate SYN-AST-1.",
+      "radius_km": 5.0,
+      "mass_kg": null,
+      "teff_k": null,
+      "spectral_type": null,
+      "rotation_period_hours": null,
+      "orbit": {
+        "parent": "sun",
+        "semi_major_axis_au": 2.9,
+        "period_days": 1803.8,
+        "eccentricity": 0.12,
+        "inclination_deg": 8.0,
+        "ascending_node_deg": 40.0,
+        "arg_periapsis_deg": 110.0,
+        "mean_anomaly_deg": 0.0,
+        "epoch_mjd": null
+      },
+      "variability": null,
+      "appearance": {
+        "model": "rocky",
+        "color_hex": null,
+        "mesh_url": null,
+        "texture_url": null
+      },
+      "facts": [
+        {
+          "label": "Candidate",
+          "value": "SYN-AST-1 (known, synthetic)",
+          "unit": null,
+          "source": null,
+          "verified": false
+        }
+      ],
+      "candidate_id": "SYN-AST-1"
+    },
+    {
+      "id": "syn-tno-1",
+      "name": "SYN-TNO-1 (unconfirmed, synthetic)",
+      "kind": "tno",
+      "description": "Unconfirmed candidate. Its orbit is NOT known: drawn as a circle at the estimated distance.",
+      "radius_km": 150.0,
+      "mass_kg": null,
+      "teff_k": null,
+      "spectral_type": null,
+      "rotation_period_hours": null,
+      "orbit": {
+        "parent": "sun",
+        "semi_major_axis_au": 42.2,
+        "period_days": 100128.8,
+        "eccentricity": 0.0,
+        "inclination_deg": 0.0,
+        "ascending_node_deg": 0.0,
+        "arg_periapsis_deg": 0.0,
+        "mean_anomaly_deg": 0.0,
+        "epoch_mjd": null
+      },
+      "variability": null,
+      "appearance": {
+        "model": "icy",
+        "color_hex": null,
+        "mesh_url": null,
+        "texture_url": null
+      },
+      "facts": [
+        {
+          "label": "Distance estimate",
+          "value": "~42",
+          "unit": "AU",
+          "source": "pipeline (synthetic)",
+          "verified": false
+        },
+        {
+          "label": "Orbit",
+          "value": "assumed circular — not fitted",
+          "unit": null,
+          "source": "placeholder",
+          "verified": false
+        }
+      ],
+      "candidate_id": "SYN-TNO-1"
+    }
+  ],
+  "representation_note": "Model representation built from catalog parameters - not an image. Sizes and distances may be exaggerated for visibility.",
+  "provenance": {
+    "pipeline_version": "0.1.0",
+    "built_at": "2026-11-14T14:28:54.560972Z",
+    "synthetic": true,
+    "data_releases": [
+      "synthetic"
+    ],
+    "notes": [
+      "SYNTHETIC system for the synthetic demo field — NOT real objects."
+    ]
+  }
+}

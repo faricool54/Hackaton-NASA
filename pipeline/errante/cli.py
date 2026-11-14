@@ -51,7 +51,11 @@ def cmd_validate(args: argparse.Namespace) -> int:
         if missing:
             print(f"{fs.id}: missing images {missing}", file=sys.stderr)
             return 1
-    print(f"OK: {len(manifest.fields)} fields valid in {store.root}")
+    from .systems.build import validate_hierarchy
+
+    for ss in manifest.systems:
+        validate_hierarchy(store.read_system(ss.id))
+    print(f"OK: {len(manifest.fields)} fields and {len(manifest.systems)} systems valid in {store.root}")
     return 0
 
 
@@ -63,6 +67,18 @@ def cmd_search(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_systems(args: argparse.Namespace) -> int:
+    from .products import ProductStore
+    from .systems.build import write_systems
+    from .systems.catalog import curated_systems
+
+    store = ProductStore(Path(args.out))
+    ids = write_systems(store, curated_systems())
+    store.rebuild_manifest()
+    print(f"3D systems written to {store.root / 'systems'}: {ids}")
+    return 0
+
+
 def cmd_build(args: argparse.Namespace) -> int:
     from .build import build_field, load_field_configs
 
@@ -71,15 +87,18 @@ def cmd_build(args: argparse.Namespace) -> int:
         print(f"Unknown field '{args.field_id}'. Known: {sorted(cfgs)}", file=sys.stderr)
         return 2
     try:
-        build_field(cfgs[args.field_id], Path(args.out))
+        build_field(cfgs[args.field_id], Path(args.out), analyze=args.analyze)
     except NotImplementedError as e:
         print(f"Build stopped at a stage that is not implemented yet: {e}", file=sys.stderr)
         return 3
+    except ValueError as e:
+        print(f"Build failed: {e}", file=sys.stderr)
+        return 2
     return 0
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(prog="errante", description="SPHEREx moving-object pipeline")
+    p = argparse.ArgumentParser(prog="errante", description="SPHEREx temporal sky explorer pipeline")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     s = sub.add_parser("demo", help="write the synthetic demo dataset")
@@ -101,9 +120,14 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--detector", type=int, action="append")
     s.set_defaults(func=cmd_search)
 
+    s = sub.add_parser("systems", help="write the curated 3D system models (WS7)")
+    s.add_argument("--out", default=str(settings.PRODUCTS_DIR))
+    s.set_defaults(func=cmd_systems)
+
     s = sub.add_parser("build", help="build real products for a field in config/fields.toml")
     s.add_argument("field_id")
     s.add_argument("--out", default=str(settings.PRODUCTS_DIR))
+    s.add_argument("--analyze", action="store_true", help="also run automatic detection and catalog matching")
     s.set_defaults(func=cmd_build)
 
     args = p.parse_args(argv)

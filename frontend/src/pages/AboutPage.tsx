@@ -9,25 +9,43 @@ export function AboutPage() {
         between 0.75 and 5 µm. It covers the whole sky every six months, and observes two deep fields near the
         ecliptic poles far more often.
       </p>
-      <h2>Why look for things that move?</h2>
+      <h2>Why compare different dates?</h2>
       <p>
-        Planets were named for wandering (Greek <em>planḗtēs</em>, “wanderer”). Anything in our solar system shifts
-        against the background stars between observations. The hypothetical Planet X (or “Planet Nine”), if it
-        exists hundreds of times farther than Earth from the Sun, would crawl only a few arcseconds per hour.
+        Comparing observations can reveal moving objects, nearby stars with proper motion, and stars whose
+        brightness changes. Brightness comparisons also need compatible wavelengths and quality checks:
+        a change between images is not automatically a change in the object itself.
       </p>
-      <h2>What we do — and what we don’t claim</h2>
+      <h2>Current project status</h2>
       <p>
-        We show real SPHEREx images taken at different times, detect moving sources, and check them against
-        catalogs of known objects. An <strong>unconfirmed</strong> candidate is one we could not match to a
+        This application currently demonstrates temporal playback with <strong>numerically simulated data</strong>.
+        The images are labelled as synthetic and are not SPHEREx observations. Real-data access, public
+        coordinate requests and validation of the five challenge targets are still being developed. Automatic
+        detection and catalog matching are optional analysis stages.
+      </p>
+      <p>
+        An optional 3D gallery illustrates the challenge targets with hand-entered, unverified parameters.
+        These models are not SPHEREx images, measured orbits or completed validation runs.
+      </p>
+      <h2>Interpreting candidates</h2>
+      <p>
+        An <strong>unconfirmed</strong> candidate is one that has not been matched to a
         catalog: it may be an artifact, a measurement error, or an object that is simply not cataloged. We do{' '}
-        <strong>not</strong> claim to have discovered Planet X.
+        <strong>not</strong> claim a discovery or a real-object recovery from synthetic examples.
       </p>
-      {/* TODO(WS6): data credits (NASA/JPL-Caltech/IPAC IRSA, JPL SSD, IMCCE SkyBoT), team, AI-use statement,
-          pipeline diagram, measured detection limits from WS2 (injection-recovery). */}
-      <h2>Data credits</h2>
+      <h2>Sources and acknowledgments</h2>
       <p className="muted">
-        SPHEREx data: NASA / JPL-Caltech / IPAC, via the NASA/IPAC Infrared Science Archive (IRSA). Solar-system
-        ephemerides: JPL Solar System Dynamics; IMCCE SkyBoT.
+        Development references include the{' '}
+        <a href="https://irsa.ipac.caltech.edu/Missions/spherex.html">NASA/IPAC IRSA SPHEREx resources</a>{' '}
+        and the{' '}
+        <a href="https://caltech-ipac.github.io/irsa-tutorials/spherex/">IRSA tutorial notebooks</a>.
+        Real SPHEREx products from NASA/JPL-Caltech/IPAC have not yet been integrated into this demonstration.
+      </p>
+      <h2>AI-assisted development</h2>
+      <p>
+        OpenAI Codex assisted with source review, documentation, technical planning, implementation and tests.
+        A written disclosure and metadata inventory are maintained in the project repository. The team is
+        completing the provenance review of earlier contributions and assets before submission.
+        The imported 3D contribution declares Claude assistance in its commit metadata.
       </p>
     </main>
   );

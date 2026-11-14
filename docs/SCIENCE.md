@@ -2,6 +2,10 @@
 
 Lectura obligatoria para WS2 y WS3; recomendada para todos (sirve para el pitch).
 
+**Alcance prioritario:** R05 exige ensayar Barnard's Star, Epsilon Indi B, WISE 0855, RW Aurigae y R Draconis.
+Ver `VALIDATION.md`: movimiento propio y variabilidad se validan sin requerir detección automática.
+Las estimaciones de distancia y Planeta X que siguen son contexto/extensiones P2; no definen el MVP.
+
 ## 1. ¿Por qué se mueven las cosas en el cielo?
 
 Las estrellas están tan lejos que, en meses, casi no se mueven (salvo las muy cercanas: *movimiento propio*,
@@ -34,13 +38,13 @@ Fórmulas: oposición `≈ 147.8″/h · (1 − 1/√r)/(r − 1)` (implementada
 a 90° `≈ 147.8″/h / (√r · √(r² − 1))`; paralaje entre pasadas `≈ 2 UA / r` rad (geometría real: WS3).
 
 **Consecuencias para el diseño:**
-- Asteroides: se ven moverse **dentro de una visita** (horas) → linking lineal simple (WS2, P0). Es lo que
-  seguro funciona y lo que más vamos a mostrar.
+- Asteroides: pueden estudiarse **dentro de una visita** (horas) con linking lineal (WS2, P2).
+  Su recuperación depende de cobertura, brillo y calidad; no se promete sin una prueba real.
 - TNOs: ~1–4 px/día a 90° → se necesitan observaciones separadas por ≥ 1 día del mismo campo (ver en DATA
   cuántas hay; los **campos profundos** de los polos eclípticos tienen muchas más épocas).
 - Un Planeta Nueve: prácticamente **quieto dentro de una visita** y saltando ~100 px entre pasadas. Buscarlo
   requiere *shift-and-stack* a lo largo de órbitas hipotéticas (rango de distancias) entre pasadas — es una
-  demo/visualización educativa valiosa, no un resultado que vayamos a lograr en 48 h.
+  demo/visualización educativa posible, no un resultado prometido para esta ventana de hackatón.
 - La estimación de distancia "por velocidad en oposición" del demo es **solo orden de magnitud**; WS3 debe
   reemplazarla por la geometría real usando la posición de SPHEREx (`X_SC…` en el header) y la fecha.
 
@@ -62,8 +66,9 @@ varias veces junta un **espectro 0.75–5 µm** gratis:
 - **enanas marrones frías**: muy rojas, absorción de metano ~3.3 µm, brillantes en 4–5 µm.
 - **estrellas**: caen hacia longitudes de onda largas.
 
-Ojo: la misma estrella cambia de brillo entre exposiciones *porque cambia la longitud de onda*, no porque varíe.
-Comparar brillos solo entre exposiciones de longitud de onda parecida (o usar solo posiciones).
+Ojo: diferencias de brillo entre exposiciones pueden venir de distinta longitud de onda, variabilidad real
+o efectos instrumentales. Comparar brillos a longitud de onda compatible y con errores/calibración controlados;
+mismo detector no basta. Para RW Aurigae y R Draconis usar fotometría del FITS, no el brillo de PNGs autoescalados.
 
 ## 4. Encuadre honesto (para UI, pitch y entrega)
 
@@ -71,8 +76,9 @@ Comparar brillos solo entre exposiciones de longitud de onda parecida (o usar so
 - Estados: `known` (coincide con catálogo), `unconfirmed` (sin match: puede ser artefacto, error de medición u
   objeto no catalogado), `artifact` (rechazado por validación), `injected` (simulado).
 - Mostrar siempre: cuántas detecciones, residuo del ajuste, flags tocados, límites medidos.
-- Validar con objetos conocidos: asteroides (JPL), Makemake u otro TNO, estrellas de alto movimiento propio
-  (Barnard, WISE 0855). "Recuperamos X de Y objetos conocidos" es un argumento fortísimo para el jurado.
+- Validación obligatoria: los cinco blancos de `VALIDATION.md`, incluidos Epsilon Indi B y las dos variables.
+  Asteroides/TNOs son ensayos adicionales. Separar intentos realizados de recuperaciones demostradas;
+  citar métodos, épocas, calidad e incertidumbres al informar resultados.
 
 ## 5. Glosario rápido
 

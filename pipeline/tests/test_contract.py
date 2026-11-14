@@ -38,6 +38,8 @@ def test_committed_demo_matches_json_schema():
         _validate(d / "field.json", "Field")
         _validate(d / "candidates.json", "CandidateList")
         _validate(d / "known.json", "KnownObjectList")
+    for ss in store.read_manifest().systems:
+        _validate(store.system_path(ss.id), "SystemModel")
 
 
 def test_committed_demo_passes_cli_validate():
