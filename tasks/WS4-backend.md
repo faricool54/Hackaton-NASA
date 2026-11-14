@@ -15,6 +15,8 @@ JPL y análisis automático no son requisitos para abrir un campo.
 **Leé primero:** `docs/CONTRACT.md`, `docs/ARCHITECTURE.md`, `backend/errante_api/**`, `docs/WORKFLOW.md`.
 
 ## Estado actual
+Implementación y validación de esta etapa: [PR #6](https://github.com/faricool54/Hackaton-NASA/pull/6).
+
 - ✅ `/api/health`, `/api/manifest`, `/api/fields/{id}`, `/candidates`, `/known`, `/data/*` (con tests).
 - ⛔ `/api/search`, `/api/known-objects` devuelven 501 hasta que WS1/WS3 implementen.
 - ✅ Frontera de archivos robusta: deadline, cupos que sobreviven al timeout, caché TTL memoria/disco,
