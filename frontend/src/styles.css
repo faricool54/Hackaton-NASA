@@ -73,12 +73,30 @@ button:hover { border-color: var(--accent); }
 .cand-panel dd { margin: 0; }
 .notes { padding-left: 18px; color: var(--muted); font-size: 0.9rem; }
 
-.spectrum svg { width: 100%; height: auto; }
-.spectrum .axis { stroke: var(--muted); }
-.spectrum .tick { fill: var(--muted); font-size: 10px; }
-.spectrum .point { fill: var(--accent); }
-.spectrum .errbar { stroke: var(--accent); opacity: 0.6; }
-.spectrum figcaption { font-size: 0.8rem; }
+.spectrum { margin: 16px 0 10px; padding: 14px 12px 10px; border: 1px solid #28324a; border-radius: 12px; background: radial-gradient(ellipse at 85% 0%, rgba(124, 196, 255, 0.08), transparent 56%), #0c111d; }
+.spectrum-heading { display: flex; justify-content: space-between; align-items: start; gap: 8px; }
+.spectrum-heading h4 { margin: 0; font-size: 0.95rem; font-weight: 650; letter-spacing: 0.01em; }
+.spectrum-heading p { margin: 2px 0 0; font-size: 0.76rem; }
+.spectrum-count { color: var(--muted); font-size: 0.7rem; white-space: nowrap; padding: 2px 7px; border: 1px solid var(--border); border-radius: 999px; }
+.spectrum-legend { display: flex; gap: 14px; margin: 10px 0 0 43px; flex-wrap: wrap; color: #b7c1d4; font-size: 0.7rem; }
+.spectrum-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.spectrum-legend i { display: inline-block; }
+.legend-line { width: 16px; height: 2px; border-radius: 2px; background: var(--accent); box-shadow: 0 0 7px rgba(124, 196, 255, 0.5); }
+.legend-point { width: 7px; height: 7px; border-radius: 50%; background: #eaf6ff; box-shadow: 0 0 0 2px #3695e2; }
+.spectrum svg { display: block; width: 100%; height: auto; margin-top: 2px; overflow: visible; }
+.spectrum .axis { stroke: #59657d; stroke-width: 1; }
+.spectrum .tick { fill: #8e9bb2; font-size: 10px; }
+.spectrum .spectrum-y-tick { font-size: 9px; }
+.spectrum .spectrum-grid { stroke: #263047; stroke-width: 0.8; stroke-dasharray: 2 4; }
+.spectrum .spectrum-estimate { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 4px rgba(124, 196, 255, 0.35)); }
+.spectrum .point { fill: #eaf6ff; stroke: #3b9ef0; stroke-width: 1.5; }
+.spectrum .spectrum-error { stroke: #a9d9ff; stroke-width: 1; opacity: 0.75; }
+.spectrum figcaption { margin: 2px 0 0; font-size: 0.72rem; line-height: 1.45; }
+@media (max-width: 420px) {
+  .spectrum { padding: 11px 8px 9px; }
+  .spectrum-legend { gap: 9px; margin-left: 36px; font-size: 0.64rem; }
+  .spectrum-count { font-size: 0.64rem; }
+}
 figure { margin: 8px 0; }
 
 .legend .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; border: 2px solid; margin: 0 4px 0 8px; vertical-align: middle; }
