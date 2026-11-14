@@ -8,6 +8,7 @@ to opt into those stages; the image products survive an analysis failure.
 from __future__ import annotations
 
 import dataclasses
+import logging
 import shutil
 import tomllib
 from collections import Counter, defaultdict
@@ -21,8 +22,10 @@ from typing import Any, TypeVar
 import numpy as np
 
 from . import __version__, settings
-from .models import CandidateList, Frame, FrameRef, KnownObjectList, Provenance, SkyCoord, SkyField
+from .models import CandidateList, Composite, Frame, FrameRef, KnownObjectList, Provenance, SkyCoord, SkyField
 from .products import ProductStore
+
+log = logging.getLogger(__name__)
 
 FIELDS_TOML = Path(__file__).parent / "config" / "fields.toml"
 
@@ -240,6 +243,7 @@ class _Projected:
     bad: np.ndarray
     wavelength_um: float | None = None
     bandwidth_um: float | None = None
+    variance: np.ndarray | None = None  # VARIANCE on the grid (false-color coadd weights)
 
 
 def _wavelength_at_centre(img, cfg: FieldConfig) -> tuple[float | None, float | None]:
@@ -314,6 +318,7 @@ def _project(refs: list[FrameRef], cfg: FieldConfig, grid) -> tuple[list[_Projec
             continue
         obs_id = img.obs_id or ref.obs_id
         wavelength, bandwidth = _wavelength_at_centre(img, cfg)
+        variance = reproject.reproject_variance(img, grid) if getattr(img, "variance", None) is not None else None
         projected.append(
             _Projected(
                 ref,
@@ -326,6 +331,7 @@ def _project(refs: list[FrameRef], cfg: FieldConfig, grid) -> tuple[list[_Projec
                 bad,
                 wavelength if wavelength is not None else ref.wavelength_um,
                 bandwidth,
+                variance,
             )  # fmt: skip
         )
     return projected, skipped
@@ -337,6 +343,7 @@ class _Selection:
     skipped: list[tuple[FrameRef, str]]
     n_downloaded: int  # candidate cutouts obtained (pool + replacements)
     reference_um: dict[int, float | None]  # per-detector reference wavelength
+    pool: list[_Projected] = field(default_factory=list)  # every vetted, projected candidate (final included)
 
 
 def _key_of(ranked: Mapping[GroupKey, list[FrameRef]]) -> dict[tuple[str, int], GroupKey]:
@@ -417,9 +424,10 @@ def _select_and_project(cfg: FieldConfig, grid, refs: list[FrameRef]) -> _Select
     unique: dict[str, _Projected] = {}
     for p in sorted(projected, key=lambda p: (p.mjd, p.detector)):
         unique.setdefault(p.frame_id, p)
-    final, references = _pick_final(list(unique.values()), ranked, cfg.max_frames)
+    vetted = list(unique.values())
+    final, references = _pick_final(vetted, ranked, cfg.max_frames)
     n_downloaded = n_tried - sum(why == DOWNLOAD_FAILED for _, why in skipped)
-    return _Selection(final, skipped, n_downloaded, references)
+    return _Selection(final, skipped, n_downloaded, references, vetted)
 
 
 def _skip_reasons(skipped: list[tuple[FrameRef, str]]) -> str:
@@ -486,6 +494,29 @@ def _render(cfg: FieldConfig, store: ProductStore, projected: list[_Projected]) 
     return frames
 
 
+def _grid_frame(p: _Projected):
+    from .imaging.compare import GridFrame
+
+    return GridFrame(p.frame_id, p.detector, p.mjd, p.data, p.bad, p.variance, p.wavelength_um)
+
+
+def _composites(field_dir: Path, sel: _Selection) -> tuple[list[Composite], str]:
+    """WS2: false-color season composites (``color/``) of the final frames and the vetted pool.
+
+    A display extra: if it fails, the field is still published without composites and the
+    reason is recorded in the provenance notes.
+    """
+    from .imaging import color
+
+    try:
+        return color.write_composites(
+            field_dir, [_grid_frame(p) for p in sel.frames], [_grid_frame(p) for p in sel.pool]
+        )
+    except Exception as e:  # the frames are already rendered; never lose them over a colour picture
+        log.warning("False-color composites failed for %s: %r", field_dir.name, e)
+        return [], f"False-color composites: not built ({type(e).__name__}: {e})."
+
+
 def build_field(
     cfg: FieldConfig,
     out: Path = settings.PRODUCTS_DIR,
@@ -512,8 +543,9 @@ def build_field(
     if not sel.frames:
         _raise_nothing_usable(cfg, sel.skipped)
 
-    # 2. WS2: PNGs of the final frames only.
+    # 2. WS2: PNGs of the final frames only, then the false-color season composites.
     frames = _render(cfg, store, sel.frames)
+    composites, color_note = _composites(store.field_dir(cfg.id), sel)
     notes = [
         "Automatic analysis has not completed."
         if analyze
@@ -523,6 +555,7 @@ def build_field(
         "pixels mean no data. Saturated star cores and detector-defect pixels are filled from their neighbours "
         "for display only; they count as invalid in valid_fraction.",
         _selection_note(sel, cfg.max_frames),
+        color_note,
     ]
     if sel.skipped:
         notes.append(f"Skipped {len(sel.skipped)} frame(s): {_skip_reasons(sel.skipped)}")
@@ -537,6 +570,7 @@ def build_field(
         size_deg=cfg.size_deg,
         grid=grid,
         frames=frames,
+        composites=composites,
         provenance=Provenance(
             pipeline_version=__version__,
             built_at=datetime.now(UTC),
