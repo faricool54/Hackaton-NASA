@@ -19,6 +19,7 @@ from errante_api.settings import Settings
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture(autouse=True)
 def clear_lru_cache():
     """Clear the in-memory LRU cache between tests."""
@@ -69,6 +70,7 @@ _SESAME_BROWN_DWARF = """\
 # Helper
 # ---------------------------------------------------------------------------
 
+
 def _mock_response(text: str, status_code: int = 200):
     mock = MagicMock()
     mock.status_code = status_code
@@ -79,6 +81,7 @@ def _mock_response(text: str, status_code: int = 200):
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 def test_resolve_star(client):
     with patch("errante_api.routes.resolve.httpx.get") as mock_get:

@@ -43,7 +43,7 @@ _OTYPE_MAP: dict[str, ObjectType] = {
     # Stars
     "*": "star",
     "Star": "star",
-    "V*": "star",   # variable star
+    "V*": "star",  # variable star
     "V": "star",
     "RG*": "star",  # red giant
     "Mi*": "star",  # Mira-type variable
@@ -140,9 +140,7 @@ def _resolve_cached(name: str) -> dict:
     except httpx.TimeoutException as exc:
         raise HTTPException(status_code=502, detail="Sesame timed out") from exc
     except httpx.RequestError as exc:
-        raise HTTPException(
-            status_code=502, detail=f"Sesame unreachable: {exc}"
-        ) from exc
+        raise HTTPException(status_code=502, detail=f"Sesame unreachable: {exc}") from exc
 
     if response.status_code == 200:
         try:
