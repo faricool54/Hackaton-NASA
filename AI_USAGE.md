@@ -19,6 +19,37 @@ OpenAI Codex assisted with:
 Machine-readable metadata: [docs/submission/ai-usage.json](docs/submission/ai-usage.json).
 The public application also discloses development assistance on its About page.
 
+## Claude Code assistance (November 14, 2026)
+
+Claude Code (Anthropic) assisted team member faricool54 (workstream WS1) with:
+
+- **Collaboration infrastructure:** task runner, ownership guard, CI job and agent permissions (#2). Documentation
+  of verified SPHEREx data facts (#3, #24).
+- **WS1 code:** frame search, S3 Range patches with an IBE cutout fallback, per-pixel wavelength and mid-exposure
+  time (#21–#23).
+  - AI agents implemented each part, other AI agents reviewed it adversarially, and the result was
+    integration-tested on real SPHEREx data.
+  - Human review of this code is pending.
+- **Validation of the five challenge targets:** builds of the real fields and analyses, in progress.
+
+## Origin of the product vision (November 14, 2026)
+
+Team member faricool54 stated the product vision recorded in [docs/VISION.md](docs/VISION.md):
+
+- an interactive map of the real SPHEREx sky with search by name or coordinates;
+- clicking a point opens the real SPHEREx time sequence, the spectrum, and a realistic 3D model built only from
+  measurements.
+
+Claude had earlier drafted a different product outline. The team rejected it and stated this vision instead.
+Claude's role was limited to:
+
+- checking feasibility against the data and services, including a live test of Aladin Lite with the IRSA SPHEREx
+  HiPS;
+- restating the vision as requirements;
+- writing the document.
+
+This records what happened in that session; team review of this record is pending.
+
 ## Imported 3D contribution
 
 The integrated commit `cb19f8cd44bb6e91a875c534a5196d522187ac8d` declares Claude assistance in its
