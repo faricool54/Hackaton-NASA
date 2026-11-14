@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -161,6 +162,17 @@ def cmd_build(args: argparse.Namespace) -> int:
     return 0
 
 
+def _finite_json(value):
+    """NaN/inf -> None (strict JSON for the browser), recursively."""
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, dict):
+        return {k: _finite_json(v) for k, v in value.items()}
+    if isinstance(value, list | tuple):
+        return [_finite_json(v) for v in value]
+    return value
+
+
 def cmd_spectrum(args: argparse.Namespace) -> int:
     """Forced photometry of one position on every SPHEREx exposure (WS2, for WS3-5)."""
     from dataclasses import asdict
@@ -175,6 +187,9 @@ def cmd_spectrum(args: argparse.Namespace) -> int:
     except NotImplementedError as e:
         print(f"Spectrum stopped at a stage that is not implemented yet: {e}", file=sys.stderr)
         return 3
+    except ValueError as e:
+        print(f"Spectrum failed: {e}", file=sys.stderr)
+        return 2
     doc = {
         "ra": res.ra,
         "dec": res.dec,
@@ -183,9 +198,11 @@ def cmd_spectrum(args: argparse.Namespace) -> int:
         "failures": [{"frame_id": f, "reason": r} for f, r in res.failures],
         "points": [asdict(pt) for pt in res.points],
     }
-    text = json.dumps(doc, indent=2, allow_nan=False)
+    text = json.dumps(_finite_json(doc), indent=2, allow_nan=False)
     if args.out:
-        Path(args.out).write_text(text + "\n", encoding="utf-8")
+        out = Path(args.out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(text + "\n", encoding="utf-8")
     for note in res.notes:
         print(note)
     usable = [pt for pt in res.points if pt.usable]

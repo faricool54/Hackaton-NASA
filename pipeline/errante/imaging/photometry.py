@@ -31,7 +31,7 @@ import numpy as np
 
 from ..data.fits_io import SpherexImage
 from ..models import FrameRef, SpectrumPoint
-from .flags import DEFAULT_BAD, bad_pixel_mask, bitmask
+from .flags import DEFAULT_BAD, bitmask
 
 APERTURE_PX = 2.0  # radius; SPHEREx PSF FWHM ~1.2-2 px
 SKY_ANNULUS_PX = (4.0, 7.0)
@@ -45,6 +45,8 @@ PIXEL_ARCSEC = 6.15
 MJY_PER_MJY = 1e9  # 1 MJy = 1e9 mJy
 SATURATED = bitmask(["OVERFLOW"])
 TRANSIENT = bitmask(["TRANSIENT", "OUTLIER"])
+BAD = bitmask(list(DEFAULT_BAD))
+UNUSABLE_FLAGS = frozenset({"saturated", "edge", "bad_pixels", "no_wavelength", "spectral_outlier"})
 RELEASE_PREFERENCE = {"dr1": 0, "qr3": 1, "qr2": 2, "synthetic": 3}
 SPHEREX_ERA_MJD = 61000.0  # 2025-11, middle of DR1 + QR3
 
@@ -70,9 +72,10 @@ class ForcedFlux:
 
     @property
     def usable(self) -> bool:
-        """Has a flux and a wavelength and is not a lower limit or partly off the detector."""
-        bad = {"saturated", "edge", "no_wavelength", "spectral_outlier"}
-        return self.flux_mjy is not None and self.wavelength_um is not None and not bad.intersection(self.flags)
+        """Has a flux and a wavelength; not a lower limit, not partly off the detector or on bad pixels."""
+        return (
+            self.flux_mjy is not None and self.wavelength_um is not None and not UNUSABLE_FLAGS.intersection(self.flags)
+        )
 
 
 @dataclass
@@ -117,43 +120,68 @@ def _sky(
     return med, float(1.4826 * np.median(np.abs(values - med))), int(values.size)
 
 
-def aperture_flux(
-    img: SpherexImage, x: float, y: float, r: float, annulus: tuple[float, float]
-) -> tuple[float, float, float, set[str]]:
-    """(flux, error, sky) in MJy/sr * px on native pixels, plus flags; NaN flux if the sky is not measurable."""
+@dataclass(frozen=True)
+class Planes:
+    """One image's planes converted once (the photometry calls them dozens of times per frame)."""
+
+    data: np.ndarray  # IMAGE - ZODI, float64, FITS orientation
+    flags: np.ndarray  # int64
+    variance: np.ndarray | None  # float64
+    median: float  # of finite data (sky level of the cutout)
+    sigma: float  # robust noise of finite data
+
+
+def planes(img: SpherexImage) -> Planes:
     data = np.asarray(img.data_minus_zodi, dtype=np.float64)
-    ys, xs, xx, yy = _window(data.shape, x, y, int(math.ceil(annulus[1])) + 1)
-    d = data[ys, xs]
-    flags_plane = np.asarray(img.flags[ys, xs]) if img.flags is not None else np.zeros(d.shape, np.int64)
-    var = np.asarray(img.variance[ys, xs], dtype=np.float64) if img.variance is not None else None
+    flags_plane = np.asarray(img.flags, dtype=np.int64) if img.flags is not None else np.zeros(data.shape, np.int64)
+    var = np.asarray(img.variance, dtype=np.float64) if img.variance is not None else None
+    finite = data[np.isfinite(data)]
+    med = float(np.median(finite)) if finite.size else float("nan")
+    sigma = float(1.4826 * np.median(np.abs(finite - med))) if finite.size else float("nan")
+    return Planes(data, flags_plane, var, med, sigma)
+
+
+def aperture_flux(
+    pl: Planes, x: float, y: float, r: float, annulus: tuple[float, float]
+) -> tuple[float, float, float, set[str]]:
+    """(flux, error, sky) in MJy/sr * px on native pixels, plus flags; NaN flux if the sky is not measurable.
+
+    Pixels flagged DEFAULT_BAD (HOT, PERSIST, GHOST, STREAK...) or NaN never enter the sum; the point is then
+    flagged (``bad_pixels``/``edge``/``saturated``) and not usable, because the missing part of the PSF is unknown.
+    """
+    ys, xs, xx, yy = _window(pl.data.shape, x, y, int(math.ceil(annulus[1])) + 1)
+    d = pl.data[ys, xs]
+    fl = pl.flags[ys, xs]
+    var = pl.variance[ys, xs] if pl.variance is not None else None
     dist = np.hypot(xx - x, yy - y)
-    bad = bad_pixel_mask(flags_plane, DEFAULT_BAD)
-    usable = np.isfinite(d) & ~bad
-    sky, sky_sigma, n_sky = _sky(d, usable, dist, annulus)
+    bad = (fl & BAD) != 0
+    good = np.isfinite(d) & ~bad
+    sky, sky_sigma, n_sky = _sky(d, good, dist, annulus)
 
     w = aperture_weights(xx, yy, x, y, r)
     inside = w > 0
     flags: set[str] = set()
-    full_w = np.pi * r**2
-    if w.sum() < 0.98 * full_w:  # aperture runs off the array
+    if w.sum() < 0.97 * np.pi * r**2:  # aperture runs off the array (supersampling noise is < 2 %)
         flags.add("edge")
-    if (np.asarray(flags_plane)[inside].astype(np.int64) & SATURATED).any():
+    if (fl[inside] & SATURATED).any():
         flags.add("saturated")
     if (bad & inside).any():
         flags.add("bad_pixels")
-    if (np.asarray(flags_plane)[inside].astype(np.int64) & TRANSIENT).any():
+    if (fl[inside] & TRANSIENT).any():
         flags.add("transient_flag")
-    finite = np.isfinite(d) & inside
+    if (inside & ~np.isfinite(d) & ~bad).any() and "saturated" not in flags:
+        flags.add("edge")
     if not np.isfinite(sky):
         return float("nan"), float("nan"), sky, flags | {"no_sky"}
-    if (inside & ~np.isfinite(d)).any():
-        if "saturated" not in flags:
-            flags.add("edge")
-    flux = float(np.sum(np.where(finite, (d - sky) * w, 0.0)))
-    var_ap = float(np.sum(np.where(finite & np.isfinite(var), var * w**2, 0.0))) if var is not None else 0.0
-    if var is None:
-        var_ap = float(np.sum(w[finite] ** 2)) * sky_sigma**2
-    var_sky = (float(w[finite].sum()) ** 2) * (np.pi / 2) * sky_sigma**2 / max(n_sky, 1)
+    use = good & inside
+    flux = float(np.sum(np.where(use, (d - sky) * w, 0.0)))
+    if var is not None:
+        if (use & ~(np.isfinite(var) & (var >= 0))).any():
+            return flux, float("nan"), sky, flags | {"no_variance"}
+        var_ap = float(np.sum(np.where(use, var * w**2, 0.0)))
+    else:
+        var_ap = float(np.sum(w[use] ** 2)) * sky_sigma**2
+    var_sky = (float(w[use].sum()) ** 2) * (np.pi / 2) * sky_sigma**2 / max(n_sky, 1)
     return flux, math.sqrt(var_ap + var_sky), sky, flags
 
 
@@ -168,16 +196,14 @@ def _sky_to_pixel(img: SpherexImage, ra: float, dec: float) -> tuple[float, floa
 
 
 def find_correction_stars(
-    img: SpherexImage, exclude: tuple[float, float] | None = None, max_stars: int = 25
+    pl: Planes, exclude: tuple[float, float] | None = None, max_stars: int = 25
 ) -> list[tuple[int, int]]:
     """Bright, isolated, unflagged local maxima usable for the curve of growth (target excluded)."""
-    data = np.asarray(img.data_minus_zodi, dtype=np.float64)
-    flags_plane = np.asarray(img.flags) if img.flags is not None else np.zeros(data.shape, np.int64)
-    finite = data[np.isfinite(data)]
-    if finite.size < 100:
+    data, flags_plane = pl.data, pl.flags
+    if np.isfinite(data).sum() < 100 or not np.isfinite(pl.median):
         return []
-    med = float(np.median(finite))
-    sigma = float(1.4826 * np.median(np.abs(finite - med))) or 1e-9
+    med = pl.median
+    sigma = pl.sigma or 1e-9
     margin = int(REFERENCE_ANNULUS_PX[1]) + 2
     ny, nx = data.shape
     cand = np.argwhere(np.nan_to_num(data - med) >= STAR_SNR * sigma)
@@ -190,8 +216,8 @@ def find_correction_stars(
         box = data[y - 3 : y + 4, x - 3 : x + 4]
         if not np.isfinite(box).all() or data[y, x] < box.max():
             continue
-        big = flags_plane[y - 6 : y + 7, x - 6 : x + 7].astype(np.int64)
-        if (big & (bitmask(list(DEFAULT_BAD)) | SATURATED | TRANSIENT)).any():
+        big = flags_plane[y - 6 : y + 7, x - 6 : x + 7]
+        if (big & (BAD | SATURATED | TRANSIENT)).any():
             continue
         # isolation: nothing brighter than 20 % of the peak between 3 and 7 px
         yy, xx = np.mgrid[y - 7 : y + 8, x - 7 : x + 8]
@@ -205,11 +231,10 @@ def find_correction_stars(
     return out[:max_stars]
 
 
-def _centroid(img: SpherexImage, x: int, y: int, half: int = 2) -> tuple[float, float]:
+def _centroid(pl: Planes, x: int, y: int, half: int = 2) -> tuple[float, float]:
     """First-moment centre of a star in a (2*half+1)^2 box (sky-free), so apertures are centred on the star."""
-    data = np.asarray(img.data_minus_zodi, dtype=np.float64)
-    box = data[y - half : y + half + 1, x - half : x + half + 1]
-    w = np.clip(np.nan_to_num(box - np.nanmedian(data)), 0, None)
+    box = pl.data[y - half : y + half + 1, x - half : x + half + 1]
+    w = np.clip(np.nan_to_num(box - pl.median), 0, None)
     if w.sum() <= 0:
         return float(x), float(y)
     yy, xx = np.mgrid[y - half : y + half + 1, x - half : x + half + 1]
@@ -217,14 +242,15 @@ def _centroid(img: SpherexImage, x: int, y: int, half: int = 2) -> tuple[float, 
 
 
 def correction_ratios(
-    img: SpherexImage, aperture_px: float = APERTURE_PX, exclude: tuple[float, float] | None = None
+    img: SpherexImage | Planes, aperture_px: float = APERTURE_PX, exclude: tuple[float, float] | None = None
 ) -> list[float]:
     """Total/small aperture flux ratio of each usable field star of this frame (curve-of-growth samples)."""
+    pl = img if isinstance(img, Planes) else planes(img)
     ratios = []
-    for px, py in find_correction_stars(img, exclude):
-        x, y = _centroid(img, px, py)
-        small, _, _, f1 = aperture_flux(img, x, y, aperture_px, SKY_ANNULUS_PX)
-        total, _, _, f2 = aperture_flux(img, x, y, REFERENCE_APERTURE_PX, REFERENCE_ANNULUS_PX)
+    for px, py in find_correction_stars(pl, exclude):
+        x, y = _centroid(pl, px, py)
+        small, _, _, f1 = aperture_flux(pl, x, y, aperture_px, SKY_ANNULUS_PX)
+        total, _, _, f2 = aperture_flux(pl, x, y, REFERENCE_APERTURE_PX, REFERENCE_ANNULUS_PX)
         if f1 or f2 or not (small > 0 and total > 0):
             continue
         ratios.append(total / small)
@@ -232,7 +258,7 @@ def correction_ratios(
 
 
 def aperture_correction(
-    img: SpherexImage, aperture_px: float = APERTURE_PX, exclude: tuple[float, float] | None = None
+    img: SpherexImage | Planes, aperture_px: float = APERTURE_PX, exclude: tuple[float, float] | None = None
 ) -> float | None:
     """Median total/small flux ratio of this frame's field stars; None with fewer than 3 stars."""
     r = np.asarray(correction_ratios(img, aperture_px, exclude))
@@ -253,19 +279,21 @@ def measure(
     release: str | None = None,
     aperture_px: float = APERTURE_PX,
     correction: float | None = None,
+    pl: Planes | None = None,
 ) -> ForcedFlux | None:
     """Forced photometry of (ra, dec) on one exposure; None if the position is off this file."""
     pos = _sky_to_pixel(img, ra, dec)
     if pos is None:
         return None
     x, y = pos
-    flux, err, sky, flags = aperture_flux(img, x, y, aperture_px, SKY_ANNULUS_PX)
+    pl = pl or planes(img)
+    flux, err, sky, flags = aperture_flux(pl, x, y, aperture_px, SKY_ANNULUS_PX)
     omega = pixel_solid_angle_sr(img.header)
     wave = img.wavelength_at(ra, dec) if hasattr(img, "wavelength_at") else None
     if wave is None:
         flags.add("no_wavelength")
     if correction is None:
-        correction = aperture_correction(img, aperture_px, exclude=(x, y))
+        correction = aperture_correction(pl, aperture_px, exclude=(x, y))
     to_mjy = omega * MJY_PER_MJY * (correction if correction is not None else 1.0)
     ok = math.isfinite(flux)
     return ForcedFlux(
@@ -292,6 +320,8 @@ def propagate(ra: float, dec: float, pm: tuple[float, float, float] | None, mjd:
     """Linear proper motion: pm = (pm_ra_cosdec, pm_dec) in mas/yr at reference epoch MJD; no parallax."""
     if pm is None:
         return ra, dec
+    if abs(dec) >= 89.99:
+        raise ValueError("proper-motion propagation in RA is undefined at the celestial poles")
     pm_ra, pm_dec, epoch = pm
     dt = (mjd - epoch) / 365.25
     return (ra + pm_ra / 3.6e6 / math.cos(math.radians(dec)) * dt) % 360.0, dec + pm_dec / 3.6e6 * dt
@@ -322,6 +352,7 @@ def fit_corrections(samples: dict[int, list[tuple[float, float]]]) -> dict[int, 
                 if ok.all() or ok.sum() < 20:
                     break
                 lam, r = lam[ok], r[ok]
+                b, a = (float(v) for v in np.polyfit(lam, r, 1))  # the line of the kept stars
         out[det] = (a, b)
     return out
 
@@ -350,24 +381,27 @@ def flag_spectral_outliers(points: list[ForcedFlux], window_um: float = 0.02, ns
     """
     from ..build import season_index
 
-    seasons = season_index([p.mjd for p in points]) if points else []
-    out = []
-    for i, p in enumerate(points):
-        if not p.usable:
-            out.append(p)
-            continue
-        nb = [
-            q.flux_mjy
-            for j, q in enumerate(points)
-            if j != i and q.usable and seasons[j] == seasons[i] and abs(q.wavelength_um - p.wavelength_um) <= window_um
-        ]
-        if len(nb) >= 3:
+    out = list(points)
+    if not points:
+        return out
+    seasons = np.asarray(season_index([p.mjd for p in points]))
+    for season in np.unique(seasons):
+        idx = [i for i in np.flatnonzero(seasons == season) if points[i].usable]
+        idx.sort(key=lambda i: points[i].wavelength_um)
+        lam = np.array([points[i].wavelength_um for i in idx])
+        flux = np.array([points[i].flux_mjy for i in idx])
+        lo = np.searchsorted(lam, lam - window_um, side="left")
+        hi = np.searchsorted(lam, lam + window_um, side="right")
+        for k, i in enumerate(idx):
+            nb = np.concatenate([flux[lo[k] : k], flux[k + 1 : hi[k]]])
+            if nb.size < 3:
+                continue
             m = float(np.median(nb))
-            scatter = 1.4826 * float(np.median(np.abs(np.asarray(nb) - m)))
+            scatter = 1.4826 * float(np.median(np.abs(nb - m)))
+            p = points[i]
             tol = nsigma * max(scatter, p.flux_err_mjy or 0.0, 0.02 * abs(m))
             if abs(p.flux_mjy - m) > tol:
-                p = replace(p, flags=tuple(sorted({*p.flags, "spectral_outlier"})))
-        out.append(p)
+                out[i] = replace(p, flags=tuple(sorted({*p.flags, "spectral_outlier"})))
     return out
 
 
@@ -411,20 +445,28 @@ def spectrum_at(
         mid = float(np.median([f.mjd for f in refs]))
         era_ra, era_dec = propagate(ra, dec, pm, mid)
     paths, failed = cutouts.fetch_frames_report(refs, era_ra, era_dec, size_arcmin)
+    if len(paths) != len(refs):
+        raise RuntimeError(f"fetch_frames_report returned {len(paths)} paths for {len(refs)} frames")
     failures = [(f"{f.obs_id}D{f.detector}", why) for f, why in failed]
     points: list[ForcedFlux] = []
     samples: dict[int, list[tuple[float, float]]] = defaultdict(list)
     for ref, path in zip(refs, paths, strict=True):
         if path is None:
             continue
-        img = fits_io.read_spherex(path)
-        r_t, d_t = propagate(ra, dec, pm, img.mjd)
-        p = measure(img, r_t, d_t, frame_id=f"{ref.obs_id}D{ref.detector}", release=ref.release, correction=1.0)
-        if p is None:
-            failures.append((f"{ref.obs_id}D{ref.detector}", "position off the downloaded pixels"))
+        fid = f"{ref.obs_id}D{ref.detector}"
+        try:  # one unreadable or odd file must not abort a 400-exposure spectrum
+            img = fits_io.read_spherex(path)
+            pl = planes(img)
+            r_t, d_t = propagate(ra, dec, pm, img.mjd)
+            p = measure(img, r_t, d_t, frame_id=fid, release=ref.release, correction=1.0, pl=pl)
+            if p is None:
+                failures.append((fid, "position off the downloaded pixels"))
+                continue
+            if p.wavelength_um is not None:
+                samples[p.detector] += [(p.wavelength_um, r) for r in correction_ratios(pl, exclude=(p.x, p.y))]
+        except (OSError, KeyError, ValueError, IndexError) as e:
+            failures.append((fid, f"{type(e).__name__}: {e}"))
             continue
-        if p.wavelength_um is not None:
-            samples[p.detector] += [(p.wavelength_um, r) for r in correction_ratios(img, exclude=(p.x, p.y))]
         points.append(p)
     fits = fit_corrections(samples)
     pooled = fit_corrections({0: [s for det_samples in samples.values() for s in det_samples]}).get(0)
@@ -443,7 +485,8 @@ def spectrum_at(
     points.sort(key=lambda p: (p.wavelength_um if p.wavelength_um is not None else 99.0, p.mjd))
     n_ok = sum(p.usable for p in points)
     notes.append(
-        f"{n_ok} of {len(points)} measured points are usable (not saturated, inside the detector, with wavelength)."
+        f"{n_ok} of {len(points)} measured points are usable (not saturated, not on bad pixels, inside the detector, "
+        "with wavelength, consistent with same-season neighbours)."
     )
     if pm is not None:
         notes.append("Position propagated with proper motion to each exposure (no parallax).")

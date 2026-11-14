@@ -219,3 +219,86 @@ def test_fast_movers_are_searched_and_cut_out_where_they_are_now(monkeypatch):
     spectrum_at(331.04414659, -56.7828442, pm=pm)
     expected = propagate(331.04414659, -56.7828442, pm, 61000.0)
     assert calls["search"] == pytest.approx(expected) and calls["fetch"] == pytest.approx(expected)
+
+
+def test_propagation_divides_by_cos_dec_and_wraps_ra():
+    eq = propagate(10.0, 0.0, (1000.0, 0.0, 51544.5), 51544.5 + 365.25)[0] - 10.0
+    north = propagate(10.0, 60.0, (1000.0, 0.0, 51544.5), 51544.5 + 365.25)[0] - 10.0
+    assert north == pytest.approx(2 * eq)  # cos(60) = 0.5
+    ra, _ = propagate(359.99999, 0.0, (1000.0, 0.0, 51544.5), 51544.5 + 365.25)
+    assert ra == pytest.approx(359.99999 + 1 / 3600 - 360.0, abs=1e-9)  # wrapped past 0h
+    with pytest.raises(ValueError, match="poles"):
+        propagate(10.0, 90.0, (1.0, 1.0, 51544.5), 60000.0)
+
+
+def test_eps_indi_b_propagates_to_the_independent_fields_toml_centre():
+    """fields.toml (WS3) centres eps Indi B at its mean SPHEREx epoch, MJD 61042, computed independently."""
+    ra, dec = propagate(331.04414659, -56.7828442, (3981.977, -2466.832, 51544.5), 61042.0)
+    assert ra == pytest.approx(331.09665, abs=2e-5) and dec == pytest.approx(-56.80066, abs=2e-5)
+
+
+def test_bad_pixels_never_enter_the_flux_and_make_the_point_unusable():
+    img = image()
+    img.wavelength_at = lambda ra, dec: (1.25, 0.03)
+    clean = measure(img, RA0, DEC0, correction=1.0)
+    x, y = (int(round(float(v))) for v in img.wcs.all_world2pix(RA0, DEC0, 0))
+    img.data[y, x + 1] += 5000.0  # a HOT pixel inside the aperture
+    img.flags[y, x + 1] = 1 << FLAG_BITS["HOT"]
+    hot = measure(img, RA0, DEC0, correction=1.0)
+    assert "bad_pixels" in hot.flags and not hot.usable
+    assert hot.flux_mjy < clean.flux_mjy  # the 5000 MJy/sr never entered the sum
+
+
+def test_error_is_the_propagated_variance_and_missing_variance_is_flagged():
+    img = image(target=0.0)
+    img.variance[:] = 0.04
+    img.wavelength_at = lambda ra, dec: (1.25, 0.03)
+    p = measure(img, RA0, DEC0, correction=1.0)
+    yy, xx = np.mgrid[0:90, 0:110]
+    w = aperture_weights(xx, yy, p.x, p.y, 2.0)
+    expected = math.sqrt(float((w**2).sum()) * 0.04) * pixel_solid_angle_sr(img.header) * 1e9  # noise-free sky
+    assert p.flux_err_mjy == pytest.approx(expected, rel=1e-3)
+    img.variance[int(round(p.y)), int(round(p.x))] = np.nan
+    q = measure(img, RA0, DEC0, correction=1.0)
+    assert "no_variance" in q.flags and q.flux_err_mjy is None
+
+
+def test_no_sky_when_the_annulus_is_all_bad():
+    img = image()
+    x, y = (float(v) for v in img.wcs.all_world2pix(RA0, DEC0, 0))
+    yy, xx = np.mgrid[0:90, 0:110]
+    ring = (np.hypot(xx - x, yy - y) >= 3.5) & (np.hypot(xx - x, yy - y) <= 7.5)
+    img.flags[ring] = 1 << FLAG_BITS["STREAK"]
+    p = measure(img, RA0, DEC0, correction=1.0)
+    assert "no_sky" in p.flags and p.flux_mjy is None and not p.usable
+
+
+def test_one_broken_file_does_not_abort_the_spectrum(monkeypatch):
+    refs = [FrameRef(obs_id=o, detector=1, mjd=60900.0 + i, release="dr1") for i, o in enumerate("GBX")]
+    monkeypatch.setattr(irsa, "search_frames", lambda *a, **kw: SearchResult(
+        center=SkyCoord(ra=RA0, dec=DEC0), radius_deg=0, frames=refs))  # fmt: skip
+    monkeypatch.setattr(
+        cutouts, "fetch_frames_report", lambda frames, *a: ([Path(f"{f.obs_id}.fits") for f in frames], [])
+    )
+
+    def read(path):
+        if Path(path).stem == "B":
+            raise OSError("truncated FITS")
+        img = image()
+        img.wavelength_at = lambda ra, dec: (1.0, 0.03)
+        return img
+
+    monkeypatch.setattr(fits_io, "read_spherex", read)
+    res = spectrum_at(RA0, DEC0)
+    assert len(res.points) == 2 and res.failures == [("BD1", "OSError: truncated FITS")]
+
+
+def test_corrections_are_clamped_to_a_physical_range():
+    from errante.imaging.photometry import ForcedFlux, _apply_corrections
+
+    p = ForcedFlux("F", "O", 1, 60900.0, "dr1", RA0, DEC0, 5.0, 5.0, 1.0, 0.03, 10.0, 1.0, 0.0, 1.0, ())
+    (low,) = _apply_corrections([p], {1: (0.2, 0.0)})
+    (high,) = _apply_corrections([p], {1: (9.0, 0.0)})
+    (none,) = _apply_corrections([p], {})
+    assert low.aperture_correction == 1.0 and high.aperture_correction == 3.0
+    assert "no_aperture_correction" in none.flags and none.flux_mjy == 10.0
