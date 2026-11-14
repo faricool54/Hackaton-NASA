@@ -1,10 +1,10 @@
-// Blink comparator (WS5, P0 — basic version implemented, improve freely).
+// Blink comparator (WS5, P0 — UI-2 scrubber redesign applied).
 // All frames of a field share one north-up grid, so frame PNGs are stacked and
 // toggled; overlays use an SVG whose viewBox is the grid size in pixels, so the
 // contract's x/y (PNG convention) can be drawn directly.
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Candidate, Field, Frame, KnownObject } from '../api/types';
-import { DETECTOR_BANDS, formatDuration, formatMjd } from '../api/format';
+import { DETECTOR_BANDS, formatMjd } from '../api/format';
 
 interface Props {
   field: Field;
@@ -53,8 +53,45 @@ export function BlinkViewer({ field, frames, imageUrl, candidates, known, select
     return () => window.removeEventListener('keydown', onKey);
   }, [n]);
 
+  // --- custom scrubber ---
+  const trackRef = useRef<HTMLDivElement>(null);
+
+  const seekToPointer = useCallback(
+    (clientX: number) => {
+      if (!trackRef.current || n < 2) return;
+      const rect = trackRef.current.getBoundingClientRect();
+      const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      setPlaying(false);
+      setIndex(Math.round(ratio * (n - 1)));
+    },
+    [n],
+  );
+
+  const onTrackPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      e.currentTarget.setPointerCapture(e.pointerId);
+      seekToPointer(e.clientX);
+    },
+    [seekToPointer],
+  );
+
+  const onTrackPointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (e.buttons === 0) return;
+      seekToPointer(e.clientX);
+    },
+    [seekToPointer],
+  );
+
+  const fillPct = n > 1 ? (index / (n - 1)) * 100 : 0;
+
+  // tick positions (percent along track)
+  const ticks = useMemo(
+    () => (n <= 1 ? [] : Array.from({ length: n }, (_, i) => (i / (n - 1)) * 100)),
+    [n],
+  );
+
   const selected = useMemo(() => candidates.find((c) => c.id === selectedId) ?? null, [candidates, selectedId]);
-  const t0 = frames[0]?.mjd ?? 0;
 
   if (!current) return <div className="panel">This field has no frames.</div>;
   const { width_px: w, height_px: h } = field.grid;
@@ -117,46 +154,71 @@ export function BlinkViewer({ field, frames, imageUrl, candidates, known, select
           </svg>
         )}
         <div className="blink-caption">
-          <strong>{formatMjd(current.mjd)}</strong> · +{formatDuration((current.mjd - t0) * 24)} · D{current.detector}
+          <strong>{formatMjd(current.mjd)}</strong> · D{current.detector}
           {current.wavelength_um ? ` · λ ${current.wavelength_um.toFixed(3)} µm` : ` · ${DETECTOR_BANDS[current.detector]}`}
         </div>
       </div>
 
-      <div className="blink-controls">
-        <button onClick={() => setIndex((i) => (i - 1 + n) % n)} aria-label="Previous frame">◀</button>
-        <button onClick={() => setPlaying((p) => !p)} aria-label={playing ? 'Pause' : 'Play'}>
-          {playing ? '❚❚' : '▶'}
-        </button>
-        <button onClick={() => setIndex((i) => (i + 1) % n)} aria-label="Next frame">▶▶</button>
-        <input
-          type="range"
-          min={0}
-          max={n - 1}
-          value={index}
-          onChange={(e) => {
-            setPlaying(false);
-            setIndex(Number(e.target.value));
-          }}
+      {/* Scrubber */}
+      <div className="scrubber-wrap">
+        <div
+          className="scrubber-track-wrap"
+          ref={trackRef}
+          onPointerDown={onTrackPointerDown}
+          onPointerMove={onTrackPointerMove}
+          role="slider"
           aria-label="Frame"
-        />
-        <span className="muted">
-          {index + 1}/{n}
-        </span>
-        <label className="muted">
-          speed
-          <input
-            type="range"
-            min={150}
-            max={2000}
-            step={50}
-            value={2150 - intervalMs}
-            onChange={(e) => setIntervalMs(2150 - Number(e.target.value))}
-            aria-label="Blink speed"
-          />
-        </label>
-        <label className="muted">
-          <input type="checkbox" checked={showOverlays} onChange={(e) => setShowOverlays(e.target.checked)} /> markers
-        </label>
+          aria-valuemin={0}
+          aria-valuemax={n - 1}
+          aria-valuenow={index}
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowRight') { e.preventDefault(); setIndex((i) => Math.min(i + 1, n - 1)); }
+            if (e.key === 'ArrowLeft')  { e.preventDefault(); setIndex((i) => Math.max(i - 1, 0)); }
+          }}
+        >
+          <div className="scrubber-track">
+            <div className="scrubber-fill" style={{ width: `${fillPct}%` }} />
+            <div className="scrubber-ticks">
+              {ticks.map((pct, i) => (
+                <div
+                  key={i}
+                  className={`scrubber-tick${i === index ? ' scrubber-tick--active' : ''}`}
+                  style={{ left: `${pct}%` }}
+                />
+              ))}
+            </div>
+          </div>
+          <div className="scrubber-thumb" style={{ left: `${fillPct}%` }} />
+        </div>
+      </div>
+
+      {/* Playback controls */}
+      <div className="blink-playback">
+        <div className="blink-playback-btns">
+          <button onClick={() => setIndex((i) => (i - 1 + n) % n)} aria-label="Previous frame">◀◀</button>
+          <button onClick={() => setPlaying((p) => !p)} aria-label={playing ? 'Pause' : 'Play'}>
+            {playing ? '❚❚' : '▶'}
+          </button>
+          <button onClick={() => setIndex((i) => (i + 1) % n)} aria-label="Next frame">▶▶</button>
+        </div>
+        <div className="blink-playback-secondary">
+          <label>
+            speed
+            <input
+              type="range"
+              min={150}
+              max={2000}
+              step={50}
+              value={2150 - intervalMs}
+              onChange={(e) => setIntervalMs(2150 - Number(e.target.value))}
+              aria-label="Blink speed"
+            />
+          </label>
+          <label>
+            <input type="checkbox" checked={showOverlays} onChange={(e) => setShowOverlays(e.target.checked)} /> markers
+          </label>
+        </div>
       </div>
       {/* TODO(WS5): difference-image layer, zoom/pan, crosshair with RA/Dec readout
           (use grid.wcs), "time-lapse" export as GIF/MP4, color composite of bands. */}

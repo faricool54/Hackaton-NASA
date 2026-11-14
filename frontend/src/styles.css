@@ -108,3 +108,42 @@ figure { margin: 8px 0; }
 .facts td { padding: 4px 0; border-top: 1px solid var(--border); }
 .facts th { border-top: 1px solid var(--border); }
 .unverified { color: var(--unconfirmed); font-size: 0.75rem; }
+
+/* --- Scrubber / Blink controls (UI-2, WS5) --- */
+.scrubber-wrap { display: flex; flex-direction: column; gap: 4px; width: 100%; }
+.scrubber-meta { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--muted); }
+.scrubber-track-wrap { position: relative; height: 24px; cursor: pointer; }
+.scrubber-track {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  left: 0; right: 0; height: 4px;
+  background: var(--border); border-radius: 2px; overflow: visible;
+}
+.scrubber-fill {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  background: var(--accent); border-radius: 2px; pointer-events: none;
+}
+.scrubber-ticks {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  left: 0; right: 0; height: 10px; pointer-events: none;
+  display: flex; align-items: center;
+}
+.scrubber-tick {
+  position: absolute; transform: translateX(-50%);
+  width: 2px; height: 10px; border-radius: 1px;
+  background: var(--border); transition: background 0.1s;
+}
+.scrubber-tick--active { background: var(--accent); }
+.scrubber-thumb {
+  position: absolute; top: 50%; transform: translate(-50%, -50%);
+  width: 16px; height: 16px; border-radius: 50%;
+  background: var(--accent); border: 2px solid var(--bg);
+  box-shadow: 0 0 0 1px var(--accent);
+  pointer-events: none; transition: transform 0.08s;
+}
+.scrubber-track-wrap:active .scrubber-thumb { transform: translate(-50%, -50%) scale(1.25); }
+
+.blink-playback { display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 8px 0 4px; }
+.blink-playback-btns { display: flex; align-items: center; gap: 12px; }
+.blink-playback-btns button { font-size: 1.1rem; min-width: 40px; padding: 4px 10px; }
+.blink-playback-secondary { display: flex; align-items: center; gap: 10px; font-size: 0.82rem; color: var(--muted); }
+.blink-playback-secondary input[type='range'] { width: 90px; }
