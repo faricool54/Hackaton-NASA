@@ -24,12 +24,14 @@
   `IMAGE − ZODI`, núcleos saturados y defectos reparados solo para mostrar). Validado en datos reales (abajo).
 - ✅ `build.py`: `select_frames` temporada × detector (temporadas ≤ 60 d), `frame_id = obs_id + 'D' + detector`,
   reemplazo de frames fallidos, `thumb.png`, error "descarga fallida" ≠ "sin cobertura".
+- ✅ `imaging/compare.py` + `errante compare <id>`: coadds por temporada × detector y restas temporada − temporada
+  con escala de flujo ajustada en estrellas del campo (WS2-7). `detect/difference.py`: `static_sky`, `residuals`.
 - ✅ `imaging/photometry.py` + `errante spectrum --ra --dec [--pm-ra --pm-dec]`: fotometría forzada en los píxeles
   nativos de cada exposición (apertura r=2 px, cielo local, corrección de apertura por detector vs λ, errores de
   VARIANCE, λ/Δλ de WCS-WAVE, flags). Base de WS3-5/WS4-8/WS5-12 (espectro en el panel de la visión).
   Validado: estrella normal del campo de ε Ind vs 2MASS J/H/Ks = 1,025/1,058/1,062; WISE 0855 a 4,4–5 µm = 0,57 mJy
   (W2 = 0,57 mJy). Las estrellas saturadas (Barnard) quedan marcadas `saturated`: no hay flujo confiable.
-- ⛔ `find_sources`, `static_sky`, `residuals`, `link_tracks`, `score_tracks`, `inject_mover`.
+- ⛔ `find_sources`, `link_tracks`, `score_tracks`, `inject_mover`.
 
 ## Tareas
 
@@ -50,9 +52,13 @@
 - [ ] **WS2-6 (P2) Inyección-recuperación** (`inject.py`): plantar movers en frames **reales**, grilla de
   flujo × velocidad, tabla de eficiencia → `data/products/limits.json` (proponer modelo a WS4/WS5 vía PR
   `contract:`). Es la base de la página "¿Qué tan lejos podemos ver?".
-- [ ] **WS2-7 (P1, C03) Restas de épocas**: permitir A−B y opcionalmente `frame − cielo_estático`.
+- [~] **WS2-7 (P1, C03) Restas de épocas**: permitir A−B y opcionalmente `frame − cielo_estático`.
   WCS, PSF, fondo, unidades, máscara y λ compatibles; propagar errores y guardar entradas de la operación.
   Exponer PNG y metadatos con contrato aditivo coordinado con WS4/WS5.
+  🟡 Hecho en el pipeline: `errante compare <id>` escribe `compare/coadd_*.png`, `compare/diff_*.png` (naranja = más
+  brillante ahora, cian = antes, damero = sin datos) y `compare/compare.json` **provisional** (fuera del contrato).
+  En el campo real de Barnard la resta de un año muestra el dipolo norte en los 6 detectores. Falta: contrato aditivo
+  (`contract:`, WS3) y la capa en la UI (WS5); restas por frame individual y λ emparejada (`wavelength_at` ya está en main, #23/#25).
 - [ ] **WS2-8 (P0, R05) Validación visual/astrométrica entre pasadas.** Ayudar a WS3 con Barnard,
   Epsilon Indi B y WISE 0855; comprobar registro de fondo, épocas y desplazamiento/incertidumbre.
   Para RW Aurigae/R Draconis, garantizar render consistente; el brillo científico se mide desde FITS.

@@ -162,6 +162,31 @@ def cmd_build(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_compare(args: argparse.Namespace) -> int:
+    """Season coadds + flux-matched season differences of a built field (WS2-7)."""
+    from .imaging.compare import compare_field, load_from_cutouts
+    from .products import ProductStore
+
+    store = ProductStore(Path(args.dir))
+    if not store.has_field(args.field_id):
+        print(f"No built field '{args.field_id}' in {args.dir}; run `errante build` first.", file=sys.stderr)
+        return 2
+    field = store.read_field(args.field_id)
+    try:
+        meta = compare_field(field, store.field_dir(field.id), load_from_cutouts(field))
+    except NotImplementedError as e:
+        print(f"Compare stopped at a stage that is not implemented yet: {e}", file=sys.stderr)
+        return 3
+    except ValueError as e:
+        print(f"Compare failed: {e}", file=sys.stderr)
+        return 2
+    print(
+        f"{field.id}: {len(meta['coadds'])} season coadds and {len(meta['differences'])} differences in "
+        f"{store.field_dir(field.id) / 'compare'}"
+    )
+    return 0
+
+
 def _finite_json(value):
     """NaN/inf -> None (strict JSON for the browser), recursively."""
     if isinstance(value, float):
@@ -267,6 +292,11 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--out", default=str(settings.PRODUCTS_DIR))
     s.add_argument("--analyze", action="store_true", help="also run automatic detection and catalog matching")
     s.set_defaults(func=cmd_build)
+
+    s = sub.add_parser("compare", help="season coadds and season differences of a built field (WS2-7)")
+    s.add_argument("field_id")
+    s.add_argument("--dir", default=str(settings.PRODUCTS_DIR))
+    s.set_defaults(func=cmd_compare)
 
     s = sub.add_parser("spectrum", help="forced-photometry spectrum of a position on all SPHEREx exposures (WS2)")
     s.add_argument("--ra", type=float, required=True)
