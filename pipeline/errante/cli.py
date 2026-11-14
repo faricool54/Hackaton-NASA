@@ -144,6 +144,13 @@ def cmd_systems(args: argparse.Namespace) -> int:
     return 0
 
 
+def _positive_int(text: str) -> int:
+    value = int(text)
+    if value < 1:
+        raise argparse.ArgumentTypeError(f"must be a positive integer, got {text}")
+    return value
+
+
 def cmd_build(args: argparse.Namespace) -> int:
     from .build import build_field, load_field_configs
 
@@ -151,8 +158,13 @@ def cmd_build(args: argparse.Namespace) -> int:
     if args.field_id not in cfgs:
         print(f"Unknown field '{args.field_id}'. Known: {sorted(cfgs)}", file=sys.stderr)
         return 2
+    overrides = {}
+    if args.max_frames is not None:
+        overrides["max_frames"] = args.max_frames
+    if args.detectors:
+        overrides["detectors"] = sorted(set(args.detectors))
     try:
-        build_field(cfgs[args.field_id], Path(args.out), analyze=args.analyze)
+        build_field(cfgs[args.field_id], Path(args.out), analyze=args.analyze, overrides=overrides)
     except NotImplementedError as e:
         print(f"Build stopped at a stage that is not implemented yet: {e}", file=sys.stderr)
         return 3
@@ -291,6 +303,18 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("field_id")
     s.add_argument("--out", default=str(settings.PRODUCTS_DIR))
     s.add_argument("--analyze", action="store_true", help="also run automatic detection and catalog matching")
+    s.add_argument(
+        "--max-frames", type=_positive_int, default=None, metavar="N", help="override max_frames of fields.toml"
+    )
+    s.add_argument(
+        "--detectors",
+        type=int,
+        nargs="+",
+        choices=range(1, 7),
+        default=None,
+        metavar="D",
+        help="override the detectors of fields.toml (1-6, several allowed)",
+    )
     s.set_defaults(func=cmd_build)
 
     s = sub.add_parser("compare", help="season coadds and season differences of a built field (WS2-7)")
