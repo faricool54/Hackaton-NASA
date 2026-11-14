@@ -1,0 +1,206 @@
+{
+ "_comment": "HiPS tile/pixel references verified live on 2026-11-14 (errante.data.cube). 'tiles': CRPIX1/CRPIX2 of the HPX WCS of real DR1 cube tiles (every other celestial card is in 'celestial_template'), one or more per HEALPix base face, incl. the RA=180 seam (6912) and both polar caps. 'points': (ra, dec) -> tile and 0-based (x, y) pixel; targets are the R05 positions (fields.toml), stars are isolated Gaia DR3 stars (pm-propagated to 2026.0) whose brightest cube pixel in planes 25 and 42 was the predicted one.",
+ "celestial_template": {
+  "PC1_1": -0.00274658203125,
+  "PC1_2": -0.00274658203125,
+  "PC2_1": 0.00274658203125,
+  "PC2_2": -0.00274658203125,
+  "CDELT1": 1.0,
+  "CDELT2": 1.0,
+  "CUNIT1": "deg",
+  "CUNIT2": "deg",
+  "CTYPE1": "RA---HPX",
+  "CTYPE2": "DEC--HPX",
+  "CRVAL1": 0.0,
+  "CRVAL2": 0.0,
+  "PV2_1": 4.0,
+  "PV2_2": 3.0,
+  "LONPOLE": 0.0,
+  "LATPOLE": 90.0,
+  "RADESYS": "ICRS"
+ },
+ "tiles": {
+  "277": {
+   "CRPIX1": 8192.5,
+   "CRPIX2": 20480.5
+  },
+  "1023": {
+   "CRPIX1": -7679.5,
+   "CRPIX2": 24576.5
+  },
+  "1500": {
+   "CRPIX1": 19456.5,
+   "CRPIX2": 40448.5
+  },
+  "2928": {
+   "CRPIX1": -34815.5,
+   "CRPIX2": -9727.5
+  },
+  "3100": {
+   "CRPIX1": -9215.5,
+   "CRPIX2": -4607.5
+  },
+  "4159": {
+   "CRPIX1": 4608.5,
+   "CRPIX2": -4095.5
+  },
+  "4912": {
+   "CRPIX1": -2047.5,
+   "CRPIX2": 2560.5
+  },
+  "5500": {
+   "CRPIX1": 21504.5,
+   "CRPIX2": 24064.5
+  },
+  "6912": {
+   "CRPIX1": 32768.5,
+   "CRPIX2": 33280.5
+  },
+  "7945": {
+   "CRPIX1": -17407.5,
+   "CRPIX2": -15359.5
+  },
+  "8300": {
+   "CRPIX1": 21504.5,
+   "CRPIX2": -2559.5
+  },
+  "9500": {
+   "CRPIX1": 39936.5,
+   "CRPIX2": 19968.5
+  },
+  "10226": {
+   "CRPIX1": 26112.5,
+   "CRPIX2": 23040.5
+  },
+  "10240": {
+   "CRPIX1": -8191.5,
+   "CRPIX2": -40447.5
+  },
+  "11391": {
+   "CRPIX1": 4608.5,
+   "CRPIX2": -16383.5
+  },
+  "0": {
+   "CRPIX1": 8192.5,
+   "CRPIX2": 8704.5
+  },
+  "12287": {
+   "CRPIX1": -7679.5,
+   "CRPIX2": -8191.5
+  }
+ },
+ "points": [
+  {
+   "name": "Barnard's Star",
+   "ra": 269.44623,
+   "dec": 4.7687,
+   "npix": 7945,
+   "x": 98,
+   "y": 103
+  },
+  {
+   "name": "eps Ind B",
+   "ra": 331.09665,
+   "dec": -56.80066,
+   "npix": 11391,
+   "x": 98,
+   "y": 408
+  },
+  {
+   "name": "WISE 0855-0714",
+   "ra": 133.7598,
+   "dec": -7.24219,
+   "npix": 10226,
+   "x": 212,
+   "y": 238
+  },
+  {
+   "name": "RW Aur",
+   "ra": 76.95659,
+   "dec": 30.40129,
+   "npix": 277,
+   "x": 400,
+   "y": 252
+  },
+  {
+   "name": "R Dra",
+   "ra": 248.16723,
+   "dec": 66.75502,
+   "npix": 2928,
+   "x": 20,
+   "y": 425
+  },
+  {
+   "name": "Gaia G=11.92 at the RA=180 seam",
+   "ra": 180.21776,
+   "dec": 1.03502,
+   "npix": 6912,
+   "x": 182,
+   "y": 250
+  },
+  {
+   "name": "Gaia G=11.32 at the RA=180 seam",
+   "ra": 179.83804,
+   "dec": 0.91846,
+   "npix": 6912,
+   "x": 226,
+   "y": 344
+  },
+  {
+   "name": "Gaia G=11.51 near the NCP",
+   "ra": 43.67688,
+   "dec": 88.43888,
+   "npix": 1023,
+   "x": 246,
+   "y": 281
+  },
+  {
+   "name": "Gaia G=10.71 near the SCP",
+   "ra": 200.43099,
+   "dec": -88.35696,
+   "npix": 10240,
+   "x": 444,
+   "y": 381
+  },
+  {
+   "name": "Gaia G=11.89 near RA=0",
+   "ra": 0.24966,
+   "dec": 9.98642,
+   "npix": 4912,
+   "x": 37,
+   "y": 383
+  },
+  {
+   "name": "Gaia G=10.61 near RA=360",
+   "ra": 359.77007,
+   "dec": -19.8593,
+   "npix": 4159,
+   "x": 475,
+   "y": 120
+  },
+  {
+   "name": "Gaia G=10.68 north cap",
+   "ra": 119.71016,
+   "dec": 75.03208,
+   "npix": 2017,
+   "x": 322,
+   "y": 429
+  },
+  {
+   "name": "Gaia G=10.53 south cap",
+   "ra": 299.60828,
+   "dec": -69.73529,
+   "npix": 11410,
+   "x": 129,
+   "y": 237
+  },
+  {
+   "name": "Gaia G=11.14 face corner",
+   "ra": 44.73341,
+   "dec": 41.6286,
+   "npix": 597,
+   "x": 19,
+   "y": 77
+  }
+ ]
+}
