@@ -99,6 +99,13 @@ export function createClient(config: ClientConfig = envConfig()) {
     return mode === 'api' ? `${apiBase}/api/systems/${systemId}` : `${staticBase}systems/${systemId}.json`;
   }
 
+  /** Precomputed light curve: /api/lightcurves/<id>, or <root>/lightcurves/<id>.json written by
+   *  scripts/export_static_science.py for static deploys. */
+  function lightCurveUrl(targetId: string): string {
+    const id = encodeURIComponent(targetId);
+    return mode === 'api' ? `${apiBase}/api/lightcurves/${id}` : `${staticBase}lightcurves/${id}.json`;
+  }
+
   return {
     config,
     resourceUrl,
@@ -131,9 +138,16 @@ export function createClient(config: ClientConfig = envConfig()) {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal,
       });
     },
+    lightCurveUrl,
     async getLightCurve(targetId: string, signal?: AbortSignal): Promise<LightCurveProduct> {
-      if (mode !== 'api') throw new ApiError('Light curves require live API mode.', 0);
-      return getJson<LightCurveProduct>(`${apiBase}/api/lightcurves/${encodeURIComponent(targetId)}`, { signal });
+      if (mode === 'api') return getJson<LightCurveProduct>(lightCurveUrl(targetId), { signal });
+      const res = await fetch(lightCurveUrl(targetId), { signal });
+      // Static hosts with an SPA fallback answer a missing file with the HTML app shell: that is a 404 too.
+      if (res.status === 404 || (res.ok && /html/i.test(res.headers.get('content-type') ?? ''))) {
+        throw new ApiError('No precomputed light curve is published for this field.', 404);
+      }
+      if (!res.ok) throw new ApiError(`${res.status} ${res.statusText}`, res.status);
+      return (await res.json()) as LightCurveProduct;
     },
     async getComparisons(id: string, body: ComparisonRequest, signal?: AbortSignal): Promise<ComparisonResponse> {
       if (mode !== 'api') throw new ApiError('Comparisons require live API mode.', 0);
