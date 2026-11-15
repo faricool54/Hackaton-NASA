@@ -1,7 +1,7 @@
-# Plan paralelo y estado del proyecto — 15/11/2026, 03:30 ART
+# Plan paralelo y estado del proyecto — 15/11/2026, 06:30 ART
 
 Guía viva del equipo: qué está hecho, qué falta, quién lo toma y en qué orden. Relevado sobre `main` `c333390`
-(#72), sin PRs abiertos. No acredita validaciones científicas ni publicación pública: la evidencia está en cada PR y
+(#72) y actualizado tras la ficha del objeto (#73–#76). No acredita validaciones científicas ni publicación pública: la evidencia está en cada PR y
 en [`validation/`](validation/). Esta página es de coordinación: si algo cambió, avisá en el chat o abrí un PR
 `chore:`.
 
@@ -65,7 +65,7 @@ workstream en [TEAM.md](TEAM.md): reservalo antes de arrancar (§9). Citá el ID
 | V12 | Las 5 filas «importante» de la revisión del 3D: máximos medidos de R Dra, radio de R Dra fijo por defecto, «look at the frames» en RW Aur, saturación de Barnard y S/N de WISE 0855 en el panel del cielo | WS7 (de facto DankoLiv) | 1,5 h | D3 | [SCIENCE.md](SCIENCE.md), tabla del 3D (filas de `ephemerides.ts`, `sceneLayout.ts`, `skyTrack.ts`) | falta |
 | V13 | 3D alimentado por `physical_parameters` de WS3 (Teff, radio, distancia como Facts con fuente), rotulado «catalog, not measured by SPHEREx». Después: color, radio y pulsación desde SPHEREx (WS7-8) | WS7 + WS3 | 2 h el mínimo; 6 h completo | V6, V18 | `pipeline/errante/systems/catalog.py`; [VISION_3D.md](VISION_3D.md) («Diferencias con VISION.md que siguen abiertas») | falta |
 | V14 | 3D para un click arbitrario (cualquier estrella con Gaia). Sin dato: «unknown», nada inventado | WS7 + WS3 | 5 h | V6, V13 | `frontend/src/pages/FieldPage.tsx:38` (hoy solo enlaza si `manifest.systems` tiene el campo) | falta |
-| V15 | RW Aur: el contexto llama «V* RW Aur B» a Gaia DR3 156430817820015232, que según el WDS es A. Corregir o advertir antes de que la ficha lo muestre | WS3 (faricool54) | 1 h | — | `pipeline/errante/science/context.py`; `pipeline/tests/test_science_context.py:237`; [SCIENCE.md](SCIENCE.md) («Para WS3 (pendiente propio)») | falta (la rama en curso solo lo marca `ambiguous`) |
+| V15 | RW Aur: el contexto llama «V* RW Aur B» a Gaia DR3 156430817820015232, que según el WDS es A. Corregir o advertir antes de que la ficha lo muestre | WS3 (faricool54) | 1 h | — | `pipeline/errante/science/context.py`; `pipeline/tests/test_science_context.py:237`; [SCIENCE.md](SCIENCE.md) («Para WS3 (pendiente propio)») | falta (la ficha lo marca `ambiguous`) |
 | V16 | Textos de `fields.toml` de la revisión: RW Aur, R Dra, WISE 0855, Barnard, y A/B invertidos en los comentarios | WS3 | 1 h | — | [SCIENCE.md](SCIENCE.md), filas de `fields.toml` | falta |
 | V17 | Capa Gaia DR3 propagada a la época y footprint en el mapa (C05, WS5-4) | WS5 (sin dueño) | 3 h | V6 | `ExplorerMap.tsx`; `sky-map.html` | falta |
 | V18 | Temperatura desde el espectro SPHEREx (ajuste) y `color_class` | WS3 | 4 h | — | `pipeline/errante/science/spectra.py:571` (stub) | falta |
