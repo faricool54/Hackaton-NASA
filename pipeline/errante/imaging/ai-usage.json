@@ -290,6 +290,16 @@
         "Docs: tasks/WS2-imaging-detection.md (WS2-10 result line)"
       ],
       "humans": "V0id47 directed the work and merged it"
+    },
+    {
+      "number": 119,
+      "title": "contract: publica flags de calidad por fotograma (V8)",
+      "merged_at": "2026-11-15T20:40:55Z",
+      "ai_generated": [
+        "Code (OpenAI Codex, see other_ai_tools): reproject.summarize_flags and flags.py header bits in WS2's imaging/, frame_flags in build.py",
+        "Products: frame_flags in the five published field.json (no PNG or other key changed)"
+      ],
+      "humans": "mateoa007 (with OpenAI Codex) authored it; V0id47 with Claude Code reviewed and approved the computation as WS2 owner; faricool54 merged it as coordinator"
     }
   ],
   "trailer_note": "The squash commits of rpccp's #53-#56 also list V0id47 and Claude as co-authors because those branches contained the #39 contract commits; their own AI use is recorded by WS4/WS5 (Codex)"
