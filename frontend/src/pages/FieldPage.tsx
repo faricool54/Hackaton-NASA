@@ -11,6 +11,7 @@ import { SkyMap } from '../components/SkyMap';
 import { SyntheticBadge } from '../components/SyntheticBadge';
 import { FieldComparisons } from '../components/FieldComparisons';
 import { PositionSpectrum } from '../components/PositionSpectrum';
+import { LightCurvePanel } from '../components/LightCurvePanel';
 
 export function FieldPage({ fieldId, embedded = false }: { fieldId: string; embedded?: boolean }) {
   const [field, setField] = useState<Field | null>(null);
@@ -136,6 +137,8 @@ export function FieldPage({ fieldId, embedded = false }: { fieldId: string; embe
         </aside>
       </div>
       {!field.provenance.synthetic && !embedded && <PositionSpectrum position={field.center} fieldId={field.id} />}
+      {!field.provenance.synthetic && !field.id.startsWith('job-') &&
+        <LightCurvePanel key={field.id} targetId={field.id} />}
       <FieldComparisons field={field} />
     </Container>
   );

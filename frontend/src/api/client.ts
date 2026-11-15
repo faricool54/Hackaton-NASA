@@ -20,6 +20,7 @@ import type {
   ComparisonRequest,
   ComparisonResponse,
   ObjectContextResponse,
+  LightCurveProduct,
 } from './types';
 
 export type DataMode = 'static' | 'api';
@@ -129,6 +130,10 @@ export function createClient(config: ClientConfig = envConfig()) {
       return getJson<SpectrumResponse>(`${apiBase}/api/spectra`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal,
       });
+    },
+    async getLightCurve(targetId: string, signal?: AbortSignal): Promise<LightCurveProduct> {
+      if (mode !== 'api') throw new ApiError('Light curves require live API mode.', 0);
+      return getJson<LightCurveProduct>(`${apiBase}/api/lightcurves/${encodeURIComponent(targetId)}`, { signal });
     },
     async getComparisons(id: string, body: ComparisonRequest, signal?: AbortSignal): Promise<ComparisonResponse> {
       if (mode !== 'api') throw new ApiError('Comparisons require live API mode.', 0);
