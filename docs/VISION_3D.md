@@ -95,7 +95,8 @@ pipeline/errante/systems/       (WS7)
   catalog.py   sistemas curados (verificados en WS7-2, con fuente por dato) + sistema sintético del demo
   sources.py   NASA Exoplanet Archive, SIMBAD (CfA) y Gaia DR3 por TAP (urllib); stubs: JPL SBDB, modelos de forma
   build.py     valida jerarquía (padres existen, sin ciclos) y escribe <root>/systems/<id>.json
-       │  errante demo  → data/demo/systems/*.json      errante systems → data/products/systems/*.json
+       │  errante demo  → data/demo/systems/*.json      errante systems --real-only → data/products/systems/*.json
+       │  (--real-only: solo sistemas no sintéticos; se niega si <out>/systems ya tiene uno sintético)
        ▼
 contrato: SystemModel (models.py, schema 0.2.1) · Manifest.systems · GET /api/systems/{id}
        ▼

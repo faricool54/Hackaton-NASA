@@ -352,11 +352,20 @@ def cmd_cube_spectrum(args: argparse.Namespace) -> int:
 
 def cmd_systems(args: argparse.Namespace) -> int:
     from .products import ProductStore
-    from .systems.build import write_systems
+    from .systems.build import write_real_systems, write_systems
     from .systems.catalog import curated_systems
 
     store = ProductStore(Path(args.out))
-    ids = write_systems(store, curated_systems())
+    if args.real_only:
+        try:
+            ids, skipped = write_real_systems(store, curated_systems())
+        except ValueError as e:
+            print(f"error: {e}", file=sys.stderr)
+            return 1
+        if skipped:
+            print(f"Skipped synthetic systems (not for a real dataset): {skipped}")
+    else:
+        ids = write_systems(store, curated_systems())
     manifest = store.rebuild_manifest()
     print(f"3D systems written to {store.root / 'systems'}: {ids}")
     if not manifest.fields:
@@ -786,6 +795,12 @@ def main(argv: list[str] | None = None) -> int:
 
     s = sub.add_parser("systems", help="write the curated 3D system models (WS7)")
     s.add_argument("--out", default=str(settings.PRODUCTS_DIR))
+    s.add_argument(
+        "--real-only",
+        action="store_true",
+        help="real dataset (e.g. data/products): write only non-synthetic systems and refuse if "
+        "<out>/systems already holds a synthetic one",
+    )
     s.set_defaults(func=cmd_systems)
 
     s = sub.add_parser("build", help="build real products for a field in config/fields.toml")

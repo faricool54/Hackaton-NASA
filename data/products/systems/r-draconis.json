@@ -1,0 +1,119 @@
+{
+  "id": "r-draconis",
+  "name": "R Draconis",
+  "description": "Challenge test target: a giant star that swells and fades every ~8 months.",
+  "tags": [
+    "test-target",
+    "variable"
+  ],
+  "center": {
+    "ra": 248.1673783672889,
+    "dec": 66.75500674547219
+  },
+  "motion": {
+    "distance_pc": 792.0,
+    "parallax_mas": 1.2509,
+    "pm_ra_cosdec_mas_yr": -20.643,
+    "pm_dec_mas_yr": 6.149,
+    "radial_velocity_km_s": -132.8,
+    "epoch": "J2016.0"
+  },
+  "field_id": "r-draconis",
+  "bodies": [
+    {
+      "id": "r-draconis",
+      "name": "R Draconis",
+      "kind": "star",
+      "description": "A Mira variable: an old red giant whose visible brightness changes by hundreds of times.",
+      "radius_km": 173925000.0,
+      "mass_kg": 1.989e+30,
+      "teff_k": 3000.0,
+      "spectral_type": "M5e–M9eIII",
+      "rotation_period_hours": null,
+      "orbit": null,
+      "variability": {
+        "kind": "pulsation",
+        "period_days": 245.6,
+        "amplitude_mag": 6.5,
+        "band": "V"
+      },
+      "appearance": {
+        "model": "star",
+        "color_hex": null,
+        "mesh_url": null,
+        "texture_url": null
+      },
+      "facts": [
+        {
+          "label": "Variable type",
+          "value": "Mira",
+          "unit": null,
+          "source": "GCVS 5.1 (Samus et al. 2017); AAVSO VSX",
+          "verified": true
+        },
+        {
+          "label": "Spectral type",
+          "value": "M5e–M9eIII",
+          "unit": null,
+          "source": "GCVS 5.1 (Samus et al. 2017)",
+          "verified": true
+        },
+        {
+          "label": "Period",
+          "value": "~245.6",
+          "unit": "days",
+          "source": "GCVS 5.1 (Samus et al. 2017) (AAVSO VSX: 246.1 days)",
+          "verified": true
+        },
+        {
+          "label": "Visual range",
+          "value": "6.7–13.2",
+          "unit": "mag (V)",
+          "source": "GCVS 5.1 (Samus et al. 2017); AAVSO VSX",
+          "verified": true
+        },
+        {
+          "label": "Temperature (changes with the pulsation)",
+          "value": "~2000–3300",
+          "unit": "K",
+          "source": "van Belle et al. 2002, AJ 124, 1706 (2034 ± 139 K at phase 0.83); McDonald et al. 2012, MNRAS 427, 343 (3336 K, SED fit)",
+          "verified": true
+        },
+        {
+          "label": "Distance",
+          "value": "~790",
+          "unit": "pc",
+          "source": "Bailer-Jones et al. 2021 (Gaia EDR3)",
+          "verified": true
+        },
+        {
+          "label": "Radius (illustrative)",
+          "value": "~250",
+          "unit": "solar radii",
+          "source": "drawing value: published sizes depend strongly on the assumed distance and the pulsation phase",
+          "verified": false
+        },
+        {
+          "label": "Mass (class-typical)",
+          "value": "~1",
+          "unit": "solar masses",
+          "source": "Feast 2009, AGB Stars and Related Phenomena (Tokyo 2008), arXiv:0812.0250, Sect. 3: O-rich Miras with log P ~2.3 have initial masses < 1 M_sun, those with log P ~2.5 are ~7 Gyr old, and C-Miras at log P ~2.7 have ~1.8 M_sun; R Dra has log P = 2.39. Class-typical initial mass for its period, not a measurement of this star (its present mass is lower after mass loss); used only to size the drawn convection cells",
+          "verified": false
+        }
+      ],
+      "candidate_id": null
+    }
+  ],
+  "representation_note": "3D model drawn from published catalog and literature values (each fact shows its source) - not an image. Sizes and distances may be exaggerated for visibility.",
+  "provenance": {
+    "pipeline_version": "0.1.0",
+    "built_at": "2026-11-15T05:12:09.454672Z",
+    "synthetic": false,
+    "data_releases": [],
+    "notes": [
+      "Values checked on 2026-11-14 against the NASA Exoplanet Archive, SIMBAD (CfA mirror), Gaia DR3, VizieR and the cited papers (tasks/WS7-3d-systems.md, WS7-2). Facts still marked 'unverified' are estimates no source states.",
+      "The pulsation is drawn on two clocks. Free-running: the size/brightness animation is a sine wave at the GCVS period (245.6 d) spanning the V-band range, with an arbitrary phase (no epoch): it is not a prediction for a real date. Dataset time: R Dra is drawn at the phase predicted by the AAVSO VSX ephemeris (epoch of maximum HJD 2457370.00, P = 246.12 d) on an asymmetric curve that rises in 45 % of the cycle, with the timing band of the WS7 table frontend/src/three/ephemerides.ts (from the O−C of observed maxima against that ephemeris). Both are V-band drawings, not a measured or SPHEREx light curve: real Mira cycles change from cycle to cycle, the infrared amplitude SPHEREx sees is much smaller and infrared maxima lag the visual ones. The size change is drawn in phase with the light for display only.",
+      "Radial velocity −132.8 km/s from SIMBAD (Wilson 1953); optical lines of a Mira move with the pulsation."
+    ]
+  }
+}

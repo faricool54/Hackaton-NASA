@@ -8,7 +8,7 @@ import pytest
 from errante.models import Appearance, Body, Orbit, Provenance, SkyCoord, SystemModel
 from errante.products import ProductStore
 from errante.systems import sources
-from errante.systems.build import validate_hierarchy, write_systems
+from errante.systems.build import synthetic_system_ids, validate_hierarchy, write_real_systems, write_systems
 from errante.systems.catalog import curated_systems, demo_systems, kepler_a_au, kepler_period_days
 
 
@@ -212,6 +212,61 @@ def test_store_roundtrip_and_manifest(tmp_path):
     assert {s.id for s in manifest.systems} == {s.id for s in demo_systems()}
     assert manifest.synthetic  # the demo-ecliptic-orbits system is synthetic
     assert store.read_system("barnards-star").bodies[0].kind == "star"
+
+
+# --- real dataset (data/products): only non-synthetic systems (AGENTS.md rule 3) ---------
+
+
+def test_write_real_systems_skips_the_synthetic_ones(tmp_path):
+    store = ProductStore(tmp_path)
+    written, skipped = write_real_systems(store, demo_systems())
+    assert written == [s.id for s in curated_systems()]
+    assert skipped == ["demo-ecliptic-orbits"]
+    manifest = store.rebuild_manifest()
+    assert not manifest.synthetic
+    assert not any(s.synthetic for s in manifest.systems)
+
+
+def test_write_real_systems_refuses_a_folder_holding_a_synthetic_system(tmp_path):
+    store = ProductStore(tmp_path)
+    write_systems(store, [s for s in demo_systems() if s.provenance.synthetic])
+    with pytest.raises(ValueError, match="demo-ecliptic-orbits"):
+        write_real_systems(store, curated_systems())
+    assert synthetic_system_ids(store) == ["demo-ecliptic-orbits"]
+    assert not store.has_system("barnards-star")  # refused before writing anything
+
+
+def test_cli_systems_real_only_and_default_unchanged(tmp_path, capsys):
+    from errante.cli import main
+
+    assert main(["systems", "--out", str(tmp_path / "real"), "--real-only"]) == 0
+    manifest = ProductStore(tmp_path / "real").read_manifest()
+    assert [s.id for s in manifest.systems] == sorted(s.id for s in curated_systems())
+    assert not manifest.synthetic
+    # A folder that already holds the synthetic demo system is refused (exit 1), not published.
+    demo = ProductStore(tmp_path / "demo")
+    write_systems(demo, demo_systems())
+    assert main(["systems", "--out", str(tmp_path / "demo"), "--real-only"]) == 1
+    assert "demo-ecliptic-orbits" in capsys.readouterr().err
+    # Without the flag nothing changes: the curated systems are written and the demo one is kept.
+    assert main(["systems", "--out", str(tmp_path / "demo")]) == 0
+    assert {s.id for s in demo.read_manifest().systems} == {s.id for s in demo_systems()}
+
+
+def test_committed_real_systems_match_the_catalog_and_link_their_fields():
+    """data/products/systems is generated: run `errante systems --out data/products --real-only` after
+    editing catalog.py. Each system must point at a real field of that dataset (the 3D <-> images links)."""
+    from errante import settings
+
+    store = ProductStore(settings.REPO_ROOT / "data" / "products")
+    manifest = store.read_manifest()
+    assert {s.id for s in manifest.systems} == {s.id for s in curated_systems()}
+    assert synthetic_system_ids(store) == []
+    real_fields = {f.id for f in manifest.fields if not f.synthetic}
+    for system in curated_systems():
+        committed = store.read_system(system.id)
+        assert committed.model_dump(exclude={"provenance"}) == system.model_dump(exclude={"provenance"}), system.id
+        assert committed.field_id in real_fields, f"{system.id}: field {committed.field_id} not in data/products"
 
 
 # --- sources: offline parsing ---------------------------------------------------
