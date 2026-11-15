@@ -371,6 +371,7 @@ class _RegistrationCheck:
 
     frames: dict[str, _Judged] = field(default_factory=dict)
     inconsistent: bool = False  # some pass would have rejected too many frames and rejected none
+    errors: list[str] = field(default_factory=list)  # passes that raised; their frames stay unchecked
 
     def ids(self, state: str) -> set[str]:
         return {fid for fid, j in self.frames.items() if j.state == state}
@@ -383,6 +384,7 @@ class _RegistrationCheck:
             return sum(j.state != "unchecked" for j in group), len(group)
 
         (c_blink, n_blink), (c_topup, n_topup) = counted(False), counted(True)
+        unchecked = (n_blink - c_blink) + (n_topup - c_topup)
         kept = [j.offset for j in self.frames.values() if j.state == "ok" and j.offset is not None]
         text = (
             "Registration check: every frame's field stars were compared with their median position over the "
@@ -391,9 +393,18 @@ class _RegistrationCheck:
             + (f" and {c_topup} of {n_topup} J/H/Ks top-up frame(s)" if n_topup else "")
             + " checked"
             + (f" (kept: median {float(np.median(kept)):.2f} px, max {max(kept):.2f} px)" if kept else "")
-            + f"; the others had fewer than {MIN_STARS} field stars measurable to {MAX_ERROR_PX:g} px "
-            "(e.g. around a saturated target) and were kept unchecked."
         )
+        if unchecked and not self.errors:
+            text += (
+                f"; the other {unchecked} had fewer than {MIN_STARS} field stars measurable to {MAX_ERROR_PX:g} px "
+                "(e.g. around a saturated target) or too few frames for a consensus, and were kept unchecked"
+            )
+        text += "."
+        if self.errors:
+            text += (
+                f" The check failed in {len(self.errors)} pass(es) ({self.errors[0]}); the {unchecked} frame(s) "
+                "it could not judge were kept unchecked."
+            )
         if self.inconsistent:
             text += (
                 " In at least one pass the check would have rejected over a third of the checked frames; its "
@@ -423,7 +434,12 @@ def _drop_misregistered(
     """
     from .imaging import register
 
-    report = register.registrations(frames)
+    try:
+        report = register.registrations(frames)
+    except Exception as e:  # a safety check: if it cannot run (e.g. memory on a huge job), keep the frames unchecked
+        log.warning("Registration check failed on %d frame(s): %r", len(frames), e)
+        check.errors.append(f"{type(e).__name__}: {e}"[:200])
+        report = register.Report({p.frame_id: None for p in frames})
     check.inconsistent = check.inconsistent or report.inconsistent
     bad = report.misregistered()
     out = []

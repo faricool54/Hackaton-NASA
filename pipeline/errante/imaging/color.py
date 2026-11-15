@@ -110,7 +110,9 @@ class Channel:
 
     @property
     def wavelength_um(self) -> float | None:
-        return float(np.mean(self.wavelengths)) if self.wavelengths else None
+        # Clipped to [min, max]: the mean of identical floats can round one step past them, which the contract rejects.
+        w = self.wavelengths
+        return float(min(max(np.mean(w), min(w)), max(w))) if w else None
 
     @property
     def wavelength_min_um(self) -> float | None:

@@ -117,6 +117,14 @@ def test_channel_metadata_has_mean_min_max_wavelength_and_mjd_range():
     assert comp.mjd_min == pytest.approx(S0) and comp.mjd_max == pytest.approx(S0 + 2)
 
 
+def test_channel_mean_wavelength_stays_within_its_range_despite_rounding():
+    # np.mean([0.7] * 3) == 0.6999999999999998 < 0.7: the contract would reject the channel (mean outside [min, max])
+    final = [gf(f"x{i}", 1, S0 + i, 0.7) for i in range(3)] + season_frames(S0, dets=(3, 6))
+    blue = by_id(plan_composites(final, pool=final))["detectors_S0"].channels[2]
+    assert blue.wavelength_min_um <= blue.wavelength_um <= blue.wavelength_max_um
+    assert blue.wavelength_um == 0.7
+
+
 # --- mode "jhk" (option B, 2MASS-like) -------------------------------------------------------------------------
 
 

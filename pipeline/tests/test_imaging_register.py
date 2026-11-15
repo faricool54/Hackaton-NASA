@@ -192,6 +192,21 @@ def test_build_keeps_every_frame_when_registration_is_consistent(monkeypatch, tm
     assert len(field.frames) == 4
     check = note(field, "Registration check: ")
     assert "4 of 4 blink candidate frame(s) checked" in check and "Rejected" not in check
+    assert "unchecked" not in check  # every frame was checked: no reason for unchecked ones
+
+
+def test_a_registration_check_that_crashes_keeps_the_frames_and_says_so(monkeypatch, tmp_path):
+    install_archive(monkeypatch, [sky_frame(f"good{i}", 60900.0 + i, seed=i) for i in range(4)])
+
+    def boom(frames):
+        raise MemoryError("too many frames")
+
+    monkeypatch.setattr(register, "registrations", boom)
+    field = build_field(cfg(4), tmp_path)
+    assert len(field.frames) == 4  # the field is still published with every frame
+    check = note(field, "Registration check: ")
+    assert "0 of 4 blink candidate frame(s) checked" in check
+    assert "failed in 1 pass(es) (MemoryError: too many frames)" in check and "4 frame(s)" in check
 
 
 def test_a_misregistered_jhk_topup_frame_stays_out_of_the_composites(monkeypatch, tmp_path):
