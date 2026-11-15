@@ -24,7 +24,7 @@ Implementación y validación de esta etapa: [PR #6](https://github.com/faricool
 - ✅ Runner `python scripts/dev.py build-fields`, staging/validación/rollback, contenedor y workflow Pages
   preparados. ✅ Los cinco campos se reconstruyeron con WS1/WS2 reales; URL pública y hosting siguen pendientes.
 - ✅ Motor y POST/GET de jobs implementados; correcciones de CORS, destino, publicación, admisión y recuperación
-  con regresiones. Contrato 0.3.0 (#32), backend (#33) y conexión WS5 en PRs dependientes separados.
+  con regresiones. Contrato 0.3.0 (#32), backend (#33) y conexión WS5 (#34) integrados.
 
 ## Tareas
 
@@ -54,7 +54,7 @@ Implementación y validación de esta etapa: [PR #6](https://github.com/faricool
   concurrencia y tiempos. Caché por todos los parámetros y releases/versiones. Estados: en curso, listo,
   sin cobertura y fallo; errores parciales explícitos. *Acepta:* entrada no precargada abre una secuencia real.
   POST `/api/jobs` y GET `/api/jobs/{id}` consumen contrato 0.3.0 (#32). Frontend conectado en PR
-  dependiente: formulario, mapa, nombre, polling y PNG reales; tres jobs de 40 frames probados en navegador.
+  #34 ya integrado: formulario, mapa, nombre, polling y PNG reales; tres jobs de 40 frames probados en navegador.
   Aceptación local; la URL pública sigue en WS4-4/6.
 - [ ] **WS4-6 (P0, R01) GitHub Pages / Vercel** para el frontend estático (con WS6): workflow que construye
   `frontend/` con `VITE_BASE` y publica.
@@ -80,15 +80,15 @@ Implementación y validación de esta etapa: [PR #6](https://github.com/faricool
 - [x] **WS4-11 (P1, R05/C04) Curvas de luz precalculadas: implementación del backend.** Índice y GET tipados,
   caché por contenido/ETag, CLI offline con hijo supervisado, publicación atómica y dos productos FITS reales
   (RW Aurigae y R Draconis). Conserva controles, exclusiones, errores y significancia/aliases; búsquedas
-  anteriores marcadas `partial/stale_search`. Propuesta de contrato 0.6.0 en #78 por pedido del usuario.
-  **Integración pendiente:** WS3/faricool54 revisa contrato e interpretación científica; WS5 agrega el panel.
-  Implementado en PR dependiente, todavía no disponible en `main`; no marca validación científica R05 completa.
+  anteriores marcadas `partial/stale_search`. Contrato 0.6.0 (#78) integrado por indicación explícita del usuario;
+  backend en #79. **Pendiente:** revisión científica independiente de WS3/faricool54 y panel de WS5.
+  El merge no marca validación científica R05 completa.
 
 - WS1: búsqueda/recortes/λ implementados; WS2: reproyección y épocas por temporada × detector implementadas.
 - WS4: CORS POST, productos servidos en el destino del motor, locks entre procesos y manifest atómico.
 - Jobs: admisión transaccional, resultados verificados, recuperación por huellas y logs/almacenamiento acotados.
 - Errores públicos sanitizados; los tests de backend no dependen de IRSA/JPL.
-- Espectros/comparaciones implementados con contrato, límites y procedencia; frontend en PR dependiente.
+- Espectros/comparaciones implementados con contrato, límites y procedencia; frontend integrado en #55.
   Hosting público pendiente de destino; fichas/3D físico y validación R05 tienen sus propios responsables.
 
 ## Prompt de arranque

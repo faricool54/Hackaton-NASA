@@ -21,7 +21,7 @@ el inventario de IA (coordinación): agregar claves a `ai-usage.json` rompe el e
 | `GET /api/object?name=` o `?ra=&dec=[&epoch_mjd&radius_arcsec]` | `ObjectContextResponse`: ficha de catálogo (C05, abajo) |
 | `POST /api/jobs`, `GET /api/jobs/{id}` | construcción por coordenadas |
 | `POST /api/spectra`, `POST /api/fields/{id}/comparisons` | espectros y comparaciones (0.4.0) |
-| `GET /api/lightcurves`, `GET /api/lightcurves/{target_id}` | offline light-curve index/product (proposed 0.6.0; WS3 review pending) |
+| `GET /api/lightcurves`, `GET /api/lightcurves/{target_id}` | offline light-curve index/product (0.6.0; independent WS3 review pending) |
 | `GET /data/...` | PNG y análisis publicados |
 
 ## Implementado en WS4
@@ -243,12 +243,13 @@ SPHEREx.** La ciencia está en WS3 (`errante.science.context.object_context` + `
   errores, parcial por plazo, cupo) y código real de WS3 re-leyendo offline las respuestas grabadas en
   `pipeline/tests/fixtures/ws3/context/` (Barnard por nombre, centro del campo eps Ind B, cielo vacío), sin red.
 
-## Precomputed light curves (R05/C04, proposed contract 0.6.0)
+## Precomputed light curves (R05/C04, contract 0.6.0)
 
-This implementation depends on the **draft [contract proposal #78](https://github.com/faricool54/Hackaton-NASA/pull/78)**,
-prepared at the user's request for **WS3 / faricool54**. WS3 must review units, relative-magnitude interpretation,
-comparison controls, period significance and completeness before integration. These routes are available on
-this branch; they are not yet part of `main`. No WS3 algorithm or threshold has been changed.
+The additive **[contract #78](https://github.com/faricool54/Hackaton-NASA/pull/78)** was prepared for
+**WS3 / faricool54** and integrated following the user's explicit merge instruction. Independent WS3 review
+of units, relative-magnitude interpretation, comparison controls, period significance and completeness
+remains pending. Integration does not certify that review or scientific R05 validation.
+No WS3 algorithm or threshold has been changed.
 
 `GET /api/lightcurves` lists target IDs, method, build date, point/usable counts, readiness and partial status.
 `GET /api/lightcurves/rw-aurigae` and `/api/lightcurves/r-draconis` return validated `LightCurveProduct` JSON.
@@ -311,7 +312,7 @@ not track proper motion/parallax, and wavelength and time vary together. These p
 acceptance of the WS4 adapter; independent scientific R05 validation remains with WS3. A significant grid
 sinusoid still needs comparison with independent observations/catalog periods.
 
-WS5 can consume the index and typed product to add the light-curve panel after WS3 approves the proposal;
+WS5 can consume the index and typed product to add the light-curve panel, coordinating interpretation with WS3;
 no frontend panel or static-site publication is included here. Static deployments may copy these JSON
 snapshots explicitly. Recalculation never runs in a public request.
 
