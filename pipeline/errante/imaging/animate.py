@@ -5,7 +5,8 @@
 Per field it writes, from ``fields/<id>/field.json`` and its PNGs only (no FITS, no network):
 
 - ``<id>_blink_D<n>.gif``: the published frames of ONE detector in time order, nearest-neighbour upscaled.
-  The detector is the thumbnail's (provenance note "thumb.png is a D<n> frame"), else the one with most frames.
+  The detector is the field's entry in ``FIELD_DETECTORS`` (WISE 0855: D5), else the thumbnail's (provenance
+  note "thumb.png is a D<n> frame"), else the one with most frames.
   For proper-motion targets a fixed crosshair marks the target position MEASURED in the first frame (a
   centroid of its display grey levels, not a catalog prediction), so the motion shows against it.
 - ``<id>_color_detectors.gif`` and ``<id>_color_jhk.gif``: the published false-color season composites.
@@ -49,8 +50,11 @@ COLOR_MS = 800
 COMPARE_MS = 800
 MAX_BYTES = 10 * 1024 * 1024
 MOTION_TAG = "proper-motion"
-# The target "stands out" when its core reaches the grey level the field's bright end (Stretch.vmax) maps to with
-# a highlight roll-off: the thumbnail rule's prominence >= 1 (build._write_thumbnail), seen in the PNG.
+# The crosshair is drawn only if the target stands out in the FIRST blink frame's PNG: its brightest valid pixel
+# within TARGET_RADIUS_PX of the centre reaches this grey level (217 = 85% of white). Under a highlight roll-off
+# that is Stretch.vmax, the field's shared bright end (the knee); under the plain asinh stretch it is ~63% of the
+# way from vmin to vmax. One frame, display grey levels only: NOT the thumbnail rule (build._write_thumbnail), which
+# takes the median S/N and median prominence (peak / bright end) over every frame of a detector, in MJy/sr.
 STANDOUT_GREY = round(HIGHLIGHT_KNEE * 255)
 CENTROID_RADIUS_PX = 3.0
 CENTROID_ITERATIONS = 5
@@ -59,6 +63,7 @@ WAVELENGTH_TOLERANCE_UM = 0.01  # fallback comparison pairs this close to the cl
 COMPARISON_PAIRS: dict[str, tuple[str, str]] = {"rw-aurigae": ("2025W36_1A_0233_3D1", "2026W37_1A_0234_3D1")}
 MODE_LABELS: dict[CompositeMode, str] = {"detectors": "full-range detectors", "jhk": "J/H/Ks-like"}
 THUMB_NOTE = re.compile(r"thumb\.png is a D([1-6]) frame")
+ROLLOFF_NOTE = re.compile(r"\bD([1-6]): white = vmax \+")  # build._display_note, one per detector with a roll-off
 MJD_EPOCH = datetime(1858, 11, 17, tzinfo=UTC)
 
 CROSSHAIR_NOTE = (
@@ -77,9 +82,35 @@ GIF_PALETTE_NOTE = (
     "Each GIF uses one 256-colour palette: grey frames stay within a few grey levels of the published PNGs, "
     "false-colour frames within a few tens of levels per channel at worst; use the PNGs for exact pixel values."
 )
-BLINK_WHAT = "IMAGE - ZODI, asinh stretch, same contrast for every frame of a detector"
+PLAIN_STRETCH = "asinh stretch"
+ROLLOFF_STRETCH = "asinh stretch, highlights compressed above vmax"  # a detector listed with "white = vmax + X"
+SAME_CONTRAST = "same contrast for every frame of a detector"
 COLOR_WHAT = "season composites of IMAGE - ZODI"
 SYNTHETIC_NOTE = "SYNTHETIC DATA: simulated frames for development, not SPHEREx observations."
+
+
+@dataclass(frozen=True)
+class DetectorDefault:
+    """A field's blink detector, ahead of the thumbnail rule; why; and caption lines for a blink of it."""
+
+    detector: int
+    reason: str
+    notes: tuple[str, ...]
+
+
+FIELD_DETECTORS: dict[str, DetectorDefault] = {
+    # docs/validation/wise-0855.md: the Y dwarf is seen only in D5/D6 and the centre holds a background star in
+    # D1-D4 (where the thumbnail fell back to D1). Per-exposure S/N at its position: 0.8-6.9 over the 12 D5/D6
+    # frames of the build analysed there (median 2.1), median 3.6-3.8 over every D5/D6 exposure.
+    "wise-0855": DetectorDefault(
+        5,
+        "where the Y dwarf emits; D1-D4 show a background star at the centre",
+        (
+            "D5: wavelengths where the Y dwarf emits; at D1-D4 the field centre shows a background star instead.",
+            "The target is faint: about 2-5 sigma in a single published frame, so it is hard to see in any one frame.",
+        ),
+    ),
+}
 
 
 class AnimationError(RuntimeError):
@@ -127,17 +158,27 @@ class FieldContext:
     def motion(self) -> bool:
         return MOTION_TAG in self.field.tags
 
+    @property
+    def detector_notes(self) -> tuple[str, ...]:
+        """The field's ``FIELD_DETECTORS`` caption lines, when the blink shows that detector."""
+        default = FIELD_DETECTORS.get(self.field.id)
+        return default.notes if default is not None and default.detector == self.detector else ()
+
 
 # --- selection and measurement -----------------------------------------------------------------------------
 
 
 def choose_detector(field: SkyField, override: int | None = None) -> tuple[int, str]:
-    """(detector, reason): ``override``, else the thumbnail's detector, else the detector with most frames."""
+    """(detector, reason): ``override``, else the field's ``FIELD_DETECTORS`` entry (if it has frames there), else
+    the thumbnail's detector, else the detector with most frames."""
     counts = Counter(f.detector for f in field.frames)
     if override is not None:
         if not counts[override]:
             raise ValueError(f"{field.id}: no published D{override} frame")
         return override, "chosen by hand"
+    default = FIELD_DETECTORS.get(field.id)
+    if default is not None and counts[default.detector]:
+        return default.detector, default.reason
     for note in field.provenance.notes:
         match = THUMB_NOTE.search(note)
         if match and counts[int(match.group(1))]:
@@ -258,6 +299,21 @@ def _title(field: SkyField, what: str) -> str:
     return plain(f"{prefix}{field.name} · {what}")
 
 
+def rolloff_detectors(field: SkyField) -> frozenset[int]:
+    """Detectors whose PNGs have a highlight roll-off, from the field's display note ("D<n>: white = vmax + X")."""
+    return frozenset(int(m.group(1)) for note in field.provenance.notes for m in ROLLOFF_NOTE.finditer(note))
+
+
+def frames_what(field: SkyField, detectors: Sequence[int]) -> str:
+    """What the single-detector frames of ``detectors`` show, with each one's stretch (roll-off or plain asinh)."""
+    rolled = rolloff_detectors(field)
+    stretch = {d: ROLLOFF_STRETCH if d in rolled else PLAIN_STRETCH for d in sorted(set(detectors))}
+    if len(set(stretch.values())) == 1:
+        return f"IMAGE - ZODI, {next(iter(stretch.values()))}, {SAME_CONTRAST}"
+    per_detector = "; ".join(f"D{d}: {s}" for d, s in stretch.items())
+    return f"IMAGE - ZODI ({per_detector}), {SAME_CONTRAST}"
+
+
 def _data_lines(field: SkyField, what: str) -> tuple[str, ...]:
     if field.provenance.synthetic:
         return (SYNTHETIC_NOTE,)
@@ -265,10 +321,11 @@ def _data_lines(field: SkyField, what: str) -> tuple[str, ...]:
     return (f"Render of real SPHEREx data ({what}); north up, east left; {scale}.", annotate.CREDIT)
 
 
-def _motion_lines(ctx: FieldContext) -> tuple[str, ...]:
+def _target_lines(ctx: FieldContext) -> tuple[str, ...]:
+    """Caption lines about the target in the blink: the field's detector notes, then the crosshair legend."""
     if not ctx.motion:
-        return ()
-    return (CROSSHAIR_NOTE,) if ctx.position is not None else (NO_CROSSHAIR_NOTE,)
+        return ctx.detector_notes
+    return (*ctx.detector_notes, CROSSHAIR_NOTE if ctx.position is not None else NO_CROSSHAIR_NOTE)
 
 
 def _frame_line(frame: Frame, digits: int = 2) -> str:
@@ -330,10 +387,10 @@ def render_blink(ctx: FieldContext, out: Path) -> Output:
     panels, nodata = zip(*(_panel(ctx, f, SCALE) for f in ctx.frames), strict=True)
     title = _title(ctx.field, f"SPHEREx detector D{ctx.detector}")
     legend = (
-        *_motion_lines(ctx),
+        *_target_lines(ctx),
         WAVELENGTH_NOTE,
         *((CHECKER_NOTE,) if any(nodata) else ()),
-        *_data_lines(ctx.field, BLINK_WHAT),
+        *_data_lines(ctx.field, frames_what(ctx.field, [ctx.detector])),
     )
     n = len(ctx.frames)
     lines = [plain(f"{_frame_line(f)} · frame {i}/{n}") for i, f in enumerate(ctx.frames, 1)]
@@ -378,7 +435,7 @@ def render_comparison(ctx: FieldContext, out: Path) -> list[Output]:
         "Same detector, same contrast and nearly the same wavelength: compare the star at the field centre.",
         TICKS_NOTE,
         *((CHECKER_NOTE,) if any(nd for _, nd in loaded) else ()),
-        *_data_lines(ctx.field, BLINK_WHAT),
+        *_data_lines(ctx.field, frames_what(ctx.field, [det])),
     )
     width = loaded[0][0].width
     labelled = [
@@ -413,7 +470,7 @@ def _section(heading: str, tiles: Sequence[Image.Image], width: int) -> Image.Im
     return annotate.stack([bar, *rows], SHEET_GAP // 2)
 
 
-def _sheet_sections(ctx: FieldContext) -> list[tuple[str, list[Image.Image]]]:
+def _sheet_sections(ctx: FieldContext, pair: tuple[Frame, Frame] | None) -> list[tuple[str, list[Image.Image]]]:
     blink = [_tile(_panel(ctx, f, SHEET_SCALE)[0], (_date(f.date_obs), _wl(f.wavelength_um))) for f in ctx.frames]
     sections = [(f"Blink frames · SPHEREx detector D{ctx.detector} ({ctx.reason}) · time order", blink)]
     for mode, label in MODE_LABELS.items():
@@ -428,7 +485,6 @@ def _sheet_sections(ctx: FieldContext) -> list[tuple[str, list[Image.Image]]]:
         if tiles:
             channels = ", ".join(_channel_text(ch) for ch in comps[0].channels)
             sections.append((f"False color (infrared) · {label} · season S{comps[0].season}: {channels}", tiles))
-    pair = comparison_pair(ctx.field, ctx.field_dir)
     if pair is not None:
         tiles = [
             _tile(_panel(ctx, f, SHEET_SCALE, False)[0], (_date(f.date_obs), _wl(f.wavelength_um, 3))) for f in pair
@@ -438,7 +494,9 @@ def _sheet_sections(ctx: FieldContext) -> list[tuple[str, list[Image.Image]]]:
 
 
 def render_contact_sheet(ctx: FieldContext, out: Path) -> Output:
-    sections = _sheet_sections(ctx)
+    pair = comparison_pair(ctx.field, ctx.field_dir)
+    sections = _sheet_sections(ctx, pair)
+    detectors = [ctx.detector, *(f.detector for f in pair or ())]
     tile_w = ctx.field.grid.width_px * SHEET_SCALE
     columns = min(SHEET_COLUMNS, max(len(tiles) for _, tiles in sections))
     width = columns * tile_w + (columns - 1) * SHEET_GAP
@@ -450,11 +508,11 @@ def render_contact_sheet(ctx: FieldContext, out: Path) -> Output:
     footer = Caption(
         _title(ctx.field, "SPHEREx contact sheet"),
         (
-            *_motion_lines(ctx),
-            *((TICKS_NOTE,) if ctx.field.id in COMPARISON_PAIRS else ()),
+            *_target_lines(ctx),
+            *((TICKS_NOTE,) if pair is not None else ()),
             FALSE_COLOR_NOTE,
             *((CHECKER_NOTE,) if nodata else ()),
-            *_data_lines(ctx.field, BLINK_WHAT + "; color = " + COLOR_WHAT),
+            *_data_lines(ctx.field, f"{frames_what(ctx.field, detectors)}; color = {COLOR_WHAT}"),
         ),
     )
     body = annotate.stack([*blocks, annotate.caption_bar(footer, width)], SHEET_GAP)
@@ -484,12 +542,21 @@ def published_field_ids(products: Path) -> list[str]:
 
 
 def write_manifest(out: Path, outputs: Sequence[Output]) -> Path:
-    """``animations.json``: entries of the files just written replace older ones, other entries are kept."""
+    """``animations.json``: every field in ``outputs`` is listed with exactly its new files.
+
+    Older entries of those fields are dropped (e.g. a blink of another detector: its file is left on disk but no
+    longer listed). Entries of other fields are kept while their file still exists in ``out``.
+    """
     path = Path(out) / "animations.json"
+    fields = {o.field_id for o in outputs}
     fresh = {o.path.name for o in outputs}
     kept: list[dict[str, object]] = []
     if path.exists():
-        kept = [e for e in json.loads(path.read_text(encoding="utf-8"))["outputs"] if e["file"] not in fresh]
+        kept = [
+            e
+            for e in json.loads(path.read_text(encoding="utf-8"))["outputs"]
+            if e.get("field_id") not in fields and e["file"] not in fresh and (path.parent / str(e["file"])).is_file()
+        ]
     doc = {
         "note": "Renders of published Errante field products: real SPHEREx data unless a caption says SYNTHETIC DATA.",
         "palette_note": GIF_PALETTE_NOTE,

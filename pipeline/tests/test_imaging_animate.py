@@ -87,8 +87,12 @@ def write_product(
     thumb_detector: int | None = 5,
     tags: tuple[str, ...] = ("proper-motion",),
     skip: tuple[str, ...] = (),
+    rolloff: tuple[int, ...] = (),
 ) -> Path:
-    """A tiny published product: 10 frames over 3 seasons, 2 detector composites and 1 J/H/Ks composite."""
+    """A tiny published product: 10 frames over 3 seasons, 2 detector composites and 1 J/H/Ks composite.
+
+    ``rolloff``: detectors the display note lists with a highlight roll-off, as build._display_note words it.
+    """
     fdir = root / "fields" / field_id
     (fdir / "frames").mkdir(parents=True)
     (fdir / "color").mkdir()
@@ -108,7 +112,11 @@ def write_product(
     for c in comps:
         rgb = np.dstack([_star(CENTRE, CENTRE, 200), _star(CENTRE, CENTRE, 150), _star(CENTRE, CENTRE, 100)])
         Image.fromarray(rgb).save(fdir / c.image)
-    note = "Pixel values are IMAGE - ZODI." + (f" thumb.png is a D{thumb_detector} frame." if thumb_detector else "")
+    note = "Pixel values are IMAGE - ZODI."
+    if rolloff:
+        whites = "; ".join(f"D{d}: white = vmax + 3.5 MJy/sr" for d in rolloff)
+        note += f" Highlight roll-off where the target at the centre outshines the field's bright end ({whites})."
+    note += f" thumb.png is a D{thumb_detector} frame." if thumb_detector else ""
     field = SkyField(
         id=field_id,
         name="Test Star−1",
@@ -373,11 +381,91 @@ def test_cli_reports_an_unknown_field(tmp_path, capsys):
     assert "nope" in capsys.readouterr().err
 
 
-def test_manifest_keeps_entries_of_files_not_rewritten(tmp_path):
+def _manifest_files(out: Path) -> list[str]:
+    return [e["file"] for e in json.loads((out / "animations.json").read_text(encoding="utf-8"))["outputs"]]
+
+
+def test_regenerated_field_drops_its_old_manifest_entries(tmp_path):
     root = write_product(tmp_path / "products")
+    write_product(root, field_id="other-star", tags=("variable",))
     out = tmp_path / "out"
     assert animate.main(["--products", str(root), "--out", str(out)]) == 0
     assert animate.main(["--products", str(root), "--out", str(out), "--field", "test-mover", "--detector", "2"]) == 0
-    files = [e["file"] for e in json.loads((out / "animations.json").read_text(encoding="utf-8"))["outputs"]]
-    assert "test-mover_blink_D5.gif" in files and "test-mover_blink_D2.gif" in files
+    files = _manifest_files(out)
+    assert "test-mover_blink_D2.gif" in files and "test-mover_blink_D5.gif" not in files  # not rewritten: dropped
+    assert "other-star_blink_D5.gif" in files and "other-star_contact_sheet.png" in files  # other field: kept
     assert len(files) == len(set(files))
+    assert len([f for f in files if f.startswith("test-mover_")]) == 4  # exactly this run's outputs
+
+
+def test_manifest_drops_entries_of_other_fields_whose_file_is_gone(tmp_path):
+    root = write_product(tmp_path / "products")
+    write_product(root, field_id="other-star", tags=("variable",))
+    out = tmp_path / "out"
+    assert animate.main(["--products", str(root), "--out", str(out)]) == 0
+    (out / "other-star_color_jhk.gif").unlink()
+    assert animate.main(["--products", str(root), "--out", str(out), "--field", "test-mover"]) == 0
+    files = _manifest_files(out)
+    assert "other-star_color_jhk.gif" not in files and "other-star_blink_D5.gif" in files
+
+
+# --- stretch wording and per-field detector ----------------------------------------------------------------
+
+
+def test_rolloff_detector_is_captioned_as_compressed_highlights(tmp_path):
+    root = write_product(tmp_path / "products", rolloff=(2, 5))
+    assert animate.rolloff_detectors(_field(root)) == {2, 5}
+    blink = next(o for o in animate.animate_field(root, "test-mover", tmp_path / "out") if o.kind == "blink")
+    assert "asinh stretch, highlights compressed above vmax, same contrast" in _gif_comment(blink.path)
+
+
+def test_plain_stretch_caption_without_a_rolloff(tmp_path):
+    root = write_product(tmp_path / "products", rolloff=(2,))
+    blink = next(o for o in animate.animate_field(root, "test-mover", tmp_path / "out") if o.kind == "blink")
+    text = _gif_comment(blink.path)
+    assert "IMAGE - ZODI, asinh stretch, same contrast" in text and "highlights compressed" not in text
+
+
+def test_comparison_and_sheet_name_the_stretch_of_each_detector(tmp_path, monkeypatch):
+    monkeypatch.setitem(animate.COMPARISON_PAIRS, "test-var", ("2025W01_1A_0008_1D1", "2026W05_1A_0010_1D1"))
+    root = write_product(tmp_path / "products", field_id="test-var", tags=("variable",), rolloff=(1,))
+    outs = {o.kind: o for o in animate.animate_field(root, "test-var", tmp_path / "out")}
+    assert "IMAGE - ZODI, asinh stretch, highlights compressed above vmax" in _png_description(
+        outs["comparison_png"].path
+    )
+    assert "highlights compressed above vmax" in _gif_comment(outs["comparison_gif"].path)
+    assert "highlights compressed" not in _gif_comment(outs["blink"].path)  # D5: plain
+    sheet = _png_description(outs["contact_sheet"].path)
+    assert "(D1: asinh stretch, highlights compressed above vmax; D5: asinh stretch)" in sheet
+
+
+def test_field_default_detector_comes_before_the_thumbnail(tmp_path, monkeypatch):
+    default = animate.DetectorDefault(2, "where the target emits", ("The target is faint in D2.",))
+    monkeypatch.setitem(animate.FIELD_DETECTORS, "test-mover", default)
+    root = write_product(tmp_path / "products")
+    assert animate.choose_detector(_field(root)) == (2, "where the target emits")
+    assert animate.choose_detector(_field(root), override=5) == (5, "chosen by hand")
+    outs = {o.kind: o for o in animate.animate_field(root, "test-mover", tmp_path / "out")}
+    assert outs["blink"].path.name == "test-mover_blink_D2.gif"
+    assert "The target is faint in D2." in _gif_comment(outs["blink"].path)
+    sheet = _png_description(outs["contact_sheet"].path)
+    assert "where the target emits" in sheet and "The target is faint in D2." in sheet
+
+
+def test_field_default_notes_only_caption_a_blink_of_that_detector(tmp_path, monkeypatch):
+    default = animate.DetectorDefault(2, "where the target emits", ("The target is faint in D2.",))
+    monkeypatch.setitem(animate.FIELD_DETECTORS, "test-mover", default)
+    root = write_product(tmp_path / "products")
+    blink = next(o for o in animate.animate_field(root, "test-mover", tmp_path / "out", 5) if o.kind == "blink")
+    assert "faint in D2" not in _gif_comment(blink.path)
+
+
+def test_field_default_without_frames_falls_back_to_the_thumbnail(tmp_path, monkeypatch):
+    monkeypatch.setitem(animate.FIELD_DETECTORS, "test-mover", animate.DetectorDefault(4, "x", ()))
+    assert animate.choose_detector(_field(write_product(tmp_path))) == (5, "thumbnail detector")
+
+
+def test_wise_0855_blinks_in_d5_and_says_it_is_faint():
+    default = animate.FIELD_DETECTORS["wise-0855"]
+    assert default.detector == 5
+    assert any("2-5 sigma" in line and "single published frame" in line for line in default.notes)
