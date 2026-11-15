@@ -112,6 +112,13 @@ describe('variabilityText', () => {
     );
   });
 
+  it('keeps a millimag-level catalog amplitude (VSX BY Dra 0.02 mag) instead of rounding it to 0', () => {
+    expect(variabilityText(v({ kind: 'rotation', period_days: 130, amplitude_mag: 0.02, band: 'V' }))).toBe(
+      'rotation, every 130.0 days, 0.02 mag peak-to-peak in V band',
+    );
+    expect(variabilityText(v({ kind: 'eclipse', amplitude_mag: 0.0123 }))).toBe('eclipse, dims by up to 0.012 mag');
+  });
+
   it('omits missing band / amplitude and does not double "band"', () => {
     expect(variabilityText(v({ kind: 'irregular', amplitude_mag: 2 }))).toBe('irregular, dims by up to 2 mag');
     expect(variabilityText(v({ kind: 'pulsation', amplitude_mag: 1, band: 'V band' }))).toBe(
