@@ -12,9 +12,13 @@ entrega: [SUBMISSION_GUIDE.md](SUBMISSION_GUIDE.md) y [submission/CHECKLIST.md](
 **Reloj (ART, UTC-3):** freeze **17:00** · envío interno **21:00** · cierre del portal **23:59** (sede UP Buenos
 Aires). Después del freeze solo entran textos, deploy y entrega. Save Progress no es envío.
 
-**En curso ahora (no dupliquen):** la rama `integ/object-card` (otro workflow, todavía sin PR) conecta la ficha del
-objeto al panel del click. Ya tiene commiteados el contrato `ObjectContextResponse` (schema 0.5.0, `eaac7e4`) y el
-adaptador de WS3 `to_response` (`bb60f57`). Faltan `GET /api/object` (WS4) y `ObjectCard` (WS5).
+**En curso ahora (no dupliquen):** la rama `integ/object-card` (otro workflow de faricool54 + Claude) conecta la
+ficha del objeto al panel del click. Al 15/11 03:40 ART tiene commiteadas las cuatro piezas: contrato
+`ObjectContextResponse` (schema 0.5.0, `eaac7e4`, documentado en CONTRACT.md en `17a234f`), adaptador de WS3
+`to_response` (`bb60f57`), `GET /api/object` (WS4, `36298c7`) y `ObjectCard` en «Explore a position» (WS5,
+`d6a4551`). **Existe solo en una máquina:** no está en `origin` ni tiene PR, así que nadie más la ve todavía. Nadie
+tiene que escribir el endpoint ni la ficha: lo que falta es pushearla, abrir el PR y que **rpccp (WS4) revise**
+`backend/` y quien tome WS5 revise `frontend/` (todos los commits son de faricool54).
 
 ## 1. Estado en una mirada
 
@@ -30,7 +34,7 @@ Leyenda: **hecho** · **parcial** · **falta** · **en curso**.
 | Cinco campos reales curados (40 frames cada uno) sin backend | hecho | `?mode=static&dataset=real`. `data/products` pesa 2,4 MB | #17, #41 | V0id47 |
 | Espectro de un punto (cubo DR1 o fotometría forzada L2) | parcial | Panel plegado y manual. L2 mide una posición fija, sin movimiento propio (`backend/errante_api/science_ops.py:184`) | #31, #42, #45, #53, #54, #55 | V0id47, faricool54, rpccp |
 | Comparación de temporadas (medias ponderadas y restas escaladas) | hecho con API | Sin backend no se ve (`frontend/src/components/FieldComparisons.tsx:37`). Los campos no traen comparaciones precomputadas | #19, #37, #69, #53-#55 | V0id47, rpccp |
-| Ficha del objeto: SIMBAD, Gaia DR3, VSX, planetas confirmados, 2MASS/AllWISE, como Facts con fuente | en curso | Backend WS3 y CLI `errante object` en main. Integración en `integ/object-card` | #58 | faricool54 (WS3); WS4 y WS5 en la rama |
+| Ficha del objeto: SIMBAD, Gaia DR3, VSX, planetas confirmados, 2MASS/AllWISE, como Facts con fuente | en curso | Backend WS3 y CLI `errante object` en main. Contrato, endpoint y tarjeta commiteados en `integ/object-card`, sin push ni PR | #58 | faricool54 (WS3, y en la rama también contrato, WS4 y WS5); revisan rpccp (WS4) y WS5 |
 | Curva de luz de R Dra y RW Aur | parcial | Solo pipeline y CLI (`errante lightcurve`). Sin API ni UI | #59 | faricool54 |
 | 3D de los cinco blancos | parcial | Procedural desde valores de catálogo verificados, reloj *Dataset time*, publicado en el dataset real. No sale de mediciones SPHEREx ni de `physical_parameters`. No hay 3D para un click arbitrario. Una fila «bloquea» abierta (§6) | #9, #47, #64; revisión #65 | DankoLiv (WS7 de facto), faricool54 |
 | Validación R05 de los cinco | hecho, con salvedades | Cinco registros `success`. Falta la revisión humana. Analizan el build de #17, no el de #41. Los scripts originales no están versionados. El paso 6 (URL pública) sigue pendiente | #36, #46, #62, #66, #70, #71 | faricool54 + Claude, V0id47 |
@@ -52,13 +56,13 @@ workstream en [TEAM.md](TEAM.md): reservalo antes de arrancar (§9). Citá el ID
 | V2 | Que el recorrido mapa → click → video se pueda probar en la URL pública | WS4 (rpccp) + WS6 | 1,5-4 h | D1, D2 | `.github/workflows/pages.yml:18`, `:38-39`; `frontend/src/api/client.ts:35-37`; `backend/Dockerfile:11-12` | falta |
 | V3 | Retícula y posición predicha del blanco sobre el video, y zoom pixelado. Barnard se corre ~1,7 px en todo el baseline ([registro](validation/barnards-star.md)): sin retícula no se ve. Rotular «predicted from catalog, not a measurement» | WS5 (sin dueño), con la matemática de WS7 | 3 h | D5 | `frontend/src/components/BlinkViewer.tsx:266` (TODO); `field.json` ya trae `grid.wcs`; predicción con paralaje en `frontend/src/three/skyTrack.ts`; movimientos propios en los comentarios de `pipeline/errante/config/fields.toml` (para un click arbitrario, de la ficha del objeto, V6); `known.json` está vacío en los cinco campos | falta |
 | V4 | Fila «bloquea» del 3D: la ficha de RW Aur cita como «SPHEREx measured» magnitudes D5/D6 de núcleos saturados | WS7 (de facto DankoLiv, #47) | 0,25 h | — | `frontend/src/three/astro.ts:1150-1151`; texto listo en [SCIENCE.md](SCIENCE.md) (fila de `astro.ts:1150-1151`) | falta |
-| V5 | Cerrar R05: revisión humana de los cinco registros (E7) y párrafos del chequeo de productos publicados de #70 en cada registro (A8) | coordinación (faricool54) + una persona que revise | 2 h | — | [`validation/`](validation/) | falta |
+| V5 | Cerrar R05: revisión humana de los cinco registros (E7) y párrafos del chequeo de productos publicados de #70 en cada registro (A8) | coordinación (sin reserva; registros de faricool54) + una persona que revise | 2 h | — | [`validation/`](validation/) | falta |
 
 ### P1
 
 | ID | Tarea | Dueño | Esfuerzo | Depende de | Dónde | Estado |
 |---|---|---|---|---|---|---|
-| V6 | Ficha del objeto en el panel del click. Si un servicio externo se cae, no puede bloquear el video | PR `contract:` + WS4 + WS5, con datos de WS3 | 3 h | contrato 0.5.0 | rama `integ/object-card` | en curso |
+| V6 | Ficha del objeto en el panel del click. Si un servicio externo se cae, no puede bloquear el video. Contrato, adaptador, `GET /api/object` y `ObjectCard` ya están escritos (§ «En curso ahora»); falta push, PR, revisión de rpccp (WS4) en `backend/` y de WS5 en `frontend/`, CI y merge | faricool54 + Claude (escribió las cuatro piezas); revisan rpccp (WS4) y WS5 | ~1 h restante (PR, revisión, merge) | contrato 0.5.0 | rama local `integ/object-card` (`eaac7e4`…`9458c84`; no está en `origin`) | commiteado, sin push ni PR |
 | V7 | Panel del click con tres vistas (Tiempo / Espectro / 3D). Abrir el panel al hacer click y lanzar el espectro del cubo (rápido) solo | WS5 (sin dueño) | 2 h | V6 | `frontend/src/components/SkyExplorer.tsx:168-171`; `PositionSpectrum.tsx:46` (`<details>` cerrado) y `:72` | falta |
 | V8 | Calidad por frame (C07): `valid_fraction` y origen del frame en el blink. Un flag ausente no es «limpio». Las fracciones de flags necesitan contrato | WS5 (WS5-10) + WS2 (WS2-11) + contrato (WS4-10) | 1,5 h solo UI; 5 h con flags | contrato, para los flags | `BlinkViewer.tsx:179-180`; `pipeline/errante/models.py:97` | falta |
 | V9 | Espectro L2 con movimiento propio: `pm_ra`/`pm_dec`/época opcionales en `SpectrumRequest`, pasados a la fotometría. El pipeline ya lo sabe hacer (`photometry.propagate`, CLI `errante spectrum --pm-ra --pm-dec`, y `position_spectrum` de WS3); falta el contrato y la API | contrato + WS4 + WS3 | 2 h | V6 (pm del objeto) | `models.py:511`; `backend/errante_api/science_ops.py:184`; `pipeline/errante/imaging/photometry.py:319`; `pipeline/errante/science/spectra.py:380` | falta |
@@ -116,7 +120,7 @@ Todo esto es P0: sin ello no hay envío válido. Detalle de cada regla en [SUBMI
 | A5 | Registro de IA: `AI_USAGE.md` y `docs/submission/ai-usage.json` (hoy `"tool": "OpenAI Codex"` y `real_spherex_observations: false`). Falta Claude en WS1, WS2, WS3 y WS7. Faltan metadatos para `pipeline/errante/data` (WS1), `science` (WS3) y `systems` + `frontend/src/three` (WS7) | coordinación + cada WS | 1,5 h | E6 | `docs/submission/ai-usage.json:6`, `:41`, `:51` |
 | A6 | Inventario de fuentes, créditos y licencias (S06/S07): bloque A3 de SCIENCE.md más Aladin Lite 3.8.2 (GPL-3), three, scipy/photutils/reproject/astroquery/pyvo y httpx/psutil. Separar recursos consultados de procesados | WS6 + WS3 | 1,5 h | — | `docs/submission/PROJECT.md:106-111` (herramientas) y `:132-163` (datos y referencias) |
 | A7 | Las 12 filas «importante» de WS6 y coordinación (README, AI_USAGE, PROJECT, PITCH, JUDGING_REVIEW, CHECKLIST) | WS6 / coordinación | 1,5 h | — | §6 |
-| A8 | Llevar a cada registro el párrafo del chequeo de productos publicados de #70 y su «límite común». Hoy ningún registro cita `productcheck` | coordinación (faricool54) | 1 h | — | cuerpo de #70; [`validation/`](validation/) |
+| A8 | Llevar a cada registro el párrafo del chequeo de productos publicados de #70 y su «límite común». Hoy ningún registro cita `productcheck` | coordinación (sin reserva; registros de faricool54) | 1 h | — | cuerpo de #70; [`validation/`](validation/) |
 | A9 | Paso 6 de VALIDATION.md en la URL final para los cinco, anotado en cada registro. Probar todos los links en incógnito y en celular | WS6 + WS5 | 1 h | V2 | [VALIDATION.md](VALIDATION.md) paso 6 |
 | A10 | Onboarding en ≤ 3 pasos (WS5-2) y responsive/accesible con Lighthouse medido sobre la URL pública (WS5-3). No afirmar ≥ 90 sin medir | WS5 (sin dueño) | 3 h + 3 h | V2 | `tasks/WS5-frontend.md:32`, `:34` |
 | A11 | CHECKLIST.md (R05: «registro hecho; revisión humana y paso 6 pendientes») y JUDGING_REVIEW.md con evidencia, sin notas oficiales | WS6 + WS3 + WS5 | 1,5 h | A3 | `docs/submission/CHECKLIST.md:79-85`; `docs/submission/JUDGING_REVIEW.md:14-22` |
@@ -149,7 +153,7 @@ Todo esto es P0: sin ello no hay envío válido. Detalle de cada regla en [SUBMI
 | El build de Pages usa `demo` (sintético) por defecto (`pages.yml:39`) | El público vería datos sintéticos | D2 | WS4 |
 | El contenedor solo copia `data/demo` (`backend/Dockerfile:11`); `data/products` queda vacío y no hay snapshots de búsqueda | Un backend desplegado no sirve los cinco campos ni sobrevive a una caída de IRSA | A12 | WS4 |
 | Repo privado | El link al código no cumple el acceso anónimo (S03) | D1 | equipo |
-| Con jobs y sin `ERRANTE_DATA_DIR`, la API publica en `data/products` (versionado, de WS2): `backend/errante_api/settings.py:52-55` | Archivos ajenos ensuciados por accidente | Usar una copia (§7); nunca commitear esos archivos | todos |
+| Sin `ERRANTE_DATA_DIR`, la API (con o sin jobs) escribe en `data/products` (versionado, de WS2): lo elige apenas tiene campos reales, y hoy tiene cinco (`backend/errante_api/settings.py:54`). Jobs → `fields/` y `manifest.json`; comparaciones de temporadas («Build comparisons») → `analyses/<id>` (`backend/errante_api/science_service.py:187`), que `.gitignore` no ignora (solo `data/products/**/*.fits`, `.gitignore:22`) | Archivos ajenos ensuciados por accidente, también con un simple `python scripts/dev.py api` sin jobs | Siempre `ERRANTE_DATA_DIR` apuntando a una copia (§7), con o sin jobs; nunca commitear esos archivos | todos |
 | Espectro L2 en posición fija: apertura de 2 px (`pipeline/errante/imaging/photometry.py:36`) y Barnard se corre ~1,7 px | Flujo subestimado en las épocas extremas | V9; mientras tanto la nota de `science_ops.py:184` lo advierte | contrato + WS4 + WS3 |
 | Barnard, RW Aur y R Dra saturan; ninguna pantalla lo avisa (revisión de textos) | Un juez puede leer mal el blink | Filas de WS5 en §6; en la demo usar las figuras de los registros | WS5 |
 | RW Aur A/B invertido en el contexto del objeto | La ficha mostraría el nombre equivocado | V15 | WS3 |
@@ -194,8 +198,8 @@ python scripts/dev.py setup-science    # reproject, photutils, astroquery…: ne
 **Solo estático** (sin backend): `python scripts/dev.py web` y abrir
 `http://localhost:5173/?mode=static&dataset=real#/` (cinco campos reales y 3D).
 
-**Recorrido completo** (mapa → click → job → video, espectro y comparaciones). La API con jobs publica en su carpeta
-de datos: apuntala a una **copia** de `data/products` con ruta absoluta, nunca a `data/products` (§5).
+**Recorrido completo** (mapa → click → job → video, espectro y comparaciones). La API publica en su carpeta de datos,
+con o sin jobs: apuntala a una **copia** de `data/products` con ruta absoluta, nunca a `data/products` (§5).
 
 ```bash
 # bash (macOS/Linux/Git Bash)
@@ -239,7 +243,7 @@ Cada dueño actualiza **su** archivo de `tasks/` (nadie marca casillas ajenas). 
 | `tasks/WS3-science.md:19` | ⛔ `spectra.*` | Implementado en #59, salvo `color_class` (`spectra.py:571`) | WS3 |
 | `tasks/WS3-science.md` (falta) | — | No lista V15 (RW Aur A/B), V16 (`fields.toml`) ni V18 (temperatura desde el espectro) | WS3 |
 | `tasks/WS4-backend.md:27`, `:56-57`, `:84` | Conexión WS5 y frontend «en PR dependiente» | #34 y #55 mergeados | WS4 |
-| `tasks/WS4-backend.md` (falta) | — | No lista `GET /api/object` (V6), curva de luz (V10), Dockerfile (A12) ni pm en espectros (V9) | WS4 |
+| `tasks/WS4-backend.md` (falta) | — | No lista la revisión de `GET /api/object` (V6, ya escrito en `integ/object-card`), curva de luz (V10), Dockerfile (A12) ni pm en espectros (V9) | WS4 |
 | `tasks/WS5-frontend.md:24` | Pendiente «validación científica R05» | Registros en #36 y #46 | WS5 |
 | `tasks/WS5-frontend.md:55-58` | WS5-11: la URL propuesta no está implementada | Implementada en #34; falta solo el iframe (V19) | WS5 |
 | `tasks/WS5-frontend.md:160`, `:178` | Orden de integración #32→#33 y #39→#53→… | Todo mergeado | WS5 |
