@@ -120,9 +120,9 @@ Las respuestas científicas exigen `synthetic: false`; un campo sintético se re
 422 = selección/posición inválida, 413 = exceso, 503 = cupo/disco, 502/504 = fallo/deadline.
 Sin cobertura o cero puntos utilizables sigue siendo un resultado explícito, nunca una detección inventada.
 
-Contrato, backend y UI son PRs dependientes: #53 → #54 → #55 (WS5 ciencia); #39 ya está en main.
-El contrato requiere revisión afectada; se incorporó el merge de composites sin modificar su rama. Tras cada squash traer main,
-check/push y retargetear el siguiente PR. `compare.json` interno de WS2 no se consume directamente en UI.
+Contrato, backend y UI se integraron en main en orden #53 → #54 → #55, después de la caché #52.
+Se conservaron composites y modos de color #39/#40/#41 sin modificar sus ramas. Para futuras pilas, tras
+cada squash traer main, check/push y retargetear el siguiente PR. `compare.json` interno de WS2 no se consume directamente en UI.
 
 ## Extensiones aún sin contrato publicado
 

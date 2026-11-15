@@ -63,8 +63,8 @@ ampliar también la validación de sus PNG antes de declararlos listos. El front
 integrarse encima de #34 para conservar precarga, errores y los atajos acotados al visor.
 
 - WS4-4/6: destino/URL pública y prueba desde el origen final. Hosting aún no definido; no se contrató nada.
-- WS4-8/9/10 (extras): implementados contrato/API/UI científica en PRs dependientes descritos abajo;
-  falta revisión/integración. No consumir `compare.json` provisional como contrato estable.
+- WS4-8/9/10 (extras): contrato/API/UI científica integrados en main (#53/#54/#55), con caché #52.
+  La interpretación científica sigue con WS3. No consumir `compare.json` provisional como contrato estable.
 - WS3 + WS1/2: validación científica de los cinco blancos (movimiento/variabilidad, controles y errores),
   espectros comparables y fuentes Gaia. Un preset o imagen visible no reemplaza esas mediciones.
 - WS7: migrar galería ilustrativa a modelo físico con datos/incertidumbre; no inventar superficie/planetas.
@@ -77,7 +77,7 @@ pendientes. Ver PARALLEL_PLAN.md y tasks/WS4-backend.md.
 
 - #52: revisión `display-mask-v4` + huella de código/dependencias; cambio de máscara/render WS2 invalida
   jobs previos. Pedidos conservan contexto; un pendiente de otra revisión no publica bajo clave vieja.
-- #53: contrato **0.4.0**, preservando composites **0.3.1** #39 (ya mergeado). Requiere revisión coordinada con WS3;
+- #53: contrato **0.4.0** integrado, preservando composites **0.3.1** #39;
   no se modificó la rama del compañero. Schema, Pydantic, tipos TS y tests de validación juntos.
 - #54: POST `/api/spectra` y `/api/fields/{id}/comparisons`; WS1 cube/point + WS2 photometry/compare.
   Un proceso científico supervisado por instancia, 140 s/512 MiB/log 1 MiB, trabajo idéntico compartido,
@@ -97,5 +97,7 @@ procedencia cruzada, PNG corrupto regenerado, singleflight/cancelación, errores
 deadline/disco. `scripts/dev.py check` verifica ownership, schema/lint, tests Python/TS y build.
 Las pruebas no sustituyen los ensayos científicos R05 ni mediciones físicas para WS7.
 
-Revisión/integración: #52 por separado; luego #53 → #54 → #55 (WS5 ciencia) → #56 este registro. #39 ya está en main. Tras cada
-squash, merge de main/check/push/retarget del siguiente PR. Uso local no requiere hosting contratado.
+Integración completada en main: #52 → #53 → #54 → #55, con este registro en #56, por pedido explícito del
+equipo. Después de cada squash se incorporó main, se ejecutó check y se actualizó la base del siguiente PR;
+se preservaron #39/#40/#41, incluidos los nuevos campos reales y modos de color. Los PRs se integraron con
+CI verde; no se mergearon PRs ajenos. Uso local no requiere hosting contratado.
