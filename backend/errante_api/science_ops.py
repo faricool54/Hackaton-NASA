@@ -22,7 +22,20 @@ def finite(value):
 
 
 def spectrum(request: SpectrumRequest, field: SkyField | None = None) -> SpectrumResponse:
-    return cube_spectrum(request) if request.source == "dr1_cube" else exposure_spectrum(request, field)
+    from errante.science.spectra import interpret_measurements, interpretation_notes
+
+    response = cube_spectrum(request) if request.source == "dr1_cube" else exposure_spectrum(request, field)
+    response.notes.extend(
+        interpretation_notes(
+            interpret_measurements(
+                response.points,
+                unit=response.unit,
+                background_subtracted=response.background_subtracted,
+                static_coadd=response.static_coadd,
+            )
+        )
+    )
+    return response
 
 
 def cube_spectrum(request: SpectrumRequest) -> SpectrumResponse:

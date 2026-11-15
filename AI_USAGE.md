@@ -37,6 +37,29 @@ Claude Code (Anthropic) assisted team member faricool54 (workstream WS1) with:
   - The figures are plots drawn by code the agents wrote from real SPHEREx data, not generated images.
   - Human review of these records is pending.
 
+## Claude Code assistance in WS1 and WS3 (November 15, 2026)
+
+Claude Code (Anthropic, Claude Opus 5.5) kept assisting team member faricool54, who took WS3 (science) on
+November 15 in addition to WS1. Every pull request below was directed and merged by faricool54. The reviews named
+in them were run by AI agents in Claude Code (review and adversarial-verification subagents), not by people.
+
+- **WS1 (data access):** cube spectra (#42), committed search snapshots (#43), point series of S3 stamps (#45, #50,
+  #61, #92), deploy facts and fixtures (#49), DATA.md facts (#44, #67, #105). Machine-readable record:
+  [pipeline/errante/data/ai-usage.json](pipeline/errante/data/ai-usage.json).
+- **WS3 (science):** object context for a click or a name (#58, #74, #101), position spectra and light curves
+  (#59, #93, #106), scientific reviews of texts, the 3D and the light curves (#60, #65, #85), field texts (#87).
+  Machine-readable record: [pipeline/errante/science/ai-usage.json](pipeline/errante/science/ai-usage.json).
+  rpccp's conditional spectral temperatures (#102, OpenAI Codex) have their own record,
+  [pipeline/errante/science/continuum-ai-usage.json](pipeline/errante/science/continuum-ai-usage.json).
+- **Work in other workstreams' files, with notice:** the object-card contract (#73), API (#76) and card (#75); the
+  black-map fix (#86); the light-curve panel (#97); republished light curves (#94); field descriptions (#88).
+  Each component's owner should add these to their component record.
+- **Coordination:** validation records and their addenda (#36, #46, #62, #66, #104), the live status guide (#77,
+  #89).
+- Light curves, spectra and validation figures are measurements made by code on real SPHEREx FITS files. No AI image,
+  video or audio model output is used, and no NASA branding was generated.
+- Human line-by-line review of this work and the human sign-off of the five validation records are still pending.
+
 ## Origin of the product vision (November 14, 2026)
 
 Team member faricool54 stated the product vision recorded in [docs/VISION.md](docs/VISION.md):
@@ -112,3 +135,15 @@ The implementation calls existing WS1/WS2 extraction and photometry/comparison m
 generating sky data. Live integration checked Barnard cube/season comparisons and RW Aurigae exposure
 photometry; saturated/invalid measurements were retained and excluded from usable plots. These are
 technical acceptance checks, not R05 validation. No AI image-model output, video or audio was generated.
+
+
+## Conditional spectral interpretation (November 15, 2026)
+
+Codex assisted with the user-requested WS3 V18 colour-temperature/IR-colour diagnostics and the remaining
+LC24 scatter summary, building on Farid's earlier science work. The independent WS3 review by
+faricool54 with Claude Code requested conservative uncertainty floors and additional quality/coverage
+rejection; those follow-ups were implemented before API integration. The component record is
+[pipeline/errante/science/continuum-ai-usage.json](pipeline/errante/science/continuum-ai-usage.json).
+The native FITS fixture is observed photometry, not generated sky imagery. Algorithm tests, review by
+agents and browser checks do not constitute human R05 approval or a calibrated stellar Teff measurement.
+Farid's RW Aur identity correction (#101) and LC24 follow-up (#106) retain their own authorship.

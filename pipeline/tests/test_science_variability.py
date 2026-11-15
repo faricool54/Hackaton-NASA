@@ -682,3 +682,30 @@ def test_light_curves_still_validate_against_the_contract():
     sat = as_contract(light_curve_from_exposures(saturated_in_one_season(), RA0, DEC0, method="aperture"))
     assert any(n.startswith("Saturated exposures by season") for n in sat.notes)
     assert any(n.startswith("Comparison-star matched-pair scatter") for n in sat.notes)
+
+
+def _two_per_bin(exps, method):
+    """The same exposures reduced to the first and last of each wavelength bin (two-exposure bins only)."""
+    full = light_curve_from_exposures(exps, RA0, DEC0, method=method)
+    keep = set()
+    for b in full.bins:
+        pts = sorted((p for p in full.points if p.bin == b.index), key=lambda p: p.mjd)
+        keep |= {pts[0].frame_id, pts[-1].frame_id}
+    return [e for e in exps if e.frame_id in keep]
+
+
+def test_two_exposure_bins_note_and_control_follow_lc24():
+    """LC24 follow-up (#102 review): the control uses the same >= 3-point rule as the summary, and the pair-floor
+    advice is only given for aperture photometry with comparison stars (wing pairs have their own floor)."""
+    exps = _two_per_bin(season_exposures(), "aperture")
+    lc = light_curve_from_exposures(exps, RA0, DEC0, method="aperture")
+    assert {b.n_points for b in lc.bins} == {2} and lc.comparisons
+    note = next(n for n in lc.notes if "two-exposure" in n)
+    assert "comparison-star control uses the same rule" in note and "aperture-pair noise floor" in note
+    assert lc.summary[1]["n"] == 0 and lc.control[1]["n"] == 0 and lc.summary[1]["scatter_over_control"] is None
+    alone = light_curve_from_exposures(exps, RA0, DEC0, method="aperture", n_comparison=0)
+    assert "aperture-pair noise floor" not in next(n for n in alone.notes if "two-exposure" in n)
+    wing = light_curve_from_exposures(_two_per_bin(wing_exposures(WING_COMPS), "wing"), RA0, DEC0, method="wing")
+    note = next(n for n in wing.notes if "two-exposure" in n)
+    assert "aperture-pair noise floor" not in note
+    assert any("NOT the floor of the target's wing pairs" in n for n in wing.notes)
