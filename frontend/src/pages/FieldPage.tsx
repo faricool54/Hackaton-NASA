@@ -7,6 +7,8 @@ import { CandidateList } from '../components/CandidateList';
 import { CandidatePanel } from '../components/CandidatePanel';
 import { SkyMap } from '../components/SkyMap';
 import { SyntheticBadge } from '../components/SyntheticBadge';
+import { FieldComparisons } from '../components/FieldComparisons';
+import { PositionSpectrum } from '../components/PositionSpectrum';
 
 export function FieldPage({ fieldId, embedded = false }: { fieldId: string; embedded?: boolean }) {
   const [field, setField] = useState<Field | null>(null);
@@ -97,7 +99,7 @@ export function FieldPage({ fieldId, embedded = false }: { fieldId: string; embe
           {candidates.length > 0 ? <CandidateList candidates={candidates} selectedId={selectedId} onSelect={setSelectedId} /> :
             <p className="muted">No candidate measurements provided. This is not a negative detection result.</p>}
           {field.provenance.notes.map((note, index) => <p className="small muted" key={index}>{note}</p>)}
-          <p className="small muted">Spectra and physical 3D models require measured fluxes and catalog constraints; they are not inferred from this video.</p>
+          <p className="small muted">Spectra below are extracted independently from FITS; a physical 3D model still requires measured constraints.</p>
           {selected && <CandidatePanel candidate={selected} />}
           <p className="legend small">
             <span className="dot known" /> known object <span className="dot unconfirmed" /> unconfirmed{' '}
@@ -105,6 +107,8 @@ export function FieldPage({ fieldId, embedded = false }: { fieldId: string; embe
           </p>
         </aside>
       </div>
+      {!field.provenance.synthetic && !embedded && <PositionSpectrum position={field.center} fieldId={field.id} />}
+      <FieldComparisons field={field} />
     </Container>
   );
 }
