@@ -538,8 +538,10 @@ def cmd_object(args: argparse.Namespace) -> int:
         _say("Context photometry from OTHER missions (Vega mag; not SPHEREx):")
         for m in ctx.photometry:
             lim = " (upper limit)" if m.upper_limit else ""
+            who = ", IDENTITY UNCERTAIN" if m.identity_uncertain else ""
             _say(
-                f"  {m.mission:<6} {m.band:<3} {m.wavelength_um:>6.3f} um  {m.mag}{lim}  [{m.designation}, q={m.quality}]"
+                f"  {m.mission:<6} {m.band:<3} {m.wavelength_um:>6.3f} um  {m.mag}{lim}  "
+                f"[{m.designation}, q={m.quality}{who}]"
             )
     for w in ctx.warnings:
         _say(f"WARNING: {w}")

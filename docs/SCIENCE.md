@@ -169,6 +169,38 @@ Ojo: diferencias de brillo entre exposiciones pueden venir de distinta longitud 
 o efectos instrumentales. Comparar brillos a longitud de onda compatible y con errores/calibración controlados;
 mismo detector no basta. Para RW Aurigae y R Draconis usar fotometría del FITS, no el brillo de PNGs autoescalados.
 
+### 3.1 Contexto de catálogo de un punto o un nombre (WS3-10, C05)
+
+`errante.science.context.object_context` / `errante object`: quién es el objeto y qué midieron **otros**
+catálogos (nada de esto es SPHEREx). Respuestas crudas grabadas en `pipeline/tests/fixtures/ws3/context/`.
+Verificado en vivo el 2026-11-15 (✅ consultas reales; los números salen de esas respuestas):
+
+- ✅ Servicios: Sesame en CfA (SIMBAD), TAP del archivo Gaia de ESA (`gaia_source`, `astrophysical_parameters`,
+  `external.gaiaedr3_distance`, `vari_long_period_variable`), VizieR CfA (VSX `B/vsx/vsx`, 2MASS `II/246/out`,
+  AllWISE `II/328/allwise`, respaldo Gaia `I/355/gaiadr3`), NASA Exoplanet Archive `pscomppars` con caja
+  ra/dec (sin `CONTAINS`).
+- ✅ Gaia se cruza **después** de propagar cada candidato de 2016.0 a la época SPHEREx (Barnard está a ~100″
+  de su posición 2016). En un click, si dentro del radio hay una fuente ≥ 2,5 mag más brillante en G que la más
+  cercana, se adopta esa (domina el píxel de 6,15″: a 5,5″ de R Dra, G = 6,4, la más cercana es una G = 19,4).
+- ✅ Identificación incierta (varias fuentes parecidas en el radio, o la adoptada a más de medio radio del click)
+  ⇒ nada que dependa de la identidad queda `verified`: valores Gaia, SIMBAD alcanzado por el id Gaia, VSX cruzado
+  por posición y magnitudes 2MASS/AllWISE (`identity_uncertain`). Por nombre, SIMBAD es el objeto pedido.
+- ✅ Extragalácticos: 3C 273 (SIMBAD `BLL`, DSC quasar 0,85, paralaje −0,016 ± 0,021 mas) recibía Teff GSP-Phot
+  9880 K y distancia Bailer-Jones 17119 pc "verificadas". Ahora, si SIMBAD lo tipa como galaxia/AGN/QSO (códigos
+  de la tabla `otypedef` de SIMBAD, TAP CfA) no se muestran parámetros estelares; con DSC ≥ 0,5 o tipo candidato
+  se muestran sin verificar y con advertencia.
+- ✅ Distancia: Bailer-Jones solo si S/N de paralaje ≥ 1, y `verified` solo si ≥ 5; por debajo de 1 sería solo el
+  prior galáctico (núcleo de M87: −1,47 ± 0,43 mas daba 5941 pc) y no se muestra.
+- ✅ ESP-UCD da incertidumbre: ε Ind B `teff_espucd` 1417 ± 98 K (`teff_espucd_uncertainty`).
+- ✅ Un servicio que no responde se informa como "could not be reached … not a negative result", nunca como "no
+  catalogado". VizieR CfA devuelve a veces un RESOURCE vacío (sin `#Table`) para conos con filas: se reintenta y
+  no se cachea; los tests de red reintentan y se saltean si el servicio sigue sin responder.
+- ✅ El WAF (Cloudflare) del Exoplanet Archive responde 403 a `where 1=1 and …`; cerca de los polos se usa
+  `ra >= 0`. Las posiciones de `pscomppars` son de época Gaia (ε Ind A a 2,4″ de su posición DR3 2016.0): la
+  separación a un anfitrión vecino se da en 2016.0 (ε Ind A–B ≈ 404″).
+- Límite: el respaldo VizieR (`I/355/gaiadr3`) no se consulta por probabilidades DSC ni trae FLAME/Bailer-Jones/
+  LPV; si la ESA no responde, solo protegen el tipo SIMBAD y el S/N de paralaje.
+
 ## 4. Encuadre honesto (para UI, pitch y entrega)
 
 - "Planeta X es nuestra motivación científica, no un resultado prometido."

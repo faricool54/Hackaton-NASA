@@ -4,23 +4,31 @@ What the panel shows next to the SPHEREx video and spectrum: who the object is a
 about it. Every value carries its catalog, URL and retrieval time; nothing is filled from memory. SPHEREx itself
 does not measure distances, radii or masses: those come from Gaia DR3 (ESA) and are labelled as such.
 
-Sources (all verified live on 2026-11-15, see ``docs/SCIENCE.md`` and the fixtures in
+Sources (all verified live on 2026-11-15, see ``docs/SCIENCE.md`` §3.1 and the fixtures in
 ``pipeline/tests/fixtures/ws3/context/``):
 
 - **Sesame at CfA** (``-oxpI`` XML): SIMBAD main id, object type, spectral type, J2000 position, proper motion,
   parallax, RV and identifiers (the Gaia DR3 cross-id among them). CDS Strasbourg is degraded: only the CfA mirror
   is used. Gotcha: ``GJ 699`` resolves only through "VizieR (local)" to an old position 8.6' from Barnard's Star,
   with no proper motion: such answers are flagged.
-- **Gaia DR3 at the ESA archive TAP**: ``gaiadr3.gaia_source`` (astrometry, photometry, RUWE),
-  ``gaiadr3.astrophysical_parameters`` (GSP-Phot Teff, FLAME radius/luminosity/mass), ``external.gaiaedr3_distance``
-  (Bailer-Jones et al. 2021) and ``gaiadr3.vari_long_period_variable``. Candidates are matched AFTER propagating
-  each one from its 2016.0 position to the requested epoch: high proper-motion stars are up to ~100" away from
-  their 2016 position at SPHEREx epochs. Fallback: VizieR CfA ``I/355/gaiadr3`` (astrometry, GSP-Phot only).
+- **Gaia DR3 at the ESA archive TAP**: ``gaiadr3.gaia_source`` (astrometry, photometry, RUWE, DSC quasar/galaxy
+  probabilities), ``gaiadr3.astrophysical_parameters`` (GSP-Phot Teff, ESP-UCD Teff +/- its uncertainty, FLAME
+  radius/luminosity/mass), ``external.gaiaedr3_distance`` (Bailer-Jones et al. 2021) and
+  ``gaiadr3.vari_long_period_variable``. Candidates are matched AFTER propagating each one from its 2016.0 position
+  to the requested epoch: high proper-motion stars are up to ~100" away from their 2016 position at SPHEREx epochs.
+  On a click, a source >= 2.5 mag brighter than the nearest one inside the radius is adopted (it dominates the
+  SPHEREx pixel). Fallback: VizieR CfA ``I/355/gaiadr3`` (astrometry, GSP-Phot only).
 - **AAVSO VSX** (VizieR CfA ``B/vsx/vsx``): variability type, range and period.
 - **NASA Exoplanet Archive** ``pscomppars`` (confirmed planets only; one composite row per planet), matched by Gaia
   DR3 id, then host name, then position. A planet of a neighbour (eps Ind A b next to eps Ind B) is never attached.
 - **2MASS** (``II/246/out``) and **AllWISE** (``II/328/allwise``) magnitudes via VizieR CfA: context photometry of
   OTHER missions, never shown as SPHEREx.
+
+Honesty rules of :func:`derive_parameters`: an ambiguous or distant match leaves every identity-dependent value
+(Gaia, SIMBAD reached through the Gaia id, VSX matched by position, 2MASS/AllWISE) unverified; objects SIMBAD types
+as extragalactic get no stellar parameters; a Bailer-Jones distance with parallax S/N < 1 is not shown (it would be
+the Galactic prior) and is unverified below S/N 5; a service that did not answer is reported as unreachable, never
+as 'not catalogued'.
 
 Responses are cached as raw text under ``CACHE_DIR/context`` (TTL ``ERRANTE_CONTEXT_CACHE_TTL_S``); an expired
 entry is still served, flagged ``stale``, when the service fails. ``offline=True`` only replays the cache (tests).
@@ -84,7 +92,20 @@ PLANET_NEIGHBOUR_ARCSEC = 600.0
 RUWE_WARN = 1.4
 GSPSPEC_DISAGREE_K = 500.0
 # A neighbour inside the radius makes a positional match ambiguous unless it is this much fainter in G (x10 flux).
+# On a click, a source this much BRIGHTER than the nearest one dominates the SPHEREx pixel and is adopted instead.
 AMBIGUITY_DMAG = 2.5
+# Parallax S/N: from PLX_SNR_MEASURED a distance counts as measured (verified); below PLX_SNR_MIN a Bailer-Jones
+# distance is essentially its Galactic prior and is not shown.
+PLX_SNR_MEASURED = 5.0
+PLX_SNR_MIN = 1.0
+# Gaia DR3 DSC-Combmod probability from which a source is flagged as a likely quasar or galaxy (caveat, not hidden).
+DSC_EXTRAGALACTIC_PROB = 0.5
+# SIMBAD object types under G (galaxies, AGN, QSO), ClG, GrG, PaG, IG, PCG, SCG and lensed galaxies/quasars, read
+# from SIMBAD's otypedef table (TAP, CfA mirror, 2026-11-15). Sesame returns these codes (3C 273 'BLL', M87 'AGN').
+EXTRAGALACTIC_OTYPES = frozenset(
+    "G GiC BiC GiG GiP H2G EmG SBG bCG LSB AGN QSO Bla BLL LIN rG SyG Sy1 Sy2 ClG GrG CGG PaG IG PCG SCG LeG LeQ".split()
+)
+EXTRAGALACTIC_CANDIDATE_OTYPES = frozenset("G? AG? Q? Bz? BL? C?G Gr? PCG? SC?".split())
 
 # Nominal band centres [um] (2MASS isophotal; WISE band names). Context only.
 TWOMASS_BANDS = (("J", "Jmag", "e_Jmag", 1.235), ("H", "Hmag", "e_Hmag", 1.662), ("Ks", "Kmag", "e_Kmag", 2.159))
@@ -362,6 +383,7 @@ class GaiaSource:
     teff_gspphot_upper: float | None = None
     teff_gspspec: float | None = None
     teff_espucd: float | None = None
+    teff_espucd_uncertainty: float | None = None
     radius_flame: float | None = None
     radius_flame_lower: float | None = None
     radius_flame_upper: float | None = None
@@ -386,6 +408,9 @@ class GaiaSource:
     lpv_frequency: float | None = None  # 1/d
     lpv_frequency_error: float | None = None
     lpv_amplitude: float | None = None  # G mag
+    # gaiadr3.gaia_source DSC-Combmod class probabilities (3C 273: quasar 0.85; M87 core: galaxy 0.999)
+    classprob_dsc_combmod_quasar: float | None = None
+    classprob_dsc_combmod_galaxy: float | None = None
     details_from: str | None = None  # where the astrophysical parameters came from (None = not retrieved)
 
     @property
@@ -396,7 +421,8 @@ class GaiaSource:
 @dataclass
 class GaiaMatch:
     catalog: str
-    method: str | None  # simbad_crossid | nearest_after_propagation | None (no match)
+    # simbad_crossid | nearest_after_propagation | brightest_within_radius (click: dominates the pixel) | None
+    method: str | None
     source: GaiaSource | None
     radius_arcsec: float
     n_within_radius: int = 0
@@ -458,6 +484,8 @@ class CatalogMagnitude:
     upper_limit: bool = False  # True: the source is fainter than `mag`
     epoch_mjd: float | None = None
     sep_arcsec: float | None = None
+    # matched along an ambiguous or distant Gaia identification: may belong to a neighbouring source
+    identity_uncertain: bool = False
 
 
 @dataclass
@@ -513,6 +541,8 @@ class ObjectContext:
     sesame: SesameInfo | None = None
     sesame_gaia_sep_arcsec: float | None = None
     gaia: GaiaMatch | None = None
+    # the Gaia match is ambiguous or distant: identity-dependent values are not verified (see warnings)
+    identity_uncertain: bool = False
     variability: VariableStar | None = None
     planets: list[Planet] = field(default_factory=list)
     nearby_planet_hosts: list[dict] = field(default_factory=list)
@@ -677,11 +707,12 @@ _GAIA_COLUMNS = (
 )
 _AP_COLUMNS = (
     "teff_gspphot", "teff_gspphot_lower", "teff_gspphot_upper", "teff_gspspec", "teff_espucd",
-    "radius_flame", "radius_flame_lower", "radius_flame_upper", "lum_flame", "lum_flame_lower", "lum_flame_upper",
+    "teff_espucd_uncertainty", "radius_flame", "radius_flame_lower", "radius_flame_upper", "lum_flame", "lum_flame_lower", "lum_flame_upper",
     "mass_flame", "mass_flame_lower", "mass_flame_upper", "flags_flame",
     "distance_gspphot", "distance_gspphot_lower", "distance_gspphot_upper",
 )  # fmt: skip
 _BJ_COLUMNS = ("r_med_geo", "r_lo_geo", "r_hi_geo", "r_med_photogeo", "r_lo_photogeo", "r_hi_photogeo")
+_DSC_COLUMNS = ("classprob_dsc_combmod_quasar", "classprob_dsc_combmod_galaxy")
 
 
 def _cone_radii(radius_arcsec: float, epoch_mjd: float) -> tuple[float, float]:
@@ -732,8 +763,10 @@ def gaia_by_id_esa(http: _Http, source_id: int):
 
 
 def gaia_details_esa(http: _Http, source: GaiaSource) -> Provenance:
-    """Fill astrophysical parameters, Bailer-Jones distances and the LPV period of ONE source (in place)."""
-    cols = ", ".join([f"ap.{c}" for c in _AP_COLUMNS] + [f"d.{c}" for c in _BJ_COLUMNS])
+    """Fill astrophysical parameters, Bailer-Jones distances, DSC class and the LPV period of ONE source (in place)."""
+    cols = ", ".join(
+        [f"ap.{c}" for c in _AP_COLUMNS] + [f"d.{c}" for c in _BJ_COLUMNS] + [f"g.{c}" for c in _DSC_COLUMNS]
+    )
     q = f"""SELECT g.source_id, {cols}, lpv.frequency, lpv.frequency_error, lpv.amplitude
         FROM gaiadr3.gaia_source AS g
         LEFT OUTER JOIN gaiadr3.astrophysical_parameters AS ap ON ap.source_id = g.source_id
@@ -747,7 +780,7 @@ def gaia_details_esa(http: _Http, source: GaiaSource) -> Provenance:
     if not rows:
         return _prov(reply, GAIA_ESA_DETAILS, "no_match")
     row = rows[0]
-    for c in _AP_COLUMNS + _BJ_COLUMNS:
+    for c in _AP_COLUMNS + _BJ_COLUMNS + _DSC_COLUMNS:
         setattr(source, c, _str(row.get(c)) if c == "flags_flame" else _num(row.get(c)))
     source.lpv_frequency = _num(row.get("frequency"))
     source.lpv_frequency_error = _num(row.get("frequency_error"))
@@ -844,6 +877,10 @@ def _pm_agrees(g: GaiaSource, expected: tuple[float, float]) -> bool:
         return math.hypot(*expected) < PM_AGREEMENT_MASYR  # a 2-parameter source can only be a slow one
     tol = max(PM_AGREEMENT_MASYR, PM_AGREEMENT_FRACTION * math.hypot(*expected))
     return math.hypot(g.pmra - expected[0], g.pmdec - expected[1]) <= tol
+
+
+def _gmag(g: GaiaSource) -> float:
+    return g.phot_g_mean_mag if g.phot_g_mean_mag is not None else math.inf
 
 
 def _candidate_summary(g: GaiaSource) -> dict:
@@ -1008,7 +1045,9 @@ _PLANET_COLUMNS = (
 def _ra_box(ra: float, half_ra: float) -> str:
     lo, hi = ra - half_ra, ra + half_ra
     if half_ra >= 180.0:
-        return "1=1"
+        # every RA (near a pole). Not a literal '1=1': the archive's Cloudflare WAF answers that with HTTP 403
+        # (seen on 2026-11-15), while 'ra >= 0' returns 200.
+        return "ra >= 0"
     if lo < 0:
         return f"(ra >= {lo + 360.0:.6f} OR ra <= {hi:.6f})"
     if hi >= 360.0:
@@ -1033,6 +1072,10 @@ def _planets(
     match_pos = (
         PLANET_POSITION_MATCH_ARCSEC if track.pm_ra is not None else max(PLANET_POSITION_MATCH_ARCSEC, radius_arcsec)
     )
+    # Neighbour hosts: separation at ONE epoch. pscomppars positions are Gaia-era (eps Ind A: 2.4" from its Gaia
+    # DR3 2016.0 position), so the object is taken at 2016.0; the minimum over the 2000-2016 track would mix epochs
+    # and shrink a common-proper-motion pair (eps Ind A-B: ~405", not ~344").
+    ra16, dec16 = track.at(GAIA_DR3_EPOCH_MJD)
     planets, others = [], {}
     for r in _read_csv(reply.text):
         rra, rdec = _num(r.get("ra")), _num(r.get("dec"))
@@ -1048,9 +1091,10 @@ def _planets(
         elif not rid and sep <= match_pos:  # a host with a different Gaia id is another star
             how = "position"
         if how is None:
-            if sep <= PLANET_NEIGHBOUR_ARCSEC:
+            sep16 = separation_arcsec(ra16, dec16, rra, rdec)
+            if sep16 <= PLANET_NEIGHBOUR_ARCSEC:
                 host = r.get("hostname", "")
-                entry = others.setdefault(host, {"hostname": host, "sep_arcsec": sep, "planets": []})
+                entry = others.setdefault(host, {"hostname": host, "sep_arcsec": sep16, "planets": []})
                 entry["planets"].append(r.get("pl_name"))
             continue
         planets.append(
@@ -1228,9 +1272,29 @@ def object_context(
                 f"{src.source_id}: check the identification."
             )
     if hosts:
-        listed = ", ".join(f'{h["hostname"]} (~{h["sep_arcsec"]:.0f}")' for h in hosts[:3])
+        listed = ", ".join(f'{h["hostname"]} (~{h["sep_arcsec"]:.0f}" at 2016.0)' for h in hosts[:3])
         warnings.append(f"Confirmed planet host(s) nearby but NOT this object: {listed}.")
+    ctx.identity_uncertain = bool(gaia is not None and (gaia.ambiguous or gaia.loose))
+    for m in ctx.photometry:
+        m.identity_uncertain = ctx.identity_uncertain
+    exgal, exgal_firm = _extragalactic(ctx, src)
+    if exgal is not None:
+        warnings.append(f"{exgal}: Gaia's stellar parameters {'are not shown' if exgal_firm else 'may not apply'}.")
+    # A service that did not answer is not a catalog negative: say so (Gaia failures are reported above).
+    for service, (label, what) in _SERVICE_WHAT.items():
+        failed = next((p for p in provenance if p.service == service and p.status == "error"), None)
+        if failed is not None:
+            warnings.append(f"{label} could not be reached ({failed.note}): {what} unknown, not a negative result.")
     return ctx
+
+
+_SERVICE_WHAT = {
+    "sesame": ("SIMBAD (Sesame CfA)", "SIMBAD identity and spectral type"),
+    "vsx": ("AAVSO VSX", "catalogued variability"),
+    "exoplanets": ("NASA Exoplanet Archive", "confirmed planets"),
+    "2mass": ("2MASS (VizieR CfA)", "2MASS photometry"),
+    "allwise": ("AllWISE (VizieR CfA)", "WISE photometry"),
+}
 
 
 def _gaia_match(
@@ -1290,6 +1354,22 @@ def _gaia_match(
     if chosen is None and accepted:
         chosen = accepted[0]
         match.method = "nearest_after_propagation"
+        dominant = min((g for g in accepted if g.phot_g_mean_mag is not None), key=_gmag, default=None)
+        if (
+            sesame is None
+            and dominant is not None
+            and chosen.phot_g_mean_mag is not None
+            and dominant.phot_g_mean_mag <= chosen.phot_g_mean_mag - AMBIGUITY_DMAG
+        ):
+            # A click: both sit in the same SPHEREx pixel (6.15") and the brighter one dominates what was clicked
+            # (5.5" from R Dra, G = 6.4, the nearest source is a G = 19.4 star at 1.7").
+            warnings.append(
+                f"Adopted Gaia DR3 {dominant.source_id} (G = {dominant.phot_g_mean_mag:.2f}, "
+                f'{dominant.sep_arcsec:.1f}" away), which dominates the SPHEREx pixel, instead of the nearest source '
+                f'Gaia DR3 {chosen.source_id} (G = {chosen.phot_g_mean_mag:.2f}, {chosen.sep_arcsec:.1f}" away).'
+            )
+            chosen = dominant
+            match.method = "brightest_within_radius"
     match.source = chosen
     # Neighbours that matter: inside the radius and not >= AMBIGUITY_DMAG fainter than the match (a G = 20.9 star
     # 2" from Barnard's Star, G = 8.2, does not make the click ambiguous; RW Aur A next to RW Aur B does).
@@ -1306,18 +1386,23 @@ def _gaia_match(
     ]
     if rivals:
         match.ambiguous = match.method != "simbad_crossid"
-        brighter = [
-            g
-            for g in rivals
-            if g.phot_g_mean_mag is not None
-            and chosen.phot_g_mean_mag is not None
-            and g.phot_g_mean_mag < chosen.phot_g_mean_mag
-        ]
+        brightest = min(
+            (
+                g
+                for g in rivals
+                if g.phot_g_mean_mag is not None
+                and chosen.phot_g_mean_mag is not None
+                and g.phot_g_mean_mag < chosen.phot_g_mean_mag
+            ),
+            key=_gmag,
+            default=None,
+        )
         text = (
             f'{len(rivals)} other Gaia DR3 source(s) of similar brightness within {radius_arcsec:.1f}" at the epoch'
             + (
-                f", including a BRIGHTER one (Gaia DR3 {brighter[0].source_id}, G = {brighter[0].phot_g_mean_mag:.2f})"
-                if brighter
+                f", including a BRIGHTER one (Gaia DR3 {brightest.source_id}, G = {brightest.phot_g_mean_mag:.2f}, "
+                f'{brightest.sep_arcsec:.1f}" away)'
+                if brightest is not None
                 else ""
             )
             + (": the identification is ambiguous." if match.ambiguous else "; SIMBAD's cross-id was used.")
@@ -1338,7 +1423,7 @@ def _gaia_match(
     ):
         match.loose = True
         warnings.append(
-            f'The nearest Gaia DR3 source is {chosen.sep_arcsec:.1f}" from the clicked position: it may not be the '
+            f'The adopted Gaia DR3 source is {chosen.sep_arcsec:.1f}" from the clicked position: it may not be the '
             "object you clicked (sources absent from Gaia, such as cold brown dwarfs, cannot be matched by position)."
         )
     if chosen is not None and chosen.ruwe is not None and chosen.ruwe > RUWE_WARN:
@@ -1378,15 +1463,61 @@ def _is_cool_dwarf(ctx: ObjectContext, teff: float | None) -> bool:
     return (teff is not None and teff < 4000.0) or bool(re.match(r"^(sd)?[MLTY]", sp))
 
 
+def _failed(ctx: ObjectContext, service: str) -> bool:
+    """True when that service did not answer (provenance status 'error'): a gap, never a catalog negative."""
+    return any(p.service == service and p.status == "error" for p in ctx.provenance)
+
+
+UNREACHABLE = "could not be reached (see provenance): unknown, not a negative result."
+
+
+def _plx_snr(g: GaiaSource | None) -> float | None:
+    if g is None or g.parallax is None or not g.parallax_error or g.parallax_error <= 0:
+        return None
+    return g.parallax / g.parallax_error
+
+
+def _extragalactic(ctx: ObjectContext, g: GaiaSource | None) -> tuple[str | None, bool]:
+    """(reason, firm). Firm = SIMBAD types it as a galaxy/AGN/QSO; a SIMBAD candidate type or Gaia's DSC is not."""
+    otype = (ctx.object_type or "").strip()
+    if otype in EXTRAGALACTIC_OTYPES:
+        return f"SIMBAD object type '{otype}' (extragalactic)", True
+    if otype in EXTRAGALACTIC_CANDIDATE_OTYPES:
+        return f"SIMBAD object type '{otype}' (extragalactic candidate)", False
+    if g is not None:
+        probs = [
+            (kind, p)
+            for kind, p in (("quasar", g.classprob_dsc_combmod_quasar), ("galaxy", g.classprob_dsc_combmod_galaxy))
+            if p is not None and p >= DSC_EXTRAGALACTIC_PROB
+        ]
+        if probs:
+            kind, p = max(probs, key=lambda kp: kp[1])
+            return f"Gaia DR3 DSC classifies it as a likely {kind} (probability {p:.2f})", False
+    return None, False
+
+
+def _names(ctx: ObjectContext) -> set[str]:
+    names = [ctx.query.get("name"), ctx.main_id, *(ctx.sesame.aliases if ctx.sesame else [])]
+    return {_norm_name(n) for n in names if n}
+
+
 def derive_parameters(ctx: ObjectContext) -> list[PhysicalParameter]:
-    """Teff, radius, luminosity, mass, distance, spectral type, variability type/period: measured or 'unknown'."""
+    """Teff, radius, luminosity, mass, distance, spectral type, variability type/period: measured or 'unknown'.
+
+    ``verified`` needs a secure identification: an ambiguous or distant Gaia match leaves Gaia values, SIMBAD values
+    found through that match and VSX entries matched by position unverified, with the reason in the caveats.
+    Stellar parameters are not shown for objects SIMBAD types as extragalactic, and a Bailer-Jones distance is not
+    shown when the parallax is not significant (it would be the Galactic prior). A service that did not answer is
+    reported as such, never as 'not catalogued'.
+    """
     g = _gaia_ok(ctx)
     amb = ctx.gaia is not None and (ctx.gaia.ambiguous or ctx.gaia.loose)
+    by_name = ctx.query.get("name") is not None
     common: list[str] = []
     if ctx.gaia is not None and ctx.gaia.ambiguous:
         common.append("Ambiguous Gaia match (several sources within the radius): not verified.")
     if ctx.gaia is not None and ctx.gaia.loose and g is not None:
-        common.append(f'Nearest Gaia source is {g.sep_arcsec:.1f}" from the click: identity not verified.')
+        common.append(f'Adopted Gaia source is {g.sep_arcsec:.1f}" from the click: identity not verified.')
     if g is not None and g.ruwe is not None and g.ruwe > RUWE_WARN:
         common.append(f"RUWE {g.ruwe:.2f} > {RUWE_WARN}: possibly an unresolved multiple system.")
     if g is not None and re.search(r"\+\s*(sd)?[OBAFGKMLTYW]", ctx.spectral_type or ""):  # 'T1V+T6V'; not 'M6+e'
@@ -1394,6 +1525,11 @@ def derive_parameters(ctx: ObjectContext) -> list[PhysicalParameter]:
             f"SIMBAD's spectral type ({ctx.spectral_type}) is composite: the Gaia value may describe a blend or "
             "a single component."
         )
+    exgal, exgal_firm = _extragalactic(ctx, g)
+    if exgal is not None and not exgal_firm:
+        common.append(f"{exgal}: Gaia's stellar parameters assume a star and may not apply.")
+    trusted = not amb and exgal is None  # Gaia-derived stellar values can be marked verified
+    ident_caveat = "Found through an ambiguous or distant Gaia match: may describe a neighbouring source."
 
     def gaia_src(table: str) -> str | None:
         if g is None:
@@ -1403,16 +1539,32 @@ def derive_parameters(ctx: ObjectContext) -> list[PhysicalParameter]:
         return f"Gaia DR3 {g.source_id}, {table} (ESA Gaia archive{_stamp(ctx, 'gaia-esa')})"
 
     ap_src = gaia_src("gaiadr3.astrophysical_parameters")
-    no_gaia = "No Gaia DR3 counterpart." if g is None else None
+    if ctx.gaia is None:
+        no_gaia = "Gaia DR3 (ESA archive and VizieR CfA) " + UNREACHABLE
+    elif g is None and ctx.sesame is not None and not ctx.sesame.is_simbad:
+        no_gaia = "No automatic Gaia DR3 identification (name not resolved by SIMBAD; candidates listed)."
+    elif g is None:
+        no_gaia = "No Gaia DR3 counterpart."
+    else:
+        no_gaia = None
+    no_details = "Gaia DR3 astrophysical parameters / distances " + UNREACHABLE
+    star_only = (
+        f"{exgal}: Gaia DR3 stellar parameters (GSP-Phot, FLAME) and Galactic-prior distances assume a Milky Way "
+        "star; not shown."
+        if exgal_firm
+        else None
+    )
     out: list[PhysicalParameter] = []
 
     # Teff
     teff = PhysicalParameter("teff", "Effective temperature", None, "K")
-    if g is not None and g.teff_gspphot is not None:
+    if star_only:
+        teff.method = star_only
+    elif g is not None and g.teff_gspphot is not None:
         teff.value, teff.lower, teff.upper = g.teff_gspphot, g.teff_gspphot_lower, g.teff_gspphot_upper
         teff.method = "GSP-Phot (BP/RP spectra + parallax), 16th-84th percentiles"
         teff.source = ap_src
-        teff.verified = not amb
+        teff.verified = trusted
         if _is_cool_dwarf(ctx, g.teff_gspphot):
             teff.caveats.append(
                 "GSP-Phot temperatures of M dwarfs and cooler objects are unreliable (see the Gaia DR3 "
@@ -1421,17 +1573,23 @@ def derive_parameters(ctx: ObjectContext) -> list[PhysicalParameter]:
         if g.teff_gspspec is not None and abs(g.teff_gspspec - g.teff_gspphot) > GSPSPEC_DISAGREE_K:
             teff.caveats.append(f"Gaia GSP-Spec gives {g.teff_gspspec:.0f} K: the two Gaia estimates disagree.")
     elif g is not None and g.teff_espucd is not None:
-        teff.value, teff.method, teff.source, teff.verified = (
-            g.teff_espucd,
-            "ESP-UCD (ultracool dwarfs, from the Gaia RP spectrum); no GSP-Phot value",
-            ap_src,
-            not amb,
-        )
-        teff.caveats.append("ESP-UCD gives no uncertainty interval here: indicative only.")
+        unc = g.teff_espucd_uncertainty
+        teff.value, teff.source, teff.verified = g.teff_espucd, ap_src, trusted
+        if unc:
+            teff.lower, teff.upper = g.teff_espucd - unc, g.teff_espucd + unc
+            teff.method = (
+                f"ESP-UCD (ultracool dwarfs, from the Gaia RP spectrum), +/- {unc:.0f} K (teff_espucd_uncertainty); "
+                "no GSP-Phot value"
+            )
+        else:
+            teff.method = "ESP-UCD (ultracool dwarfs, from the Gaia RP spectrum); no GSP-Phot value"
+            teff.caveats.append("Gaia DR3 gives no ESP-UCD uncertainty for this source.")
+    elif no_gaia:
+        teff.method = no_gaia
+    elif g.details_from is None:
+        teff.method = no_details
     else:
-        teff.method = no_gaia or "Gaia DR3 has no temperature for this source."
-        if g is not None and g.details_from is None:
-            teff.method = "Gaia DR3 astrophysical parameters not retrieved."
+        teff.method = "Gaia DR3 has no temperature for this source."
     teff.caveats += common if teff.value is not None else []
     out.append(teff)
 
@@ -1443,19 +1601,21 @@ def derive_parameters(ctx: ObjectContext) -> list[PhysicalParameter]:
     ):
         p = PhysicalParameter(key, label, None, unit)
         v = getattr(g, attr) if g is not None else None
-        if v is not None:
+        if star_only:
+            p.method = star_only
+        elif v is not None:
             p.value, p.lower, p.upper = v, getattr(g, f"{attr}_lower"), getattr(g, f"{attr}_upper")
             p.method = "Gaia DR3 FLAME (from GSP-Phot parameters, G photometry and the Gaia distance), 16th-84th pct"
             p.source = ap_src
-            p.verified = not amb
+            p.verified = trusted
             p.caveats.append("FLAME assumes a single star and inherits the GSP-Phot temperature.")
             if _is_cool_dwarf(ctx, g.teff_gspphot):
                 p.caveats.append("For M dwarfs the GSP-Phot input is unreliable: indicative only.")
             p.caveats += common
-        elif g is None:
+        elif no_gaia:
             p.method = no_gaia
         elif g.details_from is None:
-            p.method = "Gaia DR3 astrophysical parameters not retrieved."
+            p.method = no_details
         elif g.details_from == GAIA_VIZIER_CATALOG:
             p.method = "FLAME not available from the VizieR fallback (ESA Gaia archive unreachable)."
         else:
@@ -1465,26 +1625,45 @@ def derive_parameters(ctx: ObjectContext) -> list[PhysicalParameter]:
     # distance
     dist = PhysicalParameter("distance", "Distance", None, "pc")
     ses = ctx.sesame
-    if g is not None and g.r_med_geo is not None:
+    snr = _plx_snr(g)
+    if star_only:
+        dist.method = star_only
+    elif g is not None and g.r_med_geo is not None and snr is not None and snr >= PLX_SNR_MIN:
         dist.value, dist.lower, dist.upper = g.r_med_geo, g.r_lo_geo, g.r_hi_geo
         dist.method = "Bailer-Jones et al. (2021) geometric distance from the Gaia parallax, 16th-84th percentiles"
         dist.source = gaia_src("external.gaiaedr3_distance")
-        dist.verified = not amb
+        dist.verified = trusted and snr >= PLX_SNR_MEASURED
+        if snr < PLX_SNR_MEASURED:
+            dist.caveats.append(
+                f"Gaia parallax S/N = {snr:.1f} < {PLX_SNR_MEASURED:.0f}: the distance leans on the Bailer-Jones "
+                "Galactic prior."
+            )
         dist.caveats += common
-    elif g is not None and g.parallax is not None and g.parallax_error and g.parallax / g.parallax_error >= 5:
+    elif g is not None and snr is not None and snr >= PLX_SNR_MEASURED:
         dist.value = 1000.0 / g.parallax
         dist.lower, dist.upper = 1000.0 / (g.parallax + g.parallax_error), 1000.0 / (g.parallax - g.parallax_error)
         dist.method = f"1/parallax (Gaia DR3 parallax {g.parallax:.3f} +/- {g.parallax_error:.3f} mas)"
         dist.source = gaia_src("gaiadr3.gaia_source")
-        dist.verified = not amb
+        dist.verified = trusted
         dist.caveats += common
-    elif ses is not None and ses.plx_mas and ses.plx_err_mas and ses.plx_mas / ses.plx_err_mas >= 5:
+    elif ses is not None and ses.plx_mas and ses.plx_err_mas and ses.plx_mas / ses.plx_err_mas >= PLX_SNR_MEASURED:
         dist.value = 1000.0 / ses.plx_mas
         dist.lower = 1000.0 / (ses.plx_mas + ses.plx_err_mas)
         dist.upper = 1000.0 / (ses.plx_mas - ses.plx_err_mas)
         dist.method = f"1/parallax (SIMBAD parallax {ses.plx_mas} +/- {ses.plx_err_mas} mas, ref {ses.plx_ref})"
         dist.source = SESAME_CATALOG + _stamp(ctx, "sesame")
-        dist.verified = True
+        dist.verified = by_name or not amb
+        if not dist.verified:
+            dist.caveats.append(ident_caveat)
+    elif g is not None and g.r_med_geo is not None and snr is not None:
+        dist.method = (
+            f"Gaia DR3 parallax {g.parallax:.3f} +/- {g.parallax_error:.3f} mas (S/N {snr:.1f}) is not significant: "
+            "the Bailer-Jones distance would be its Galactic prior alone; not shown."
+        )
+    elif ctx.gaia is None:
+        dist.method = no_gaia
+    elif g is not None and g.details_from is None:
+        dist.method = no_details
     else:
         dist.method = "No parallax with S/N >= 5 (SPHEREx does not measure distances)."
     out.append(dist)
@@ -1492,13 +1671,31 @@ def derive_parameters(ctx: ObjectContext) -> list[PhysicalParameter]:
     # spectral type (SIMBAD only: Gaia ESP-HS classes are not spectral types)
     sp = PhysicalParameter("spectral_type", "Spectral type", None)
     if ctx.spectral_type:
-        sp.value, sp.source, sp.verified = ctx.spectral_type, SESAME_CATALOG + _stamp(ctx, "sesame"), True
+        sp.value, sp.source = ctx.spectral_type, SESAME_CATALOG + _stamp(ctx, "sesame")
+        # by name SIMBAD IS the object; on a click SIMBAD is reached through the Gaia match
+        sp.verified = by_name or not amb
+        if not sp.verified:
+            sp.caveats.append(ident_caveat)
+    elif _failed(ctx, "sesame"):
+        sp.method = "SIMBAD (Sesame CfA) " + UNREACHABLE
+    elif ses is not None:
+        sp.method = (
+            "SIMBAD gives no spectral type." if ses.is_simbad else "Name not resolved by SIMBAD: no spectral type."
+        )
+    elif ctx.gaia is None:
+        sp.method = "No SIMBAD lookup: Gaia DR3 could not be reached (see provenance)."
+    elif g is None:
+        sp.method = "No SIMBAD lookup: no Gaia DR3 source here to identify."
     else:
-        sp.method = "Not in SIMBAD (or no SIMBAD counterpart)."
+        sp.method = f"No SIMBAD entry for Gaia DR3 {g.source_id}."
     out.append(sp)
 
     # variability
     var = ctx.variability
+    vsx_down = _failed(ctx, "vsx")
+    # VSX is matched by position along the adopted track: by name, a VSX entry with the object's own name is
+    # still that object even if the Gaia match is ambiguous (RW Aur); otherwise it needs a secure identification.
+    vsx_ok = not amb or (by_name and var is not None and _norm_name(var.name) in _names(ctx))
     vt = PhysicalParameter("variability_type", "Variability type", None)
     vp = PhysicalParameter("variability_period", "Variability period", None, "days")
     vsx_src = f"AAVSO VSX {var.name} (B/vsx, VizieR CfA{_stamp(ctx, 'vsx')})" if var else None
@@ -1511,7 +1708,11 @@ def derive_parameters(ctx: ObjectContext) -> list[PhysicalParameter]:
                 if var.min_is_amplitude
                 else f" ({band.strip()} {var.mag_max}-{var.mag_min})"
             )
-        vt.value, vt.source, vt.verified = f"{var.var_type}{rng}", vsx_src, True
+        vt.value, vt.source, vt.verified = f"{var.var_type}{rng}", vsx_src, vsx_ok
+        if not vsx_ok:
+            vt.caveats.append(ident_caveat)
+    elif vsx_down:
+        vt.method = "AAVSO VSX " + UNREACHABLE
     else:
         vt.method = "No AAVSO VSX entry matched (not catalogued as variable; this does not prove it is constant)."
     lpv_p = lpv_e = None
@@ -1519,7 +1720,9 @@ def derive_parameters(ctx: ObjectContext) -> list[PhysicalParameter]:
         lpv_p = 1.0 / g.lpv_frequency
         lpv_e = g.lpv_frequency_error / g.lpv_frequency**2 if g.lpv_frequency_error else None
     if var is not None and var.period_d:
-        vp.value, vp.source, vp.verified = var.period_d, vsx_src, True
+        vp.value, vp.source, vp.verified = var.period_d, vsx_src, vsx_ok
+        if not vsx_ok:
+            vp.caveats.append(ident_caveat)
         if var.var_type and "ROT" in var.var_type.upper():
             vp.caveats.append("VSX type includes ROT: a rotation period, not a pulsation.")
         if lpv_p is not None:
@@ -1530,8 +1733,24 @@ def derive_parameters(ctx: ObjectContext) -> list[PhysicalParameter]:
         vp.value, vp.source, vp.verified = lpv_p, gaia_src("gaiadr3.vari_long_period_variable"), not amb
         if lpv_e:
             vp.lower, vp.upper = lpv_p - lpv_e, lpv_p + lpv_e
+        if amb:
+            vp.caveats += common
+        if vsx_down:
+            vp.caveats.append("AAVSO VSX could not be reached: its period was not checked.")
     else:
-        vp.method = "No period in AAVSO VSX or Gaia DR3 (long-period variables)."
+        vsx_why = "AAVSO VSX could not be reached" if vsx_down else "no period in AAVSO VSX"
+        if no_gaia:
+            gaia_why = "no Gaia DR3 source" if ctx.gaia is not None else "Gaia DR3 could not be reached"
+        elif g.details_from is None:
+            gaia_why = "Gaia DR3 long-period-variable table could not be retrieved"
+        elif g.details_from == GAIA_VIZIER_CATALOG:
+            gaia_why = "Gaia DR3 long-period variables not available from the VizieR fallback"
+        else:
+            gaia_why = "not a Gaia DR3 long-period variable"
+        gap = vsx_down or ctx.gaia is None or (g is not None and g.details_from is None)
+        vp.method = f"{vsx_why[0].upper()}{vsx_why[1:]}; {gaia_why}" + (
+            " (see provenance): unknown, not a negative result." if gap else "."
+        )
     out += [vt, vp]
     return out
 
