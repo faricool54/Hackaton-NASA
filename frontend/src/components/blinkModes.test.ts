@@ -26,7 +26,7 @@ describe('compositesForMode', () => {
     expect(compositesForMode(all, 'jhk').map((c) => c.id)).toEqual(['jhk_S0']);
   });
 
-  it('treats products older than contract 0.2.2 (no composites) as empty', () => {
+  it('treats products older than contract 0.3.1 (no composites) as empty', () => {
     expect(compositesForMode(undefined, 'jhk')).toEqual([]);
   });
 });

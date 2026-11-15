@@ -1,5 +1,5 @@
 // Image modes of the blink viewer (WS5): single SPHEREx exposures in grayscale, or the
-// false-color season composites of contract 0.2.2 (Field.composites, built by WS2).
+// false-color season composites of contract 0.3.1 (Field.composites, built by WS2).
 import type { Composite, CompositeChannel, CompositeColor, CompositeMode } from '../api/types';
 import { formatMjd } from '../api/format';
 
@@ -22,7 +22,7 @@ const UNAVAILABLE: Record<CompositeMode, string> = {
   jhk: 'no season of this field has exposures near all of J, H and Ks',
 };
 
-/** Composites of one mode, in season order. Products older than contract 0.2.2 have none. */
+/** Composites of one mode, in season order. Products older than contract 0.3.1 have none. */
 export function compositesForMode(composites: Composite[] | undefined, mode: CompositeMode): Composite[] {
   return (composites ?? []).filter((c) => c.mode === mode).sort((a, b) => a.season - b.season || a.mjd_min - b.mjd_min);
 }
