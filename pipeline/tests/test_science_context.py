@@ -14,6 +14,7 @@ import re
 import shutil
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import pytest
 
@@ -494,6 +495,195 @@ def test_transient_empty_vizier_answer_is_retried_and_never_cached(tmp_path, mon
     bad = http.get("vsx", C.VIZIER_TSV, {"c": "3"}, require="#Table")
     assert not bad.ok and "transient" in bad.error
     assert len(list(tmp_path.iterdir())) == 1  # only the good answer was cached
+
+
+def test_a_host_that_did_not_accept_a_connection_is_skipped_for_a_while(tmp_path, monkeypatch):
+    import requests
+
+    calls = []
+
+    def unreachable(url, *a, **k):
+        calls.append(url)
+        raise requests.exceptions.ConnectTimeout("connect timeout")
+
+    monkeypatch.setattr(C, "_DOWN_HOSTS", {})
+    monkeypatch.setattr(requests, "get", unreachable)
+    http = C._Http(tmp_path, use_cache=True, offline=False, ttl_s=1e9, timeout_s=1.0)
+    first = http.get("gaia-esa", C.GAIA_TAP_SYNC, {"q": "1"})
+    second = http.get("gaia-esa", C.GAIA_TAP_SYNC, {"q": "2"})  # another query to the same host: not attempted
+    assert not first.ok and "ConnectTimeout" in first.error and len(calls) == 1
+    assert not second.ok and second.error.startswith("skipped: gea.esac.esa.int") and len(calls) == 1
+    other = http.get("vsx", C.VIZIER_TSV, {"q": "3"})  # other hosts are unaffected
+    assert not other.ok and len(calls) == 2
+    # the skip ends after the back-off, and an answer clears it
+    monkeypatch.setattr(C, "CONTEXT_HOST_BACKOFF_S", 0.0)
+
+    class R:
+        status_code, text = 200, "source_id\n1\n"
+
+    monkeypatch.setattr(requests, "get", lambda *a, **k: R())
+    assert http.get("gaia-esa", C.GAIA_TAP_SYNC, {"q": "2"}, require="source_id").ok
+    assert "gea.esac.esa.int" not in C._DOWN_HOSTS
+    C._DOWN_HOSTS.clear()
+    # a read timeout (slow server, connection accepted) or a refused connection does not trip it
+    monkeypatch.setattr(C, "CONTEXT_HOST_BACKOFF_S", 120.0)
+    for error in (requests.exceptions.ReadTimeout("slow"), requests.ConnectionError("refused")):
+        monkeypatch.setattr(requests, "get", lambda *a, e=error, **k: (_ for _ in ()).throw(e))
+        assert not http.get("gaia-esa", C.GAIA_TAP_SYNC, {"q": "4"}).ok and C._DOWN_HOSTS == {}
+
+
+def test_one_dropped_connection_to_cfa_does_not_block_the_name_resolver(tmp_path, monkeypatch):
+    # Regression (review 2026-11-15): Sesame, the VizieR Gaia fallback, VSX, 2MASS and AllWISE share the CfA host.
+    # Backing it off after one ConnectTimeout made every name lookup fail (502) for 120 s without a network call.
+    import requests
+
+    calls = []
+
+    def first_cfa_call_times_out(url, *a, **k):
+        calls.append(url)
+        if len(calls) == 1:
+            raise requests.exceptions.ConnectTimeout("connect timeout")
+        raise requests.exceptions.ReadTimeout("slow")  # a later call reached the network (not retried)
+
+    monkeypatch.setattr(C, "_DOWN_HOSTS", {})
+    monkeypatch.setattr(requests, "get", first_cfa_call_times_out)
+    http = C._Http(tmp_path, use_cache=True, offline=False, ttl_s=1e9, timeout_s=1.0)
+    assert not http.get("vsx", C.VIZIER_TSV, {"q": "1"}).ok and len(calls) == 1
+    assert C._DOWN_HOSTS == {}
+    sesame = http.get("sesame", C.SESAME_URL + "SNV?R%20Dra")
+    assert len(calls) == 2 and not sesame.error.startswith("skipped")  # attempted, not skipped
+    assert urlsplit(C.SESAME_URL).netloc not in C.BACKOFF_HOSTS
+    assert urlsplit(C.GAIA_TAP_SYNC).netloc in C.BACKOFF_HOSTS  # the one host with a fallback (VizieR CfA)
+
+
+def test_a_name_whose_gaia_lookups_all_failed_reports_no_gaia_answer_not_a_negative(tmp_path):
+    # Regression (review 2026-11-15): the UI read match 'name' + no Gaia id as "no Gaia DR3 counterpart". When no
+    # Gaia service answered, the response must say so: n_gaia_within_radius null, gaia-* errors, a warning.
+    for f in FIXTURES.glob("*.json"):
+        if not f.name.startswith("gaia-"):
+            shutil.copy(f, tmp_path / f.name)
+    for name in ("Barnard's Star", "eps Ind B", "R Dra"):
+        doc = _response_json(C.object_context(name=name, cache_dir=tmp_path, offline=True))
+        ident = doc["identity"]
+        assert ident["match"] == "name" and ident["gaia_source_id"] is None
+        assert ident["n_gaia_within_radius"] is None  # no cone answered: unknown (WISE 0855 by name gives 0)
+        gaia = [p for p in doc["provenance"] if p["service"].startswith("gaia")]
+        assert gaia and all(p["status"] == "error" for p in gaia) and doc["partial"]
+        assert any(w.startswith("Gaia DR3 unreachable") for w in doc["warnings"])
+    wise = _response_json(by_name("WISE J085510.83-071442.5"))["identity"]
+    assert wise["gaia_source_id"] is None and wise["n_gaia_within_radius"] is not None  # answered: a real negative
+
+
+# --- contract adapter: ObjectContext -> models.ObjectContextResponse (GET /api/object) -------------------------
+
+
+def _response_json(ctx: C.ObjectContext, **kw) -> dict:
+    import jsonschema
+
+    from errante import settings
+
+    doc = C.to_response(ctx, **kw).model_dump(mode="json")
+    schema = json.loads((settings.REPO_ROOT / "shared/schema/ObjectContextResponse.schema.json").read_text())
+    jsonschema.validate(doc, schema)
+    json.dumps(doc, allow_nan=False)
+    return doc
+
+
+def test_response_for_barnard_by_name_keeps_identity_facts_and_other_missions_apart():
+    doc = _response_json(by_name("Barnard's Star"))
+    ident = doc["identity"]
+    assert ident["match"] == "name" and not ident["identity_uncertain"] and ident["display_name"] == "Barnard's star"
+    assert ident["gaia_source_id"] == "4472832130942575872" and ident["gaia_method"] == "simbad_crossid"
+    assert ident["resolver"] == C.SESAME_CATALOG and ident["spectral_type"] == "M4V"
+    assert doc["query"]["name"] == "Barnard's Star" and doc["query"]["ra"] is None
+    assert doc["position"]["source"] == "Gaia DR3 propagated to the epoch" and doc["position"]["epoch_mjd"] == 61000.0
+    assert [f["label"] for f in doc["facts"]] == LABELS
+    mass = next(f for f in doc["facts"] if f["label"] == "Mass")
+    assert mass["value"] == "unknown" and not mass["verified"]
+    assert [p["name"] for p in doc["planets"]] == ["Barnard d", "Barnard b", "Barnard c", "Barnard e"]
+    assert all(p["radius_calculated"] and p["mass_kind"] == "Msini" for p in doc["planets"])
+    assert doc["variability"]["name"] == "V2500 Oph" and doc["variability"]["source"].startswith(C.VSX_CATALOG)
+    assert {m["mission"] for m in doc["photometry"]} == {"2MASS", "WISE"}
+    assert all(m["other_mission"] is True for m in doc["photometry"])
+    assert not doc["partial"] and doc["synthetic"] is False and "not SPHEREx" in doc["note"]
+
+
+@pytest.mark.parametrize(
+    "case, match, uncertain",
+    [
+        (("click", "barnards-star"), "matched", False),
+        (("click", "eps-indi-b"), "matched", False),
+        (("click", "wise-0855"), "loose", True),
+        (("click", "empty-sky"), "none", False),
+        (("name", "RW Aur"), "ambiguous", True),
+        (("name", "R Dra"), "name", False),
+        (("name", "GJ 699"), "none", True),  # resolved by VizieR (local), not SIMBAD: no identification
+    ],
+)
+def test_response_match_status(case, match, uncertain):
+    kind, value = case
+    doc = _response_json(at(value) if kind == "click" else by_name(value))
+    assert doc["identity"]["match"] == match and doc["identity"]["identity_uncertain"] is uncertain
+    if uncertain:
+        assert all(m["identity_uncertain"] for m in doc["photometry"])
+
+
+def test_response_never_attaches_a_neighbours_planet():
+    doc = _response_json(at("eps-indi-b"))
+    assert doc["planets"] == [] and doc["identity"]["display_name"] == "eps Ind B"
+    assert [h["hostname"] for h in doc["nearby_planet_hosts"]] == ["eps Ind A"]
+    assert doc["nearby_planet_hosts"][0]["planets"] == ["eps Ind A b"]
+
+
+def test_response_for_empty_sky_is_unknown_not_partial():
+    doc = _response_json(at("empty-sky"))
+    assert doc["identity"]["gaia_source_id"] is None and doc["identity"]["display_name"] is None
+    assert all(f["value"] == "unknown" for f in doc["facts"]) and doc["photometry"] == []
+    assert not doc["partial"] and {p["status"] for p in doc["provenance"]} == {"no_match"}
+
+
+def test_response_with_every_service_down_is_partial_and_unavailable(tmp_path):
+    doc = _response_json(C.object_context(*CLICKS["barnards-star"], cache_dir=tmp_path, offline=True))
+    assert doc["identity"]["match"] == "unavailable" and doc["identity"]["identity_uncertain"]
+    assert doc["partial"] and all(p["status"] == "error" for p in doc["provenance"])
+
+
+def test_replay_after_a_deadline_reports_pending_services_and_stale_entries(tmp_path):
+    # A lookup cut by the API deadline: Sesame and Gaia answered (one Gaia answer is 30 days old), the rest not yet.
+    for f in FIXTURES.glob("*.json"):
+        if f.name.startswith(("sesame-", "gaia-esa-")):
+            shutil.copy(f, tmp_path / f.name)
+    old = (datetime.now(UTC) - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    for f in tmp_path.glob("gaia-esa-*.json"):
+        entry = json.loads(f.read_text(encoding="utf-8"))
+        entry["retrieved_utc"] = old
+        f.write_text(json.dumps(entry), encoding="utf-8")
+    ctx = C.object_context(name="Barnard's Star", cache_dir=tmp_path, offline=True)
+    doc = _response_json(ctx, replay_deadline_s=24)
+    assert doc["partial"] and doc["warnings"][0].startswith("Partial result") and "24 s" in doc["warnings"][0]
+    assert C.OFFLINE_MISS not in json.dumps(doc)
+    status = {p["service"]: p for p in doc["provenance"]}
+    assert status["vsx"]["status"] == "error" and "API deadline" in status["vsx"]["note"]
+    assert any(p["service"] == "gaia-esa" and p["stale"] for p in doc["provenance"])
+    assert doc["identity"]["match"] == "name"  # what did answer is still used
+    variability = next(f for f in doc["facts"] if f["label"] == "Variability type")
+    assert variability["value"] == "unknown" and "not a negative result" in variability["source"]
+    # a complete replay is not partial and adds no deadline warning
+    full = _response_json(by_name("Barnard's Star"), replay_deadline_s=24)
+    assert not full["partial"] and not any("Partial result" in w for w in full["warnings"])
+
+
+def test_context_error_says_whether_the_name_is_unknown(tmp_path):
+    http = C._Http(tmp_path, use_cache=True, offline=True, ttl_s=1e9, timeout_s=1.0)
+    nothing = '<?xml version="1.0"?><Sesame><Target><name>zz</name><INFO>*** Nothing found ***</INFO></Target></Sesame>'
+    path = http._path("sesame", C.SESAME_URL + "SNV?" + "zz", None)
+    path.write_text(json.dumps({"retrieved_utc": "2026-11-15T00:00:00Z", "text": nothing}), encoding="utf-8")
+    with pytest.raises(C.ContextError) as unknown:
+        C.object_context(name="zz", cache_dir=tmp_path, offline=True)
+    assert unknown.value.not_found
+    with pytest.raises(C.ContextError) as unreachable:
+        C.object_context(name="not recorded", cache_dir=tmp_path, offline=True)
+    assert not unreachable.value.not_found
 
 
 # --- live services (ERRANTE_NETWORK_TESTS=1) -------------------------------------------------------------------
