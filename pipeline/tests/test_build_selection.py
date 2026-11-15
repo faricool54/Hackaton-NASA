@@ -4,6 +4,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from astropy.io import fits
 from test_imaging_reproject import DEC0, PIXEL_DEG, RA0, fake_image
 
 from errante.build import FieldConfig, build_field, season_index, select_frames
@@ -86,7 +87,7 @@ def test_empty_inputs():
 
 
 @pytest.fixture
-def real_wcs_archive(monkeypatch):
+def real_wcs_archive(monkeypatch, tmp_path):
     """Two seasons of detector 1 + one frame that misses the field; images have real (rotated, SIP) WCS."""
     star = (RA0 + 4 * PIXEL_DEG, DEC0 - 3 * PIXEL_DEG, 80.0)
     images = {
@@ -97,7 +98,15 @@ def real_wcs_archive(monkeypatch):
     refs = [ref(k, 1, img.mjd) for k, img in images.items()]
     monkeypatch.setattr(irsa, "search_frames", lambda *a, **kw: SearchResult(
         center=SkyCoord(ra=RA0, dec=DEC0), radius_deg=0, frames=refs))  # fmt: skip
-    monkeypatch.setattr(cutouts, "fetch_cutouts", lambda frames, *a, **kw: [Path(f"{f.obs_id}.fits") for f in frames])
+    image = images["OBS_A"]
+    image.flags[:] = 1 << 21
+    header = fits.Header({"MSKN0021": "SOURCE", "MSKN0017": "PERSIST"})
+    fits.HDUList([fits.PrimaryHDU(), fits.ImageHDU(image.flags, header=header, name="FLAGS")]).writeto(
+        tmp_path / "OBS_A.fits"
+    )
+    monkeypatch.setattr(
+        cutouts, "fetch_cutouts", lambda frames, *a, **kw: [tmp_path / f"{f.obs_id}.fits" for f in frames]
+    )
     monkeypatch.setattr(fits_io, "read_spherex", lambda path: images[Path(path).stem])
     return FieldConfig(id="wcs-field", name="WCS field", ra=RA0, dec=DEC0, size_deg=0.05), star
 
@@ -109,6 +118,11 @@ def test_build_reprojects_real_wcs_frames_onto_one_grid(real_wcs_archive, tmp_pa
     fdir = store.field_dir(cfg.id)
 
     assert [f.id for f in field.frames] == ["2025W35_1A_0001_1D1", "2026W12_2B_0042_3D1"]
+    flags_by_id = store.read_field(cfg.id).frame_flags
+    stored_flags = flags_by_id[field.frames[0].id]
+    assert stored_flags.fractions["SOURCE"] == 1
+    assert stored_flags.fractions["PERSIST"] == 0
+    assert field.frames[1].id not in flags_by_id
     assert any("Skipped 1" in n and "outside the cutout" in n for n in field.provenance.notes)
     assert (fdir / "thumb.png").exists()
     assert store.read_manifest().fields[0].thumbnail == "thumb.png"

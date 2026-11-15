@@ -1,6 +1,10 @@
 {
   "updated_on": "2026-11-15",
   "tool": "Anthropic Claude Code",
+  "v8": {
+    "tool": "OpenAI Codex",
+    "scope": "Computed per-frame archive flag fractions on the common grid, with real SPHEREx FITS cutouts and no changes to the rendered images."
+  },
   "scope": "WS2 imaging and comparison (pull requests by V0id47 with Claude Code): reprojection of SPHEREx frames onto the field grid, season x detector frame selection, bad-frame rejection and per-frame registration check, consistent rendering and display-only repairs, season coadds and flux-matched season differences, forced photometry, false-color season composites, their regression tests, and the five published golden fields built by running that code on real NASA SPHEREx exposures; also the additive composites contract (#39), the WS5 blink image-mode toggle (#40) and the WS2 reservation (#13); later the AI-use record (#68), faint-target differences (#69), the published-product check (#70), demo animations (#71) and the task status (#72); plus #88 by faricool54 with Claude Code in WS2's data/products",
   "affected_paths": [
     "pipeline/errante/imaging/",

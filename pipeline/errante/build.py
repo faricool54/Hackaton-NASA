@@ -22,7 +22,17 @@ from typing import Any, TypeVar
 import numpy as np
 
 from . import __version__, settings
-from .models import CandidateList, Composite, Frame, FrameRef, KnownObjectList, Provenance, SkyCoord, SkyField
+from .models import (
+    CandidateList,
+    Composite,
+    Frame,
+    FrameFlagSummary,
+    FrameRef,
+    KnownObjectList,
+    Provenance,
+    SkyCoord,
+    SkyField,
+)
 from .products import ProductStore
 
 log = logging.getLogger(__name__)
@@ -252,6 +262,7 @@ class _Projected:
     wavelength_um: float | None = None
     bandwidth_um: float | None = None
     variance: np.ndarray | None = None  # VARIANCE on the grid (false-color coadd weights)
+    flags: FrameFlagSummary | None = None
 
 
 def _wavelength_at_centre(img, cfg: FieldConfig) -> tuple[float | None, float | None]:
@@ -340,6 +351,7 @@ def _project(refs: list[FrameRef], cfg: FieldConfig, grid) -> tuple[list[_Projec
                 wavelength if wavelength is not None else ref.wavelength_um,
                 bandwidth,
                 variance,
+                reproject.summarize_flags(img, grid, path),
             )  # fmt: skip
         )
     return projected, skipped
@@ -814,6 +826,7 @@ def build_field(
         size_deg=cfg.size_deg,
         grid=grid,
         frames=frames,
+        frame_flags={p.frame_id: p.flags for p in sel.frames if p.flags is not None},
         composites=composites,
         provenance=Provenance(
             pipeline_version=__version__,
