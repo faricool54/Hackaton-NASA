@@ -1,41 +1,38 @@
 // 3D viewer for a SystemModel. three.js is loaded on demand (dynamic import) so the
-// blink viewer and the rest of the site stay light. Everything imported statically here
-// (sceneLayout, colorModes, spherexCoverage, ephemerides, DatasetTimeline) is pure and three-free.
+// blink viewer and the rest of the site stay light. So are the helpers the controls and legends are
+// built from (three/viewerKit: colour modes, scene layout, SPHEREx coverage, ephemerides) and the
+// dataset timeline: only the tiny three/datasetGate and three/viewerLink are imported statically.
 //
 // Two clocks (M4): 'Free-running' animates from an arbitrary start and never shows a calendar date;
 // 'Dataset time' runs on the real SPHEREx pass dates of the target (spherexCoverage.datasetWindow),
 // shows the calendar date with the list of real-epoch and arbitrary-phase bodies, and what each body's
 // phase is on that date (ephemerides.onThisDate).
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { lazy, Suspense, useContext, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { client } from '../api/client';
 import type { Frame, OrbitQuality, SystemModel } from '../api/types';
 import { formatElapsed, formatMjd } from '../api/format';
-import { DatasetTimeline } from '../three/DatasetTimeline';
-import {
-  ARC_HALF_WIDTH_SIGMA,
-  CLOUD_POINTS,
-  isLineOfSightOrbit,
-  LINE_OF_SIGHT_LABEL,
-  onThisDate,
-  UNCERTAINTY_COLOR,
-  variabilityTracks,
-} from '../three/ephemerides';
+import type { ColorMode } from '../three/colorModes';
+import { hasDatasetWindow } from '../three/datasetGate';
+import type { DistanceMode } from '../three/sceneLayout';
 import type { SystemScene } from '../three/SystemScene';
-import { datasetBounds, datasetSpeed, datasetWindow, mjdToIsoDate, phaseStatus, phaseStatusLine } from '../three/spherexCoverage';
-import {
-  CLASS_TYPICAL_CHIP,
-  COLOR_MODE_LABEL,
-  COLOR_MODES,
-  colorLegend,
-  colourModeChip,
-  DEFAULT_COLOR_MODE,
-  isInfraredMode,
-  surfaceLegend,
-  type ColorMode,
-} from '../three/colorModes';
-import { nonFittedOrbits, ORBIT_COLOR, spinLegend, suggestedSpeed, type DistanceMode } from '../three/sceneLayout';
+import { SystemViewerContext, type SystemViewerLink } from '../three/viewerLink';
 
-interface Props {
+type ViewerKit = typeof import('../three/viewerKit');
+
+// Loaded once per page, in parallel with the scene; a failed download is retried on the next mount.
+let kitPromise: Promise<ViewerKit> | null = null;
+function loadViewerKit(): Promise<ViewerKit> {
+  kitPromise ??= import('../three/viewerKit').catch((e: unknown) => {
+    kitPromise = null;
+    throw e;
+  });
+  return kitPromise;
+}
+
+// Rendered only in Dataset time.
+const DatasetTimeline = lazy(() => import('../three/DatasetTimeline').then((m) => ({ default: m.DatasetTimeline })));
+
+interface Props extends SystemViewerLink {
   system: SystemModel;
   selectedId: string | null;
   onSelect: (bodyId: string | null) => void;
@@ -79,33 +76,57 @@ function clockButton(pressed: boolean): CSSProperties {
   };
 }
 
-export function SystemViewer({ system, selectedId, onSelect }: Props) {
+export function SystemViewer(props: Props) {
+  const { system, selectedId, onSelect } = props;
+  // Page-level inputs: props first, then the page's context (SystemPage), else the viewer's own fallback.
+  const link = useContext(SystemViewerContext);
+  const fieldExists = props.fieldExists ?? link.fieldExists;
+  const onDatasetMjd = props.onDatasetMjd ?? link.onDatasetMjd;
+
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<SystemScene | null>(null);
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
   const selectedIdRef = useRef(selectedId);
   selectedIdRef.current = selectedId;
+  const onDatasetMjdRef = useRef(onDatasetMjd);
+  onDatasetMjdRef.current = onDatasetMjd;
 
+  const [kit, setKit] = useState<ViewerKit | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [error, setError] = useState<{ kind: ErrorKind; message: string } | null>(null);
   const [mjd, setMjd] = useState<number | null>(null);
+  const mjdRef = useRef(mjd);
+  mjdRef.current = mjd;
   const [startMjd, setStartMjd] = useState<number | null>(null);
   const [timeMode, setTimeMode] = useState<TimeMode>('free');
   // Frames of the system's field, only when the manifest lists that field (real targets: not built).
   const [frames, setFrames] = useState<Frame[] | null>(null);
-  const phases = useMemo(() => phaseStatus(system), [system]);
-  // Free-running phases are arbitrary for orbits without an epoch and for every variability.
-  const arbitraryPhase = phases.arbitrary.length + phases.pulsationArbitrary.length + phases.pulsationPredicted.length > 0;
   const [playing, setPlaying] = useState(true);
   const [speedMul, setSpeedMul] = useState(1);
   const [distanceMode, setDistanceMode] = useState<DistanceMode>('compressed');
   const [showOrbits, setShowOrbits] = useState(true);
   const [showLabels, setShowLabels] = useState(true);
-  const [colorMode, setColorMode] = useState<ColorMode>(DEFAULT_COLOR_MODE);
+  // null = the default colour mode, known once the kit has loaded.
+  const [colorChoice, setColorMode] = useState<ColorMode | null>(null);
   const [classTypical, setClassTypical] = useState(false);
+  const colorMode = colorChoice ?? kit?.DEFAULT_COLOR_MODE ?? null;
 
-  // Create / destroy the scene when the system changes.
+  // The controls and legends fill in as soon as the kit arrives, before three.js has downloaded.
+  useEffect(() => {
+    let live = true;
+    loadViewerKit().then(
+      (k) => live && setKit(k),
+      () => {
+        // Reported by the scene effect below, which waits for the kit too.
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  // Create / destroy the scene when the system changes. 'ready' means the scene AND the kit are loaded.
   useEffect(() => {
     let disposed = false;
     const fail = (kind: ErrorKind, e: unknown) => {
@@ -115,9 +136,10 @@ export function SystemViewer({ system, selectedId, onSelect }: Props) {
     };
     setStatus('loading');
     setError(null);
-    import('../three/SystemScene').then(
-      ({ SystemScene }) => {
+    Promise.all([import('../three/SystemScene'), loadViewerKit()]).then(
+      ([{ SystemScene }, k]) => {
         if (disposed || !containerRef.current) return;
+        setKit(k);
         let scene: SystemScene;
         try {
           scene = new SystemScene(containerRef.current, system, {
@@ -149,16 +171,20 @@ export function SystemViewer({ system, selectedId, onSelect }: Props) {
     };
   }, [system]);
 
-  // A new system starts free-running; fetch its field's frames only when the manifest lists the field.
+  // A new system starts free-running.
+  useEffect(() => setTimeMode('free'), [system]);
+
+  // Fetch the field's frames only when the manifest lists the field. A page that has fetched the
+  // manifest already says so (fieldExists); otherwise the viewer asks the manifest itself.
   useEffect(() => {
     let cancelled = false;
-    setTimeMode('free');
     setFrames(null);
     const fieldId = system.field_id;
-    if (fieldId) {
-      client
-        .getManifest()
-        .then((m) => (m.fields.some((f) => f.id === fieldId) ? client.getField(fieldId) : null))
+    if (fieldId && fieldExists !== false) {
+      (fieldExists === true
+        ? client.getField(fieldId)
+        : client.getManifest().then((m) => (m.fields.some((f) => f.id === fieldId) ? client.getField(fieldId) : null))
+      )
         .then((f) => {
           if (!cancelled && f) setFrames(f.frames);
         })
@@ -169,36 +195,57 @@ export function SystemViewer({ system, selectedId, onSelect }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [system]);
+  }, [system, fieldExists]);
 
-  const win = useMemo(() => datasetWindow(system, frames), [system, frames]);
-  const bounds = useMemo(() => (win ? datasetBounds(win) : null), [win]);
+  // Known before the kit loads (datasetGate is tiny); win is non-null exactly when this is true.
+  const datasetAvailable = hasDatasetWindow(system.id, frames);
+  const win = useMemo(() => (kit ? kit.datasetWindow(system, frames) : null), [kit, system, frames]);
+  const bounds = useMemo(() => (kit && win ? kit.datasetBounds(win) : null), [kit, win]);
   const dataset = timeMode === 'dataset' && win !== null;
-  const tracks = useMemo(() => variabilityTracks(system), [system]);
+  const tracks = useMemo(() => (kit ? kit.variabilityTracks(system) : []), [kit, system]);
 
   // Same pure function the scene uses (sceneLayout.ts), so the label and the animation agree. Dataset
   // time is capped so the whole window takes at least a minute (spherexCoverage.datasetSpeed).
-  const freeSpeed = suggestedSpeed(system);
-  const daysPerSec = (dataset && win ? datasetSpeed(freeSpeed, win) : freeSpeed) * speedMul;
+  const freeSpeed = kit ? kit.suggestedSpeed(system) : null;
+  const daysPerSec = kit && freeSpeed !== null ? (dataset && win ? kit.datasetSpeed(freeSpeed, win) : freeSpeed) * speedMul : null;
 
   useEffect(() => sceneRef.current?.setDatasetMode(dataset, bounds), [dataset, bounds, status]);
   useEffect(() => sceneRef.current?.setPlaying(playing), [playing, status]);
-  useEffect(() => sceneRef.current?.setSpeed(daysPerSec), [daysPerSec, status]);
-  useEffect(
-    () => sceneRef.current?.setOptions({ distanceMode, showOrbits, showLabels, colorMode, classTypical }),
-    [distanceMode, showOrbits, showLabels, colorMode, classTypical, status],
-  );
+  useEffect(() => {
+    if (daysPerSec !== null) sceneRef.current?.setSpeed(daysPerSec);
+  }, [daysPerSec, status]);
+  useEffect(() => {
+    if (colorMode !== null) sceneRef.current?.setOptions({ distanceMode, showOrbits, showLabels, colorMode, classTypical });
+  }, [distanceMode, showOrbits, showLabels, colorMode, classTypical, status]);
   useEffect(() => sceneRef.current?.focus(selectedId), [selectedId, status]);
 
+  // Report the dataset date to the page (sky-track panel) only when the calendar day changes, not on
+  // every onTick re-render; null in free-running and when the viewer goes away.
+  const datasetDay = dataset && mjd !== null ? Math.floor(mjd) : null;
+  useEffect(() => {
+    onDatasetMjdRef.current?.(datasetDay === null ? null : mjdRef.current);
+  }, [datasetDay]);
+  useEffect(
+    () => () => {
+      onDatasetMjdRef.current?.(null);
+    },
+    [],
+  );
+
   // The legends are static per system, mode and speed: build them once, not on every onTick re-render.
-  const notFitted = useMemo(() => nonFittedOrbits(system.bodies), [system]);
-  const colourLines = useMemo(() => colorLegend(colorMode, system), [colorMode, system]);
-  const surfaceLines = useMemo(() => surfaceLegend(system, colorMode, classTypical), [system, colorMode, classTypical]);
-  const spinLine = useMemo(() => spinLegend(system, daysPerSec), [system, daysPerSec]);
-  const modeChip = colourModeChip(colorMode);
-  const statusLine = useMemo(() => phaseStatusLine(system), [system]);
-  const dateLines = dataset && mjd !== null ? onThisDate(system, mjd) : [];
-  const cloudLegend = useMemo(() => datasetLegend(system), [system]);
+  const notFitted = useMemo(() => (kit ? kit.nonFittedOrbits(system.bodies) : null), [kit, system]);
+  const colourLines = useMemo(() => (kit && colorMode ? kit.colorLegend(colorMode, system) : []), [kit, colorMode, system]);
+  const surfaceLines = useMemo(
+    () => (kit && colorMode ? kit.surfaceLegend(system, colorMode, classTypical) : []),
+    [kit, system, colorMode, classTypical],
+  );
+  const spinLine = useMemo(() => (kit && daysPerSec !== null ? kit.spinLegend(system, daysPerSec) : ''), [kit, system, daysPerSec]);
+  const modeChip = kit && colorMode ? kit.colourModeChip(colorMode) : null;
+  const statusLine = useMemo(() => (kit ? kit.phaseStatusLine(system) : ''), [kit, system]);
+  // Free-running phases are arbitrary for orbits without an epoch and for every animated variability.
+  const arbitraryPhase = useMemo(() => (kit ? kit.freeRunningArbitraryPhase(system) : false), [kit, system]);
+  const dateLines = kit && dataset && mjd !== null ? kit.onThisDate(system, mjd) : [];
+  const cloudLegend = useMemo(() => (kit ? kit.datasetLegend(system) : null), [kit, system]);
 
   const chooseMode = (next: TimeMode) => {
     if (next === timeMode) return;
@@ -236,14 +283,14 @@ export function SystemViewer({ system, selectedId, onSelect }: Props) {
               {modeChip}
             </span>
           )}
-          {classTypical && !system.provenance.synthetic && (
+          {kit && classTypical && !system.provenance.synthetic && (
             <span className="badge" style={ILLUSTRATIVE_CHIP}>
-              {CLASS_TYPICAL_CHIP}
+              {kit.CLASS_TYPICAL_CHIP}
             </span>
           )}
-          {dataset && mjd !== null && (
+          {kit && dataset && mjd !== null && (
             <span className="badge" style={DATE_CHIP}>
-              DATASET TIME · {mjdToIsoDate(mjd)}
+              DATASET TIME · {kit.mjdToIsoDate(mjd)}
             </span>
           )}
         </div>
@@ -270,7 +317,15 @@ export function SystemViewer({ system, selectedId, onSelect }: Props) {
         )}
       </div>
       {dataset && win && mjd !== null && (
-        <DatasetTimeline window={win} mjd={mjd} onSeek={(m) => sceneRef.current?.setTime(m)} tracks={tracks} />
+        <Suspense
+          fallback={
+            <p className="muted small" role="status">
+              Loading the SPHEREx timeline…
+            </p>
+          }
+        >
+          <DatasetTimeline window={win} mjd={mjd} onSeek={(m) => sceneRef.current?.setTime(m)} tracks={tracks} />
+        </Suspense>
       )}
       <div className="blink-controls">
         {/* Play stays the first child: the shared transport styles (styles.css, WS5) make it the primary button. */}
@@ -290,7 +345,7 @@ export function SystemViewer({ system, selectedId, onSelect }: Props) {
           />
           <span className="speed-value">×{Number(speedMul.toFixed(2))}</span>
         </label>
-        <span className="muted small">{formatDaysPerSecond(daysPerSec)}</span>
+        <span className="muted small">{daysPerSec !== null ? formatDaysPerSecond(daysPerSec) : ''}</span>
         <span role="group" aria-label="Clock" style={MODE_GROUP}>
           <button type="button" aria-pressed={timeMode === 'free'} onClick={() => chooseMode('free')} style={clockButton(timeMode === 'free')}>
             Free-running
@@ -298,8 +353,14 @@ export function SystemViewer({ system, selectedId, onSelect }: Props) {
           <button
             type="button"
             aria-pressed={dataset}
-            disabled={!win || status !== 'ready'}
-            title={win ? 'Run the clock on the real SPHEREx pass dates of this target' : 'No SPHEREx coverage is known for this system'}
+            disabled={!datasetAvailable || status !== 'ready'}
+            title={
+              !datasetAvailable
+                ? 'No SPHEREx coverage is known for this system'
+                : status === 'loading'
+                  ? 'Loading the 3D view and the SPHEREx pass dates…'
+                  : 'Run the clock on the real SPHEREx pass dates of this target'
+            }
             onClick={() => chooseMode('dataset')}
             style={clockButton(dataset)}
           >
@@ -315,13 +376,19 @@ export function SystemViewer({ system, selectedId, onSelect }: Props) {
         </label>
         <label>
           Colour{' '}
-          <select value={colorMode} onChange={(e) => setColorMode(e.target.value as ColorMode)}>
-            {COLOR_MODES.map((m) => (
-              <option key={m} value={m}>
-                {COLOR_MODE_LABEL[m]}
-              </option>
-            ))}
-          </select>
+          {kit && colorMode ? (
+            <select value={colorMode} onChange={(e) => setColorMode(e.target.value as ColorMode)}>
+              {kit.COLOR_MODES.map((m) => (
+                <option key={m} value={m}>
+                  {kit.COLOR_MODE_LABEL[m]}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <select disabled aria-busy="true">
+              <option>loading…</option>
+            </select>
+          )}
         </label>
         <label className="small">
           <input type="checkbox" checked={showOrbits} onChange={(e) => setShowOrbits(e.target.checked)} /> orbits
@@ -342,7 +409,7 @@ export function SystemViewer({ system, selectedId, onSelect }: Props) {
         )}
       </div>
       <div className="muted small" aria-live="polite">
-        {modeChip && isInfraredMode(colorMode) && (
+        {kit && modeChip && colorMode && kit.isInfraredMode(colorMode) && (
           <p style={{ margin: '0 0 4px' }}>
             <strong style={{ color: '#f9a8d4' }}>{modeChip}</strong> (not what the eye would see, and not SPHEREx data).
           </p>
@@ -357,26 +424,26 @@ export function SystemViewer({ system, selectedId, onSelect }: Props) {
             {line}
           </p>
         ))}
-        <p style={{ margin: '0 0 4px' }}>{spinLine}</p>
+        {spinLine && <p style={{ margin: '0 0 4px' }}>{spinLine}</p>}
       </div>
-      {(notFitted.assumed.length > 0 || notFitted.hypothetical.length > 0) && (
+      {kit && notFitted && (notFitted.assumed.length > 0 || notFitted.hypothetical.length > 0) && (
         // Explained here too, not only inside the body panel: the whole-system view shows these orbits.
         <p className="muted small orbit-legend">
           {notFitted.assumed.length > 0 && (
             <span>
-              <Swatch color={ORBIT_COLOR.assumed} /> Yellow orbit = assumed, not fitted:{' '}
+              <Swatch color={kit.ORBIT_COLOR.assumed} /> Yellow orbit = assumed, not fitted:{' '}
               {notFitted.assumed.join(', ')}.{' '}
             </span>
           )}
           {notFitted.hypothetical.length > 0 && (
             <span>
-              <Swatch color={ORBIT_COLOR.hypothetical} /> Violet orbit = hypothetical object:{' '}
+              <Swatch color={kit.ORBIT_COLOR.hypothetical} /> Violet orbit = hypothetical object:{' '}
               {notFitted.hypothetical.join(', ')}.{' '}
             </span>
           )}
           {notFitted.fitted && (
             <span>
-              <Swatch color={ORBIT_COLOR.fitted} />{' '}
+              <Swatch color={kit.ORBIT_COLOR.fitted} />{' '}
               {system.provenance.synthetic
                 ? 'Blue-grey orbit = synthetic demo orbit (not a published solution).'
                 : 'Blue-grey orbit = fitted orbit from the cited catalog or paper.'}
@@ -384,7 +451,7 @@ export function SystemViewer({ system, selectedId, onSelect }: Props) {
           )}
         </p>
       )}
-      {dataset && (
+      {kit && dataset && cloudLegend && (
         <div className="muted small">
           {dateLines.length > 0 && (
             <>
@@ -403,23 +470,31 @@ export function SystemViewer({ system, selectedId, onSelect }: Props) {
           )}
           {cloudLegend.arc && (
             <p style={P}>
-              <Dots color={UNCERTAINTY_COLOR.fitted} /> Arc: {CLOUD_POINTS} points over ±{ARC_HALF_WIDTH_SIGMA}σ of orbital phase on this
-              date, from the published t0 and period (linear propagation; their covariance is not published and is ignored);
-              opacity follows the Gaussian density. It widens as the date moves away from t0.
+              <Dots color={kit.UNCERTAINTY_COLOR.fitted} /> Arc: {kit.CLOUD_POINTS} points over ±{kit.ARC_HALF_WIDTH_SIGMA}σ of orbital
+              phase on this date, from the published t0 and period (linear propagation; their covariance is not published and is
+              ignored); opacity follows the Gaussian density. It widens as the date moves away from t0.
             </p>
           )}
-          {cloudLegend.ring.length > 0 && (
+          {cloudLegend.fittedRing && (
             <p style={P}>
-              {cloudLegend.ring.map((q) => (
-                <Dots key={q} color={UNCERTAINTY_COLOR[q]} faint />
+              <Dots color={kit.UNCERTAINTY_COLOR.fitted} faint /> Ring on a fitted orbit: phase unknown (no published epoch),{' '}
+              {kit.CLOUD_POINTS} points uniform in time along the orbit (denser where the body moves slowly), i.e. where the body
+              could be; the body is dimmed and labelled “phase unknown”.
+            </p>
+          )}
+          {cloudLegend.guessedRing.length > 0 && (
+            <p style={P}>
+              {cloudLegend.guessedRing.map((q) => (
+                <Dots key={q} color={kit.UNCERTAINTY_COLOR[q]} faint />
               ))}{' '}
-              Ring: phase unknown (no published epoch), {CLOUD_POINTS} points uniform in time along the orbit (denser where the body
-              moves slowly); the body is dimmed and labelled “phase unknown”. Dot colours follow the orbit colours.
+              Ring on {guessedOrbitPhrase(cloudLegend.guessedRing)}: neither the orbit nor the phase is known, so the ring only
+              follows the drawn orbit, not where the body could be; the body is dimmed and labelled “phase unknown”. Dot colours
+              follow the orbit colours.
             </p>
           )}
           {cloudLegend.lineOfSight && (
             <p style={P}>
-              <Swatch color={LOS_HEX} /> Arrow: {LINE_OF_SIGHT_LABEL}. Each dated planet sits on it at its t0, read as the time of
+              <Swatch color={LOS_HEX} /> Arrow: {kit.LINE_OF_SIGHT_LABEL}. Each dated planet sits on it at its t0, read as the time of
               inferior conjunction; the sense of motion on the sky is unknown.
             </p>
           )}
@@ -435,7 +510,7 @@ export function SystemViewer({ system, selectedId, onSelect }: Props) {
             Model time:{' '}
             {mjd === null || startMjd === null
               ? '—'
-              : `${formatElapsed(mjd - startMjd)} (free-running${arbitraryPhase ? ', arbitrary starting phase' : ''}: not a prediction for a real date${win ? '; use Dataset time for the SPHEREx dates' : ''})`}
+              : `${formatElapsed(mjd - startMjd)} (free-running${arbitraryPhase ? ', arbitrary starting phase' : ''}: not a prediction for a real date${datasetAvailable ? '; use Dataset time for the SPHEREx dates' : ''})`}
           </>
         )}{' '}
         · drag to rotate, scroll to zoom, click a body to enter it
@@ -444,15 +519,10 @@ export function SystemViewer({ system, selectedId, onSelect }: Props) {
   );
 }
 
-/** What the dataset-time legend has to explain for this system. */
-function datasetLegend(system: SystemModel): { arc: boolean; ring: OrbitQuality[]; lineOfSight: boolean } {
-  const orbiting = system.bodies.filter((b) => b.orbit && b.kind !== 'disk');
-  const ring = [...new Set(orbiting.filter((b) => b.orbit!.epoch_mjd == null).map((b) => b.orbit!.quality ?? 'fitted'))];
-  return {
-    arc: orbiting.some((b) => b.orbit!.epoch_mjd != null),
-    ring,
-    lineOfSight: orbiting.some((b) => isLineOfSightOrbit(b.orbit!)),
-  };
+/** 'an assumed orbit', 'a hypothetical orbit' or 'an assumed or hypothetical orbit'. */
+function guessedOrbitPhrase(qualities: readonly OrbitQuality[]): string {
+  if (qualities.length > 1) return 'an assumed or hypothetical orbit';
+  return qualities[0] === 'hypothetical' ? 'a hypothetical orbit' : 'an assumed orbit';
 }
 
 /** Three dots in a phase-cloud colour (legend). */

@@ -24,9 +24,11 @@
 //   - orbits with a published epoch are drawn at their predicted phase, with an arc of 64 points over
 //     ±2σ of phase (ephemerides.ts); a dated circle in the reference plane gets a 'toward Earth' arrow;
 //   - orbits without an epoch: the body is dimmed (0.35), labelled '(phase unknown)', and a ring of
-//     64 points uniform in mean anomaly shows where it could be;
-//   - a periodic variable with a catalogue ephemeris (R Dra, VSX) follows the predicted phase; one
-//     without is frozen at mean brightness and labelled; irregular variables never get a curve.
+//     64 points uniform in mean anomaly is drawn: on a fitted orbit it shows where the body could be;
+//     on an assumed or hypothetical orbit neither the orbit nor the phase is known;
+//   - variability follows ephemerides.variabilityPhase: a periodic variable with a catalogue ephemeris
+//     (R Dra, VSX) follows the predicted phase; 'unknown' ones are frozen at mean brightness and
+//     labelled; irregular variables never get a curve.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
@@ -63,9 +65,12 @@ import {
   miraEphemerisFor,
   orbitEphemerisFor,
   phaseCloud,
+  phaseUnknownLabel,
   predictedPulsation,
   RING_ALPHA,
   UNCERTAINTY_COLOR,
+  undatedOrbitTitle,
+  variabilityPhase,
   type MiraEphemeris,
   type OrbitEphemeris,
 } from './ephemerides';
@@ -78,7 +83,7 @@ import {
   variabilityFactor,
   type Vec3,
 } from './orbits';
-import { PHASE_UNKNOWN_SUFFIX, PULSATION_PHASE_UNKNOWN } from './spherexCoverage';
+import { PHASE_UNKNOWN_SUFFIX } from './spherexCoverage';
 import {
   advanceModelTime,
   AU_PER_KM,
@@ -103,8 +108,6 @@ import { createRimMaterial, createStarMaterial, RIM_DASHES, setRimDashes, setSta
 
 export type { DistanceMode } from './sceneLayout';
 export type { ColorMode } from './colorModes';
-// Kept here too: SystemViewer reads it from the lazily loaded module.
-export { suggestedSpeed };
 
 export interface SceneOptions {
   distanceMode: DistanceMode;
@@ -292,6 +295,11 @@ interface BodyNode {
   spin: SpinModel;
   /** Star: limb-darkening tables per colour mode. */
   ld?: Record<ColorMode, Float32Array>;
+  /**
+   * Star: convection cells across the disc when astro.granulationParams finds them resolvable. Not
+   * observed on any real target, so they are shown only with the class-typical toggle (VISION.md).
+   */
+  granCells?: number;
   /** Star: convective turnover time (days) when cells are drawn. */
   turnoverDays?: number;
   /** Glow size in display radii, per colour mode (DISPLAY). */
@@ -316,7 +324,7 @@ interface BodyNode {
   ringMode?: DistanceMode | null;
   /** Dataset time: drawn dimmed (orbit without a published epoch). */
   dim: boolean;
-  /** Dataset time: periodic variability frozen at mean brightness (no ephemeris). */
+  /** Dataset time: variability 'unknown' (ephemerides.variabilityPhase), frozen at mean brightness. */
   frozen: boolean;
 }
 
@@ -564,6 +572,7 @@ export class SystemScene {
       let mesh: THREE.Mesh;
       let ld: Record<ColorMode, Float32Array> | undefined;
       let turnoverDays: number | undefined;
+      let granCells: number | undefined;
       let glow: THREE.Sprite | undefined;
       let light: THREE.PointLight | undefined;
       let rim: THREE.Mesh | undefined;
@@ -588,7 +597,10 @@ export class SystemScene {
         const g = granulationParams(body);
         const tau = g.turnoverDays.value;
         const gran = g.draw && g.value !== null && tau !== null && tau > 0 ? { cells: g.value, contrast: g.contrast.value, seed: g.seed } : null;
-        if (gran) turnoverDays = tau!;
+        if (gran) {
+          turnoverDays = tau!;
+          granCells = gran.cells; // applyLooks switches them on only with the class-typical toggle
+        }
         const geo = this.track(new THREE.SphereGeometry(radius, 64, 32));
         const mat = this.track(createStarMaterial(SystemScene.starLook(looks, ld, this.options.colorMode), gran));
         mesh = new THREE.Mesh(geo, mat);
@@ -628,6 +640,7 @@ export class SystemScene {
         looks,
         spin: spinModel(body, bodies),
         ld,
+        granCells,
         turnoverDays,
         glowFactor: perMode((m) => glowFactors[m].get(body.id) ?? 2),
         glow,
@@ -699,7 +712,7 @@ export class SystemScene {
       const b = n.body;
       const v = b.variability;
       n.dim = this.datasetMode && !!b.orbit && b.orbit.epoch_mjd == null && n.role !== 'disk';
-      n.frozen = this.datasetMode && !!v && v.kind !== 'irregular' && (v.period_days ?? 0) > 0 && !(n.mira && drawsPulsation(b));
+      n.frozen = this.datasetMode && variabilityPhase(this.system.id, b) === 'unknown';
       const k = n.dim ? DIM_FACTOR : 1;
       if (n.role === 'star') {
         (n.mesh.material as THREE.ShaderMaterial).uniforms.uBrightness.value = srgbDecode(n.looks[mode].level) * k;
@@ -714,13 +727,14 @@ export class SystemScene {
       if (n.rim) (n.rim.material as THREE.ShaderMaterial).uniforms.uStrength.value = RIM_STRENGTH * k;
       if (n.label) {
         const el = n.label.element;
-        const suffix = n.dim ? ` ${PHASE_UNKNOWN_SUFFIX}` : n.frozen ? ` (${PULSATION_PHASE_UNKNOWN})` : '';
+        const unknownLabel = v ? phaseUnknownLabel(v.kind) : '';
+        const suffix = n.dim ? ` ${PHASE_UNKNOWN_SUFFIX}` : n.frozen ? ` (${unknownLabel})` : '';
         el.textContent = `${b.name}${suffix}`;
         el.style.opacity = n.dim ? '0.7' : '';
         el.title = n.dim
-          ? 'No published epoch for this orbit: its position on this date is not known (dimmed; the ring shows where it could be).'
+          ? undatedOrbitTitle(b.orbit?.quality ?? 'fitted')
           : n.frozen
-            ? 'No epoch for this periodic variability: drawn at mean brightness on real dates.'
+            ? `${unknownLabel[0].toUpperCase()}${unknownLabel.slice(1)} (no epoch or no period): drawn at mean brightness on real dates.`
             : '';
       }
     }
@@ -761,6 +775,11 @@ export class SystemScene {
       switch (n.role) {
         case 'star': {
           if (n.ld) setStarLook(n.mesh.material as THREE.ShaderMaterial, SystemScene.starLook(n.looks, n.ld, mode));
+          // Convection cells are class-typical (not observed on these stars): smooth sphere unless the toggle is on.
+          if (n.granCells) {
+            const u = (n.mesh.material as THREE.ShaderMaterial).uniforms.uGranCells;
+            if (u) u.value = this.options.classTypical || synthetic ? n.granCells : 0;
+          }
           const hue = new THREE.Color().setRGB(look.hue[0], look.hue[1], look.hue[2], THREE.SRGBColorSpace);
           if (n.glow) (n.glow.material as THREE.SpriteMaterial).color.copy(hue);
           // The synthetic demo's planets keep their visible look in every mode, so their light does too.

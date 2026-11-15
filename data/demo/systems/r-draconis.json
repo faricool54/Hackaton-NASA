@@ -107,13 +107,12 @@
   "representation_note": "3D model drawn from published catalog and literature values (each fact shows its source) - not an image. Sizes and distances may be exaggerated for visibility.",
   "provenance": {
     "pipeline_version": "0.1.0",
-    "built_at": "2026-11-14T20:01:36.494921Z",
+    "built_at": "2026-11-14T22:50:41.480709Z",
     "synthetic": false,
     "data_releases": [],
     "notes": [
       "Values checked on 2026-11-14 against the NASA Exoplanet Archive, SIMBAD (CfA mirror), Gaia DR3, VizieR and the cited papers (tasks/WS7-3d-systems.md, WS7-2). Facts still marked 'unverified' are estimates no source states.",
-      "Orbital and pulsation phases are arbitrary (no epoch): positions are not predictions for a real date.",
-      "The size/brightness animation is a sine wave spanning the V-band range: real Mira cycles are asymmetric, change from cycle to cycle and are much smaller in the infrared SPHEREx sees. It is not a measured or SPHEREx light curve.",
+      "The pulsation is drawn on two clocks. Free-running: the size/brightness animation is a sine wave at the GCVS period (245.6 d) spanning the V-band range, with an arbitrary phase (no epoch): it is not a prediction for a real date. Dataset time: R Dra is drawn at the phase predicted by the AAVSO VSX ephemeris (epoch of maximum HJD 2457370.00, P = 246.12 d) on an asymmetric curve that rises in 45 % of the cycle, with the timing band of the WS7 table frontend/src/three/ephemerides.ts (from the O−C of observed maxima against that ephemeris). Both are V-band drawings, not a measured or SPHEREx light curve: real Mira cycles change from cycle to cycle, the infrared amplitude SPHEREx sees is much smaller and infrared maxima lag the visual ones. The size change is drawn in phase with the light for display only.",
       "Radial velocity −132.8 km/s from SIMBAD (Wilson 1953); optical lines of a Mira move with the pulsation."
     ]
   }

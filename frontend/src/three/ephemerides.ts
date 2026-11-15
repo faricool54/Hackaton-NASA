@@ -9,10 +9,12 @@
 //                     time of inferior conjunction (juliet passes it to RadVel as 'tc'); the paper text
 //                     says periastron. Phase spread sigma_phi = sqrt(sigma_t0^2 + N^2 sigma_P^2) / P,
 //                     N = (t - t0) / P (linear propagation; covariance not published, ignored).
-//   Mira (S3)         R Dra: AAVSO VSX epoch of maximum HJD 2457370.00, P = 246.12 d, rise 45 %, with a
-//                     +-5 d timing band from the O-C scatter of observed maxima 2015-2024.
+//   Mira (S3)         R Dra: AAVSO VSX epoch of maximum HJD 2457370.00, P = 246.12 d, rise 45 %. Predicted
+//                     maxima stay on the VSX dates; their 1-sigma timing band is the RMS of the O-C of
+//                     observed maxima 2015-2024 about VSX, sqrt(4.7^2 + 4.6^2) = 6.6 d (mean -4.7 d,
+//                     s.d. 4.6 d, Karlsson list), so the band also covers the mean offset.
 //   Unknown phases    Why the other orbits stay arbitrary (Eps Ind Ab, Bb, RW Aur B), with sources.
-import type { Body, Orbit, OrbitQuality, SystemModel } from '../api/types';
+import type { Body, Orbit, OrbitQuality, SystemModel, VariabilityKind } from '../api/types';
 import { mjdToDate } from '../api/format';
 import { drawsPulsation, ORBIT_COLOR, PULSATION_RADIUS_AMPLITUDE } from './sceneLayout';
 
@@ -217,6 +219,17 @@ export function unknownPhaseReason(systemId: string, body: Body): UnknownPhaseRe
   return { text: 'no published epoch for this orbit', source: 'catalog (Orbit.epoch_mjd is null)' };
 }
 
+/**
+ * Tooltip of a body dimmed on a real date (orbit without an epoch). Only a fitted orbit's ring shows
+ * where the body could be; an assumed or hypothetical orbit is itself a guess.
+ */
+export function undatedOrbitTitle(quality: OrbitQuality): string {
+  if (quality === 'fitted') {
+    return 'No published epoch for this orbit: its position on this date is not known (dimmed; the ring shows where it could be).';
+  }
+  return `Ring on ${quality === 'assumed' ? 'an assumed' : 'a hypothetical'} orbit: neither the orbit nor the phase is known (dimmed; the ring only shows the drawn guess, not where the body could be).`;
+}
+
 // --- Mira pulsation (S3) --------------------------------------------------------------------------
 
 export interface MiraEphemeris {
@@ -228,7 +241,14 @@ export interface MiraEphemeris {
   /** Rise time from minimum to maximum as a fraction of the period ((M − m)/P). */
   riseFraction: number;
   band: string;
-  /** 1-sigma band of a predicted maximum (days), from the O-C scatter of observed maxima. */
+  /** Mean O−C of observed maxima against this ephemeris (days; negative = the maxima came early). */
+  ocMeanDays: number;
+  /** Standard deviation of that O−C about its mean (days). */
+  ocSdDays: number;
+  /**
+   * 1-sigma band of a predicted maximum (days) about the ephemeris date: the RMS of the O−C,
+   * sqrt(mean² + s.d.²). The predicted dates are not shifted by the mean, so the band carries it.
+   */
   timingSigmaDays: number;
   /** Eddington-Plakidis random cycle-length term (days); null = not sourced. */
   epsDays: number | null;
@@ -248,12 +268,14 @@ export const MIRA_EPHEMERIDES: readonly MiraEphemeris[] = [
     periodDays: 246.12,
     riseFraction: 0.45,
     band: 'V',
-    timingSigmaDays: 5,
+    ocMeanDays: -4.7,
+    ocSdDays: 4.6,
+    timingSigmaDays: Math.hypot(4.7, 4.6), // 6.58 d: RMS of the O−C about VSX
     epsDays: null,
     source: 'AAVSO VSX R Dra (oid 13673, revision 4, 2024-01-18): epoch of maximum HJD 2457370.00, P = 246.12 d, rise 45 %',
     timingSource:
-      'O−C of observed maxima 2015–2024 against the VSX ephemeris (T. Karlsson, Maxima of Mira stars, var.saaf.se): s.d. 4.6 d, mean −4.7 d',
-    note: 'VSX gives no epoch or period errors; the ±5 d band is the O−C scatter, not a formal error. It underestimates the uncertainty: no cycle-to-cycle (Eddington–Plakidis) term is sourced and the period wanders over decades. Observed maxima came on average 4.7 d before the VSX prediction. The catalog period (GCVS 245.6 d) drives the free-running animation; dataset time uses the VSX epoch and period together.',
+      'O−C of observed maxima 2015–2024 against the VSX ephemeris (T. Karlsson, Maxima of Mira stars, var.saaf.se): s.d. 4.6 d, mean −4.7 d; band = RMS about VSX, √(4.7² + 4.6²) ≈ 6.6 d',
+    note: 'VSX gives no epoch or period errors. The predicted maxima are the VSX dates, not shifted: observed maxima came on average 4.7 d before them, so the ±6.6 d band (1σ) is the RMS of the O−C about VSX, which includes that offset, not only the 4.6 d scatter. It is not a formal error and still underestimates the uncertainty: no cycle-to-cycle (Eddington–Plakidis) term is sourced and the period wanders over decades. The catalog period (GCVS 245.6 d) drives the free-running animation; dataset time uses the VSX epoch and period together.',
   },
 ];
 
@@ -275,6 +297,11 @@ export function miraPhase(eph: MiraEphemeris, mjd: number): number {
 export function miraTimingSigmaDays(eph: MiraEphemeris, mjd: number): number {
   const n = Math.abs(miraCycle(eph, mjd));
   return Math.sqrt(eph.timingSigmaDays ** 2 + (eph.epsDays !== null ? n * eph.epsDays ** 2 : 0));
+}
+
+/** A timing band as shown in the UI, to 0.1 d (e.g. '6.6'). */
+export function formatTimingDays(days: number): string {
+  return days.toFixed(1);
 }
 
 export function miraPhaseSigma(eph: MiraEphemeris, mjd: number): number {
@@ -346,32 +373,60 @@ export function predictedPulsation(eph: MiraEphemeris, body: Body, mjd: number):
 
 // --- what the HUD and the timeline say on a real date ---------------------------------------------
 
+/**
+ * How a body's variability is drawn on a real date. ONE rule for the timeline, the "On this date" list,
+ * the status line (spherexCoverage.phaseStatus) and the scene (SystemScene):
+ *   'irregular'  only kind === 'irregular': never a curve, never predicted;
+ *   'predicted'  a periodic variable (period_days > 0) with a WS7 ephemeris whose pulsation is drawn;
+ *   'unknown'    everything else - periodic without an ephemeris, or any other kind without a
+ *                period: frozen at mean brightness.
+ * null when the body has no variability.
+ */
+export type VariabilityPhase = 'predicted' | 'irregular' | 'unknown';
+
+export function variabilityPhase(systemId: string, body: Body): VariabilityPhase | null {
+  const v = body.variability;
+  if (!v) return null;
+  if (v.kind === 'irregular') return 'irregular';
+  if ((v.period_days ?? 0) > 0 && miraEphemerisFor(systemId, body.id) && drawsPulsation(body)) return 'predicted';
+  return 'unknown';
+}
+
+/**
+ * Label of variables frozen at mean brightness: 'pulsation phase unknown' when every kind is a
+ * pulsation, 'variability phase unknown' otherwise.
+ */
+export function phaseUnknownLabel(kinds: VariabilityKind | readonly VariabilityKind[]): string {
+  const list: readonly VariabilityKind[] = typeof kinds === 'string' ? [kinds] : kinds;
+  return `${list.length > 0 && list.every((k) => k === 'pulsation') ? 'pulsation' : 'variability'} phase unknown`;
+}
+
 export type VariabilityTrack =
   | { kind: 'predicted'; bodyId: string; name: string; ephemeris: MiraEphemeris }
   | { kind: 'irregular'; bodyId: string; name: string }
-  | { kind: 'unknown'; bodyId: string; name: string };
+  | { kind: 'unknown'; bodyId: string; name: string; variabilityKind: VariabilityKind };
 
-/** One entry per variable body: predicted (ephemeris), irregular (never a curve) or periodic without an epoch. */
+/** One entry per variable body, classified by variabilityPhase: predicted, irregular or unknown (frozen). */
 export function variabilityTracks(system: Pick<SystemModel, 'id' | 'bodies'>): VariabilityTrack[] {
   const out: VariabilityTrack[] = [];
   for (const b of system.bodies) {
-    const v = b.variability;
-    if (!v) continue;
+    const phase = variabilityPhase(system.id, b);
+    if (phase === null || !b.variability) continue;
     const eph = miraEphemerisFor(system.id, b.id);
-    if (v.kind === 'irregular' || !v.period_days) out.push({ kind: 'irregular', bodyId: b.id, name: b.name });
-    else if (eph && drawsPulsation(b)) out.push({ kind: 'predicted', bodyId: b.id, name: b.name, ephemeris: eph });
-    else out.push({ kind: 'unknown', bodyId: b.id, name: b.name });
+    if (phase === 'irregular') out.push({ kind: 'irregular', bodyId: b.id, name: b.name });
+    else if (phase === 'predicted' && eph) out.push({ kind: 'predicted', bodyId: b.id, name: b.name, ephemeris: eph });
+    else out.push({ kind: 'unknown', bodyId: b.id, name: b.name, variabilityKind: b.variability.kind });
   }
   return out;
 }
 
 export const IRREGULAR_TEXT = 'irregular: cannot be predicted - look at the frames';
 
-/** Predicted phase over one pass, e.g. "phase 0.90 → 0.26 (±0.02); predicted maximum 2025-05-20 ± 5 d". */
+/** Predicted phase over one pass, e.g. "phase 0.90 → 0.26 (±0.03); predicted maximum 2025-05-20 ± 6.6 d". */
 export function passPhaseSummary(eph: MiraEphemeris, startMjd: number, endMjd: number): string {
   const sig = miraPhaseSigma(eph, (startMjd + endMjd) / 2);
   const cycles = (endMjd - startMjd) / eph.periodDays;
-  const maxima = predictedMaxima(eph, startMjd, endMjd).map((m) => `${isoDay(m)} ± ${Math.round(miraTimingSigmaDays(eph, m))} d`);
+  const maxima = predictedMaxima(eph, startMjd, endMjd).map((m) => `${isoDay(m)} ± ${formatTimingDays(miraTimingSigmaDays(eph, m))} d`);
   const parts = [`predicted ${eph.band} phase ${miraPhase(eph, startMjd).toFixed(2)} → ${miraPhase(eph, endMjd).toFixed(2)} (±${sig.toFixed(2)})`];
   if (cycles >= 1) parts.push(`${cycles.toFixed(1)} cycles`);
   parts.push(maxima.length ? `predicted maxim${maxima.length > 1 ? 'a' : 'um'} ${maxima.join(', ')}` : 'no predicted maximum in this pass');
@@ -423,13 +478,13 @@ export function onThisDate(system: Pick<SystemModel, 'id' | 'bodies'>, mjd: numb
         bodyId: t.bodyId,
         name: t.name,
         kind: 'predicted',
-        text: `predicted ${e.band} phase ${phase.toFixed(2)} ± ${miraPhaseSigma(e, mjd).toFixed(2)} (VSX ephemeris, ±${Math.round(miraTimingSigmaDays(e, mjd))} d timing band) · ${miraState(e, phase)} · next predicted maximum ${isoDay(next)}`,
+        text: `predicted ${e.band} phase ${phase.toFixed(2)} ± ${miraPhaseSigma(e, mjd).toFixed(2)} (VSX ephemeris, ±${formatTimingDays(miraTimingSigmaDays(e, mjd))} d 1σ timing band about the VSX dates) · ${miraState(e, phase)} · next predicted maximum ${isoDay(next)}`,
         source: e.source,
       });
     } else if (t.kind === 'irregular') {
       lines.push({ bodyId: t.bodyId, name: t.name, kind: 'irregular', text: IRREGULAR_TEXT, source: null });
     } else {
-      lines.push({ bodyId: t.bodyId, name: t.name, kind: 'frozen', text: 'pulsation phase unknown: drawn at mean brightness', source: null });
+      lines.push({ bodyId: t.bodyId, name: t.name, kind: 'frozen', text: `${phaseUnknownLabel(t.variabilityKind)}: drawn at mean brightness`, source: null });
     }
   }
   return lines;

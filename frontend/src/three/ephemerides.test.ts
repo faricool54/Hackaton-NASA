@@ -6,6 +6,7 @@ import {
   ARC_Z,
   CLOUD_POINTS,
   CONJUNCTION_MEAN_ANOMALY_DEG,
+  formatTimingDays,
   isLineOfSightOrbit,
   jdToMjd,
   MIRA_EPHEMERIDES,
@@ -22,12 +23,15 @@ import {
   passPhaseSummary,
   phaseCloud,
   phaseSigmaDeg,
+  phaseUnknownLabel,
   predictedMaxima,
   predictedPulsation,
   RING_MEAN_ANOMALIES,
   RING_SIGMA_CYCLES,
   UNCERTAINTY_COLOR,
+  undatedOrbitTitle,
   UNKNOWN_PHASE_REASONS,
+  variabilityPhase,
   variabilityTracks,
   type OrbitEphemeris,
 } from './ephemerides';
@@ -156,6 +160,19 @@ describe('phase clouds (S2)', () => {
     expect(eps.find((l) => l.bodyId === 'eps-indi-ba')!.text).toMatch(/assumed orbit, not fitted/);
     expect(eps.every((l) => l.source)).toBe(true);
   });
+
+  it('says a ring on an assumed or hypothetical orbit is not where the body could be', () => {
+    expect(undatedOrbitTitle('fitted')).toMatch(/ring shows where it could be/);
+    for (const q of ['assumed', 'hypothetical'] as const) {
+      const t = undatedOrbitTitle(q);
+      expect(t).toMatch(/neither the orbit nor the phase is known/);
+      expect(t).not.toMatch(/shows where it could be/);
+    }
+    expect(undatedOrbitTitle('assumed')).toMatch(/^Ring on an assumed orbit/);
+    expect(undatedOrbitTitle('hypothetical')).toMatch(/^Ring on a hypothetical orbit/);
+    // Eps Ind Ba's orbit is assumed (never fitted): that is the case the ring wording must not overstate.
+    expect(bodyOf('epsilon-indi', 'eps-indi-ba').orbit?.quality).toBe('assumed');
+  });
 });
 
 describe('Mira ephemeris of R Dra (S3)', () => {
@@ -165,7 +182,17 @@ describe('Mira ephemeris of R Dra (S3)', () => {
     expect(RDRA.periodDays).toBe(246.12);
     expect(miraPhase(RDRA, DR1_START_MJD)).toBeCloseTo(0.897, 3);
     expect(miraPhase(RDRA, QR3_LAST_MJD)).toBeCloseTo(0.043, 3);
-    expect(miraTimingSigmaDays(RDRA, 61000)).toBe(5); // ε not sourced: the O−C band alone
+    // ε not sourced: the O−C band alone. Centre = VSX dates (not shifted), so 1σ = RMS of O−C about VSX.
+    expect(RDRA.ocMeanDays).toBe(-4.7);
+    expect(RDRA.ocSdDays).toBe(4.6);
+    expect(miraTimingSigmaDays(RDRA, 61000)).toBeCloseTo(Math.sqrt(4.7 ** 2 + 4.6 ** 2), 12);
+    expect(miraTimingSigmaDays(RDRA, 61000)).toBe(Math.hypot(RDRA.ocMeanDays, RDRA.ocSdDays));
+    expect(formatTimingDays(miraTimingSigmaDays(RDRA, 61000))).toBe('6.6');
+    // The band covers the mean offset: an observed maximum 4.7 d early is within 1σ.
+    expect(Math.abs(RDRA.ocMeanDays)).toBeLessThan(miraTimingSigmaDays(RDRA, 61000));
+    expect(RDRA.note).toMatch(/±6\.6 d band \(1σ\) is the RMS of the O−C about VSX/);
+    expect(RDRA.note).toMatch(/not shifted/);
+    expect(RDRA.timingSource).toMatch(/√\(4\.7² \+ 4\.6²\) ≈ 6\.6 d/);
   });
 
   it('predicts the 2025–2026 maxima of research item 3b', () => {
@@ -200,10 +227,10 @@ describe('Mira ephemeris of R Dra (S3)', () => {
 
   it('summarises the predicted phase of each SPHEREx pass', () => {
     expect(passPhaseSummary(RDRA, 60790, 60879)).toBe(
-      'predicted V phase 0.90 → 0.26 (±0.02); predicted maximum 2025-05-20 ± 5 d',
+      'predicted V phase 0.90 → 0.26 (±0.03); predicted maximum 2025-05-20 ± 6.6 d',
     );
     expect(passPhaseSummary(RDRA, 60916, 61310)).toBe(
-      'predicted V phase 0.41 → 0.01 (±0.02); 1.6 cycles; predicted maxima 2026-01-21 ± 5 d, 2026-09-24 ± 5 d',
+      'predicted V phase 0.41 → 0.01 (±0.03); 1.6 cycles; predicted maxima 2026-01-21 ± 6.6 d, 2026-09-24 ± 6.6 d',
     );
   });
 
@@ -217,7 +244,32 @@ describe('Mira ephemeris of R Dra (S3)', () => {
     expect(rw.find((l) => l.bodyId === 'rw-aur-b' && l.kind === 'arbitrary')?.source).toMatch(/Kurtovic/);
     const line = onThisDate(system('r-draconis'), DR1_START_MJD)[0];
     expect(line.text).toBe(
-      'predicted V phase 0.90 ± 0.02 (VSX ephemeris, ±5 d timing band) · rising · next predicted maximum 2025-05-20',
+      'predicted V phase 0.90 ± 0.03 (VSX ephemeris, ±6.6 d 1σ timing band about the VSX dates) · rising · next predicted maximum 2025-05-20',
     );
+  });
+
+  it('classifies variability with one rule: only kind "irregular" is irregular', () => {
+    const rdra = bodyOf('r-draconis', 'r-draconis');
+    const withVar = (kind: 'pulsation' | 'rotation' | 'eclipse' | 'accretion' | 'irregular', period: number | null): Body => ({
+      ...rdra,
+      variability: { kind, period_days: period, amplitude_mag: 1, band: 'V' },
+    });
+    expect(variabilityPhase('r-draconis', rdra)).toBe('predicted');
+    expect(variabilityPhase('not-in-the-table', rdra)).toBe('unknown');
+    expect(variabilityPhase('r-draconis', { ...rdra, variability: null })).toBeNull();
+    // No period but not irregular: unknown (frozen), never "irregular".
+    for (const kind of ['pulsation', 'rotation', 'eclipse', 'accretion'] as const) {
+      expect(variabilityPhase('r-draconis', withVar(kind, null)), kind).toBe('unknown');
+    }
+    // Irregular even with a period.
+    expect(variabilityPhase('r-draconis', withVar('irregular', 100))).toBe('irregular');
+    const sys = { id: 'x', bodies: [withVar('rotation', null), withVar('irregular', null)].map((b, i) => ({ ...b, id: `b${i}` })) };
+    expect(variabilityTracks(sys).map((t) => t.kind)).toEqual(['unknown', 'irregular']);
+    const lines = onThisDate(sys, 61000);
+    expect(lines.map((l) => l.kind)).toEqual(['frozen', 'irregular']);
+    expect(lines[0].text).toBe('variability phase unknown: drawn at mean brightness');
+    expect(phaseUnknownLabel('pulsation')).toBe('pulsation phase unknown');
+    expect(phaseUnknownLabel(['pulsation', 'rotation'])).toBe('variability phase unknown');
+    expect(phaseUnknownLabel([])).toBe('variability phase unknown');
   });
 });

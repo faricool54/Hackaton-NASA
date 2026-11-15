@@ -118,7 +118,11 @@ const signedPx = (arcsec: number) => {
   const px = Math.round((arcsec / SPHEREX_PIXEL_ARCSEC) * 100) / 100;
   return px === 0 ? '0' : `${px > 0 ? '+' : '−'}${Math.abs(px)}`;
 };
-const signedArcsec = (arcsec: number) => (Math.abs(arcsec) < 1e-12 ? '0' : `${arcsec > 0 ? '+' : '−'}${formatArcsec(Math.abs(arcsec))}`);
+// Anything that rounds to zero at display precision is shown as '0' (no '−0.0 mas' from rounding noise).
+const signedArcsec = (arcsec: number) => {
+  const text = formatArcsec(Math.abs(arcsec));
+  return parseFloat(text) === 0 ? '0' : `${arcsec > 0 ? '+' : '−'}${text}`;
+};
 const both = (arcsec: number) => `${formatArcsec(arcsec)} (${formatPx(arcsec)})`;
 /** Short label for grid lines and the scale bar: "5″", "0.5″", "20 mas". */
 const compactArcsec = (arcsec: number) => {

@@ -20,8 +20,11 @@
 // here; a TT/UTC ambiguity (~69 s) is irrelevant at the day-level precision of these windows.
 import type { Body, Frame, Provenance, SystemModel } from '../api/types';
 import { mjdToDate } from '../api/format';
-import { miraEphemerisFor } from './ephemerides';
-import { drawsPulsation } from './sceneLayout';
+import { isSpherexTarget, type SpherexTargetId } from './datasetGate';
+import { variabilityPhase } from './ephemerides';
+
+// The id list lives in datasetGate.ts (main chunk); this module loads with the 3D view.
+export { isSpherexTarget, type SpherexTargetId };
 
 export const SPHEREX_COVERAGE_SOURCE = 'IRSA SIA2+TAP DR1+QR3, queried 2026-11-14, docs/RECON_SPHEREX.md 4.2';
 
@@ -29,8 +32,6 @@ export const SPHEREX_COVERAGE_SOURCE = 'IRSA SIA2+TAP DR1+QR3, queried 2026-11-1
 export const ARCHIVE_CAPTION = 'archive coverage - frames not built in this dataset';
 /** Label suffix for a body drawn on a real date with an arbitrary orbital phase. */
 export const PHASE_UNKNOWN_SUFFIX = '(phase unknown)';
-/** Label for a periodic variable without an epoch (frozen at mean brightness on a real date). */
-export const PULSATION_PHASE_UNKNOWN = 'pulsation phase unknown';
 
 /** Visits are split where consecutive frames are more than this many days apart (RECON 2.6). */
 export const VISIT_GAP_DAYS = 10;
@@ -73,8 +74,6 @@ export const DATASET_TODAY_MJD = isoDateToMjd(DATASET_TODAY_ISO); // 61358
 export const TODAY_LABEL = `today ${DATASET_TODAY_ISO} · no later data in this dataset`;
 
 // --- archive coverage of the five targets -------------------------------------------------------
-
-export type SpherexTargetId = 'barnards-star' | 'epsilon-indi' | 'wise-0855' | 'r-draconis' | 'rw-aurigae';
 
 export interface ArchiveVisit {
   startMjd: number;
@@ -235,10 +234,6 @@ export const SPHEREX_PASSES: Readonly<Record<SpherexTargetId, readonly ArchivePa
   'rw-aurigae': SPHEREX_COVERAGE['rw-aurigae'].passes,
   'r-draconis': SPHEREX_COVERAGE['r-draconis'].passes,
 };
-
-export function isSpherexTarget(id: string): id is SpherexTargetId {
-  return Object.prototype.hasOwnProperty.call(SPHEREX_COVERAGE, id);
-}
 
 export function coverageFor(systemId: string): TargetCoverage | null {
   return isSpherexTarget(systemId) ? SPHEREX_COVERAGE[systemId] : null;
@@ -585,37 +580,55 @@ export interface PhaseStatus {
   dated: string[];
   /** Orbiting bodies without an epoch: arbitrary phase, never a position for a real date. */
   arbitrary: string[];
-  /** Periodic variables with a WS7 catalogue ephemeris (ephemerides.ts): predicted phase on a real date. */
+  /** Variability 'predicted' (ephemerides.variabilityPhase): a WS7 catalogue ephemeris gives the phase on a real date. */
   pulsationPredicted: string[];
-  /** Periodic variables (period_days > 0) without an ephemeris: frozen at mean brightness on a real date. */
+  /**
+   * Variability 'unknown': periodic without an ephemeris, or a non-irregular kind without a period.
+   * Frozen at mean brightness on a real date.
+   */
   pulsationArbitrary: string[];
-  /** Irregular variables (no period): never predicted. */
+  /** Variability 'irregular' (kind === 'irregular'): never predicted. */
   irregular: string[];
+}
+
+function hasEpoch(b: Body): boolean {
+  return !!b.orbit && b.orbit.epoch_mjd != null && Number.isFinite(b.orbit.epoch_mjd);
 }
 
 /**
  * Root bodies (no orbit) sit at the origin and are in neither orbit list. Contract 0.2.1 has no epoch
- * for a Variability, so a predicted pulsation comes only from the WS7 table (by system and body id).
+ * for a Variability, so a predicted pulsation comes only from the WS7 table, looked up by system and
+ * body id: the id is required, or R Dra would silently lose its ephemeris. Variability follows the
+ * one rule of ephemerides.variabilityPhase (also used by the timeline, the HUD and the scene).
  */
-export function phaseStatus(system: Pick<SystemModel, 'bodies'> & { id?: string }): PhaseStatus {
+export function phaseStatus(system: Pick<SystemModel, 'id' | 'bodies'>): PhaseStatus {
   const out: PhaseStatus = { dated: [], arbitrary: [], pulsationPredicted: [], pulsationArbitrary: [], irregular: [] };
   for (const b of system.bodies) {
-    if (b.orbit) (b.orbit.epoch_mjd != null && Number.isFinite(b.orbit.epoch_mjd) ? out.dated : out.arbitrary).push(b.id);
-    const v = b.variability;
-    if (!v) continue;
-    if (v.kind === 'irregular' || !((v.period_days ?? 0) > 0)) {
-      if (v.kind === 'irregular') out.irregular.push(b.id);
-    } else if (system.id && miraEphemerisFor(system.id, b.id) && drawsPulsation(b)) out.pulsationPredicted.push(b.id);
-    else out.pulsationArbitrary.push(b.id);
+    if (b.orbit) (hasEpoch(b) ? out.dated : out.arbitrary).push(b.id);
+    const v = variabilityPhase(system.id, b);
+    if (v === 'irregular') out.irregular.push(b.id);
+    else if (v === 'predicted') out.pulsationPredicted.push(b.id);
+    else if (v === 'unknown') out.pulsationArbitrary.push(b.id);
   }
   return out;
+}
+
+/**
+ * Free-running starts every orbit without an epoch and every animated variability (period_days > 0,
+ * not irregular) at an arbitrary phase: the "Model time" hint says so.
+ */
+export function freeRunningArbitraryPhase(system: Pick<SystemModel, 'bodies'>): boolean {
+  return system.bodies.some((b) => {
+    const v = b.variability;
+    return (!!b.orbit && !hasEpoch(b)) || (!!v && v.kind !== 'irregular' && (v.period_days ?? 0) > 0);
+  });
 }
 
 /**
  * The line shown next to the calendar date in dataset mode, e.g.
  * "Real epoch: Barnard d, Barnard b, Barnard c, Barnard e · Arbitrary phase: none".
  */
-export function phaseStatusLine(system: Pick<SystemModel, 'bodies'> & { id?: string }): string {
+export function phaseStatusLine(system: Pick<SystemModel, 'id' | 'bodies'>): string {
   const s = phaseStatus(system);
   const byId = new Map<string, Body>(system.bodies.map((b) => [b.id, b]));
   const names = (ids: string[]) => (ids.length ? ids.map((id) => byId.get(id)?.name ?? id).join(', ') : 'none');
@@ -624,7 +637,7 @@ export function phaseStatusLine(system: Pick<SystemModel, 'bodies'> & { id?: str
     parts.push(`Real epoch: ${names(s.dated)}`, `Arbitrary phase: ${names(s.arbitrary)}`);
   }
   if (s.pulsationPredicted.length > 0) parts.push(`Predicted pulsation phase (catalogue ephemeris): ${names(s.pulsationPredicted)}`);
-  if (s.pulsationArbitrary.length > 0) parts.push(`Pulsation phase unknown: ${names(s.pulsationArbitrary)}`);
+  if (s.pulsationArbitrary.length > 0) parts.push(`Variability phase unknown, mean brightness: ${names(s.pulsationArbitrary)}`);
   if (s.irregular.length > 0) parts.push(`Irregular, unpredictable: ${names(s.irregular)}`);
   return parts.length ? parts.join(' · ') : 'Nothing in this model depends on an orbital or pulsation phase.';
 }

@@ -10,7 +10,7 @@ import {
   NEUTRAL_GREY_HEX,
   surfacePattern,
 } from './appearance';
-import { limbDarkeningLut } from './astro';
+import { limbDarkeningLut, MIRA_LAYERS_CITATION, MIRA_TIO_CITATION } from './astro';
 import {
   bodyLook,
   COLOR_MODE_LABEL,
@@ -410,6 +410,18 @@ describe('surfaces: real targets show only what is measured (M3, S5)', () => {
     expect(colorLegend('ir', sys('rw-aurigae')).join(' ')).toMatch(/photosphere only/);
     expect(bodyLook(bod('rw-aurigae', 'rw-aur-a'), sys('rw-aurigae'), 'ir').note).toMatch(/IR excess/);
     expect(colorLegend('ir', sys('barnards-star')).join(' ')).not.toMatch(/photosphere only/);
+    // Mira (R Dra): the legend under the canvas carries the same caveat as the panel rows and the AB rule.
+    const miraIr = `R Draconis: photosphere blackbody only. The H₂O and CO bands of the extended pulsating atmosphere and the circumstellar dust, which shape the 0.75–5 µm spectrum of a Mira, are not modelled (${MIRA_LAYERS_CITATION}).`;
+    expect(colorLegend('ir', sys('r-draconis'))).toContain(miraIr);
+    expect(colorLegend('D5', sys('r-draconis'))).toContain(miraIr);
+    expect(colorLegend('visible', sys('r-draconis'))).toContain(
+      `R Draconis: colour of the photosphere blackbody only. The visible light of a Mira is dominated by TiO absorption bands, which are not modelled (${MIRA_TIO_CITATION}).`,
+    );
+    expect(MIRA_LAYERS_CITATION).toBe('Höfner & Olofsson 2018, A&ARv 26, 1');
+    expect(MIRA_TIO_CITATION).toBe('Reid & Goldston 2002, ApJ 568, 931');
+    for (const id of ['barnards-star', 'epsilon-indi', 'rw-aurigae', 'wise-0855', 'demo-ecliptic-orbits']) {
+      for (const m of MODES) expect(colorLegend(m, sys(id)).join(' '), `${id} ${m}`).not.toMatch(/Mira|TiO/);
+    }
     expect(surfaceLegend(eps, 'ir', false).join(' ')).toMatch(/No surface features/);
     expect(surfaceLegend(eps, 'ir', false).join(' ')).toMatch(/no verified rotational-modulation amplitude/);
     const on = surfaceLegend(eps, 'visible', true).join(' ');
@@ -425,39 +437,109 @@ describe('surfaces: real targets show only what is measured (M3, S5)', () => {
     // The size/light phase is a display choice, never stated as physics.
     expect(rdra).toMatch(/phase relation between size and light curve is not modelled: drawn in phase for display/);
     expect(rdra).not.toMatch(/largest when brightest/);
+    // Convection cells are not observed on R Dra: smooth by default, drawn only with the class-typical toggle.
+    expect(rdra).toMatch(/R Draconis: smooth \(≈8(\.\d)? convection cells across would be resolvable, .* shown only with class-typical features\)/);
+    expect(surfaceLegend(sys('r-draconis'), 'ir', true).join(' ')).toMatch(
+      /R Draconis: ≈8(\.\d)? convection cells across \(.*CLASS-TYPICAL, not observed on this star\)/,
+    );
     expect(surfaceLegend(sys('barnards-star'), 'visible', false).join(' ')).toMatch(/too small to draw/);
   });
 });
 
 describe('main-chunk safety', () => {
-  // Every module of this folder as raw text, to walk the static import graph (not only direct imports).
-  const SOURCES = import.meta.glob<string>('./*.ts', { eager: true, query: '?raw', import: 'default' });
+  // Raw text of every module the walk can reach: this folder (.ts and .tsx), the components, the pages
+  // and the api client. Keys become paths under src/ ('three/astro.ts', 'components/SystemViewer.tsx').
+  const RAW = import.meta.glob<string>(['./*.{ts,tsx}', '../components/*.{ts,tsx}', '../pages/*.{ts,tsx}', '../api/*.ts'], {
+    eager: true,
+    query: '?raw',
+    import: 'default',
+  });
+  const SRC = new Map(Object.entries(RAW).map(([k, v]) => [k.startsWith('./') ? `three/${k.slice(2)}` : k.slice(3), v]));
 
-  /** Every module reachable through static imports from `entry` (relative './x' imports only). */
-  function reachable(entry: string): string[] {
-    const seen = new Set<string>();
-    const queue = [entry];
-    while (queue.length) {
-      const name = queue.shift()!;
-      if (seen.has(name)) continue;
-      seen.add(name);
-      const src = SOURCES[`./${name}.ts`];
-      expect(src, `source of ${name}`).toBeTypeOf('string');
-      for (const m of src.matchAll(/^\s*(?:import|export)\b[^;]*?\bfrom\s+['"]\.\/([\w.-]+)['"]/gm)) queue.push(m[1]);
+  /**
+   * Specifiers of the static value imports and re-exports of a module, in source order. `import type`
+   * and `export type` are erased at build time and dynamic import() makes a separate chunk, so neither
+   * counts. Mixed imports (`import { a, type B }`) count.
+   */
+  function staticImports(src: string): string[] {
+    const out: { at: number; spec: string }[] = [];
+    for (const m of src.matchAll(/^[ \t]*(?:import|export)\s+(type\s+)?[\w\s{},*$]*?\bfrom\s+['"]([^'"]+)['"]/gm)) {
+      if (!m[1]) out.push({ at: m.index ?? 0, spec: m[2] });
     }
-    return [...seen];
+    for (const m of src.matchAll(/^[ \t]*import\s+['"]([^'"]+)['"]/gm)) out.push({ at: m.index ?? 0, spec: m[1] });
+    return out.sort((a, b) => a.at - b.at).map((x) => x.spec);
   }
 
-  it('the modules SystemViewer imports statically never reach three.js, SystemScene or starMaterial', () => {
-    const graph = new Set(['colorModes', 'sceneLayout', 'appearance'].flatMap(reachable));
-    expect(graph.has('astro')).toBe(true); // the walk really follows imports
-    expect(graph.has('bodyFormat')).toBe(true);
-    for (const name of graph) {
-      const src = SOURCES[`./${name}.ts`];
-      expect(name).not.toMatch(/^(SystemScene|starMaterial)$/);
-      expect(src, name).not.toMatch(/from\s+['"]three/);
-      expect(src, name).not.toMatch(/import\(\s*['"]three/);
-      expect(src, name).not.toMatch(/import\(\s*['"]\.\/(SystemScene|starMaterial)/);
+  /** A relative specifier resolved against the importing module ('components/X.tsx' + '../three/y' → 'three/y.ts'). */
+  function resolve(from: string, spec: string): string | null {
+    const parts = from.split('/').slice(0, -1);
+    for (const seg of spec.split('/')) {
+      if (seg === '..') parts.pop();
+      else if (seg !== '.') parts.push(seg);
+    }
+    const base = parts.join('/');
+    return [base, `${base}.ts`, `${base}.tsx`, `${base}/index.ts`].find((c) => SRC.has(c)) ?? null;
+  }
+
+  /** Every module reachable from `roots` through static imports, with the package imports each one makes. */
+  function walk(roots: readonly string[]): Map<string, string[]> {
+    const graph = new Map<string, string[]>();
+    const queue = [...roots];
+    while (queue.length) {
+      const name = queue.shift()!;
+      if (graph.has(name)) continue;
+      const src = SRC.get(name);
+      expect(src, `source of ${name}`).toBeTypeOf('string');
+      const packages: string[] = [];
+      for (const spec of staticImports(src!)) {
+        if (!spec.startsWith('.')) packages.push(spec);
+        else if (!/\.(css|json|svg|png)(\?|$)/.test(spec)) {
+          const target = resolve(name, spec);
+          expect(target, `${name} imports ${spec}`).not.toBeNull();
+          queue.push(target!);
+        }
+      }
+      graph.set(name, packages);
+    }
+    return graph;
+  }
+
+  it('the import parser keeps value imports and drops type-only and dynamic ones', () => {
+    const src = [
+      "import { a, type B } from './x';",
+      "import type { C } from './y';",
+      "export type { D } from './z';",
+      "export { e } from './w';",
+      "import * as T from 'three';",
+      "const m = import('./SystemScene');",
+      "import {\n  f,\n  g,\n} from './v';",
+      "import './side-effect.css';",
+    ].join('\n');
+    expect(staticImports(src)).toEqual(['./x', './w', 'three', './v', './side-effect.css']);
+    expect(resolve('components/SystemViewer.tsx', '../three/colorModes')).toBe('three/colorModes.ts');
+    // The walk follows imports through files: the notes reach astro through their own imports.
+    expect(walk(['three/appearanceNotes.ts']).has('three/astro.ts')).toBe(true);
+  });
+
+  it("nothing SystemViewer.tsx imports statically reaches three.js, SystemScene or starMaterial (its own imports, read at test time)", () => {
+    const viewer = 'components/SystemViewer.tsx';
+    const roots = staticImports(SRC.get(viewer)!).filter((s) => s.startsWith('.'));
+    expect(roots.length).toBeGreaterThan(0);
+    const graph = walk([viewer]); // the viewer itself and everything it reaches
+    expect(graph.size).toBeGreaterThan(1);
+    for (const [name, packages] of graph) {
+      expect(name).not.toMatch(/^three\/(SystemScene|starMaterial)\.ts$/);
+      for (const p of packages) expect(p, `${name} imports ${p} statically`).not.toMatch(/^three(\/|$)/);
+    }
+  });
+
+  it('BodyPanel and SystemsPage take KIND_LABEL from the astro-free kindLabels, so they never reach astro.ts', () => {
+    for (const page of ['components/BodyPanel.tsx', 'pages/SystemsPage.tsx']) {
+      const graph = walk([page]);
+      expect(graph.has('three/kindLabels.ts'), page).toBe(true);
+      expect(graph.has('three/appearance.ts'), page).toBe(false);
+      expect(graph.has('three/astro.ts'), page).toBe(false);
+      for (const [name, packages] of graph) for (const p of packages) expect(p, `${name} imports ${p}`).not.toMatch(/^three(\/|$)/);
     }
   });
 });

@@ -6,6 +6,7 @@ import { classTypicalFeature, surfacePattern } from './appearance';
 import {
   FLAG_TEXT,
   GRANULATION_SENSITIVITY,
+  SCENE_DRAWING_DEFAULTS,
   NOTE_TIER_LABEL,
   NOTE_TIER_MEANING,
   NOTE_TIERS,
@@ -18,9 +19,10 @@ import {
   separationVerdict,
   type AppearanceNote,
 } from './appearanceNotes';
-import { PHYS, spherexPrediction } from './astro';
-import { bodyLook } from './colorModes';
-import { PULSATION_PHASE_NOTE, drawsPulsation, spinModel } from './sceneLayout';
+import { MIRA_TIO_CITATION, PHYS, granulationParams, spherexPrediction } from './astro';
+import { COLOR_MODES, COLOR_MODE_LABEL, bodyLook } from './colorModes';
+import { MIRA_EPHEMERIDES, MIRA_PREDICTION_CAVEAT } from './ephemerides';
+import { PULSATION_CITATION, PULSATION_PHASE_NOTE, drawsPulsation, spinModel } from './sceneLayout';
 
 // Every demo system shipped with the site (the same JSON the pipeline writes).
 const SYSTEMS = Object.values(
@@ -135,8 +137,11 @@ describe('every demo body', () => {
         const pattern = surfacePattern(b, s, false);
         expect(rowOf(notes, 'Surface pattern').tier, where).toBe(pattern === 'none' ? 'not-drawn' : 'illustrative');
       }
-      // The toggle row says exactly what appearance.classTypicalFeature (the scene's gate) adds.
-      if (!s.provenance.synthetic) {
+      // The toggle row says exactly what the scene's gates add: appearance.classTypicalFeature, and for
+      // stars the resolvable convection cells of astro.granulationParams (SystemScene.applyLooks).
+      if (!s.provenance.synthetic && b.kind === 'star' && granulationParams(b).draw) {
+        expect(rowOf(notes, CLASS_TOGGLE).tier, where).toBe('class-typical');
+      } else if (!s.provenance.synthetic) {
         const feature = classTypicalFeature(b, s);
         const toggle = rowOf(notes, CLASS_TOGGLE);
         expect(toggle.tier, where).toBe(feature.pattern === 'none' ? 'not-drawn' : 'class-typical');
@@ -183,7 +188,7 @@ describe('How this body is drawn', () => {
       if (s.provenance.synthetic) continue;
       const row = rowOf(appearanceNotes(b, s), "Toggle 'Show class-typical features'");
       expect(row.value, b.id).toMatch(/^off by default/);
-      const adds = surfacePattern(b, s, true) !== 'none';
+      const adds = surfacePattern(b, s, true) !== 'none' || (b.kind === 'star' && granulationParams(b).draw);
       expect(row.tier, b.id).toBe(adds ? 'class-typical' : 'not-drawn');
       if (adds) expect(row.value, b.id).toMatch(/ILLUSTRATIVE/);
     }
@@ -270,6 +275,51 @@ describe('How this body is drawn', () => {
     expect(puls.tier).toBe('class-typical');
   });
 
+  it('R Dra pulsation and glow rows describe both clocks, with the Dataset-time ephemeris read from ephemerides.ts', () => {
+    const eph = MIRA_EPHEMERIDES.find((e) => e.systemId === 'r-draconis' && e.bodyId === 'r-draconis')!;
+    expect(eph).toBeTruthy();
+    const notes = notesOf('r-draconis', 'r-draconis');
+    const puls = rowOf(notes, 'Pulsation (radius)');
+    // Free-running: the catalog (GCVS) period, arbitrary phase.
+    expect(puls.method).toMatch(
+      /^Free-running clock: radius factor 1 − 0\.1·sin\(2π·\(MJD − 51544\.5\)\/P\) at the catalog period P = 245\.6 days; the phase is arbitrary/,
+    );
+    // Dataset time: the VSX epoch and period, the asymmetric 45 % rise, the timing band and the caveat.
+    expect(puls.method).toContain(`Dataset time: radius factor 1 + 0.1·s(φ), where s is the asymmetric ${eph.band}-band light-curve shape`);
+    expect(puls.method).toContain(`the rise from minimum to maximum takes ${Math.round(eph.riseFraction * 100)} % of the cycle, so minimum is at φ = 0.55`);
+    expect(puls.method).toContain(`epoch of maximum HJD ${eph.epochHjd.toFixed(2)} (MJD 57369.5) and P = ${eph.periodDays} d`);
+    expect(puls.method).toContain(`±${Number(eph.timingSigmaDays.toPrecision(2))} d timing band (1σ)`);
+    expect(puls.method).toContain(eph.note);
+    expect(puls.method).toContain(MIRA_PREDICTION_CAVEAT);
+    expect(puls.method).toContain(
+      `In both clocks the amplitude is the class-typical ~20 % peak-to-peak continuum diameter change of Mira variables, not measured on this star, and ${PULSATION_PHASE_NOTE}`,
+    );
+    expect(puls.citation).toBe(`${PULSATION_CITATION}; ephemeris: ${eph.source}; timing band: ${eph.timingSource}`);
+    // The glow: modulated in visible mode only, on both clocks, TiO-driven.
+    const glow = rowOf(notes, 'Glow');
+    expect(glow.method).toMatch(/light curve modulates the glow in visible mode only \(opacity × f\^0\.25, size × f\^0\.3/);
+    expect(glow.method).toContain('free-running clock, a sine at the catalog period with an arbitrary phase');
+    expect(glow.method).toContain(
+      `Dataset time, the predicted ${eph.band} phase on the asymmetric curve of the ephemeris in the pulsation row (${MIRA_PREDICTION_CAVEAT})`,
+    );
+    expect(glow.method).toContain(`TiO absorption, not by the Planck function (${MIRA_TIO_CITATION})`);
+    expect(glow.citation).toContain(eph.source);
+    // A pulsating star without a tabulated ephemeris is held at its mean size and glow in Dataset time.
+    const sys: SystemModel = { ...system('r-draconis'), id: 'not-in-the-table' };
+    const other = appearanceNotes(sys.bodies[0], sys);
+    expect(rowOf(other, 'Pulsation (radius)').method).toContain(
+      'Dataset time: no catalogue ephemeris of maximum light is tabulated for this star, so it is drawn at its mean size (phase unknown)',
+    );
+    expect(rowOf(other, 'Pulsation (radius)').citation).toBe(PULSATION_CITATION);
+    expect(rowOf(other, 'Glow').method).toContain('Dataset time, held at the mean (no catalogue ephemeris: phase unknown)');
+  });
+
+  it('lists every colour mode: the panel says which one the view opens in and names the others', () => {
+    expect(SCENE_DRAWING_DEFAULTS.colourMode).toBe(COLOR_MODE_LABEL.ir);
+    expect(SCENE_DRAWING_DEFAULTS.otherColourModes).toEqual(COLOR_MODES.filter((m) => m !== 'ir').map((m) => COLOR_MODE_LABEL[m]));
+    expect(SCENE_DRAWING_DEFAULTS.otherColourModes).toHaveLength(7); // visible + D1..D6
+  });
+
   it('stars: granulation only where resolvable; dwarfs say how many cells and why they are not drawn', () => {
     const barnard = rowOf(notesOf('barnards-star', 'barnards-star'), 'Surface pattern');
     expect(barnard.value).toBe('none: ≈1,600 cells across, too small to draw');
@@ -289,23 +339,31 @@ describe('How this body is drawn', () => {
     else expect(row.value).toMatch(/convection cells across/);
   });
 
-  it('R Dra with the illustrative 1 M_sun: about 8 cells, and the verdict holds for 200–300 R_sun and 1–2 M_sun', () => {
+  it('R Dra with the class-typical 1 M_sun: about 8 cells, and the verdict holds for 200–300 R_sun and 1–1.8 M_sun (Feast 2009)', () => {
+    // The catalog's own unverified Fact 'Mass (class-typical)' (Feast 2009), at exactly 1 M_sun in PHYS units.
     const base = bodyIn('r-draconis', 'r-draconis');
-    const rdra: Body = {
-      ...base,
-      mass_kg: PHYS.GMSun / PHYS.G,
-      facts: [
-        ...base.facts.filter((f) => !/^mass\b/i.test(f.label)),
-        { label: 'Mass (illustrative)', value: '1.0', unit: 'solar masses', source: 'no dynamical mass; typical Mira 1-2 M_sun', verified: false },
-      ],
-    };
+    const massFact = base.facts.find((f) => /^mass\b/i.test(f.label))!;
+    expect(massFact).toMatchObject({ label: 'Mass (class-typical)', value: '~1', unit: 'solar masses', verified: false });
+    expect(massFact.source).toMatch(/^Feast 2009, .*arXiv:0812\.0250, Sect\. 3: .*C-Miras at log P ~2\.7 have ~1\.8 M_sun; R Dra has log P = 2\.39/);
+    const rdra: Body = { ...base, mass_kg: PHYS.GMSun / PHYS.G };
     const sys: SystemModel = { ...system('r-draconis'), bodies: [rdra] };
     const notes = appearanceNotes(rdra, sys);
     const row = rowOf(notes, 'Surface pattern');
-    expect(row.value).toMatch(/^≈8(\.\d)? convection cells across, ±15 % contrast, turnover ≈ 1\d\d d$/);
+    expect(row.value).toMatch(
+      /^≈8(\.\d)? convection cells across, ±15 % contrast, turnover ≈ 1\d\d d \(only with 'Show class-typical features', off by default\)$/,
+    );
+    expect(row.method).toMatch(/none is observed on this star, so the default view is a smooth sphere \(docs\/VISION\.md\)/);
     expect(row.tier).toBe('illustrative');
-    expect(row.method).toMatch(/for R 200–300 R☉ and M 1–2 M☉ \(illustrative ranges\) the count is 6\.\d–2\d, so the verdict holds/);
-    expect(GRANULATION_SENSITIVITY['r-draconis']).toEqual({ radiusRsun: [200, 300], massMsun: [1, 2] });
+    // The toggle row says what it adds to R Dra: the cells, class-typical, with the π¹ Gru observation as the class basis.
+    const toggle = rowOf(notes, "Toggle 'Show class-typical features'");
+    expect(toggle.value).toMatch(/^off by default; when on: ≈8(\.\d)? convection cells across, ±15 % contrast \(ILLUSTRATIVE\)$/);
+    expect(toggle.tier).toBe('class-typical');
+    expect(toggle.citation).toMatch(/Paladini et al\. 2018/);
+    expect(row.method).toMatch(
+      /for R 200–300 R☉ and M 1–1\.8 M☉ \(illustrative ranges\) the count is 6\.\d–1\d, so the verdict holds, also for any lower mass \(N ∝ M\); M from the catalog's class-typical 1 M☉ up to 1\.8 M☉, the initial mass Feast 2009 gives for C-Miras at log P = 2\.72/,
+    );
+    expect(GRANULATION_SENSITIVITY['r-draconis'].radiusRsun).toEqual([200, 300]);
+    expect(GRANULATION_SENSITIVITY['r-draconis'].massMsun).toEqual([1, 1.8]);
     expect(rowOf(notes, 'Luminosity').tier).toBe('illustrative');
   });
 
@@ -557,17 +615,16 @@ describe('bundle boundary', () => {
     const imports = [...notesSource.matchAll(/^\s*import\b[^;]*?\bfrom\s+['"]([^'"]+)['"]/gm)].map((m) => m[1]);
     expect(imports.length).toBeGreaterThan(0);
     for (const i of imports) {
-      expect(['../api/types', './appearance', './astro', './bodyFormat', './colorModes', './sceneLayout', './spherexBands'], i).toContain(i);
+      expect(['../api/types', './appearance', './astro', './bodyFormat', './colorModes', './ephemerides', './sceneLayout', './spherexBands'], i).toContain(i);
     }
   });
 
-  it('nor does any module it pulls into the main chunk', () => {
-    const sources = import.meta.glob<string>(['./appearance.ts', './bodyFormat.ts', './colorModes.ts', './orbits.ts', './sceneLayout.ts'], {
-      eager: true,
-      query: '?raw',
-      import: 'default',
-    });
-    expect(Object.keys(sources).length).toBe(5);
+  it('nor does any module it pulls in', () => {
+    const sources = import.meta.glob<string>(
+      ['./appearance.ts', './bodyFormat.ts', './colorModes.ts', './ephemerides.ts', './kindLabels.ts', './orbits.ts', './sceneLayout.ts'],
+      { eager: true, query: '?raw', import: 'default' },
+    );
+    expect(Object.keys(sources).length).toBe(7);
     for (const [name, src] of Object.entries(sources)) {
       expect(src, name).not.toMatch(/from\s+['"]three(\/|['"])/);
       expect(src, name).not.toMatch(/import\(\s*['"]three/);

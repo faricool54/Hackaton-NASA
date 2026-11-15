@@ -108,7 +108,9 @@ CONJUNCTION_MEAN_ANOMALY_DEG = 270.0
 PHASE_SPREAD_DATES = ((60789.75, "2025-04-24"), (61318.0, "2026-10-05"))
 
 
-def phase_sigma_deg(t_mjd: float, t0_mjd: float, t0_err_days: float, period_days: float, period_err_days: float) -> float:
+def phase_sigma_deg(
+    t_mjd: float, t0_mjd: float, t0_err_days: float, period_days: float, period_err_days: float
+) -> float:
     """First-order 1-sigma orbital phase spread (deg) at ``t_mjd`` from a published t0 and P.
 
     sigma_phi = sqrt(sigma_t0^2 + N^2 sigma_P^2) / P with N = (t - t0) / P (linear propagation; Taylor
@@ -463,6 +465,26 @@ def wise_0855() -> SystemModel:
 
 # --- R Draconis: a pulsating Mira variable --------------------------------------
 
+# The viewer draws R Dra's pulsation on two clocks. Free-running: a sine at the catalog (GCVS) period
+# with an arbitrary phase. Dataset time: the AAVSO VSX ephemeris of maximum light, held with its
+# timing band in the WS7 table frontend/src/three/ephemerides.ts (MIRA_EPHEMERIDES); the contract has
+# no field for a Variability epoch. tests/test_systems.py checks that these values match that table.
+RDRA_GCVS_PERIOD_DAYS = 245.6
+RDRA_VSX_EPOCH_HJD = 2457370.00  # epoch of maximum light (V)
+RDRA_VSX_PERIOD_DAYS = 246.12
+RDRA_VSX_RISE_PERCENT = 45  # rise from minimum to maximum, % of the period
+RDRA_PULSATION_NOTE = (
+    "The pulsation is drawn on two clocks. Free-running: the size/brightness animation is a sine wave at "
+    f"the GCVS period ({RDRA_GCVS_PERIOD_DAYS} d) spanning the V-band range, with an arbitrary phase (no "
+    "epoch): it is not a prediction for a real date. Dataset time: R Dra is drawn at the phase predicted "
+    f"by the AAVSO VSX ephemeris (epoch of maximum HJD {RDRA_VSX_EPOCH_HJD:.2f}, P = {RDRA_VSX_PERIOD_DAYS} d) "
+    f"on an asymmetric curve that rises in {RDRA_VSX_RISE_PERCENT} % of the cycle, with the timing band "
+    "of the WS7 table frontend/src/three/ephemerides.ts (from the O−C of observed maxima against that "
+    "ephemeris). Both are V-band drawings, not a measured or SPHEREx light curve: real Mira cycles change "
+    "from cycle to cycle, the infrared amplitude SPHEREx sees is much smaller and infrared maxima lag the "
+    "visual ones. The size change is drawn in phase with the light for display only."
+)
+
 
 def r_draconis() -> SystemModel:
     gcvs = "GCVS 5.1 (Samus et al. 2017)"
@@ -501,7 +523,9 @@ def r_draconis() -> SystemModel:
                 mass_kg=1.0 * M_SUN_KG,  # class-typical Mira mass for P = 245.6 d (Feast 2009); unverified
                 teff_k=3000,  # representative drawing value inside the published range
                 spectral_type="M5e–M9eIII",
-                variability=Variability(kind="pulsation", period_days=245.6, amplitude_mag=6.5, band="V"),
+                variability=Variability(
+                    kind="pulsation", period_days=RDRA_GCVS_PERIOD_DAYS, amplitude_mag=6.5, band="V"
+                ),
                 appearance=Appearance(model="star"),
                 facts=[
                     _vfact("Variable type", "Mira", None, f"{gcvs}; AAVSO VSX"),
@@ -531,10 +555,7 @@ def r_draconis() -> SystemModel:
             synthetic=False,
             notes=[
                 VERIFIED_NOTE,
-                PHASE_NOTE,
-                "The size/brightness animation is a sine wave spanning the V-band range: real Mira cycles are "
-                "asymmetric, change from cycle to cycle and are much smaller in the infrared SPHEREx sees. It is "
-                "not a measured or SPHEREx light curve.",
+                RDRA_PULSATION_NOTE,  # replaces PHASE_NOTE: R Dra has no orbit, and its phase is dated in Dataset time
                 "Radial velocity −132.8 km/s from SIMBAD (Wilson 1953); optical lines of a Mira move with the pulsation.",
             ],
         ),

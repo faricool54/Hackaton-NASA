@@ -79,15 +79,11 @@ const DEMO = system('demo-ecliptic-orbits');
 const barnard = bodyIn('barnards-star', 'barnards-star');
 const epsA = bodyIn('epsilon-indi', 'eps-indi-a');
 
-/** R Dra as M2 will make it: 1 M_sun, Fact 'Mass (illustrative)', unverified. */
-const rDraWithMass: Body = {
-  ...bodyIn('r-draconis', 'r-draconis'),
-  mass_kg: PHYS.GMSun / PHYS.G,
-  facts: [
-    ...bodyIn('r-draconis', 'r-draconis').facts.filter((f) => !/^mass\b/i.test(f.label)),
-    { label: 'Mass (illustrative)', value: '1.0', unit: 'solar masses', source: 'no dynamical mass; typical Mira 1-2 M_sun', verified: false },
-  ],
-};
+/**
+ * R Dra as the catalog ships it (its unverified Fact 'Mass (class-typical)' ~1 M_sun, from Feast 2009),
+ * with the mass set to exactly 1 M_sun in PHYS units so the reference values below are exact.
+ */
+const rDraWithMass: Body = { ...bodyIn('r-draconis', 'r-draconis'), mass_kg: PHYS.GMSun / PHYS.G };
 
 /** The IAU 2015 B3 nominal Sun. */
 const SUN: Body = {
@@ -233,6 +229,9 @@ describe('judge fixtures (mu = 1.3), at the precision they were quoted', () => {
   });
 
   it('R Draconis (R 250 R_sun, M 1 M_sun, both illustrative)', () => {
+    const massFact = rDraWithMass.facts.find((f) => /^mass\b/i.test(f.label));
+    expect(massFact).toMatchObject({ label: 'Mass (class-typical)', value: '~1', unit: 'solar masses', verified: false });
+    expect(massFact?.source).toMatch(/^Feast 2009, .*arXiv:0812\.0250/);
     const L = luminosity(rDraWithMass);
     expect(rel(num(L), 4560)).toBeLessThan(0.005);
     expect(L.tier).toBe('illustrative');

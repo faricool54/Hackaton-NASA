@@ -24,12 +24,14 @@ import {
 } from 'react';
 import { DETECTOR_BANDS, formatMjd } from '../api/format';
 import {
+  formatTimingDays,
   IRREGULAR_TEXT,
   MIRA_PREDICTION_CAVEAT,
   miraPhase,
   miraShape,
   miraTimingSigmaDays,
   passPhaseSummary,
+  phaseUnknownLabel,
   predictedMaxima,
   type VariabilityTrack,
 } from './ephemerides';
@@ -556,7 +558,8 @@ function TrackStrip({
 }) {
   const predicted = tracks.filter((t): t is Extract<VariabilityTrack, { kind: 'predicted' }> => t.kind === 'predicted');
   const irregular = tracks.filter((t) => t.kind === 'irregular');
-  const unknown = tracks.filter((t) => t.kind === 'unknown');
+  const unknown = tracks.filter((t): t is Extract<VariabilityTrack, { kind: 'unknown' }> => t.kind === 'unknown');
+  const unknownLabel = phaseUnknownLabel(unknown.map((t) => t.variabilityKind));
   const BAND_H = 20;
   const x0 = x(seekLo);
   const x1 = x(seekHi);
@@ -602,7 +605,7 @@ function TrackStrip({
               const sd = miraTimingSigmaDays(e, m);
               return (
                 <g key={m}>
-                  <title>{`predicted maximum ${mjdToIsoDate(m)} ± ${Math.round(sd)} d`}</title>
+                  <title>{`predicted maximum ${mjdToIsoDate(m)} ± ${formatTimingDays(sd)} d (1σ about the VSX date)`}</title>
                   <rect x={x(m - sd)} y={0} width={Math.max(x(m + sd) - x(m - sd), 1)} height={BAND_H} style={{ fill: TRACK_COLOR, opacity: 0.25 }} />
                   <line x1={x(m)} x2={x(m)} y1={0} y2={BAND_H} style={{ stroke: TRACK_COLOR, strokeWidth: 1 }} />
                 </g>
@@ -627,8 +630,8 @@ function TrackStrip({
       {unknown.length > 0 &&
         row(
           'unknown',
-          `${names(unknown)}: pulsation phase unknown, drawn at mean brightness`,
-          `${names(unknown)}: pulsation phase unknown`,
+          `${names(unknown)}: ${unknownLabel}, drawn at mean brightness`,
+          `${names(unknown)}: ${unknownLabel}`,
           <line x1={x0} x2={x1} y1={BAND_H / 2} y2={BAND_H / 2} style={{ stroke: C.muted, strokeWidth: 1.5, strokeDasharray: '4 3' }} />,
         )}
       {predicted.length > 0 && (

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { Body, Field, SystemModel } from '../api/types';
+import type { Body, Field, SystemModel, VariabilityKind } from '../api/types';
 import { formatMjd } from '../api/format';
+import { hasDatasetWindow, SPHEREX_TARGET_IDS } from './datasetGate';
+import { variabilityTracks } from './ephemerides';
 import {
   ARCHIVE_SEASON_GAP_DAYS,
   betweenVisits,
@@ -13,7 +15,9 @@ import {
   DATASET_TODAY_MJD,
   dateTicks,
   DR1_START_MJD,
+  freeRunningArbitraryPhase,
   groupPasses,
+  isSpherexTarget,
   isoDateToMjd,
   mjdToIsoDate,
   nearestPass,
@@ -114,6 +118,9 @@ describe('SPHEREX_COVERAGE (IRSA DR1 + QR3, queried 2026-11-14)', () => {
     expect(Object.keys(SPHEREX_PASSES).sort()).toEqual([...TARGETS].sort());
     expect(coverageFor('demo-ecliptic-orbits')).toBeNull();
     expect(coverageFor('toString')).toBeNull(); // no prototype keys
+    // The tiny id list the viewer imports statically (main chunk) is the same set.
+    expect([...SPHEREX_TARGET_IDS].sort()).toEqual([...TARGETS].sort());
+    expect(isSpherexTarget('toString')).toBe(false);
   });
 
   it('matches the pass windows of the work-package spec', () => {
@@ -332,6 +339,17 @@ describe('datasetWindow', () => {
     expect(datasetWindow({ id: 'nowhere' }, [{ mjd: Number.NaN }])).toBeNull();
   });
 
+  it('is available exactly when datasetGate.hasDatasetWindow says so (the viewer enables the button from it)', () => {
+    const frameSets = [null, [], [{ mjd: Number.NaN }], [{ mjd: 60810.2 }], field('demo-ecliptic').frames];
+    const ids = [...SYSTEMS.map((s) => s.id), 'nowhere', 'toString'];
+    for (const id of ids) {
+      for (const frames of frameSets) {
+        const sys = SYSTEMS.find((s) => s.id === id) ?? { id };
+        expect(hasDatasetWindow(id, frames), `${id} ${JSON.stringify(frames)}`).toBe(datasetWindow(sys, frames) !== null);
+      }
+    }
+  });
+
   it('locates a date among the passes and visits', () => {
     const w = datasetWindow(system('wise-0855'));
     if (!w) throw new Error('no window');
@@ -412,10 +430,10 @@ describe('phaseStatus', () => {
     const rdra = system('r-draconis');
     expect(phaseStatus(rdra)).toMatchObject({ pulsationPredicted: ['r-draconis'], pulsationArbitrary: [], irregular: [] });
     expect(phaseStatusLine(rdra)).toBe('Predicted pulsation phase (catalogue ephemeris): R Draconis');
-    // Without a table entry (no system id) the same star is phase-unknown, i.e. frozen on a real date.
-    const anonymous: { bodies: Body[] } = { bodies: rdra.bodies };
-    expect(phaseStatus(anonymous).pulsationArbitrary).toEqual(['r-draconis']);
-    expect(phaseStatusLine(anonymous)).toBe('Pulsation phase unknown: R Draconis');
+    // Without a table entry (another system id) the same star is phase-unknown, i.e. frozen on a real date.
+    const other: Pick<SystemModel, 'id' | 'bodies'> = { id: 'not-in-the-table', bodies: rdra.bodies };
+    expect(phaseStatus(other).pulsationArbitrary).toEqual(['r-draconis']);
+    expect(phaseStatusLine(other)).toBe('Variability phase unknown, mean brightness: R Draconis');
     const rw = phaseStatus(system('rw-aurigae'));
     expect(rw).toMatchObject({ pulsationPredicted: [], pulsationArbitrary: [], irregular: ['rw-aur-a', 'rw-aur-b'], arbitrary: ['rw-aur-b'] });
     expect(phaseStatusLine(system('rw-aurigae'))).toBe(
@@ -432,6 +450,38 @@ describe('phaseStatus', () => {
       irregular: [],
     });
     expect(phaseStatusLine(system('wise-0855'))).toBe('Nothing in this model depends on an orbital or pulsation phase.');
+  });
+
+  it('classifies variability exactly like the timeline (ephemerides.variabilityPhase)', () => {
+    const base = system('rw-aurigae').bodies[0];
+    const vary = (id: string, kind: VariabilityKind, period: number | null): Body => ({
+      ...base,
+      id,
+      name: id,
+      orbit: null,
+      variability: { kind, period_days: period, amplitude_mag: 1, band: 'V' },
+    });
+    const made: Pick<SystemModel, 'id' | 'bodies'> = {
+      id: 'x',
+      bodies: [vary('rot', 'rotation', null), vary('puls', 'pulsation', null), vary('ecl', 'eclipse', 3), vary('irr', 'irregular', 12)],
+    };
+    for (const s of [...SYSTEMS, made]) {
+      const st = phaseStatus(s);
+      const byKind = (k: string) => variabilityTracks(s).filter((t) => t.kind === k).map((t) => t.bodyId);
+      expect(st.irregular, s.id).toEqual(byKind('irregular'));
+      expect(st.pulsationPredicted, s.id).toEqual(byKind('predicted'));
+      expect(st.pulsationArbitrary, s.id).toEqual(byKind('unknown'));
+    }
+    // No period but not irregular = unknown (frozen), listed; irregular even with a period.
+    expect(phaseStatus(made)).toMatchObject({ pulsationArbitrary: ['rot', 'puls', 'ecl'], irregular: ['irr'] });
+  });
+
+  it('says when free-running starts a phase arbitrarily', () => {
+    expect(freeRunningArbitraryPhase(system('epsilon-indi'))).toBe(true); // undated orbits
+    expect(freeRunningArbitraryPhase(system('r-draconis'))).toBe(true); // animated pulsation
+    expect(freeRunningArbitraryPhase(system('wise-0855'))).toBe(false);
+    // Barnard: every orbit is dated and nothing pulsates.
+    expect(freeRunningArbitraryPhase(system('barnards-star'))).toBe(false);
   });
 });
 

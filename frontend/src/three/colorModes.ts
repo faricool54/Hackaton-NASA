@@ -19,6 +19,9 @@
 //   display scale (DISPLAY); brown dwarfs and planets: visible colour not computed (neutral).
 // Synthetic demo system: planets, small bodies and disks keep their hand palette (and SystemScene
 //   their procedural textures) in EVERY mode; its stars follow the mode like real stars.
+// Mira / AGB stars (astro.miraReason, R Dra): drawn with the photosphere blackbody like any star; the
+//   legends say what that leaves out (H₂O/CO bands and dust in the SPHEREx modes, TiO in visible), as
+//   the body panel and the AB rule do.
 import type { Body, SystemModel } from '../api/types';
 import {
   bandFraction,
@@ -30,6 +33,9 @@ import {
   granulationParams,
   limbDarkeningAt,
   luminosity,
+  MIRA_LAYERS_CITATION,
+  MIRA_TIO_CITATION,
+  miraReason,
   paramTier,
   PHYS,
   spherexReliability,
@@ -496,13 +502,22 @@ function names(bodies: readonly Body[]): string {
   return bodies.map((b) => b.name).join(', ');
 }
 
-/** Lines shared by the SPHEREx modes: T Tauri excess, cold bodies, outlines, synthetic decoration. */
+/** Mira / AGB variables (astro.miraReason): their light is not a single photosphere blackbody. */
+const miraStars = (system: Pick<SystemModel, 'bodies'>) => system.bodies.filter((b) => miraReason(b) !== null);
+
+/** Lines shared by the SPHEREx modes: T Tauri excess, Mira molecular bands, cold bodies, outlines, synthetic decoration. */
 function infraredCaveats(system: SystemModel, cold: readonly Body[], dark: readonly Body[]): string[] {
   const lines: string[] = [];
   const young = system.bodies.filter((b) => isYoungWithExcess(b, system));
   if (young.length) {
     lines.push(
       `${names(young)}: photosphere only. The infrared excess of the disk and accretion, which makes the real system several magnitudes brighter at 3–5 µm, is not modelled.`,
+    );
+  }
+  const miras = miraStars(system);
+  if (miras.length) {
+    lines.push(
+      `${names(miras)}: photosphere blackbody only. The H₂O and CO bands of the extended pulsating atmosphere and the circumstellar dust, which shape the ${IR_SPAN_TEXT} spectrum of a Mira, are not modelled (${MIRA_LAYERS_CITATION}).`,
     );
   }
   if (cold.length) lines.push(`${names(cold)}: below ${BLACKBODY_MIN_TEFF_K} K, qualitative only (molecular bands, not a blackbody; MODEL).`);
@@ -540,6 +555,12 @@ export function colorLegend(mode: ColorMode, system: SystemModel): string[] {
           : 'Visible: stars take the CIE 1931 2° colour of a blackbody at the catalog Teff (MODEL), at a log display brightness (DISPLAY).',
       );
     }
+    const miras = system.provenance.synthetic ? [] : miraStars(system);
+    if (miras.length) {
+      lines.push(
+        `${names(miras)}: colour of the photosphere blackbody only. The visible light of a Mira is dominated by TiO absorption bands, which are not modelled (${MIRA_TIO_CITATION}).`,
+      );
+    }
     const bds = system.bodies.filter((b) => b.kind === 'brown_dwarf' && !blackbodyBodyColor(b).value);
     if (bds.length && !system.provenance.synthetic) {
       lines.push(
@@ -572,8 +593,12 @@ export function surfaceLegend(system: Pick<SystemModel, 'bodies' | 'provenance'>
       if (g.value === null) continue;
       if (g.draw) {
         const tau = g.turnoverDays.value;
+        const size = `cell size 10 H_p, MODEL${g.tier === 'model' ? '' : ` with ${g.tier.toUpperCase()} inputs`}`;
+        // Not observed on any real target (VISION.md: what is not measured is not drawn): class-typical toggle only.
         drawn.push(
-          `${s.name}: ≈${round2(g.value)} convection cells across (cell size 10 H_p, MODEL${g.tier === 'model' ? '' : ` with ${g.tier.toUpperCase()} inputs`}; ±${Math.round(g.contrast.value * 100)} % contrast, ILLUSTRATIVE)${tau ? `, renewed every ≈${round2(tau)} d of model time` : ''}`,
+          classTypical || system.provenance.synthetic
+            ? `${s.name}: ≈${round2(g.value)} convection cells across (${size}; ±${Math.round(g.contrast.value * 100)} % contrast, ILLUSTRATIVE; CLASS-TYPICAL, not observed on this star)${tau ? `, renewed every ≈${round2(tau)} d of model time` : ''}`
+            : `${s.name}: smooth (≈${round2(g.value)} convection cells across would be resolvable, ${size}, but none is observed on this star: shown only with class-typical features)`,
         );
       } else small.push(`${s.name} ≈${round2(g.value)}`);
     }

@@ -1,7 +1,8 @@
 // Info panel for one body of a 3D system ("entering" a planet/star).
 import { Fragment, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import type { Body, SystemModel } from '../api/types';
-import { KIND_LABEL } from '../three/appearance';
+// From the astro-free module: appearance.ts would pull astro.ts into the main chunk.
+import { KIND_LABEL } from '../three/kindLabels';
 // Types only: the module itself is loaded on demand (loadNotes), so it stays out of the main chunk.
 import type { AppearanceNote, NoteTier } from '../three/appearanceNotes';
 import {

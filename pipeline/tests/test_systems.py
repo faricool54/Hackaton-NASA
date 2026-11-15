@@ -1,6 +1,7 @@
 """3D system models (WS7): physics helpers, catalog integrity and catalog sources."""
 
 import os
+import re
 
 import pytest
 
@@ -123,8 +124,65 @@ def test_barnard_phase_spread_matches_the_orbit_notes():
             deg = phase_sigma_deg(mjd, *_ephemeris_mjd(pid))
             assert f"±{deg:.0f}° on {iso}" in planets[pid].orbit.note, pid
     # The spread widens with time, and e (largest t0 error) is the least well pinned down.
-    assert phase_sigma_deg(61318.0, *_ephemeris_mjd("barnard-b")) > phase_sigma_deg(60789.75, *_ephemeris_mjd("barnard-b"))
-    assert phase_sigma_deg(61318.0, *_ephemeris_mjd("barnard-e")) > phase_sigma_deg(61318.0, *_ephemeris_mjd("barnard-b"))
+    assert phase_sigma_deg(61318.0, *_ephemeris_mjd("barnard-b")) > phase_sigma_deg(
+        60789.75, *_ephemeris_mjd("barnard-b")
+    )
+    assert phase_sigma_deg(61318.0, *_ephemeris_mjd("barnard-e")) > phase_sigma_deg(
+        61318.0, *_ephemeris_mjd("barnard-b")
+    )
+
+
+# --- R Dra: two clocks (free-running sine, Dataset time on the VSX ephemeris) ----
+
+
+def test_r_draconis_notes_describe_both_clocks():
+    """The old 'phases are arbitrary' and 'sine wave' notes contradicted Dataset time, which dates R Dra's phase."""
+    from errante import settings
+    from errante.systems.catalog import PHASE_NOTE, RDRA_GCVS_PERIOD_DAYS, RDRA_PULSATION_NOTE
+
+    rdra = _system_by_id("r-draconis")
+    assert PHASE_NOTE not in rdra.provenance.notes
+    assert rdra.provenance.notes.count(RDRA_PULSATION_NOTE) == 1
+    assert not any("sine wave" in n and "Dataset time" not in n for n in rdra.provenance.notes)
+    assert rdra.bodies[0].variability.period_days == RDRA_GCVS_PERIOD_DAYS
+    for text in (
+        f"GCVS period ({RDRA_GCVS_PERIOD_DAYS} d)",
+        "arbitrary phase",
+        "Dataset time",
+        "HJD 2457370.00, P = 246.12 d",
+        "rises in 45 % of the cycle",
+        "frontend/src/three/ephemerides.ts",
+        "not a measured or SPHEREx light curve",
+        "in phase with the light for display only",
+    ):
+        assert text in RDRA_PULSATION_NOTE, text
+    # The shipped JSON carries the new note (regenerate data/demo after editing catalog.py).
+    committed = ProductStore(settings.DEMO_DIR).read_system("r-draconis")
+    assert RDRA_PULSATION_NOTE in committed.provenance.notes
+    assert PHASE_NOTE not in committed.provenance.notes
+    # Systems whose phases are all arbitrary keep the generic note; Barnard's planets are dated (M5).
+    assert PHASE_NOTE in _system_by_id("epsilon-indi").provenance.notes
+    assert PHASE_NOTE in _system_by_id("rw-aurigae").provenance.notes
+    assert PHASE_NOTE not in _system_by_id("barnards-star").provenance.notes
+
+
+def test_r_draconis_note_matches_the_frontend_ephemeris_table():
+    """Dataset time reads MIRA_EPHEMERIDES in frontend/src/three/ephemerides.ts: the note must quote the same values."""
+    from errante import settings
+    from errante.systems.catalog import RDRA_VSX_EPOCH_HJD, RDRA_VSX_PERIOD_DAYS, RDRA_VSX_RISE_PERCENT
+
+    table = settings.REPO_ROOT / "frontend" / "src" / "three" / "ephemerides.ts"
+    if not table.exists():
+        pytest.skip("frontend sources not present")
+    src = table.read_text(encoding="utf-8")
+    block = src[src.index("MIRA_EPHEMERIDES") :]
+    m = re.search(
+        r"bodyId: 'r-draconis',\s*epochHjd: ([\d.]+),\s*periodDays: ([\d.]+),\s*riseFraction: ([\d.]+),", block
+    )
+    assert m, "R Dra entry of MIRA_EPHEMERIDES not found"
+    assert float(m[1]) == RDRA_VSX_EPOCH_HJD
+    assert float(m[2]) == RDRA_VSX_PERIOD_DAYS
+    assert round(float(m[3]) * 100) == RDRA_VSX_RISE_PERCENT
 
 
 def _system(bodies):

@@ -196,15 +196,5 @@ export function displayRadius(body: Body): number {
   return clamp(0.12 * Math.pow(km, 0.18), 0.12, 2.2);
 }
 
-export const KIND_LABEL: Record<string, string> = {
-  star: 'Star',
-  brown_dwarf: 'Brown dwarf',
-  planet: 'Planet',
-  dwarf_planet: 'Dwarf planet',
-  moon: 'Moon',
-  asteroid: 'Asteroid',
-  comet: 'Comet',
-  tno: 'Trans-Neptunian object',
-  disk: 'Disk',
-  unknown: 'Unknown',
-};
+/** Re-exported for the 3D modules; main-chunk code imports it from ./kindLabels (astro-free). */
+export { KIND_LABEL } from './kindLabels';

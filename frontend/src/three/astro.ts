@@ -1122,8 +1122,13 @@ const MIRA_TEXT = /\bmira\b|\bagb\b|asymptotic giant|long[-\s]period variable|\b
 /** Giant stages of the MK luminosity classes (III, II, I). */
 const GIANT_STAGES: ReadonlySet<EvolutionaryStage> = new Set<EvolutionaryStage>(['giant', 'bright giant', 'supergiant']);
 
-export const MIRA_CITE =
-  'extended molecular (H₂O, CO) layers and circumstellar dust of Mira / AGB stars: Höfner & Olofsson 2018, A&ARv 26, 1; near-IR spectra of long-period variables at several pulsation phases: Lançon & Wood 2000, A&AS 146, 217; wavelength-dependent Mira diameters from molecular layers: Woodruff et al. 2004, A&A 421, 703';
+/** Extended molecular (H₂O, CO) layers and circumstellar dust of AGB stars (short form for legends). */
+export const MIRA_LAYERS_CITATION = 'Höfner & Olofsson 2018, A&ARv 26, 1';
+
+/** TiO absorption shapes the visual light (and the V amplitude) of Mira variables. */
+export const MIRA_TIO_CITATION = 'Reid & Goldston 2002, ApJ 568, 931';
+
+export const MIRA_CITE = `extended molecular (H₂O, CO) layers and circumstellar dust of Mira / AGB stars: ${MIRA_LAYERS_CITATION}; near-IR spectra of long-period variables at several pulsation phases: Lançon & Wood 2000, A&AS 146, 217; wavelength-dependent Mira diameters from molecular layers: Woodruff et al. 2004, A&A 421, 703`;
 
 /**
  * Why a star's light is not a single photosphere blackbody because it is a Mira / AGB pulsator: a
