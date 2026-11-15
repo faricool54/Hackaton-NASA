@@ -1272,9 +1272,15 @@ def test_deadline_stops_in_flight_s3_reads(s3_server):
     assert not left, f"{len(left)} reader threads still running {time.perf_counter() - t1:.1f} s after the call"
 
 
-def test_two_concurrent_series_stay_within_the_s3_connection_pool(s3_server, caplog):
+def test_two_concurrent_series_stay_within_the_s3_connection_pool(s3_server, caplog, monkeypatch):
     """Two point series at once in one process (WS4 runs up to ERRANTE_API_MAX_CONCURRENT=2 jobs) never ask for
-    more connections than s3range's pool holds: no urllib3 'Connection pool is full, discarding connection'."""
+    more connections than s3range's pool holds: no urllib3 'Connection pool is full, discarding connection'.
+
+    Deterministic on a slow machine (CI): the server holds every request at a gate until as many are waiting
+    as the pool holds, so the two series are forced to overlap, and the gate also measures how many requests
+    the client had in flight at once. The old check counted sockets open at the server: a socket the client
+    had just replaced was sometimes still open there, so CI saw 65 of 64 now and then (and on a busy machine
+    the two series barely overlapped, so '> 48' could fail too)."""
     blob, _ = make_l2(seed=1)
     ra, dec = _sky(150.0, 100.0)
     per_series = []
@@ -1285,7 +1291,29 @@ def test_two_concurrent_series_stay_within_the_s3_connection_pool(s3_server, cap
             s3_server.objects[k] = blob
             frames.append(_frame(k, mjd=60900.0 + i))
         per_series.append(frames)
-    s3_server.delay = 0.03  # every answer takes a while: both series' requests overlap
+    adapter = s3range._session().get_adapter(settings.S3_HTTPS + "/x")
+    limit = adapter.poolmanager.connection_pool_kw["maxsize"]
+    assert limit == s3range.S3_MAX_CONNECTIONS > 48  # one series alone is capped at 48: the gate needs both
+
+    gate = threading.Event()
+    lock = threading.Lock()
+    seen = {"waiting": 0, "peak": 0}
+    original = _RangeHandler.do_GET
+
+    def gated(handler):
+        with lock:
+            seen["waiting"] += 1
+            seen["peak"] = max(seen["peak"], seen["waiting"])
+            if seen["waiting"] >= limit:
+                gate.set()  # as many requests in flight as the pool holds: let everything through
+        try:
+            gate.wait(10)  # fallback: a cap that never fills still ends the test (and fails the == below)
+        finally:
+            with lock:
+                seen["waiting"] -= 1  # counted only while held, before any byte of the answer is sent
+        original(handler)
+
+    monkeypatch.setattr(_RangeHandler, "do_GET", gated)
     caplog.set_level(logging.WARNING, logger="urllib3")
     with ThreadPoolExecutor(2) as pool:
         results = list(
@@ -1293,11 +1321,12 @@ def test_two_concurrent_series_stay_within_the_s3_connection_pool(s3_server, cap
         )
     assert [len(r.samples) for r in results] == [40, 40] and not any(r.failures for r in results)
     assert [r.getMessage() for r in caplog.records if "pool is full" in r.getMessage()] == []
-    adapter = s3range._session().get_adapter(settings.S3_HTTPS + "/x")
-    limit = adapter.poolmanager.connection_pool_kw["maxsize"]
-    # Never more connections than the pool keeps, but more than one series alone (capped at 48 requests) needs:
-    # the two series did overlap. (Before the fix: up to 96 connections, the extra ones discarded with a warning.)
-    assert 48 < s3_server.peak["open"] <= limit
+    # The two series overlapped up to the process-wide cap and never beyond it (before #50: up to 96 at once,
+    # the extra connections discarded with a 'pool is full' warning).
+    assert seen["peak"] == limit
+    # Client side: the pool never had to create more connections than it keeps.
+    pools = list(adapter.poolmanager.pools._container.values())
+    assert pools and all(p.num_connections <= limit for p in pools)
 
 
 def test_cli_point_summary_says_what_was_read_and_exits_3_without_samples(series_setup, fake, monkeypatch, capsys):
