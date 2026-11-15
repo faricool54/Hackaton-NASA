@@ -1674,6 +1674,12 @@ def derive_parameters(ctx: ObjectContext) -> list[PhysicalParameter]:
         teff.method = no_gaia
     elif g.details_from is None:
         teff.method = no_details
+    elif g.details_from == GAIA_VIZIER_CATALOG:
+        # The VizieR fallback has the GSP-Phot column but not ESP-UCD (I/355/paramp): unknown, not a catalog negative.
+        teff.method = (
+            "No GSP-Phot temperature in Gaia DR3 I/355/gaiadr3; ESP-UCD (ultracool dwarfs) was not queried because "
+            "the ESA Gaia archive was unreachable (VizieR CfA fallback). Unknown, not a negative result."
+        )
     else:
         teff.method = "Gaia DR3 has no temperature for this source."
     teff.caveats += common if teff.value is not None else []
