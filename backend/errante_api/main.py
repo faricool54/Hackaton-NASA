@@ -30,9 +30,10 @@ from errante import __version__
 from errante.models import SCHEMA_VERSION
 from errante.products import ProductStore
 
+from .lightcurve_store import LightCurveStore
 from .live_service import LiveService
 from .object_service import ObjectService
-from .routes import jobs, live, objects, products, resolve, science
+from .routes import jobs, lightcurves, live, objects, products, resolve, science
 from .science_service import ScienceService
 from .settings import Settings
 from .store import PublicProductStore
@@ -86,6 +87,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.live = LiveService(settings)
     app.state.science = ScienceService(settings)
     app.state.objects = ObjectService(settings)
+    app.state.lightcurves = LightCurveStore(settings.data_dir / "lightcurves")
 
     @app.get("/api/health")
     def health() -> dict:
@@ -107,6 +109,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(jobs.router, prefix="/api")
     app.include_router(science.router, prefix="/api")
     app.include_router(objects.router, prefix="/api")
+    app.include_router(lightcurves.router, prefix="/api")
     if settings.data_dir.exists():
         app.mount("/data", StaticFiles(directory=settings.data_dir), name="data")
     return app

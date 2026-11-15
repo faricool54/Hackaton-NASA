@@ -77,6 +77,13 @@ Implementación y validación de esta etapa: [PR #6](https://github.com/faricool
 
 ## Estado técnico actualizado (14/11/2026)
 
+- [x] **WS4-11 (P1, R05/C04) Curvas de luz precalculadas: implementación del backend.** Índice y GET tipados,
+  caché por contenido/ETag, CLI offline con hijo supervisado, publicación atómica y dos productos FITS reales
+  (RW Aurigae y R Draconis). Conserva controles, exclusiones, errores y significancia/aliases; búsquedas
+  anteriores marcadas `partial/stale_search`. Propuesta de contrato 0.6.0 en #78 por pedido del usuario.
+  **Integración pendiente:** WS3/faricool54 revisa contrato e interpretación científica; WS5 agrega el panel.
+  Implementado en PR dependiente, todavía no disponible en `main`; no marca validación científica R05 completa.
+
 - WS1: búsqueda/recortes/λ implementados; WS2: reproyección y épocas por temporada × detector implementadas.
 - WS4: CORS POST, productos servidos en el destino del motor, locks entre procesos y manifest atómico.
 - Jobs: admisión transaccional, resultados verificados, recuperación por huellas y logs/almacenamiento acotados.
