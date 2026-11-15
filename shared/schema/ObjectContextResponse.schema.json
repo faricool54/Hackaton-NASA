@@ -929,7 +929,7 @@
       "$ref": "#/$defs/ObjectQuery"
     },
     "schema_version": {
-      "default": "0.5.0",
+      "default": "0.6.0",
       "title": "Schema Version",
       "type": "string"
     },

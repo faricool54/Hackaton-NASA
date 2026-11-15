@@ -18,6 +18,10 @@ from errante.models import (
     CompositeChannel,
     JobStatusResponse,
     JobSubmitRequest,
+    LightCurveData,
+    LightCurveParameters,
+    LightCurvePeriod,
+    LightCurveProduct,
     SkyField,
     SpectralMeasurement,
     SpectrumRequest,
@@ -408,3 +412,151 @@ def test_object_context_rejects_values_that_would_mislead_the_card(path, value):
     target[path[-1]] = value
     with pytest.raises(ValueError):
         ObjectContextResponse.model_validate(doc)
+
+
+# Public light-curve proposal (explicit test data).
+
+
+def example_product():
+    return {
+        "id": "a" * 64,
+        "target_id": "example",
+        "target_name": "Explicit test double",
+        "built_at": "2026-11-15T12:00:00Z",
+        "status": "ready",
+        "parameters": {"ra": 10, "dec": 0, "max_frames": 2},
+        "curve": {
+            "ra": 10,
+            "dec": 0,
+            "method": "aperture",
+            "unit": "mJy",
+            "relative_only": False,
+            "lambda_bin_frac": 0.01,
+            "min_bin_span_days": 30,
+            "points": [
+                {
+                    "frame_id": "one",
+                    "obs_id": "one",
+                    "detector": 1,
+                    "release": "dr1",
+                    "mjd": 60000,
+                    "date": "2023-02-25T00:00:00Z",
+                    "season": 0,
+                    "wavelength_um": 0.75,
+                    "flux": 1,
+                    "flux_err": None,
+                    "bin": 0,
+                    "rel_mag": -0.1,
+                    "rel_mag_err": None,
+                }
+            ],
+            "bins": [
+                {
+                    "index": 0,
+                    "detector": 1,
+                    "lambda_min_um": 0.75,
+                    "lambda_max_um": 0.75,
+                    "n_points": 1,
+                    "mjd_min": 60000,
+                    "mjd_max": 60000,
+                    "mean_mag": 0,
+                }
+            ],
+            "comparisons": [],
+            "control": {},
+            "summary": {},
+            "excluded": {},
+        },
+        "provenance": {
+            "pipeline_version": "test",
+            "processing_fingerprint": "b" * 64,
+            "collections": ["spherex_dr1", "spherex_qr3"],
+            "n_selected": 1,
+            "sources": [{"frame_id": "one", "source_uri": "https://example.invalid/one.fits"}],
+        },
+    }
+
+
+def test_negative_relative_magnitude_and_missing_uncertainty_are_preserved():
+    result = LightCurveProduct.model_validate(example_product())
+    assert result.curve.points[0].rel_mag == -0.1
+    assert result.curve.points[0].rel_mag_err is None
+    assert LightCurveProduct.model_validate_json(result.model_dump_json()) == result
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"mjd_min": 60001, "mjd_max": 60000},
+        {"max_frames": 2501},
+        {"ra": float("nan")},
+        {"detectors": [1, 1]},
+        {"collections": ["synthetic"]},
+        {"period_range_days": [0, 10]},
+    ],
+)
+def test_bounded_offline_calculation(change):
+    with pytest.raises(ValueError):
+        LightCurveParameters.model_validate({"ra": 10, "dec": 0, **change})
+
+
+def test_wing_units_cannot_be_presented_as_aperture_flux():
+    doc = example_product()["curve"]
+    with pytest.raises(ValueError):
+        LightCurveData.model_validate({**doc, "method": "wing"})
+    assert LightCurveData.model_validate({**doc, "method": "wing", "unit": "MJy/sr", "relative_only": True})
+
+
+def test_ready_cannot_hide_empty_or_excluded_measurements():
+    doc = example_product()
+    doc["curve"]["points"][0]["excluded"] = "saturated"
+    with pytest.raises(ValueError):
+        LightCurveProduct.model_validate(doc)
+    doc["curve"]["points"][0]["rel_mag"] = None
+    with pytest.raises(ValueError):
+        LightCurveProduct.model_validate(doc)
+    doc["status"] = "no_usable_points"
+    assert LightCurveProduct.model_validate(doc).curve.points[0].excluded == "saturated"
+
+
+def test_broken_provenance_or_binning_is_rejected():
+    doc = example_product()
+    doc["provenance"]["sources"] = []
+    with pytest.raises(ValueError):
+        LightCurveProduct.model_validate(doc)
+    doc = example_product()
+    doc["curve"]["bins"][0]["detector"] = 2
+    with pytest.raises(ValueError):
+        LightCurveProduct.model_validate(doc)
+
+
+@pytest.mark.parametrize(
+    "tested,probability,significant,valid",
+    [
+        (0, None, None, True),
+        (0, None, True, False),
+        (100, 0.2, True, False),
+        (100, 0.0099, True, True),
+        (100, 0.2, False, True),
+    ],
+)
+def test_period_candidate_is_distinct_from_a_significant_period(tested, probability, significant, valid):
+    doc = {
+        "period_days": 260,
+        "delta_chi2": 100,
+        "peaks": [[260, 100]],
+        "amplitude_mag": {1: 1},
+        "floor_mag": {1: 0.1},
+        "n_points": 40,
+        "baseline_days": 400,
+        "period_range_days": [20, 800],
+        "n_permutations": tested,
+        "false_alarm": probability,
+        "significant": significant,
+        "caveat": "Candidate sinusoid; inspect the aliases and independent data.",
+    }
+    if valid:
+        assert LightCurvePeriod.model_validate(doc).significant is significant
+    else:
+        with pytest.raises(ValueError):
+            LightCurvePeriod.model_validate(doc)

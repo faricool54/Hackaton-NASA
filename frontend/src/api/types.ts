@@ -4,7 +4,7 @@
 // Pixel convention for every x/y: PNG convention — origin at the TOP-LEFT pixel,
 // 0-based, x → right, y → DOWN, on the field's common north-up grid (east left).
 
-export const SCHEMA_VERSION = '0.5.0';
+export const SCHEMA_VERSION = '0.6.0';
 
 export type Release = 'dr1' | 'qr2' | 'qr3' | 'synthetic';
 export type ObjectType =
@@ -459,3 +459,63 @@ export interface ObjectContextResponse {
   /** A service did not answer in time: its values are unknown, not negative. */
   partial: boolean; built_at: string; note: string; synthetic: false;
 }
+export type LightCurveExclusion = 'no_flags' | 'saturated' | 'edge' | 'bad_pixels' | 'no_sky' | 'no_variance' | 'no_wavelength' | 'non_positive' | 'lone_bin' | 'short_bin';
+export interface LightCurveParameters extends SkyCoord {
+  method?: 'aperture' | 'wing'; detectors?: number[]; collections?: string[]; max_frames?: number;
+  mjd_min?: number | null; mjd_max?: number | null; lambda_bin_frac?: number; min_bin_span_days?: number;
+  n_comparison?: number; period?: boolean; period_range_days?: [number, number]; n_bootstrap?: number; n_permutations?: number;
+}
+export interface LightCurvePoint {
+  frame_id: string; obs_id: string; detector: number; release: Release; mjd: number; date: string; season: number;
+  wavelength_um: number | null; bandwidth_um: number | null; flux: number | null; flux_err: number | null;
+  bin: number | null; rel_mag: number | null; rel_mag_err: number | null; zero_point_mag: number | null;
+  flags: string[]; excluded: LightCurveExclusion | null;
+}
+export interface LightCurveBin {
+  index: number; detector: number; lambda_min_um: number; lambda_max_um: number; n_points: number;
+  mjd_min: number; mjd_max: number; mean_mag: number;
+}
+export interface LightCurveComparison {
+  id: string; ra: number; dec: number; found_in: number; frame_ids: string[]; detectors: number[];
+  wavelength_um: (number | null)[]; flux_mjy: (number | null)[]; flux_err_mjy: (number | null)[];
+  rel_mag: (number | null)[]; excluded: (LightCurveExclusion | null)[];
+}
+export interface LightCurveStatistics {
+  n: number; median_mag: number | null; robust_sigma_mag: number | null; p95_abs_mag: number | null;
+  max_abs_mag: number | null; p5_to_p95_mag: number | null; n_stars: number | null;
+  n_exposures: number | null; n_bins: number | null; excluded: Partial<Record<LightCurveExclusion, number>>;
+  scatter_over_control: number | null;
+}
+export interface LightCurvePeriod {
+  period_days: number; delta_chi2: number; period_err_formal_days: number | null; bootstrap_95_days: [number, number] | null;
+  peaks: [number, number][]; amplitude_mag: Record<string, number>; floor_mag: Record<string, number>;
+  n_points: number; baseline_days: number; period_range_days: [number, number]; false_alarm: number | null;
+  n_permutations: number; significant: boolean | null; caveat: string;
+}
+export interface LightCurvePair {
+  detector: number; frame_a: string; frame_b: string; mjd_a: number; mjd_b: number; date_a: string; date_b: string;
+  season_a: number; season_b: number; wavelength_a_um: number; wavelength_b_um: number; delta_mag: number;
+  delta_mag_err: number | null; ensemble_mag: number | null; n_ensemble: number; delta_mag_corrected: number | null;
+}
+export interface LightCurveData extends SkyCoord {
+  method: 'aperture' | 'wing'; unit: 'mJy' | 'MJy/sr'; relative_only: boolean; lambda_bin_frac: number;
+  min_bin_span_days: number; points: LightCurvePoint[]; bins: LightCurveBin[]; comparisons: LightCurveComparison[];
+  control: Record<string, LightCurveStatistics>; summary: Record<string, LightCurveStatistics>;
+  excluded: Partial<Record<LightCurveExclusion, number>>; period: LightCurvePeriod | null;
+  notes: string[]; failures: MeasurementFailure[]; matched_pairs: LightCurvePair[];
+}
+export interface LightCurveProvenance {
+  pipeline_version: string; processing_fingerprint: string; collections: string[];
+  sources: { frame_id: string; source_uri: string }[]; n_found: number | null; n_selected: number;
+  stale_search: boolean; truncated_search: boolean; partial: boolean; notes: string[];
+}
+export interface LightCurveProduct {
+  schema_version: string; id: string; target_id: string; target_name: string; built_at: string;
+  status: 'ready' | 'no_usable_points'; parameters: Required<LightCurveParameters>;
+  curve: LightCurveData; provenance: LightCurveProvenance; synthetic: false;
+}
+export interface LightCurveSummary {
+  target_id: string; target_name: string; id: string; built_at: string; method: 'aperture' | 'wing';
+  status: 'ready' | 'no_usable_points'; n_points: number; n_used: number; partial: boolean; synthetic: false;
+}
+export interface LightCurveIndex { schema_version: string; products: LightCurveSummary[] }
