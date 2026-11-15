@@ -1,0 +1,20 @@
+{
+  "updated_on": "2026-11-15",
+  "tool": "OpenAI Codex",
+  "scope": "User-directed WS3 V18 conditional blackbody colour-temperature/descriptive IR-colour diagnostics, remaining LC24 two-exposure-bin scatter correction, CLI integration, tests and scientific documentation. Builds on faricool54/Claude Code PRs #93/#94/#97. RW Aur identity changes were removed after Farid published #101; no authorship claimed for that work.",
+  "affected_paths": [
+    "pipeline/errante/science/continuum.py",
+    "pipeline/errante/science/spectra.py",
+    "pipeline/errante/science/variability.py",
+    "pipeline/errante/cli.py",
+    "pipeline/tests/test_science_continuum.py",
+    "pipeline/tests/test_science_spectra.py",
+    "pipeline/tests/test_science_variability.py",
+    "pipeline/tests/fixtures/ws3/continuum/eps-indi-b.json",
+    "docs/SCIENCE.md",
+    "tasks/WS3-science.md"
+  ],
+  "generated_media": [],
+  "real_data": "Fixture contains native FITS-derived SPHEREx photometry, not generated imagery or fabricated measurements. Search used a declared archived snapshot after IRSA timeouts.",
+  "review_status": "Automated numerical and real-data rejection checks; no human R05 scientific approval, stellar-atmosphere validation or submission completed."
+}

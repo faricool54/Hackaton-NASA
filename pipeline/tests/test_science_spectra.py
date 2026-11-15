@@ -297,9 +297,8 @@ def test_position_spectrum_calls_ws2_photometry(monkeypatch):
     assert spec.proper_motion["pm_ra_masyr"] == 3981.977 and len(spec.samples) == 15
 
 
-def test_color_class_is_not_implemented():
-    with pytest.raises(NotImplementedError):
-        spectra.color_class([])
+def test_color_class_without_coverage_is_unknown():
+    assert spectra.color_class([]) == "unknown"
 
 
 def test_cli_position_spectrum(monkeypatch, capsys):

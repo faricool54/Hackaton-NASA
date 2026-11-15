@@ -19,7 +19,8 @@ adds what the science needs on top (:func:`position_spectrum`):
   spectral cube (``errante.data.cube.cube_spectrum``, a different product: only the shape is compared).
 
 Saturated exposures (OVERFLOW in the aperture) are lower limits: they are kept in the list, flagged, and never
-enter the spectrum. ``color_class`` is not implemented (classification is optional and needs tuning on known stars).
+enter the spectrum. Descriptive colours and conditional blackbody colour temperatures are computed per season,
+with explicit unknown/rejected states; neither is a stellar classification or a measured effective temperature.
 """
 
 from __future__ import annotations
@@ -33,7 +34,8 @@ import numpy as np
 
 from ..data.cube import CHANNELS_PER_DETECTOR
 from ..data.epochs import SEASON_GAP_DAYS, group_seasons
-from ..models import Candidate, SpectrumPoint
+from ..models import Candidate, SpectralMeasurement, SpectrumPoint
+from .continuum import color_class, estimate_temperature
 from .variability import MAG, mjd_to_iso
 
 MJY_PER_MJY_SR_PER_PIXEL = (6.15 / 206264.806) ** 2 * 1e9  # MJy/sr * px -> mJy (nominal 6.15" px)
@@ -151,7 +153,7 @@ class PositionSpectrum:
 
     def to_dict(self) -> dict:
         """Strict JSON (NaN -> None)."""
-        return _json_safe(asdict(self))
+        return _json_safe({**asdict(self), "interpretation": interpret_spectrum(self)})
 
 
 def _json_safe(v):
@@ -562,10 +564,115 @@ def candidate_spectrum(
     return sorted(out, key=lambda p: p.wavelength_um)
 
 
-def color_class(points: list[SpectrumPoint]) -> str:
-    """'star-like' | 'neutral' | 'red' | 'very-red' from 1-2 um vs 4-5 um flux ratio.
+def interpret_spectrum(spectrum: PositionSpectrum) -> list[dict]:
+    """V18: independent per-season diagnostics for the CLI/WS7, never a mixed-epoch temperature.
 
-    TODO(WS3): simple ratio with thresholds tuned on known stars/asteroids; always
-    return it with a caveat note in the UI.
+    Bad/saturated measurements are retained in the input record, not fitted. With >20% rejected or
+    missing aperture corrections the interpretation is withheld, rather than fitting the detected tail
+    of a censored SED. A season is a <=30-day-gap group, not a claim that the source is constant within it.
     """
-    raise NotImplementedError("WS3: color_class")
+    out = []
+    for season in spectrum.seasons:
+        rows = [s for s in spectrum.samples if s.season == season.season]
+        points = spectrum.spectrum_points(season.season)
+        fit = estimate_temperature(points)
+        colour = color_class(points)
+        bad = sum(not s.usable or s.saturated for s in rows)
+        uncorrected = any(s.usable and s.aperture_correction is None for s in rows)
+        if bad > len(rows) * 0.2 or uncorrected:
+            fit.status = "quality_rejected"
+            fit.temperature_k = fit.lower_k = fit.upper_k = fit.scale_mjy_at_2um = None
+            fit.notes.append(
+                "Too many unusable/saturated exposures or missing aperture corrections: no colour/temperature."
+            )
+            colour = "unknown"
+        fit.notes.append(
+            "One season only; observations at different wavelengths are not simultaneous. "
+            "Within-season variability has not been excluded. Descriptive IR colour is not visible RGB or spectral type."
+        )
+        out.append({"season": season.season, "color_class": colour, "temperature": fit.to_dict()})
+    return out
+
+
+def interpret_measurements(
+    points: Sequence[SpectralMeasurement], *, unit: str, background_subtracted: bool, static_coadd: bool
+) -> list[dict]:
+    """Science adapter for WS4's existing spectrum response; no new public contract fields.
+
+    A surface-brightness cube poke without a local source/background separation is never a
+    source-temperature measurement. Unknown times likewise cannot be combined as one epoch.
+    """
+    if unit != "mJy" or not background_subtracted or static_coadd:
+        fit = estimate_temperature([])
+        fit.status = "unsupported_product"
+        fit.notes.append(
+            "Raw/static surface-brightness cube: no source-background separation or flux errors; fit withheld."
+        )
+        return [{"season": None, "color_class": "unknown", "temperature": fit.to_dict()}]
+    if any(p.mjd is None or not math.isfinite(p.mjd) for p in points):
+        fit = estimate_temperature([])
+        fit.status = "unknown_epoch"
+        fit.notes.append("Exposure epochs are missing: cannot construct per-season diagnostics.")
+        return [{"season": None, "color_class": "unknown", "temperature": fit.to_dict()}]
+    samples, seasons = [], []
+    for season, group in enumerate(group_seasons(points)):
+        for p in group:
+            samples.append(
+                SpectrumSample(
+                    p.frame_id or p.id,
+                    p.id,
+                    p.detector,
+                    p.release,
+                    p.mjd,
+                    mjd_to_iso(p.mjd),
+                    season,
+                    p.wavelength_um,
+                    p.bandwidth_um,
+                    p.flux,
+                    p.flux_err,
+                    "saturated" in p.flags,
+                    p.usable,
+                    p.aperture_correction,
+                    tuple(p.flags),
+                )
+            )
+        seasons.append(
+            SeasonSummary(
+                season,
+                group[0].mjd,
+                group[-1].mjd,
+                "",
+                "",
+                len(group),
+                sum(p.usable for p in group),
+                sum("saturated" in p.flags for p in group),
+                sorted({p.detector for p in group}),
+                None,
+                None,
+            )
+        )
+    return interpret_spectrum(PositionSpectrum(0, 0, None, samples, seasons, [], None))
+
+
+def interpretation_notes(rows: Sequence[dict]) -> list[str]:
+    """English notes for the existing CLI and SpectrumResponse.notes UI, always with the limits."""
+    if not rows:
+        return ["Spectral interpretation unavailable: no exposures; colour and temperature unknown."]
+    notes = [
+        "IR colour is a descriptive F_nu ratio, not spectral type or visible RGB. "
+        "A blackbody colour temperature is not stellar effective temperature; no physical radius is derived. "
+        "Fits use one season at a time; within-season variability, extinction, blends and molecular bands remain limitations."
+    ]
+    for row in rows:
+        fit = row["temperature"]
+        prefix = f"Season {row['season']}" if row["season"] is not None else "Spectrum"
+        if fit["status"] == "ok":
+            result = (
+                f"blackbody colour temperature {fit['temperature_k']:.0f} K "
+                f"(conditional interval {fit['lower_k']:.0f}-{fit['upper_k']:.0f} K; "
+                f"reduced chi-square {fit['reduced_chi2']:.2f}; assumed 5% modelling floor)"
+            )
+        else:
+            result = f"colour temperature unknown ({fit['status']})"
+        notes.append(f"{prefix}: descriptive IR colour {row['color_class']}; {result}.")
+    return notes

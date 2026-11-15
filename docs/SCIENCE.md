@@ -1026,3 +1026,70 @@ presets y los mismos frames.
 **No verificado:** el ciclo AAVSO contemporáneo de R Dra (se tomó del registro). Por qué la huella publicada no se
 reproduce: probablemente se construyó desde la rama previa al squash o con otras dependencias, pero no se puede
 confirmar.
+
+
+## V18 y LC24 restante — implementación WS3 (15/11/2026)
+
+Se parte del trabajo de **faricool54**: #93 (algoritmos LC7/LC23–29), #94/#95 (productos republicados)
+y #97 (notas, floors y selección en UI). Las tablas anteriores son revisiones fechadas de las versiones
+que citan: no implican que aún falten esos cambios. No se reemplazan sus algoritmos ni sus resultados.
+
+### Temperatura y color desde espectros
+
+`science.continuum.estimate_temperature(points)` ajusta un cuerpo negro **F_nu** (mJy), con escala positiva
+libre a 2 µm, grilla logarítmica 300–20000 K y perfil de chi-cuadrado. Es **temperatura de color del continuo**,
+no Teff de atmósfera estelar, temperatura de equilibrio, radio, masa ni RGB. La escala no se convierte en tamaño.
+La ley y la convención por Hz se cotejaron con [Astropy BlackBody](https://docs.astropy.org/en/stable/modeling/physical_models.html#blackbody);
+los tests generan sus referencias independientemente con ese modelo, no con la función del ajuste.
+
+Controles deliberados, no umbrales validados como calibración de SPHEREx:
+
+- Errores positivos/finítos, S/N ≥ 3 y flujos positivos. Nada de convertir negativos o cotas en detecciones.
+- ≥ 6 grupos espectrales y alcance en λ ≥ 2×. Agrupación de repeticiones en 2,5 %; piso de modelado supuesto
+  del 5 % por grupo, que no se reduce artificialmente al repetir un frame. Incluye dispersión de las repeticiones.
+- Con más del 20 % de entradas rechazadas, sin corrección de apertura o calidad insuficiente, no informa temperatura.
+- Rechaza chi² reducido > 5, intervalos que alcanzan los límites de búsqueda o amplitud del intervalo > 50 % de T.
+- El intervalo de Δchi²=1 es **condicional al modelo y al piso supuesto**; no es incertidumbre astrofísica total.
+- `spectra.interpret_spectrum` separa temporadas: jamás entrega una temperatura global de una fuente variable.
+  Una temporada agrupa huecos ≤30 días; no prueba simultaneidad ni constancia dentro de ese intervalo.
+- Cubos MJy/sr sin sustracción local de fondo/errores no se ajustan como espectro de una estrella. La guía de
+  [IRSA para visualización](https://irsa.ipac.caltech.edu/onlinehelp/spherex/spherex/visualization.html) distingue
+  el drill de una extracción fotométrica con fondo/PSF. El adaptador devuelve `unsupported_product`.
+
+`color_class` describe la mediana F_nu(4–5 µm) / mediana F_nu(1–2 µm), con ≥3 grupos por ventana:
+<0,25 `star-like`; <1 `neutral`; <4 `red`; ≥4 `very-red`; sin cobertura/calidad, `unknown`.
+Son categorías de visualización declaradas, **no clases estelares calibradas ni color visible**. La extinción,
+los discos, las bandas moleculares, la mezcla y la variabilidad pueden cambiar ese cociente.
+
+La CLI `errante position-spectrum --json` agrega `interpretation` por temporada a su producto científico
+interno, y el modo texto explica estados/límites. No cambia `SpectrumResponse`, `Fact`, schema ni versión 0.7.0.
+`interpret_measurements` e `interpretation_notes` permiten mostrar el resultado en las notas existentes de
+la API; el consumo físico por WS7 exige mantener la procedencia y estas limitaciones, sin copiarlo como Teff.
+
+**Comprobación real de rechazo:** 40 exposiciones nativas de ε Ind B, 35 utilizables, seguimiento con el
+movimiento propio J2000 del preset, `max_frames=40`. IRSA SIA/TAP agotó el plazo: se usó el snapshot de búsqueda
+2026-11-14 y se descargaron los FITS de S3 (0 fallos de extracción). El muestreo acotado produjo cinco grupos
+separados por huecos; no implica cinco temporadas completas del archivo. No se informó temperatura en ninguno:
+calidad/cobertura/censura o ajuste malo (chi² reducido ~131 y ~78 en dos de los grupos con cobertura suficiente).
+El espectro molecular de Ba+Bb sin resolver no se convierte en una Teff de cuerpo negro. Fixture reproducible
+sin red: `pipeline/tests/fixtures/ws3/continuum/eps-indi-b.json`. No es nueva aprobación humana de R05.
+
+### Identidad de RW Aur: trabajo de faricool54, PR #101
+
+Farid publicó #101 mientras se preparaba esta implementación. Se retiraron de esta rama los cambios
+propios de identidad y sus tests para evitar duplicarlo: `context.py` permanece igual a main de base.
+#101 conserva el nombre crudo de SIMBAD, cambia el nombre visible según WDS y avisa que SPHEREx mide
+el sistema sin resolver. #101 ya esta mergeado y se incorporo desde main; la publicacion se coordina con Farid en #100.
+[Dodin et al. 2020, p. 2](https://arxiv.org/pdf/2007.12559) identifica B con Gaia DR2 156430822114424576;
+[Kurtovic et al. 2024](https://arxiv.org/html/2407.18828v1) da RUWE ~16 para A y ~1,5 para B. Estas fuentes
+respaldan la revisión ya escrita en §0.3; no justifican atribuir la fotometría mezclada a un componente.
+
+### LC24: dos puntos no son dos muestras de dispersión independientes
+
+Un bin de dos exposiciones fuerza dos valores opuestos que proceden de **una** diferencia. Se conservan
+ambos para la curva y el análisis de pares, pero se excluyen del resumen de dispersión por exposición.
+Si no quedan bins con ≥3 exposiciones, `summary.n=0` y `scatter_over_control=null`; una nota lo explica.
+No cambia los flujos, magnitudes relativas ni pares medidos. El control de pares publicado por #93 sigue siendo
+la referencia para pares en apertura. Los productos ya empaquetados necesitan rebuild WS4 para reflejar el
+resumen nuevo; no se presentan como regenerados por este PR. LC23 estructurado y otros cambios de modelo
+requieren contrato separado. P2 (SkyBoT/JPL/Planeta X) y la aprobación humana R05 permanecen fuera de este cierre.

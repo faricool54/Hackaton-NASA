@@ -17,8 +17,11 @@ y registros de validación; luego espectros/contexto. `Candidate`/cruce/distanci
 - ✅ `motion.py`: movimiento lineal desde detecciones; distancia aproximada por velocidad en oposición (solo
   orden de magnitud — SPHEREx mira a ~90° del Sol, ver SCIENCE §1).
 - ✅ `context.py` (ficha del objeto, #58/#74, en la app con #73–#76; V15 nombres A/B de RW Aur corregidos), `spectra.py`
-  (#59, salvo `color_class`/temperatura desde el espectro: V18) y `variability.py` (#59; arreglos de la revisión en #93).
+  (#59; V18 temperatura de color/clasificacion descriptiva en esta rama) y `variability.py` (#59; arreglos #93 y remanente LC24 en esta rama).
 - ⛔ `known_objects.objects_in_frame/ephemeris/crossmatch`, `planet_x.*` (P2).
+
+Tarea actual del usuario (15/11): rpccp con Codex completa V18 y el remanente LC24 sobre #93/#94/#97.
+V15 de RW Aur lo resolvio faricool54 en #101, ya mergeado. No se duplica su implementacion.
 
 ## Tareas
 
@@ -56,6 +59,9 @@ y registros de validación; luego espectros/contexto. `Candidate`/cruce/distanci
 - [ ] **WS3-11 (P2) Evaluar recursos CSA/CADC/NEOSSat.** Revisar página de misión, acceso CADC,
   tutorial y dataset del enunciado, licencias y posibles comparaciones. Decisión escrita con fuentes;
   cualquier adaptador futuro conserva misión y procedencia separadas y no bloquea SPHEREx.
+
+- [x] **WS3-12 (P1, V18/C02) Temperatura de color y clasificación descriptiva IR.** `science.continuum` ajusta F_nu con escala libre, rango condicional y controles de calidad/cobertura; `spectra` interpreta cada temporada por separado y la CLI lo entrega en JSON/texto. No es Teff ni RGB. Rechazos explícitos; fixture real de ε Ind B y tests contra Astropy. Adaptador listo para que WS4 lo muestre en `SpectrumResponse.notes`, sin cambiar contrato.
+- [x] **WS3-14 (LC24 restante) Resumen de dispersión.** No cuenta como medidas independientes los dos extremos de un único par. Bins de dos exposiciones conservados para pares, excluidos solo del resumen de dispersión; `scatter_over_control=null` si no hay muestra adecuada. Nuevos productos requieren republish WS4; los JSON empaquetados no se editan a mano.
 
 ## Gotchas
 - SPHEREx está en órbita baja: para asteroides cercanos usá la posición de la nave (no geocéntrica).
