@@ -1,0 +1,67 @@
+main.xp-app {
+  max-width: none;
+  padding: 0;
+}
+
+.xp-explorer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(310px, 33vw, 460px);
+  height: calc(100dvh - var(--topbar-h, 49px));
+  min-width: 0;
+}
+
+.xp-map {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.xp-search {
+  position: absolute;
+  z-index: 2;
+  inset: 12px auto auto 12px;
+  width: min(390px, calc(100% - 112px));
+  max-height: min(65%, 460px);
+  overflow: auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.xp-search > section { border: 0; margin: 0; }
+.xp-search > label { display: block; padding: 0 14px 12px; }
+.xp-search select { max-width: 100%; }
+
+.xp-dock {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  min-height: 0;
+  min-width: 0;
+  background: var(--panel);
+  border-inline-start: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.xp-dock-header { padding: 14px 16px 8px; overflow-wrap: anywhere; }
+.xp-dock-header h1 { margin: 0 0 5px; font-size: clamp(1.15rem, 1.55vw, 1.45rem); }
+.xp-dock-header p { margin: 4px 0; }
+.xp-dock-links { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; }
+.xp-tabs { margin: 0 16px 8px; width: max-content; max-width: calc(100% - 32px); }
+.xp-tabs [aria-selected="true"] { background: var(--accent); color: var(--bg); }
+.xp-dock-body { padding: 0 16px 14px; overflow: auto; overscroll-behavior: contain; }
+.xp-dock-body [hidden] { display: none; }
+.xp-build { display: grid; gap: 8px; margin: 8px 0; }
+.xp-build details { padding: 8px; border: 1px solid var(--border); border-radius: 8px; }
+.xp-build label { display: grid; gap: 3px; margin-top: 6px; }
+.xp-build input, .xp-build select { min-width: 0; width: 100%; }
+.xp-build-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.xp-dock-body .field-layout { grid-template-columns: minmax(0, 1fr); }
+
+@media (max-width: 900px) {
+  .xp-explorer { grid-template-columns: minmax(0, 1fr); height: auto; }
+  .xp-map { min-height: 50dvh; height: max(50dvh, 310px); }
+  .xp-search { inset: 8px auto auto 8px; width: min(330px, calc(100% - 86px)); }
+  .xp-dock { border-inline-start: 0; border-block-start: 1px solid var(--border); }
+  .xp-dock-body { overflow: visible; }
+}

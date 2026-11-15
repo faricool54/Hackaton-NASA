@@ -1,15 +1,13 @@
-import { useState } from 'react';
-import { client } from '../api/client';
+import type { ReactNode } from 'react';
 import type { ObjectLookup } from '../api/objectCard';
 import { formatRaDec } from '../api/format';
-import { localTargetSequences, searchSequences, type SearchSequence } from '../api/skySearch';
+import { searchSequences, type SearchSequence } from '../api/skySearch';
 import type { JobStatusResponse, SkyCoord, SystemSummary } from '../api/types';
 import { FieldPage } from '../pages/FieldPage';
 import { ObjectSystemPreview } from '../three/ObjectSystemPreview';
+import { ExplorerDock, ExplorerPanel, type ExplorerView } from './ExplorerDock';
 import { PositionSpectrum } from './PositionSpectrum';
 import { SystemPreview } from './SystemPreview';
-
-const VIEWS = ['Time', 'Spectrum', '3D'] as const;
 
 interface Props {
   position: SkyCoord;
@@ -17,60 +15,60 @@ interface Props {
   systems: SystemSummary[];
   selectedFieldId?: string;
   job: JobStatusResponse | null;
-  building: boolean;
-  buildError: string;
   quickLook: boolean;
-  /** WS7 (V14): the object card's lookup, so the 3D tab describes the same object as the card. */
-  lookup?: ObjectLookup | null;
+  lookup: ObjectLookup | null;
+  view: ExplorerView;
+  onView: (view: ExplorerView) => void;
+  label: string;
+  synthetic: boolean;
+  notice: string;
+  onCopyLink: () => void;
+  object: ReactNode;
+  build: ReactNode;
 }
 
-export function PositionResults({ position, sequences, systems, selectedFieldId, job, building, buildError, quickLook, lookup }: Props) {
-  const [view, setView] = useState<typeof VIEWS[number]>('Time');
-  const live = client.config.mode === 'api';
-  const readyFieldId = job?.status === 'ready' ? job.result_field_id ?? undefined : undefined;
-  const nearby = searchSequences(sequences, '', position).filter(({ field }) => !field.synthetic);
-  const targets = localTargetSequences(nearby, position);
-  const savedFieldId = selectedFieldId ?? targets[0]?.field.id;
-  const timeFieldId = readyFieldId ?? savedFieldId;
-  const model = systems.find((system) => !system.synthetic && targets.some(({ field }) =>
-    field.id === system.field_id && (!selectedFieldId || selectedFieldId === field.id)));
-  const fieldPageId = model?.field_id ?? timeFieldId;
-  const fieldName = fieldPageId && !fieldPageId.startsWith('job-')
-    ? sequences.find(({ field }) => field.id === fieldPageId)?.field.name
-    : undefined;
-  const failure = buildError.startsWith('Job engine is disabled.')
-    ? 'Generating new sequences is disabled on this server.'
-    : buildError || job?.error_detail;
+export function PositionResults({
+  position, sequences, systems, selectedFieldId, job, quickLook, lookup,
+  view, onView, label, synthetic, notice, onCopyLink, object, build,
+}: Props) {
+  const selected = Boolean(lookup || job || selectedFieldId);
+  const timeFieldId = job?.status === 'ready' ? job.result_field_id ?? selectedFieldId : selectedFieldId;
+  const field = sequences.find((entry) => entry.field.id === timeFieldId)?.field;
+  const model = systems.find((system) => !system.synthetic && system.field_id === timeFieldId);
+  const nearby = selected && !timeFieldId ? searchSequences(sequences, '', position) : [];
+  const header = <>
+    <h1>{label || field?.name || (selected ? 'Selected sky position' : 'Watch the infrared sky change')}</h1>
+    {selected ? <p className="small">{formatRaDec(position.ra, position.dec)}</p>
+      : <p className="small">Pick a challenge target, search a name, or click any star.</p>}
+    {synthetic && <p className="small">SYNTHETIC DATA · NOT SPHEREx</p>}
+    {selected && <div className="xp-dock-links small">
+      <button type="button" className="link-button" onClick={onCopyLink}>Copy link</button>
+      {timeFieldId && <a href={`#/field/${timeFieldId}`}>Open field page →</a>}
+    </div>}
+    {notice && <p className="small" role="status">{notice}</p>}
+  </>;
 
-  return <section className="panel position-results" aria-labelledby="position-results-title">
-    <h2 id="position-results-title">Selected sky position</h2>
-    <p className="muted small">{formatRaDec(position.ra, position.dec)}</p>
-    {fieldPageId && <p className="small">
-      <a href={`#/field/${fieldPageId}`}>{fieldName ? `Open ${fieldName} field page →` : 'Open field page →'}</a>
-    </p>}
-    <div className="segmented position-views" role="group" aria-label="Position views">
-      {VIEWS.map((name) => <button key={name} type="button" aria-pressed={view === name}
-        onClick={() => setView(name)}>{name}</button>)}
-    </div>
-    {view === 'Time' && <section aria-label="Time sequence">
-      {building && <p role="status">Preparing the SPHEREx time sequence…</p>}
-      {!building && !readyFieldId && failure && <p className="error" role="alert">{failure}</p>}
-      {!building && !timeFieldId && !failure && <p className="muted">
-        {job ? 'Use the build controls above to check or retry the sequence.'
-          : live ? 'Use Build time sequence above to load observations at this position.'
-          : 'A new sequence requires the live API.'}
-      </p>}
+  return <ExplorerDock view={view} onView={onView} header={header} timeReady={job?.status === 'ready'}>
+    <ExplorerPanel name="Object" active={view === 'Object'}>
+      {lookup && <p className="muted small">Catalog information</p>}
+      {lookup ? object : <p className="muted">Select a position to see its catalog information.</p>}
+    </ExplorerPanel>
+    <ExplorerPanel name="Time" active={view === 'Time'}>
+      {timeFieldId && !synthetic && <p className="muted small">SPHEREx observations</p>}
       {timeFieldId && <FieldPage key={timeFieldId} fieldId={timeFieldId} embedded />}
-      {nearby.length > 0 && !timeFieldId && <ul aria-label="Saved sequences covering this position">
-        {nearby.map(({ field, href }) => <li key={href}><a href={href}>Nearby saved sequence · {field.name}</a></li>)}
+      {build}
+      {nearby.length > 0 && <ul aria-label="Saved sequences covering this position">
+        {nearby.map(({ field: candidate, href }) => <li key={href}><a href={href}>{candidate.name}</a></li>)}
       </ul>}
-    </section>}
-    <div hidden={view !== 'Spectrum'}>
-      <PositionSpectrum position={position} fieldId={timeFieldId} inline quickLook={quickLook} />
-    </div>
-    {view === '3D' && <section aria-label="3D catalog model">
-      {model ? <SystemPreview key={model.id} systemId={model.id} />
-        : <ObjectSystemPreview position={position} lookup={lookup} />}
-    </section>}
-  </section>;
+    </ExplorerPanel>
+    <ExplorerPanel name="Spectrum" active={view === 'Spectrum'}>
+      {selected ? <PositionSpectrum position={position} fieldId={timeFieldId} inline quickLook={quickLook} />
+        : <p className="muted">Select a position to see its SPHEREx spectrum.</p>}
+    </ExplorerPanel>
+    <ExplorerPanel name="3D" active={view === '3D'}>
+      {view === '3D' && (model ? <SystemPreview key={model.id} systemId={model.id} />
+        : selected ? <ObjectSystemPreview position={position} lookup={lookup} />
+          : <p className="muted">Select a catalog object. <a href="#/systems">Browse catalog models →</a></p>)}
+    </ExplorerPanel>
+  </ExplorerDock>;
 }
