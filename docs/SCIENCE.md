@@ -713,11 +713,14 @@ Si el equipo no la acepta, se revierte como indica WS7 (`epoch_mjd = null`, tare
 - La VR de RW Aur (+15 km/s de SIMBAD, Nguyen et al. 2012) no coincide con la de Gaia DR3 para B (−20,9 ± 4,0 km/s). 🧮 En
   el panel del cielo el efecto es < 0,001″.
 
-**Para WS3 (pendiente propio).** `science/context.py` nombra el click de RW Aur con el cross-id de SIMBAD, que llama «RW Aur
-B» a Gaia DR3 156430817820015232. Según el WDS (§0.3) y WS7 es A. Hace falta una corrección o una advertencia en el contexto
-y en `test_rw_aur_click_names_the_component`.
+**Para WS3 (✅ resuelto el 2026-11-15, V15).** `science/context.py` nombraba el click de RW Aur con el cross-id de SIMBAD,
+que llama «RW Aur B» a Gaia DR3 156430817820015232; según el WDS (§0.3) y WS7 es A. Ahora `COMPONENT_NAME_FIXES` corrige el
+nombre visible (`display_name` «RW Aur A»; `main_id` conserva el de SIMBAD) y agrega un aviso. El aviso dice que el tipo
+espectral y la variabilidad salen de la entrada «RW Aur B» de SIMBAD y que SPHEREx mide el par sin resolver. Test:
+`test_rw_aur_click_names_the_component`.
 
-**Conteo de saturación de RW Aur, por reconciliar** (registro: coordinación; `DATA.md` §3.2: WS1; §0 de este documento:
+**Conteo de saturación de RW Aur** (✅ resuelto en #66/#67: el registro dice «304 de 335; ningún frame D2–D6 limpio; 17 de 56
+limpios en D1», sin el reparto por detector de `sat`. El texto que sigue es el diagnóstico original) (registro: coordinación; `DATA.md` §3.2: WS1; §0 de este documento:
 WS3). El [registro](validation/rw-aurigae.md) dice «`OVERFLOW` en 304 de 335 frames: todo D2–D6 y 37 de 56 frames de D1»,
 y `DATA.md` §3.2 repite «todo D2–D6». 🧮 No cierra: D2–D6 tienen 55 + 4 × 56 = 279 frames, y 279 + 37 = 316, no 304. La
 tabla de clases del propio registro (`sat` 304, `bad` 10 «sin `OVERFLOW`», `edge` 4, `clean` 17, todos en D1) admite dos

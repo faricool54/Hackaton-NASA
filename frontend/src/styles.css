@@ -28,8 +28,8 @@ h1, h2, h3 { line-height: 1.2; }
 .muted { color: var(--muted); }
 .small { font-size: 0.85rem; }
 .error { color: var(--error); }
-.science-panel { margin: 18px 0; min-width: 0; }
-.science-panel > summary { cursor: pointer; font-size: 1.05rem; font-weight: 600; padding: 6px 0; }
+.science-panel, .system-preview-panel { margin: 18px 0; min-width: 0; }
+.science-panel > summary, .system-preview-panel > summary { cursor: pointer; font-size: 1.05rem; font-weight: 600; padding: 6px 0; }
 .science-panel label { display: grid; gap: 5px; font-size: .85rem; margin: 8px 0; }
 .science-controls { display: flex; gap: 10px 18px; flex-wrap: wrap; align-items: end; }
 .science-controls > label { flex: 1 1 160px; min-width: 0; }
@@ -71,7 +71,11 @@ h1, h2, h3 { line-height: 1.2; }
 button:disabled { opacity: .55; cursor: not-allowed; }
 .job-status { border-top: 1px solid var(--border); padding-top: 16px; margin-top: 16px; }
 .mode-note { padding: 10px; background: #172235; border-radius: 6px; font-size: .85rem; }
-.explorer-result { border-top: 1px solid var(--border); padding-top: 20px; margin-bottom: 30px; }
+.position-result-anchor { scroll-margin-top: 1rem; }
+.position-results { min-width: 0; margin: 18px 0 30px; }
+.position-results h2 { margin-top: 0; }
+.position-views { margin-bottom: 12px; }
+.position-views button { min-height: 44px; }
 /* object card: catalog context of the chosen position (never SPHEREx measurements) */
 .object-card { border-top: 1px solid var(--border); padding-top: 14px; margin-top: 16px; min-width: 0; overflow-wrap: break-word; }
 .object-card h3 { margin: 0 0 4px; font-size: 1rem; }
@@ -121,7 +125,7 @@ footer { text-align: center; padding: 24px 16px; }
 .sky-search p { margin: 8px 0 0; }
 .sky-search .search-status:empty { margin: 0; }
 .search-matches { padding: 0; margin: 12px 0 0; list-style: none; display: grid; gap: 6px; }
-.card.search-match { padding: 8px 12px; display: grid; gap: 2px; overflow-wrap: anywhere; }
+.card.search-match { width: 100%; text-align: left; padding: 8px 12px; display: grid; gap: 2px; overflow-wrap: anywhere; }
 
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 16px; }
 .card { display: block; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; color: inherit; text-decoration: none; }

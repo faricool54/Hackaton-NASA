@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { client } from '../api/client';
 import { formatMjd, formatRaDec } from '../api/format';
 import { plotMeasurements } from '../api/science';
@@ -34,21 +34,34 @@ function MeasurementPlot({ result }: { result: SpectrumResponse }) {
   </figure>;
 }
 
-export function PositionSpectrum({ position, fieldId }: { position: SkyCoord; fieldId?: string }) {
+export function PositionSpectrum({ position, fieldId, inline = false, quickLook = false }: {
+  position: SkyCoord; fieldId?: string; inline?: boolean; quickLook?: boolean;
+}) {
   const [source, setSource] = useState<'dr1_cube' | 'l2_exposures'>('dr1_cube');
   const [aperture, setAperture] = useState(0);
   const [detector, setDetector] = useState(0);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [maxFrames, setMaxFrames] = useState(24);
-  const request = useScienceRequest<SpectrumResponse>(`${position.ra}/${position.dec}/${source}/${aperture}/${detector}/${from}/${to}/${maxFrames}/${fieldId ?? ''}`);
+  const { ra, dec } = position;
+  const exposureField = source === 'l2_exposures' ? fieldId : undefined;
+  const request = useScienceRequest<SpectrumResponse>(`${ra}/${dec}/${source}/${aperture}/${detector}/${from}/${to}/${maxFrames}/${exposureField ?? ''}`);
+  const { run } = request;
   const live = client.config.mode === 'api';
-  return <details className="panel science-panel">
-    <summary>Spectrum at {formatRaDec(position.ra, position.dec)}</summary>
+  useEffect(() => {
+    if (!live || !quickLook) return;
+    // Let Strict Mode finish its initial cleanup before starting the extraction.
+    const timer = setTimeout(() => {
+      void run((signal) => client.getSpectrum({ ra, dec, source: 'dr1_cube', aperture_px: 0, detectors: [] }, signal));
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [ra, dec, live, quickLook, run]);
+
+  const content = <>
     <p className="muted small">Measures this fixed sky position, independently of candidates.</p>
     {!live && <p>Use live API mode to extract measurements.</p>}
     <form onSubmit={(e) => { e.preventDefault(); const body: SpectrumRequest = { ra: position.ra, dec: position.dec, source,
-      detectors: detector ? [detector] : [], field_id: fieldId,
+      detectors: detector ? [detector] : [], field_id: exposureField,
       ...(source === 'dr1_cube' ? {aperture_px: aperture} : {max_frames: maxFrames,
         mjd_min: from ? Date.parse(`${from}T00:00:00Z`)/86400000+40587 : null,
         mjd_max: to ? Date.parse(`${to}T23:59:59.999Z`)/86400000+40587 : null})};
@@ -87,5 +100,11 @@ export function PositionSpectrum({ position, fieldId }: { position: SkyCoord; fi
       </table></div>
       {request.data.failures.map((f, i) => <p className="small error" key={i}>{f.frame_id ?? 'Input'}: {f.reason}</p>)}</details>
     </>}
-  </details>;
+  </>;
+
+  return inline ? <section className="science-panel" aria-label="Position spectrum">{content}</section>
+    : <details className="panel science-panel">
+      <summary>Spectrum at {formatRaDec(ra, dec)}</summary>
+      {content}
+    </details>;
 }
