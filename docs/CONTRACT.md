@@ -2,8 +2,8 @@
 
 Fuente de verdad: [`pipeline/errante/models.py`](../pipeline/errante/models.py).
 Generado: [`shared/schema/*.schema.json`](../shared/schema/) (`python scripts/dev.py schema`). Espejo TS:
-[`frontend/src/api/types.ts`](../frontend/src/api/types.ts). Versión de esta integración: **0.4.0** (#53),
-después de **0.3.1** composites (#39, ya mergeado). **0.3.0** (#32) agregó `JobSubmitRequest`, `JobStatusResponse` y `ResolvedRegion`.
+[`frontend/src/api/types.ts`](../frontend/src/api/types.ts). Versión de esta integración: **0.5.0** (ficha del
+objeto, `ObjectContextResponse`), después de **0.4.0** espectros/comparaciones (#53) y **0.3.1** composites (#39). **0.3.0** (#32) agregó `JobSubmitRequest`, `JobStatusResponse` y `ResolvedRegion`.
 0.2.0 agregó sistemas 3D y 0.2.1 `Orbit.quality`/`note`. Los productos anteriores siguen siendo compatibles.
 Ejemplos sintéticos: [`data/demo/`](../data/demo/). Los cinco campos reales de WS2 están en
 [`data/products/`](../data/products/); sus imágenes no equivalen a cinco validaciones científicas R05.
@@ -41,6 +41,7 @@ leer `Provenance.synthetic`, notas y `Fact.verified`. Un SystemModel es un model
 | `POST /api/fields/{id}/comparisons` | `ComparisonResponse` | ✅ WS2 temporadas/diferencias; extra science |
 | `GET /data/analyses/{sha256}/...` | PNG y `analysis.json` | ✅ publicación independiente e inmutable |
 | `GET /api/known-objects?ra&dec&mjd[&radius_deg]` | `KnownObject[]` | 501 → WS3+WS4 |
+| `GET /api/object?name=` o `?ra&dec[&epoch_mjd&radius_arcsec]` | `ObjectContextResponse` (ficha de catálogo, 0.5.0) | ✅ WS3+WS4; 404 solo nombre desconocido |
 
 ## Convenciones
 
@@ -124,12 +125,45 @@ Contrato, backend y UI se integraron en main en orden #53 → #54 → #55, despu
 Se conservaron composites y modos de color #39/#40/#41 sin modificar sus ramas. Para futuras pilas, tras
 cada squash traer main, check/push y retargetear el siguiente PR. `compare.json` interno de WS2 no se consume directamente en UI.
 
+## Ficha del objeto (0.5.0, C05; panel de VISION.md)
+
+`GET /api/object` con **exactamente uno** de `name` o `ra`+`dec` (ICRS grados a `epoch_mjd`, default MJD 61000 =
+era SPHEREx); `radius_arcsec` 0–60 (default 8, ~1.3 píxeles SPHEREx). WS3 `object_context` + `to_response`
+arma la respuesta; el backend no hace ciencia. **Es contexto de catálogo de otras misiones, no mediciones SPHEREx**
+(`note` lo dice y la UI lo muestra).
+
+`ObjectContextResponse`: `query`, `position` (a la época, con `source`), `identity`, `facts`, `variability`,
+`planets`, `nearby_planet_hosts`, `photometry`, `warnings`, `provenance`, `partial`, `built_at`, `note`,
+`synthetic: false`, `schema_version`.
+
+- `identity.match`: `name` (resuelto por SIMBAD) · `matched` (un Gaia DR3 tras propagar movimiento propio) ·
+  `ambiguous` (varias fuentes de brillo similar en el radio) · `loose` (la fuente adoptada está a más de medio
+  radio del click) · `none` (sin identificación: nada de Gaia en el radio, o un nombre no resuelto por SIMBAD) ·
+  `unavailable` (Gaia no respondió: **desconocido, no negativo**). `identity_uncertain = true` ⇒ los valores que
+  dependen de la identidad pueden ser de un vecino; la UI lo advierte.
+- `identity.gaia_source_id` es **string** (64 bits; un `number` de JS pierde dígitos).
+- `facts`: los `Fact` de siempre (Teff, radio, luminosidad, masa, distancia, tipo espectral, tipo y período de
+  variabilidad); `value: "unknown"` = no medido o no encontrado; `verified` exige identificación segura.
+- `planets`: solo **confirmados** (NASA Exoplanet Archive `pscomppars`); `mass_kind` `Msini` = masa mínima y
+  `radius_calculated` = radio estimado por el archivo. `nearby_planet_hosts` son vecinos que **no** son el objeto.
+- `photometry`: 2MASS/AllWISE con `other_mission: true` (literal), banda, λ nominal, Vega, flags y límites.
+- `provenance[]`: servicio, catálogo, URL, `status` `ok|no_match|error|skipped`, fecha, `cached`, `stale`, nota.
+  `error` = el servicio no respondió (o se salteó por no aceptar conexiones): desconocido, no negativo.
+- `partial: true` cuando algún servicio no respondió, incluido el plazo de la API (respuesta re-leída offline de
+  la caché de WS3; los pendientes dicen "no answer within the N s API deadline"). Nunca se sirve desde la caché.
+
+Códigos: 200 (también cielo vacío: `match: "none"`), 404 solo si SIMBAD/Sesame no conoce el **nombre**,
+422 parámetros inválidos, 502 resolvedor inalcanzable/fallo inesperado, 503 cupo (`Retry-After`), 504 solo si al
+vencer el plazo ni el nombre estaba resuelto. Trazabilidad: C05 (Gaia DR3 propagado a la época, WISE/2MASS
+identificados por misión, banda y fecha) y el panel "datos del objeto" de VISION.md; no cambia R01–R05.
+
 ## Extensiones aún sin contrato publicado
 
 - `Field.composites` (falso color por temporada) está integrado desde #39 en 0.3.1; 0.4.0 lo conserva.
 - C01/C07: metadatos ampliados de selección, cobertura y flags con significado.
 - C02/C03: revisión de interpretación científica y futuras medidas adicionales con WS3; no duplicar la API 0.4.0.
-- C05: ficha Gaia y mediciones para modelos físicos 3D; no usar el esquema ilustrativo como mediciones nuevas.
+- C05: la ficha de catálogo está en 0.5.0; faltan los parámetros NUMÉRICOS para el modelo 3D (WS3
+  `ObjectContext.parameters()`) y las capas Gaia/WISE sobre el mapa. No usar el esquema ilustrativo como mediciones.
 
 Las coordenadas/FOV/detector/job en URL ya se restauran en el frontend. Modo compacto/iframe externo pendiente.
 
