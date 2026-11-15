@@ -88,14 +88,20 @@
   números a `docs/validation/*.md`, que siguen describiendo el build de #17.
 - [ ] **WS2-9 (P2) Shift-and-stack** a lo largo de velocidades hipotéticas para objetos lentos y débiles
   (demo educativa del método de búsqueda del Planeta X).
-- [~] **WS2-10 (P1, C02/C03) Sumas y coadds por detector.** Alinear y combinar por detector y visita,
+- [x] **WS2-10 (P1, C02/C03) Sumas y coadds por detector.** Alinear y combinar por detector y visita,
   con pesos derivados de VARIANCE, máscara/coverage y lista de miembros. Mantener separados los seis detectores;
   no borrar la secuencia temporal al sumar todas las épocas. Mostrar λ efectiva/rango y método de combinación.
   Validar el cambio de SNR en una fuente estable y preservar originales para comparar.
   🟡 Coadds por temporada × detector con un peso por frame (1/mediana de VARIANCE), píxeles malos fuera y lista de
   miembros (`compare.weighted_stack`). Desde #69 cada coadd exporta `weights` en el orden de `frame_ids`, y la API
-  puede llenar `ComparisonImage.weights`. Los composites en falso color (#41) usan los mismos coadds. Falta: validar
-  el cambio de SNR en una fuente estable.
+  puede llenar `ComparisonImage.weights`. Los composites en falso color (#41) usan los mismos coadds.
+  ✅ SNR validado (V21, `python -m errante.imaging.snrcheck --out <dir>`, offline, 5 campos dorados, 532 estrellas
+  de campo en 86 grupos temporada × detector): flujo coadd / media ponderada 1.002; VARIANCE propagada da
+  medido/esperado 1.01, pero con ruido empírico (aperturas en cielo vacío) la ganancia es 1.15 vs 1.41 esperada
+  (cociente 0.80, p16–p84 0.70–1.01): el ruido de cielo vacío está correlacionado entre frames de una temporada
+  (solo ~70 % en σ cambia entre frames; Barnard 38 %), probablemente estructura estática del cielo (no testeado);
+  el ruido correlacionado no promedia, y con esa covarianza el ruido del coadd queda explicado (1.02; en grupos de
+  2 frames, 70 de 86, es una identidad de consistencia, no un test aparte).
 - [ ] **WS2-11 (P1, C07) Resumen de calidad.** Flags de contaminación y cobertura por frame/recorte,
   significado y política de máscara. SOURCE no implica contaminación; OUTLIER/TRANSIENT requieren contexto.
   Ausencia de flags se declara desconocida, no limpia. Coordinar contrato con WS4-10 y panel con WS5-10.

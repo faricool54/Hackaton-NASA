@@ -412,6 +412,23 @@ def test_gaia_falls_back_to_vizier_when_esa_is_unreachable(tmp_path):
     assert f["Distance"].value.startswith("1.828")  # 1/parallax: no Bailer-Jones in the fallback
 
 
+def test_vizier_fallback_without_gspphot_says_espucd_was_not_queried(tmp_path):
+    """#107 review: with ESA Gaia down, a source without GSP-Phot is not "no temperature in Gaia DR3": the fallback
+    never queries ESP-UCD (I/355/paramp), so the temperature is unknown, not a catalog negative."""
+    for f in FIXTURES.glob("*.json"):
+        if not f.name.startswith("gaia-esa-"):
+            shutil.copy(f, tmp_path / f.name)
+    ctx = C.object_context(*CLICKS["barnards-star"], cache_dir=tmp_path, offline=True)
+    assert ctx.gaia.catalog == C.GAIA_VIZIER_CATALOG
+    src = ctx.gaia.source
+    src.teff_gspphot = src.teff_gspphot_lower = src.teff_gspphot_upper = None
+    src.teff_espucd = src.teff_espucd_uncertainty = None
+    te = facts(ctx)["Effective temperature"]
+    assert te.value == "unknown" and not te.verified
+    assert "ESP-UCD (ultracool dwarfs) was not queried" in te.source and "not a negative result" in te.source
+    assert "has no temperature" not in te.source
+
+
 def test_every_service_down_still_answers_a_click(tmp_path):
     ctx = C.object_context(*CLICKS["barnards-star"], cache_dir=tmp_path, offline=True)
     assert ctx.gaia is None and all(p.status == "error" for p in ctx.provenance)

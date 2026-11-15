@@ -35,7 +35,7 @@ import numpy as np
 from ..data.cube import CHANNELS_PER_DETECTOR
 from ..data.epochs import SEASON_GAP_DAYS, group_seasons
 from ..models import Candidate, SpectralMeasurement, SpectrumPoint
-from .continuum import color_class, estimate_temperature
+from .continuum import TemperatureEstimate, color_class, estimate_temperature
 from .variability import MAG, mjd_to_iso
 
 MJY_PER_MJY_SR_PER_PIXEL = (6.15 / 206264.806) ** 2 * 1e9  # MJy/sr * px -> mJy (nominal 6.15" px)
@@ -579,11 +579,11 @@ def interpret_spectrum(spectrum: PositionSpectrum) -> list[dict]:
         colour = color_class(points)
         bad = sum(not s.usable or s.saturated for s in rows)
         uncorrected = any(s.usable and s.aperture_correction is None for s in rows)
-        if bad > len(rows) * 0.2 or uncorrected:
+        if any(s.saturated for s in rows) or bad > len(rows) * 0.2 or uncorrected:
             fit.status = "quality_rejected"
             fit.temperature_k = fit.lower_k = fit.upper_k = fit.scale_mjy_at_2um = None
             fit.notes.append(
-                "Too many unusable/saturated exposures or missing aperture corrections: no colour/temperature."
+                "Any saturated exposure, too many unusable exposures or missing aperture corrections: no colour/temperature."
             )
             colour = "unknown"
         fit.notes.append(
@@ -603,15 +603,13 @@ def interpret_measurements(
     source-temperature measurement. Unknown times likewise cannot be combined as one epoch.
     """
     if unit != "mJy" or not background_subtracted or static_coadd:
-        fit = estimate_temperature([])
-        fit.status = "unsupported_product"
+        fit = TemperatureEstimate(status="unsupported_product")
         fit.notes.append(
             "Raw/static surface-brightness cube: no source-background separation or flux errors; fit withheld."
         )
         return [{"season": None, "color_class": "unknown", "temperature": fit.to_dict()}]
     if any(p.mjd is None or not math.isfinite(p.mjd) for p in points):
-        fit = estimate_temperature([])
-        fit.status = "unknown_epoch"
+        fit = TemperatureEstimate(status="unknown_epoch")
         fit.notes.append("Exposure epochs are missing: cannot construct per-season diagnostics.")
         return [{"season": None, "color_class": "unknown", "temperature": fit.to_dict()}]
     samples, seasons = [], []
@@ -670,7 +668,7 @@ def interpretation_notes(rows: Sequence[dict]) -> list[str]:
             result = (
                 f"blackbody colour temperature {fit['temperature_k']:.0f} K "
                 f"(conditional interval {fit['lower_k']:.0f}-{fit['upper_k']:.0f} K; "
-                f"reduced chi-square {fit['reduced_chi2']:.2f}; assumed 5% modelling floor)"
+                f"reduced chi-square {fit['reduced_chi2']:.2f}; assumed 5% channel and +/-10% temperature modelling floors)"
             )
         else:
             result = f"colour temperature unknown ({fit['status']})"

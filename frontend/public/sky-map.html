@@ -54,8 +54,12 @@
     map.addOverlay(footprint);
     const gaia = A.catalog({ name: 'Gaia DR3 predictions', color: '#6ff4f1', shape: 'circle', sourceSize: 4 });
     map.addCatalog(gaia);
-    map.on('click', (p) => { if (p && Number.isFinite(p.ra) && Number.isFinite(p.dec))
-      send({ type: 'select', ra: p.ra, dec: p.dec }); });
+    map.on('click', (p) => {
+      // Aladin also emits click when a drag ends.
+      if (p && !p.isDragging && Number.isFinite(p.ra) && Number.isFinite(p.dec)) {
+        send({ type: 'select', ra: p.ra, dec: p.dec });
+      }
+    });
     addEventListener('message', (event) => {
       if (event.source !== parent || event.origin !== location.origin || event.data?.source !== 'errante-ui') return;
       const p = event.data;

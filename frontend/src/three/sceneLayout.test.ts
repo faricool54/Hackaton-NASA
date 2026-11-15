@@ -404,3 +404,23 @@ describe('rotation (M2): nothing spins without a period or the tidal-lock rule',
     expect(suggestedSpeed(byId('barnards-star'))).toBeCloseTo(2.3402 / 8, 9);
   });
 });
+
+describe('unknown-size host star (V14 display rule)', () => {
+  it('is drawn larger than its known-size planets, and only then', async () => {
+    const { baseDisplayRadii, UNKNOWN_HOST_OVER_CHILD } = await import('./sceneLayout');
+    const { displayRadius } = await import('./appearance');
+    const star = { id: 's', name: 'S', kind: 'star', radius_km: null, teff_k: 4900, facts: [] } as unknown as Body;
+    const planet = {
+      id: 'p', name: 'P', kind: 'planet', radius_km: 80_700, facts: [],
+      orbit: { parent: 's', semi_major_axis_au: 0.031, period_days: 2.2, eccentricity: 0, inclination_deg: 0, epoch_mjd: null },
+    } as unknown as Body;
+    const r = baseDisplayRadii([star, planet]);
+    expect(r.get('p')).toBeCloseTo(displayRadius(planet), 10);
+    expect(r.get('s')).toBeCloseTo(UNKNOWN_HOST_OVER_CHILD * displayRadius(planet), 10);
+    // A known-size star, or a star whose planets have no radius either, keeps its own display radius.
+    const known = { ...star, radius_km: 500_000 } as Body;
+    expect(baseDisplayRadii([known, planet]).get('s')).toBeCloseTo(displayRadius(known), 10);
+    const bare = { ...planet, radius_km: null } as Body;
+    expect(baseDisplayRadii([star, bare]).get('s')).toBeCloseTo(displayRadius(star), 10);
+  });
+});

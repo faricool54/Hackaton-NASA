@@ -5,7 +5,8 @@
 // without WebGL and SystemViewer can import it from the main chunk.
 // Everything is a MODEL REPRESENTATION: sizes are exaggerated, distances optionally compressed.
 import type { Body, Orbit, OrbitQuality, SystemModel } from '../api/types';
-import { compressDistance } from './appearance';
+import { compressDistance, displayRadius } from './appearance';
+import { isSizeKnown } from './factOrigin';
 import { paramTier, spectralClass, type ParamTier, type Tier } from './astro';
 import { formatPeriod } from './bodyFormat';
 import { J2000_MJD, topoOrder, type Vec3 } from './orbits';
@@ -92,6 +93,28 @@ export function childrenByParent(bodies: Body[]): Map<string, Body[]> {
     byParent.set(b.orbit.parent, [...(byParent.get(b.orbit.parent) ?? []), b]);
   }
   return byParent;
+}
+
+/** An unknown-size star or brown dwarf is drawn at least this many times its largest known-size orbiting body. */
+export const UNKNOWN_HOST_OVER_CHILD = 2;
+
+/**
+ * Display radius of every body before the caps (appearance.displayRadius), with one display rule: a star or brown
+ * dwarf whose radius is unknown (fixed marker, 'size unknown · not to scale') is never drawn smaller than its own
+ * planets of known size, which would read as a planet larger than its star (V14: e.g. HD 189733 when only the
+ * VizieR Gaia fallback answers). It is a display choice, not a radius, and the label still says the size is unknown.
+ */
+export function baseDisplayRadii(bodies: readonly Body[]): Map<string, number> {
+  const base = new Map(bodies.map((b) => [b.id, displayRadius(b)]));
+  const byParent = childrenByParent([...bodies]);
+  for (const b of bodies) {
+    if ((b.kind !== 'star' && b.kind !== 'brown_dwarf') || isSizeKnown(b)) continue;
+    const kids = (byParent.get(b.id) ?? []).filter((k) => isSizeKnown(k));
+    if (!kids.length) continue;
+    const biggest = Math.max(...kids.map((k) => base.get(k.id) ?? 0));
+    base.set(b.id, Math.max(base.get(b.id) ?? 0, UNKNOWN_HOST_OVER_CHILD * biggest));
+  }
+  return base;
 }
 
 /**

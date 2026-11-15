@@ -124,7 +124,7 @@ export function ExplorerMap({ center, footprintFieldId, onSelect }: {
     {corners === null && <p className="muted small" role="status">A SPHEREx footprint is unavailable for this sequence.</p>}
     {showGaia && hasGaiaEpoch && mapField?.epoch != null && <p className="muted small" role="status">
       {currentGaia?.data
-        ? `${currentGaia.data.markers.length} Gaia DR3 sources with proper motion predicted for ${formatMjd(mapField.epoch)} (median frame date).${currentGaia.data.limited ? ` Query limited to ${GAIA_SOURCE_LIMIT} sources.` : ''}`
+        ? `${currentGaia.data.markers.length} Gaia DR3 sources with proper motion in the search region.${currentGaia.data.limited ? ` Query limited to ${GAIA_SOURCE_LIMIT} sources.` : ''}`
         : currentGaia ? 'Gaia DR3 is unavailable. Toggle the layer to try again.' : 'Loading Gaia DR3 sources…'}
       {' '}<a href="https://vizier.cfa.harvard.edu/viz-bin/VizieR?-source=I/355/gaiadr3" target="_blank" rel="noreferrer">Gaia DR3 · VizieR</a>
     </p>}
@@ -133,6 +133,7 @@ export function ExplorerMap({ center, footprintFieldId, onSelect }: {
       {' '}<a href="https://irsa.ipac.caltech.edu/data/SPHEREx/" target="_blank" rel="noreferrer">NASA/SPHEREx · Caltech/IPAC</a>
       {' · '}<a href="https://aladin.cds.unistra.fr/AladinLite/" target="_blank" rel="noreferrer">Aladin Lite 3.8.2 (GPL-3)</a>
       {showFootprint && corners && <> · Purple outline: reprojected sequence grid</>}
+      {!!markers?.length && mapField?.epoch != null && <> · Cyan circles show Gaia DR3 catalog positions predicted for {formatMjd(mapField.epoch)} (median frame date) · ESA/Gaia/DPAC</>}
       {allwise && <> · AllWISE W4/W2/W1 · NASA/IPAC/CDS · ESA mirror (2010, not SPHEREx)</>}
     </p>
   </section>;

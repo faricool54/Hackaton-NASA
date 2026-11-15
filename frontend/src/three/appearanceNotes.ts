@@ -72,6 +72,8 @@ import { UNKNOWN_COLOUR_REASON, UNKNOWN_COLOUR_TEXT, UNKNOWN_SIZE_REASON, UNKNOW
 import {
   AU_PER_KM,
   SPIN_ALIAS_MAX_DEG_PER_FRAME,
+  UNKNOWN_HOST_OVER_CHILD,
+  baseDisplayRadii,
   capRadii,
   distanceMapper,
   drawsPulsation,
@@ -747,7 +749,7 @@ function sizeRow({ body, system }: Ctx): AppearanceNote {
       DISPLAY_CITE,
     );
   }
-  const base = new Map(bodies.map((b) => [b.id, displayRadius(b)]));
+  const base = baseDisplayRadii(bodies);
   const compressed = capRadii(bodies, 'compressed', base, distanceMapper('compressed', refAu, scale));
   const linear = capRadii(bodies, 'linear', compressed, distanceMapper('linear', refAu, scale));
   const rc = compressed.get(body.id) ?? displayRadius(body);
@@ -759,7 +761,7 @@ function sizeRow({ body, system }: Ctx): AppearanceNote {
       prop,
       `fixed marker, ${fmt(rc, 2)} scene units (${UNKNOWN_SIZE_TEXT})`,
       'not-drawn',
-      `${UNKNOWN_SIZE_REASON} (the same marker for every body without a radius, then capped like the others: capRadii); the scene label says '${UNKNOWN_SIZE_TEXT}'`,
+      `${UNKNOWN_SIZE_REASON} (the same marker for every body without a radius; a star or brown dwarf is drawn at least ${UNKNOWN_HOST_OVER_CHILD} × its largest planet of known size, a display rule; then capped like the others: capRadii); the scene label says '${UNKNOWN_SIZE_TEXT}'`,
       WS7_RULE,
       ['missing-input'],
     );

@@ -188,6 +188,26 @@ guardia de ownership los marca (precedentes #47 y #64, declarados en el PR).
     by SPHEREx" como fuente dibujada hasta V18).
   - [ ] Revisión visual en el navegador (escritorio y 375 px) de R Dra, ε Ind Ba/Bb en gris o con marcador fijo, los
     chips de origen y la ausencia del toggle; y revisión humana de DankoLiv antes del PR.
+- [x] **WS7-11 (P1) 3D para cualquier objeto elegido en el mapa (V14 de `PARALLEL_PLAN.md`)** — hecho (DankoLiv +
+  Claude, rama `ws7/v14-any-object`, PR #107; 2026-11-15 16:15 ART). Al elegir una posición en el mapa, la
+  pestaña 3D del panel de #103 arma el modelo en el navegador desde la ficha del objeto (`GET /api/object`, V6): estrella
+  o enana marrón con Teff, radio, luminosidad y distancia verificados de Gaia DR3 / SIMBAD (lo demás "unknown", en gris o
+  con marcador fijo), y solo planetas confirmados del NASA Exoplanet Archive con período y semieje publicados. Otros
+  tipos de objeto (galaxias, nebulosas, cúmulos) y cuerpos del sistema solar (asteroides y cometas: falta SkyBoT/JPL)
+  no se dibujan y la pestaña dice por qué. Solo en modo API en vivo. Archivos: `frontend/src/three/**` (nuevo módulo y
+  componente) y una línea de `frontend/src/components/PositionResults.tsx` (WS5, #103).
+  Avance (15:45 ART): `three/contextSystem.ts` (tipo SIMBAD conservador, identidad segura, solo hechos verificados, nota
+  "Not measured, so not drawn", variabilidad solo con período VSX, planetas con P y a) y `three/ObjectSystemPreview.tsx`
+  (modo estático = mensaje original + aviso de API en vivo). Tests con las cinco fichas congeladas
+  (`pipeline/errante/systems/inputs/objects/`) y casos literales (galaxia, QSO, cielo vacío, parcial, Msini, planeta sin a,
+  controvertido). Revisión adversarial (2 lentes): sin afirmar negativos que la ficha no consultó (SIMBAD solo vía Gaia),
+  caída de un servicio = hueco, masa M-R rotulada estimación, tránsito (EP) y tipos combinados no se animan, la búsqueda
+  por nombre usa el mismo lookup que la ficha (`SkyExplorer` → `PositionResults` → 3D), reintento y timeout.
+  Regla de display: una estrella de tamaño desconocido se dibuja al menos 2 × su planeta mayor de radio conocido
+  (`sceneLayout.baseDisplayRadii`; sigue rotulada "size unknown · not to scale").
+  Probado en el navegador con la API en vivo: HD 189733 por nombre (estrella Teff 4897 K, radio desconocido porque el
+  archivo Gaia de ESA no respondió, planeta b con su órbita, tránsito no animado) y M 31 (AGN: no se modela, explicado).
+  Pendiente (futuro): asteroides y cometas (SkyBoT/JPL, P2); movimiento propio (la ficha no lo trae); revisión humana.
 
 ## Revisión del 3D (#65) y revisión de textos
 
