@@ -130,9 +130,8 @@ export function FieldPage({ fieldId, embedded = false }: { fieldId: string; embe
 
   const items: TabItem[] = [];
   // The tab appears only once the product is known to exist (or the probe failed and needs a retry), never while
-  // checking: a field without a light curve must not show it and then drop it. TODO(FE-8): switch to
-  // <LightCurvePanel variant="inline" /> when it lands and remove useLightCurveProbe (LightCurveProductView is used
-  // here so the curve is visible without a click; its `{ product }` signature must stay until then).
+  // checking: a field without a light curve must not show it and then drop it. The probe already holds the product,
+  // so the tab renders FE-8's LightCurveProductView directly (visible without a click, no second request).
   if (curve && curve !== 'missing' && curve !== 'checking') {
     items.push({
       id: 'lightcurve', label: 'Light curve', content: curve === 'error' ? <>
@@ -173,9 +172,9 @@ export function FieldPage({ fieldId, embedded = false }: { fieldId: string; embe
         {systemId && <p className="small">
           <a href={`#/system/${systemId}`}>Explore these objects in 3D →</a> <span className="muted">3D model · not an image</span>
         </p>}
-        {/* TODO(FE-5): this is a full-page consumer; pass variant="full" once ObjectCard has variants (default "dock"). */}
+        {/* Full-page consumer: FE-5's "full" variant (the dock keeps the default "dock"). */}
         {synthetic ? <p className="muted small">Catalog context is not looked up for synthetic fields.</p>
-          : objectSeen && <ObjectCard lookup={lookup} />}
+          : objectSeen && <ObjectCard lookup={lookup} variant="full" />}
       </>,
     },
   );

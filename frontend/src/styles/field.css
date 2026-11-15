@@ -123,6 +123,27 @@ main.fd-state { padding: var(--sp-4, 16px); }
   background: var(--surface-0, var(--bg));
 }
 
+/* FE-7 stage budget (`--pl-stage-max`, read by BlinkViewer's .pl-stage). FE-7's fallback only subtracts the app top
+   bar; here the image shares the height with the title bar, the column (or theater) padding and the mode bar, so the
+   image is sized to keep the crosshair note, Play and the scrubber above the fold: FE-7's transport takes ~144 px
+   wide / ~109 px compact, and its `--pl-note-h` (declared on .pl-stage, hence these selectors) the note. The WS7
+   legend, the detector and the hints follow below and scroll inside the column. Outside Expand the dock keeps
+   FE-7's own rule. */
+.fd-body .fd-player .pl-root .pl-stage {
+  --pl-stage-max: max(360px, calc(var(--fd-free-h) - 2 * var(--sp-3, 12px) - 44px - 144px - var(--pl-note-h, 0px)));
+}
+.fd-player.fd-theater .pl-root .pl-stage {
+  --pl-stage-max: max(360px, calc(100dvh - 2 * var(--sp-3, 12px) - 44px - 144px - var(--pl-note-h, 0px)));
+}
+@container pl (max-width: 520px) {
+  .fd-body .fd-player .pl-root .pl-stage {
+    --pl-stage-max: max(240px, calc(var(--fd-free-h) - 2 * var(--sp-3, 12px) - 44px - 109px - var(--pl-note-h, 0px)));
+  }
+  .fd-player.fd-theater .pl-root .pl-stage {
+    --pl-stage-max: max(240px, calc(100dvh - 2 * var(--sp-3, 12px) - 44px - 109px - var(--pl-note-h, 0px)));
+  }
+}
+
 /* Tab contents */
 .fd-section-title { margin: 0 0 var(--sp-2, 8px); font-size: var(--fs-md); font-weight: var(--fw-bold); }
 .fd-science { margin-top: 0; }

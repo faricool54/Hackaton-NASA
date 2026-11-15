@@ -229,6 +229,7 @@ function PlayerView({ field, candidates, known, prediction, selectedId, onSelect
           prediction={!field.provenance.synthetic ? prediction : null}
           selectedId={selectedId}
           onSelect={onSelect}
+          compact={compact}
         />
       </div>
       <div className="fd-player-foot">
