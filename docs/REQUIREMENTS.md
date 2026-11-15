@@ -2,7 +2,7 @@
 
 Fuentes: [CHALLENGE.md](CHALLENGE.md), texto íntegro aportado por el equipo, y [SUBMISSION_GUIDE.md](SUBMISSION_GUIDE.md),
 reglas del PDF de entrega, más [JUDGING_GUIDE.md](JUDGING_GUIDE.md), síntesis del PDF de evaluación/premios.
-Ambas referencias se conservan sin cambios. Actualizado: **2026-11-14**.
+Ambas referencias se conservan sin cambios. Actualizado: **2026-11-15**, main `4d88aa0` (#96).
 Esta matriz es la fuente de prioridades. Cada tarea cita sus IDs para que ningún punto se pierda.
 **Asignado o diseñado no significa implementado.** Las casillas se marcan solo con evidencia verificable.
 
@@ -16,24 +16,24 @@ Esta matriz es la fuente de prioridades. Cada tarea cita sus IDs para que ningú
 
 | ID | Requisito | Responsable y tareas | Criterio de aceptación | Estado actual |
 |---|---|---|---|---|
-| R01 | Herramienta web pública para cualquier persona | WS5-2/3, WS4-4/6, WS6-3/7 | URL pública abre en incógnito y celular; una persona nueva reproduce un campo sin instalar herramientas | Demo local; deploy pendiente |
-| R02 | Imágenes reales SPHEREx de la misma región en distintas fechas | WS1-1/2/3/4/6, WS2-1/2, WS4-3 | PNGs sobre grilla común, fechas ordenadas, release y URI de origen; al menos dos épocas útiles por secuencia | Búsqueda, cutouts y reproyección pendientes |
-| R03 | Ingresar ascensión recta y declinación | WS5-7, WS4-2/5 | Coordenadas válidas producen una secuencia de esa región, no solo una lista de archivos o un campo cercano precargado; errores y ausencia de cobertura explícitos | Pendiente |
-| R04 | Mostrar una secuencia como video para reconocer cambios | WS5-1/2, WS2-2 | Play/pausa, paso, velocidad, fecha y filtro espectral; imágenes alineadas y sin depender de candidatos automáticos | Visor disponible sobre datos sintéticos |
-| R05 | Probar Barnard, Epsilon Indi B, WISE 0855, RW Aurigae y R Draconis | WS3-3/9, WS1-4/5/6, WS2-8, WS5-7, WS6-4 | Cinco registros con coordenadas/época/fuente, cobertura, imágenes, resultado y limitaciones según VALIDATION.md | Ningún ensayo real documentado |
+| R01 | Herramienta web pública para cualquier persona | WS5-2/3, WS4-4/6, WS6-3/7 | URL pública abre en incógnito y celular; una persona nueva reproduce un campo sin instalar herramientas | Implementado y publicado (#84/#95/#96); aceptación técnica pública y viewports móviles; prueba con usuarios pendiente |
+| R02 | Imágenes reales SPHEREx de la misma región en distintas fechas | WS1-1/2/3/4/6, WS2-1/2, WS4-3 | PNGs sobre grilla común, fechas ordenadas, release y URI de origen; al menos dos épocas útiles por secuencia | Implementado: cinco campos reales de 40 frames, WCS/fechas/release/URI; 200 PNG verificados en #95 |
+| R03 | Ingresar ascensión recta y declinación | WS5-7, WS4-2/5 | Coordenadas válidas producen una secuencia de esa región, no solo una lista de archivos o un campo cercano precargado; errores y ausencia de cobertura explícitos | Implementado: formulario/nombre/mapa → job → imágenes reales; jobs nuevos y persistencia probados públicamente |
+| R04 | Mostrar una secuencia como video para reconocer cambios | WS5-1/2, WS2-2 | Play/pausa, paso, velocidad, fecha y filtro espectral; imágenes alineadas y sin depender de candidatos automáticos | Implementado sobre datos reales: reproducción/paso/velocidad/detector; zoom y predicción Gaia de Barnard en #96 |
+| R05 | Probar Barnard, Epsilon Indi B, WISE 0855, RW Aurigae y R Draconis | WS3-3/9, WS1-4/5/6, WS2-8, WS5-7, WS6-4 | Cinco registros con coordenadas/época/fuente, cobertura, imágenes, resultado y limitaciones según VALIDATION.md | Cinco registros FITS offline success y re-mediciones por agentes; aprobación humana y cierre del paso 6 pendientes |
 
 ## Consideraciones opcionales: todas contempladas
 
 | ID | Punto del enunciado | Diseño y tareas | Evidencia de aceptación | Prioridad / estado |
 |---|---|---|---|---|
-| C01 | Actualizar con nuevos releases | WS1-9, WS4-3: descubrir colecciones, registrar release/versión, refrescar consulta e invalidar caché por versión | Una actualización incorpora nuevas épocas sin editar nombres de tablas en la UI; sin duplicar reprocesados | P1; pendiente |
-| C02 | 102 bandas, sumar por cada uno de los seis detectores, espectros bajo demanda | WS1-5, WS2-10, WS3-5, WS4-8, WS5-12 | Selector detector/λ; coadds por detector y visita con miembros/pesos; espectro en una posición con errores y fechas | P1; filtro y gráfico demo disponibles, cálculo real pendiente |
-| C03 | Sumar o restar imágenes de distintas fechas | WS2-7/10, WS4-9, WS5-8 | Elegir A/B o conjunto; resultado sobre WCS común con unidades, máscara y épocas de entrada; advertir diferencias espectrales | P1; pendiente |
-| C04 | Elegir campo de visión y explicar costo de transferencia | WS1-3, WS4-5, WS5-9 | FOV configurable con límites documentados; validación en cliente/servidor; se refleja en descarga, tamaño de grilla y estimación/progreso | P1; configuración offline existe, control público pendiente |
-| C05 | Superponer datos de Gaia o WISE | WS3-10, WS5-4 | Gaia DR3 con movimiento propio a cada época cuando esté disponible; WISE identificado por misión, banda y fecha; capas activables y crédito | P1; solo enlace externo a Aladin disponible |
-| C06 | Coordenadas en URL para compartir e integrar en otros sitios | WS5-11, WS4-5/6 | URL con RA/Dec/FOV/detector restaura el estado en una sesión nueva; modo embebido probado desde otro origen | P1; solo enlaces por ID de campo existen |
-| C07 | Mostrar metadatos, por ejemplo flags de contaminación | WS1-4, WS2-11, WS4-10, WS5-10 | Fecha, detector, λ si existe, release, origen, cobertura válida y flags explicados; desconocido no equivale a limpio | P1; metadatos parciales, panel de flags pendiente |
-| C08 | Evaluar herramientas públicas de datos y visualización | WS1-1, WS2-1, WS5-4, WS6-6 | Astropy para FITS/WCS; evaluación de notebooks IRSA y Aladin; decisión/licencias/créditos registrados | P1; Astropy usado, Aladin sin integrar |
+| C01 | Actualizar con nuevos releases | WS1-9, WS4-3: descubrir colecciones, registrar release/versión, refrescar consulta e invalidar caché por versión | Una actualización incorpora nuevas épocas sin editar nombres de tablas en la UI; sin duplicar reprocesados | P1; parcial: colecciones configurables/caché con versión; descubrimiento y Release abierto pendientes (V20) |
+| C02 | 102 bandas, sumar por cada uno de los seis detectores, espectros bajo demanda | WS1-5, WS2-10, WS3-5, WS4-8, WS5-12 | Selector detector/λ; coadds por detector y visita con miembros/pesos; espectro en una posición con errores y fechas | P1; implementado: mapa DR1, coadds, espectros reales cubo/L2 y curvas; movimiento propio L2 en API desde 0.7.0, UI aún pendiente |
+| C03 | Sumar o restar imágenes de distintas fechas | WS2-7/10, WS4-9, WS5-8 | Elegir A/B o conjunto; resultado sobre WCS común con unidades, máscara y épocas de entrada; advertir diferencias espectrales | P1; implementado: medias/restas compatibles, API/UI live y 196 PNG exportables (#82/#95); su UI estática y SNR del coadd pendientes |
+| C04 | Elegir campo de visión y explicar costo de transferencia | WS1-3, WS4-5, WS5-9 | FOV configurable con límites documentados; validación en cliente/servidor; se refleja en descarga, tamaño de grilla y estimación/progreso | P1; implementado: FOV público, validación, cupos y progreso; sin estimación de bytes previa exacta |
+| C05 | Superponer datos de Gaia o WISE | WS3-10, WS5-4 | Gaia DR3 con movimiento propio a cada época cuando esté disponible; WISE identificado por misión, banda y fecha; capas activables y crédito | P1; parcial: AllWISE y ficha Gaia/catálogos integradas; capa Gaia propagada y footprint pendientes |
+| C06 | Coordenadas en URL para compartir e integrar en otros sitios | WS5-11, WS4-5/6 | URL con RA/Dec/FOV/detector restaura el estado en una sesión nueva; modo embebido probado desde otro origen | P1; parcial: URL/restauración y app completa/jobs en iframe externo verificados (#95); falta vista compacta WS5 |
+| C07 | Mostrar metadatos, por ejemplo flags de contaminación | WS1-4, WS2-11, WS4-10, WS5-10 | Fecha, detector, λ si existe, release, origen, cobertura válida y flags explicados; desconocido no equivale a limpio | P1; parcial: fecha/λ/release/origen y valid_fraction en contrato/API; UI de calidad y nuevas fracciones de flags pendientes |
+| C08 | Evaluar herramientas públicas de datos y visualización | WS1-1, WS2-1, WS5-4, WS6-6 | Astropy para FITS/WCS; evaluación de notebooks IRSA y Aladin; decisión/licencias/créditos registrados | P1; Astropy y Aladin Lite 3.8.2 integrados, fuentes visibles; revisión final de licencias/inventario pendiente |
 
 ## Recursos y función dentro del proyecto
 
@@ -56,8 +56,9 @@ Poder leer una página no demuestra que consultas API, descargas FITS, CORS o co
 Detección/linking/scoring (WS2-3/4/5), JPL/SkyBoT y cruce de candidatos (WS3-1/2/8), distancia
 (WS3-4), inyección-recuperación (WS2-6), shift-and-stack y Planeta X (WS2-9, WS3-6), reportes avanzados
 (WS5-5/6), GIF/MP4 y composiciones adicionales. No son requisitos del texto aportado.
-También WS7: galería 3D integrada con seis modelos (cinco blancos y un ejemplo sintético), contrato 0.2.0
-y parámetros sin verificar. Ver VISION_3D.md y tareas WS7. Estos modelos no cumplen por sí solos R02/R05,
+El 3D de catálogo de WS7 es P1 según VISION.md: cinco blancos y un ejemplo sintético, con fuentes y
+verificación por valor. Las correcciones V4/V12/V13 están en PR #90 abierto. Contrato vigente 0.7.0.
+Ver VISION_3D.md y tareas WS7. Estos modelos no cumplen por sí solos R02/R05,
 no cuentan como imágenes NASA y no desplazan el recorrido por coordenadas ni las pruebas de variabilidad.
 
 ## Condiciones de entrega del PDF (S01–S10, P0)

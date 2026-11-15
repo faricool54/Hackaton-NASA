@@ -2,8 +2,10 @@
 
 Fuente de verdad: [`pipeline/errante/models.py`](../pipeline/errante/models.py).
 Generado: [`shared/schema/*.schema.json`](../shared/schema/) (`python scripts/dev.py schema`). Espejo TS:
-[`frontend/src/api/types.ts`](../frontend/src/api/types.ts). Versión de esta integración: **0.5.0** (ficha del
-objeto, `ObjectContextResponse`), después de **0.4.0** espectros/comparaciones (#53) y **0.3.1** composites (#39). **0.3.0** (#32) agregó `JobSubmitRequest`, `JobStatusResponse` y `ResolvedRegion`.
+[`frontend/src/api/types.ts`](../frontend/src/api/types.ts). Versión vigente: **0.7.0** (#81: movimiento propio
+opcional de catálogo en espectros L2 y posición por exposición). **0.6.0** (#78) agregó productos/índice de
+curvas de luz; **0.5.0** la ficha `ObjectContextResponse`; **0.4.0** espectros/comparaciones (#53), **0.3.1**
+composites (#39) y **0.3.0** (#32) jobs/resolvedor. Los contratos están integrados en `main`, no son propuestas pendientes.
 0.2.0 agregó sistemas 3D y 0.2.1 `Orbit.quality`/`note`. Los productos anteriores siguen siendo compatibles.
 Ejemplos sintéticos: [`data/demo/`](../data/demo/). Los cinco campos reales de WS2 están en
 [`data/products/`](../data/products/); sus imágenes no equivalen a cinco validaciones científicas R05.
@@ -42,6 +44,9 @@ leer `Provenance.synthetic`, notas y `Fact.verified`. Un SystemModel es un model
 | `GET /data/analyses/{sha256}/...` | PNG y `analysis.json` | ✅ publicación independiente e inmutable |
 | `GET /api/known-objects?ra&dec&mjd[&radius_deg]` | `KnownObject[]` | 501 → WS3+WS4 |
 | `GET /api/object?name=` o `?ra&dec[&epoch_mjd&radius_arcsec]` | `ObjectContextResponse` (ficha de catálogo, 0.5.0) | ✅ WS3+WS4; 404 solo nombre desconocido |
+| `GET /api/lightcurves` | `LightCurveIndex` | ✅ índice offline, sin cálculo en GET |
+| `GET /api/lightcurves/{target_id}` | `LightCurveProduct` | ✅ dos productos reales, notas/controles/exclusiones y ETag; no certifica R05 |
+| `GET /api/fields/{id}/comparisons` | `ComparisonResponse` | ✅ snapshots precalculados; POST conserva la selección interactiva |
 
 ## Convenciones
 
@@ -104,7 +109,8 @@ procedencia real y posición dentro de su WCS. Sin campo la extracción funciona
 `usable`, nhits/n_used/corrección de apertura si existen; notas, fallos parciales, stale/truncated.
 Cubo = `static_coadd: true`, MJy/sr sin cielo sustraído ni error de flujo. L2 = `static_coadd: false`, mJy
 con cielo local sustraído, errores por exposición. No interpolar ni convertir null a cero; conservar negativos.
-Un cubo de 102 planos no garantiza 102 mediciones válidas. No se afirma simultaneidad ni seguimiento de movimiento.
+Un cubo de 102 planos no garantiza 102 mediciones válidas ni simultaneidad. El seguimiento de catálogo
+es opcional solo en L2 desde 0.7.0; el cubo conserva su naturaleza estática.
 
 `ComparisonRequest`: `detectors` y `frame_ids` opcional (2–60 IDs únicos y existentes). El servidor filtra
 el campo, exige 2–60 entradas y grilla ≤512², mantiene detectores separados y llama WS2 compare_field.
@@ -170,10 +176,24 @@ identificados por misión, banda y fecha) y el panel "datos del objeto" de VISIO
 - `Field.composites` (falso color por temporada) está integrado desde #39 en 0.3.1; 0.4.0 lo conserva.
 - C01/C07: metadatos ampliados de selección, cobertura y flags con significado.
 - C02/C03: revisión de interpretación científica y futuras medidas adicionales con WS3; no duplicar la API 0.4.0.
-- C05: la ficha de catálogo está en 0.5.0; faltan los parámetros NUMÉRICOS para el modelo 3D (WS3
-  `ObjectContext.parameters()`) y las capas Gaia/WISE sobre el mapa. No usar el esquema ilustrativo como mediciones.
+- C05: ficha de catálogo integrada y AllWISE disponible en el mapa; faltan la capa Gaia propagada y la
+  integración física desde SPHEREx. V13 mínimo de WS7 está en PR #90 abierto. Los valores de catálogo
+  no son mediciones SPHEREx.
 
-Las coordenadas/FOV/detector/job en URL ya se restauran en el frontend. Modo compacto/iframe externo pendiente.
+Las coordenadas/FOV/detector/job en URL ya se restauran en el frontend. La app completa y sus jobs se
+probaron en iframe externo (#95); la vista compacta sigue pendiente de WS5.
+
+## Curvas y movimiento propio integrados (0.6.0–0.7.0)
+
+`LightCurveParameters`, puntos/bins/controles/período/pares, `LightCurveProduct` e índice se publicaron en
+#78/#79. #93–#95 actualizaron los productos usando los métodos WS3; límites de selección e interpretación
+viajan en `curve.notes` y `provenance.notes`. `partial`, `stale_search` y fallos no se omiten; `no_overlap`
+solo no implica una selección incompleta. La significancia de variabilidad no confirma un período único.
+Detalle de campos y límites en los modelos/schema y [backend/README.md](../backend/README.md).
+
+`SpectrumRequest.proper_motion` acepta tasas de catálogo en mas/año (RA con cos(dec)) y época MJD;
+las muestras L2 incluyen la posición de extracción. El cubo estático no sigue fuentes móviles. La UI aún
+no expone esa opción. Nuevas fracciones de flags y releases abiertos requieren otro PR `contract:`.
 
 ## Cómo cambiar el contrato
 

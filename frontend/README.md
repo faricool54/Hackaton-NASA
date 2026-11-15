@@ -18,6 +18,10 @@ npm test           # vitest
 
 Ver `.env.example`.
 
+Estado al 15/11/2026, `main` 3ed5c91 (#97); publicación verificada 3ed5c91 (#97): [app pública](https://errante.34-148-242-13.sslip.io)
+con datos reales y API por defecto, en el mismo origen HTTPS de Google Compute Engine. Los defaults de
+la tabla son del desarrollo local sin variables de build, no de esa publicación. Contrato vigente: 0.7.0.
+
 ## Mapa → posición → imágenes reales
 
 El home carga Aladin Lite 3.8.2 bajo demanda desde jsdelivr en un iframe que libera su contexto WebGL al
@@ -37,7 +41,7 @@ media; fuentes/fecha en `src/api/showcase.ts`); no certifican R05. Un nombre res
 más antigua: para blancos de alto movimiento propio usar los presets propagados.
 
 Click en mapa y formulario comparten POST `/api/jobs`, polling GET, errores/sin cobertura/reintento y visor.
-El contrato compartido es 0.3.0. No se envían solicitudes de build desde el modo estático. Cambiar de posición
+Los modelos de jobs nacieron en 0.3.0 y se conservan en 0.7.0. No se envían builds desde el modo estático. Cambiar de posición
 o salir detiene la observación local; no cancela un build del servidor. “Stop watching” y “Resume watching”
 lo explican; un timeout/error de red no dispara otra solicitud automáticamente.
 
@@ -46,8 +50,10 @@ formulario; con `job` retoman el polling, sin `job` no construyen al cargar. El 
 sus PNG reales. El blink espera las imágenes, muestra fallos/reintento y limita los atajos al reproductor.
 Notas de procedencia visibles; listas sin análisis no se interpretan como ausencia de objetos.
 
-Gaia, 3D físico y modo embebido compacto siguen siendo dependencias P1 de ciencia/contrato.
-Espectros y comparaciones están conectados como se describe abajo.
+Desde #96 hay zoom 1×/2×/4× y retícula de Barnard predicha desde Gaia; no es una medición SPHEREx.
+La ficha de catálogo ya está integrada (#75/#76). La capa Gaia del mapa, el 3D físico y la vista compacta
+siguen pendientes. WS4 probó el reproductor completo y jobs en un iframe de otro origen (#95):
+[guía y harness](../backend/deploy/README.md). Espectros y comparaciones están conectados.
 
 ## Spectra and season comparisons
 
@@ -57,7 +63,8 @@ Choose the static DR1 cube (surface brightness in MJy/sr, no background subtract
 native L2 exposure photometry (background-subtracted aperture flux in mJy, dates and reported errors).
 Select detector, cube aperture, or L2 UTC dates and exposure limit. Missing/flagged points stay in the
 quality table and are excluded from the scatter plot; negative flux is retained. Nothing is interpolated.
-Cube channels 50/51 are blank. L2 measurements mix time and wavelength and do not follow proper motion.
+Cube channels 50/51 are blank. L2 mixes time and wavelength. Since schema 0.7.0, the API optionally accepts
+catalog proper motion and reports each extraction position; the current UI does not expose that option.
 
 On a real field page, **Compare seasons** selects a detector and optional UTC date range, then requests
 weighted season means and scaled later-minus-earlier differences. Detectors remain separate. Choose
@@ -67,7 +74,18 @@ mean is not a raw sum; varying wavelengths or an unfitted scale can produce resi
 Scientific requests have a 160-second UI wait limit and can be stopped locally. Changing inputs clears
 old results. Stopping a wait does not cancel shared backend processing. Errors and empty/invalid results
 are explicit; static mode never sends a scientific POST. No additional frontend dependency was added.
-Uses contract **0.4.0**, pending contract/composites #39 and contract/science-api #53, then WS4 science API.
+The 0.4.0 science models (#53) and composites (#39) are merged and retained in contract **0.7.0**.
+
+**Light curve** loads real offline products for RW Aurigae and R Draconis. #93–#95 refreshed their
+measurements/notes. **#97 is merged in main**: it displays product limits, data selection, empirical
+floors, statistical-error labels, false-alarm counts and candidate-period/alias wording. It also loads
+exported static curves and treats 404/HTML fallbacks as missing. The deployed revision #97 was verified via the VM revision record and browser rendering of both
+real curve panels, including their visible limits and data selection.
+
+R Dra is wide-survey only; RW Aur is unresolved and saturation preferentially removes bright states.
+Static curves require `scripts/export_static_science.py` after the frontend build (Pages does this).
+Frozen comparison JSON/PNGs are exportable too, but their UI still uses the live API and does not load
+those static snapshots. New spectra/comparisons and coordinate builds require the live API.
 
 Local acceptance on 2026-11-15: Barnard D2 returned six real products (three means, three differences),
 the cube returned 8/102 usable points, and four RW Aurigae L2 exposures were correctly excluded for
@@ -85,6 +103,7 @@ src/three/      escena 3D opcional y helpers; Three.js con carga diferida
 src/pages/      SystemsPage · SystemPage: #/systems · #/system/<id>[/<body>]
 ```
 
-Los modelos 3D actuales son ilustrativos, no observaciones SPHEREx ni ensayos R05; los parámetros actuales
-están introducidos a mano y marcados sin verificar. El build principal usa contrato 0.3.0 con `Manifest.systems`.
+Los modelos 3D actuales aportan contexto de catálogo con fuentes y límites; no son imágenes SPHEREx ni
+ensayos R05. No todos los parámetros tienen el mismo estado: leer cada `Fact.verified` y nota.
+Las correcciones adicionales de WS7 están en PR #90 abierto. `Manifest.systems` sigue en contrato 0.7.0.
 `VITE_ALLOW_ALL_HOSTS=1` es una opción de preview remoto introducida por WS7; dejarla desactivada por defecto.

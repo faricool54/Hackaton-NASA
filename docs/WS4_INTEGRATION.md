@@ -1,6 +1,21 @@
 # Cierre de la revisión WS4 y conexión WS5
 
-14/11/2026 — rpccp con asistencia de Codex. Evidencia técnica local; revisión humana pendiente.
+## Estado actual — 15/11/2026, main 3ed5c91 (#97); publicación verificada 3ed5c91 (#97)
+
+- [App pública](https://errante.34-148-242-13.sslip.io), Google Compute Engine, web/API HTTPS y runtime
+  persistente. Jobs por coordenadas, espectros/comparaciones, catálogo y curvas integrados; contrato 0.7.0.
+- #95 verificó 200 PNG de campos + 196 comparaciones, los dos productos de curvas y un job de 40 imágenes
+  creado dentro de un iframe externo. El job y su reproducción se conservaron tras redesplegar #95 y #96.
+- #93–#95: curvas actuales de SIA, advertencias/controles, plazos offline y corrección de `no_overlap`.
+  #96: zoom y retícula Gaia de Barnard, con correcciones de layout móvil; no es astrometría medida.
+- WS4 disponible cerrado; #97 integró y publicó avisos UI de curvas (comprobados en navegador). Restan
+  vista compacta, revisión humana R05 y contratos
+  para nuevos flags/releases/límites. Operación/redeploy en [backend/deploy](../backend/deploy/README.md).
+
+## Registro histórico de integración local — 14/11/2026
+
+rpccp con asistencia de Codex. Las cifras/versiones que siguen corresponden a esas pruebas; no son el
+estado vigente del despliegue. Los checks técnicos no reemplazan aprobación humana científica.
 
 ## Integración y orden de revisión
 
@@ -51,7 +66,7 @@ Una instancia/supervisor y un worker son suficientes para la configuración actu
 Metadatos de asistencia en backend/ai-usage.json y frontend/ai-usage.json; no se generaron imágenes del cielo
 con IA. La evidencia gráfica local y los caches/FITS pesados no se agregan al repositorio.
 
-## Qué falta y de quién depende
+## Dependencias registradas en la primera integración (histórico)
 
 Registro previo al 15/11: #35 (selección/λ) y #37 (restas) ya están en main. El backend subió
 `JobRequest.build_context.build_revision` a `wavelength-pool-v3` para no reutilizar resultados de la
@@ -62,7 +77,7 @@ La publicación actual copia/hashea el árbol completo, incluido `color/`; al ad
 ampliar también la validación de sus PNG antes de declararlos listos. El frontend de composites debe
 integrarse encima de #34 para conservar precarga, errores y los atajos acotados al visor.
 
-- WS4-4/6: destino/URL pública y prueba desde el origen final. Hosting aún no definido; no se contrató nada.
+- WS4-4/6: en esa etapa faltaban destino/URL; resueltos después por #84/#95 y la publicación actual.
 - WS4-8/9/10 (extras): contrato/API/UI científica integrados en main (#53/#54/#55), con caché #52.
   La interpretación científica sigue con WS3. No consumir `compare.json` provisional como contrato estable.
 - WS3 + WS1/2: validación científica de los cinco blancos (movimiento/variabilidad, controles y errores),
@@ -70,8 +85,8 @@ integrarse encima de #34 para conservar precarga, errores y los atajos acotados 
 - WS7: migrar galería ilustrativa a modelo físico con datos/incertidumbre; no inventar superficie/planetas.
 - WS5/6: Lighthouse, pulido de accesibilidad, demo/materiales y enlaces sin login; envío confirmado.
 
-El P0 local de coordenadas está cerrado; publicación pública/coordinación y `/api/limits` P2 conservan sus
-pendientes. Ver PARALLEL_PLAN.md y tasks/WS4-backend.md.
+El P0 local de coordenadas ya estaba cerrado. La publicación se completó después; `/api/limits` P2 sigue
+esperando medidas/contrato de WS2. Para el estado vigente ver PARALLEL_PLAN.md y tasks/WS4-backend.md.
 
 ## Caché, espectros y comparaciones — 15/11/2026
 

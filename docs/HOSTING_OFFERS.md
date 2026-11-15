@@ -7,6 +7,12 @@
 
 ## Texto del anuncio
 
+**Estado actual (15/11/2026):** se eligió **Google Compute Engine**, con VM, disco persistente y web/API
+en [la URL HTTPS pública](https://errante.34-148-242-13.sslip.io). La revisión de `main` 3ed5c91 (#97) está desplegada y verificada.
+La operación y acceso individual del equipo están en [backend/deploy/README.md](../backend/deploy/README.md).
+El dominio propio es opcional y no está configurado en esta publicación. Las ofertas originales que se
+conservan abajo no son un requisito de entrega ni un hosting pendiente de seleccionar.
+
 > The hackathon is kicking off, and Global Offers are now LIVE! Use these optional free tools & resources for your project:
 >
 > **GoDaddy:** Unleash your creativity with a free domain and one year of website hosting, exclusively available to all
@@ -26,7 +32,7 @@
 > **Miro:** A collaborative online whiteboard platform including Miro Education Plan, Miro Business Plan, and NASA Space
 > Apps Hackathon Miro Board Templates.
 
-## Para qué nos puede servir (propuesta, a decidir por WS4/WS6)
+## Alternativas consideradas antes de elegir hosting (registro histórico)
 
 Lo que necesita nuestro deploy (ver [`ARCHITECTURE.md`](ARCHITECTURE.md) y [`../backend/README.md`](../backend/README.md)):
 
@@ -47,5 +53,5 @@ Reglas que siguen valiendo con cualquier proveedor:
 
 - **Sin secretos en el repo**: credenciales y API keys van en las variables de entorno del proveedor, nunca en Git.
 - Lo que se use se lista en las referencias/herramientas de la entrega (`docs/submission/PROJECT.md`).
-- Decidir **un** proveedor para el backend antes del domingo 12:00 (deploy público del cronograma) y anotarlo en
-  [`TEAM.md`](TEAM.md) o en el PR de deploy de WS4.
+- La selección de proveedor ya se realizó (#84); mantener la URL entregada y redeployar cambios según la
+  guía operativa. La elección de dominio y la visibilidad del código son decisiones separadas.

@@ -11,15 +11,16 @@ Revisor/a: pendiente. Fecha: pendiente. Versión/commit/productos revisados: pen
 |---|---|---|---|---|
 | Impact | Usuario/problema concretos, beneficio observado o hipótesis declarada | Beneficio educativo propuesto; tres pruebas con usuarios de WS6-7 pendientes | WS5/WS6 | Sin evaluar |
 | Creativity | Inspiraciones acreditadas y mejora propia significativa, demostrable | Referencias WiseView/IRSA y galería 3D integrada; demostrar aporte propio sin atribuir verificación a los modelos | WS3/WS5/WS6/WS7 | Sin evaluar |
-| Validity | Funcionalidad real, base científica, usabilidad, pruebas y límites | Demo sintética y pruebas del esqueleto; acceso/procesamiento real y cinco ensayos pendientes | WS1/WS2/WS3/WS4/WS5 | Sin evaluar |
-| Relevance | R01–R05 e integración central de observaciones NASA con procedencia | Matriz diseñada; RA/Dec público e imágenes SPHEREx reales pendientes | WS1/WS4/WS5/WS6 | Sin evaluar |
+| Validity | Funcionalidad real, base científica, usabilidad, pruebas y límites | App pública, jobs reales, cinco registros FITS offline y aceptación técnica #95/#96 disponibles; revisión humana R05 y prueba con usuarios pendientes | WS1/WS2/WS3/WS4/WS5 | Sin evaluar |
+| Relevance | R01–R05 e integración central de observaciones NASA con procedencia | SPHEREx DR1/QR3 impulsa RA/Dec → secuencia, espectros/comparaciones y curvas; verificar el relato y las limitaciones con los registros | WS1/WS4/WS5/WS6 | Sin evaluar |
 | Presentation | Formulario/demo completos, inglés, claridad y enlaces anónimos | Borradores y guion; faltan demo final, links y revisión de la entrega | WS5/WS6 | Sin evaluar |
 
 Actualizar evidencia con rutas/URLs reales y fecha; un esquema o test con mocks no equivale a haber
 consultado el archivo y validado observaciones. Un ensayo sin señal/cobertura se documenta sin convertirlo
 en recuperación positiva ni ocultar el límite del producto.
-La galería de seis modelos 3D tiene parámetros sin verificar: su presencia no completa R05 ni demuestra
-datos SPHEREx reales para Relevance. Priorizar esos bloqueos antes de pulir más modelos.
+La galería 3D usa contexto de catálogo con fuentes/estados de verificación por valor; PR #90 sigue abierto.
+Su presencia no completa R05 ni representa imágenes SPHEREx. Las observaciones reales del visor sí están
+integradas. Esta actualización de estado no realiza una evaluación ni asigna puntuaciones.
 
 ## Preguntas para la revisión
 

@@ -43,6 +43,15 @@ h1, h2, h3 { line-height: 1.2; }
 .science-table th, .science-table td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); }
 .comparison-image { width: 100%; max-width: 640px; aspect-ratio: 1; object-fit: contain; image-rendering: pixelated; background: #05070c; }
 .provenance-row { overflow-wrap: anywhere; }
+.lc-list { margin: 6px 0; padding-left: 20px; }
+.lc-list li { margin: 3px 0; }
+.lc-notes { margin: 12px 0; }
+.lc-notes > summary { cursor: pointer; font-weight: 600; }
+.lc-selection { display: grid; gap: 4px; margin: 6px 0; font-size: .85rem; }
+.lc-selection > div { display: grid; grid-template-columns: minmax(120px, 160px) minmax(0, 1fr); gap: 12px; }
+.lc-selection dt { color: var(--muted); }
+.lc-selection dd { margin: 0; overflow-wrap: anywhere; }
+@media (max-width: 520px) { .lc-selection > div { grid-template-columns: minmax(0, 1fr); gap: 0; } }
 
 .explorer-layout { display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(300px, 1fr); gap: 18px; align-items: start; margin: 24px 0; }
 .explorer-map { min-width: 0; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--panel); }
