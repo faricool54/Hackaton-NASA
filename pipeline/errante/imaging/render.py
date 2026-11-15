@@ -100,7 +100,11 @@ def compute_stretch(img: np.ndarray, sigma_low: float = 2.0, sigma_high: float =
 
 HIGHLIGHT_KNEE = 0.85  # with a highlight roll-off, stretch.vmax maps to this fraction of white
 TARGET_RADIUS_PX = 2.5  # the target's core: grid pixels this close to the field centre
-MAX_SATURATED_CORE = 0.5  # a group whose target core is mostly bad (saturated) in most frames gets no roll-off
+# A group gets a roll-off only if its target core holds no flagged pixel in at least half of its frames: a
+# flagged core pixel is mostly saturation (OVERFLOW) or a ramp error, i.e. a lower bound that would still clip
+# (RW Aurigae D2-D6 have OVERFLOW in the core in 24 of 25 frames, Barnard and R Draconis in all).
+MAX_BAD_CORE_FRACTION = 0.0
+MAX_TOP_OVER_MEDIAN = 4.0  # roll-off top at most this x the median target peak (RW Aur varies 2.4x in D1)
 
 
 def to_uint8(img: np.ndarray, stretch: Stretch, softening: float = 0.1, highlight: float | None = None) -> np.ndarray:
@@ -139,12 +143,13 @@ def target_highlights(
 ) -> list[float | None]:
     """Per image, the top of a highlight roll-off (``to_uint8``) or None.
 
-    A group (detector) gets one when its target (the field centre) is mostly unsaturated — at most
-    ``MAX_SATURATED_CORE`` of the core is bad in at least half of its frames — and the target's brightest
-    usable core pixel rises above the group's shared bright end in some frame. The top is then that peak
-    (the largest over the group, above each frame's own sky), so no frame clips the target. Saturated
-    targets (Barnard's Star, R Draconis: cores 100 % bad) keep the plain stretch: their core values are
-    lower bounds and cannot show brightness changes.
+    A group (detector) gets one when its target (the field centre) is clean — no flagged (bad) core pixel
+    in at least half of its frames, see ``MAX_BAD_CORE_FRACTION`` — and the target's brightest
+    usable core pixel is above the group's shared bright end in at least half of its frames (one odd frame,
+    e.g. a cosmic ray on the core, does not change a detector's look). The top is the largest such peak above
+    each frame's own sky, capped at ``MAX_TOP_OVER_MEDIAN`` x the median peak, so the target clips in no
+    ordinary frame. Saturated targets (Barnard's Star, R Draconis, RW Aurigae D2-D6) keep the plain stretch:
+    their core values are lower bounds and cannot show brightness changes.
     """
     peaks: list[float | None] = []
     fractions: list[float] = []
@@ -159,13 +164,14 @@ def target_highlights(
     tops: dict[Hashable, float | None] = {}
     for key in dict.fromkeys(groups):
         idx = [i for i, g in enumerate(groups) if g == key]
-        mostly_unsaturated = np.median([fractions[i] for i in idx]) <= MAX_SATURATED_CORE
-        rises = [
-            peaks[i]
-            for i in idx
-            if peaks[i] is not None and backgrounds[i] is not None and peaks[i] > stretches[i].vmax - backgrounds[i]
-        ]
-        tops[key] = max(p for i in idx if (p := peaks[i]) is not None) if mostly_unsaturated and rises else None
+        measured = [i for i in idx if peaks[i] is not None and backgrounds[i] is not None]
+        if not measured or np.median([fractions[i] for i in idx]) > MAX_BAD_CORE_FRACTION:
+            tops[key] = None
+            continue
+        rises = sum(peaks[i] > stretches[i].vmax - backgrounds[i] for i in measured)
+        median_peak = float(np.median([peaks[i] for i in measured]))
+        top = min(max(peaks[i] for i in measured), MAX_TOP_OVER_MEDIAN * median_peak)
+        tops[key] = top if 2 * rises >= len(idx) and top > 0 else None
     return [
         None if tops[g] is None or backgrounds[i] is None else backgrounds[i] + tops[g] for i, g in enumerate(groups)
     ]

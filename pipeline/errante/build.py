@@ -457,7 +457,7 @@ def _selection_note(sel: _Selection, max_frames: int) -> str:
 @dataclass(frozen=True)
 class _Rendered:
     frames: list[Frame]
-    rolloff: dict[int, float]  # detector -> top of the highlight roll-off above the sky [MJy/sr]
+    rolloff: dict[int, float]  # detector -> white level of the highlight roll-off above Stretch.vmax [MJy/sr]
     thumb_detector: int | None
 
 
@@ -504,19 +504,19 @@ def _display_note(rendered: _Rendered) -> str:
     text = (
         "Pixel values and stretch limits are IMAGE - ZODI (SPHEREx zodiacal model subtracted) in MJy/sr; "
         "PNGs use an asinh mapping with the same contrast for every frame of a detector, and transparent "
-        "pixels mean no data. Saturated star cores that SPHEREx left empty (NaN) and isolated detector-defect "
-        "pixels (NONFUNC, HOT, COLD, PERSIST, SNOWBALL, and SUR_ERROR away from stars) are filled from their "
-        "neighbours for display only; flagged pixels on a star are shown as recorded. All of them count as "
-        "invalid in valid_fraction."
+        "pixels mean no data. Saturated star cores that SPHEREx left empty (NaN) and detector-defect pixels "
+        "(NONFUNC, HOT, COLD, PERSIST, SNOWBALL, and SUR_ERROR that is not part of a star's profile, e.g. "
+        "cosmic-ray hits) are filled from their neighbours for display only; SUR_ERROR pixels on a star and "
+        "finite OVERFLOW pixels are shown as recorded. All of them count as invalid in valid_fraction."
     )
     if rendered.rolloff:
-        dets = ", ".join(f"D{d}" for d in sorted(rendered.rolloff))
+        whites = "; ".join(f"D{d}: white = vmax + {top:.3g} MJy/sr" for d, top in sorted(rendered.rolloff.items()))
         text += (
-            f" In {dets} the target at the centre is brighter than the shared bright end (Stretch.vmax) but not "
-            f"saturated: values above vmax are compressed logarithmically into the top {1 - HIGHLIGHT_KNEE:.0%} "
-            "of the grey range up to the target's brightest unsaturated pixel, instead of clipping to white, so "
-            "its brightness changes stay visible in the blink (vmax maps to "
-            f"{HIGHLIGHT_KNEE:.0%} white)."
+            " Highlight roll-off where the target at the centre outshines the field's bright end (Stretch.vmax) "
+            "and its core is unflagged (not saturated) in most frames: instead of clipping to white, values above "
+            f"vmax are compressed logarithmically into the top {1 - HIGHLIGHT_KNEE:.0%} of the grey range, so the "
+            f"target's brightness changes stay visible in the blink; vmax maps to {HIGHLIGHT_KNEE:.0%} grey, so "
+            f"these detectors look {1 - HIGHLIGHT_KNEE:.0%} dimmer than the others ({whites})."
         )
     if rendered.thumb_detector is not None:
         text += f" thumb.png is a D{rendered.thumb_detector} frame."
@@ -613,7 +613,8 @@ def _analyze(
     store.rebuild_manifest()
 
 
-THUMB_MIN_SNR = 5.0  # the target must be detected (median core peak / sky noise) for its detector to win
+THUMB_MIN_SNR = 5.0  # the target must be detected (median core peak / sky noise)...
+THUMB_MIN_PROMINENCE = 1.0  # ...and outshine the field's bright end for its detector to win
 
 
 def _write_thumbnail(
@@ -622,10 +623,11 @@ def _write_thumbnail(
     """thumb.png = the middle epoch of the detector where the target stands out most; returns that detector.
 
     ``scores`` = per frame (target S/N, prominence) from ``render.target_scores``. Among the detectors where
-    the target is detected (median S/N >= ``THUMB_MIN_SNR``) the one with the highest median prominence
-    wins: RW Aurigae dominates its field in D4-D6 but not in D1, which the old rule picked
-    (docs/validation/rw-aurigae.md). Without scores, or if the target is detected nowhere (e.g. WISE 0855 in
-    its few D5/D6 frames), the detector covering the most seasons wins, as before.
+    the target is detected (median S/N >= ``THUMB_MIN_SNR``) and outshines the field's bright end (median
+    prominence >= ``THUMB_MIN_PROMINENCE``) the most prominent wins: RW Aurigae dominates its field in D4-D6
+    but not in D1, which the old rule picked (docs/validation/rw-aurigae.md). Otherwise — no scores, or a
+    target that never stands out, e.g. WISE 0855, whose centre holds a static field source in D1-D4 — the
+    detector covering the most seasons wins, as before.
     """
     if not frames:
         return None
@@ -640,8 +642,9 @@ def _write_thumbnail(
     detected: dict[int, float] = {}
     if scores is not None:
         for det, idx in by_detector.items():
-            if float(np.median([scores[i][0] for i in idx])) >= THUMB_MIN_SNR:
-                detected[det] = float(np.median([scores[i][1] for i in idx]))
+            snr, prominence = (float(np.median([scores[i][k] for i in idx])) for k in (0, 1))
+            if snr >= THUMB_MIN_SNR and prominence >= THUMB_MIN_PROMINENCE:
+                detected[det] = prominence
     det = max(detected, key=lambda d: (detected[d], coverage(d))) if detected else max(by_detector, key=coverage)
     best = sorted((frames[i] for i in by_detector[det]), key=lambda f: f.mjd)
     chosen = best[len(best) // 2]
