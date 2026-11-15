@@ -7,12 +7,14 @@ import { coordinateLookup, nameLookup, positionLookup, type ObjectLookup } from 
 import { SHOWCASE_TARGETS } from '../api/showcase';
 import { localTargetSequences, type SearchSequence } from '../api/skySearch';
 import type { MapSelection } from '../api/mapHover';
+import { BottomSheet, SHEET_SNAPS, type SheetSnap } from './BottomSheet';
 import { ExplorerMap } from './ExplorerMap';
 import type { ExplorerView } from './ExplorerDock';
 import { ObjectCard } from './ObjectCard';
 import { PositionResults } from './PositionResults';
 import { SkySearch } from './SkySearch';
 import { TargetChips } from './TargetChips';
+import { matchesMediaQuery, useMediaQuery } from './useMediaQuery';
 
 interface Props {
   sequences: SearchSequence[];
@@ -29,6 +31,8 @@ interface SelectionOptions {
   size?: number;
   /** One-line provenance shown in the dock header (preset astrometry or name resolver). */
   note?: string;
+  /** The pick came from the map (a tap or a target marker): on phones the sheet keeps the map in view. */
+  fromMap?: boolean;
 }
 
 export type SelectionOrigin = 'map' | 'preset' | 'search' | 'form';
@@ -51,6 +55,27 @@ export function resolverNote(name: string, source?: string) {
 /** The backend's 503 text names an environment variable; visitors get a plain sentence instead. */
 export function buildFailureText(message: string) {
   return message.startsWith('Job engine is disabled.') ? 'Generating new sequences is disabled on this server.' : message;
+}
+
+/** FE-10: at this width the dock becomes a bottom sheet over a full-screen map (same query as explorer.css). */
+export const PHONE_QUERY = '(max-width: 900px)';
+
+/** FE-10: a phone this short shows only the dock header and tabs at half height (360x640: no panel at all). */
+export const SHORT_QUERY = '(max-height: 700px)';
+
+/** A selection raises a lowered sheet to `to` (half by default) and leaves a taller one alone. */
+export const raiseSheet = (snap: SheetSnap, to: SheetSnap = 'half'): SheetSnap =>
+  SHEET_SNAPS.indexOf(snap) < SHEET_SNAPS.indexOf(to) ? to : snap;
+
+/**
+ * How far a selection raises the sheet. A pick on the map keeps the map in view (half); a chip, a search or a tab on a
+ * short phone goes to full, so the panel (the P0 video) shows without a scroll.
+ */
+export const selectionSnap = (fromMap: boolean, short: boolean): SheetSnap => (short && !fromMap ? 'full' : 'half');
+
+/** Esc pressed inside the map iframe reaches the page only as this message (sky-map.html forwards it). */
+export function isMapEscape(event: Pick<MessageEvent, 'origin' | 'data'>, origin: string) {
+  return event.origin === origin && event.data?.source === 'errante-sky' && event.data?.type === 'escape';
 }
 
 function initialPosition() {
@@ -84,7 +109,14 @@ export function SkyExplorer({ sequences, systems, synthetic, manifestError }: Pr
   const [quickLook, setQuickLook] = useState(false);
   const [explicitFieldId, setExplicitFieldId] = useState<string>();
   const [view, setView] = useState<ExplorerView>(initial.linked || initial.error ? 'Time' : 'Object');
+  const phone = useMediaQuery(PHONE_QUERY);
+  const short = useMediaQuery(SHORT_QUERY);
+  // A shared link or a job opens with its result in view; the plain home starts with the map and a peek.
+  const [sheet, setSheet] = useState<SheetSnap>(() =>
+    initial.linked || initial.error || new URLSearchParams(location.search).has('job')
+      ? selectionSnap(false, matchesMediaQuery(SHORT_QUERY)) : 'peek');
   const controller = useRef<AbortController | null>(null);
+  const explorer = useRef<HTMLElement>(null);
   const live = client.config.mode === 'api';
   const selectedFieldId = explicitFieldId ?? (lookup ? localTargetSequences(sequences, position)[0]?.field.id : undefined);
   const footprintFieldId = job?.status === 'ready' ? job.result_field_id ?? selectedFieldId : selectedFieldId;
@@ -108,6 +140,24 @@ export function SkyExplorer({ sequences, systems, synthetic, manifestError }: Pr
     return () => abort.abort();
   }, [live, initial.error]);
   useEffect(() => () => controller.current?.abort(), []);
+  // On phones the dock scrolls as one piece inside the sheet: a new selection starts at its name again.
+  useEffect(() => {
+    explorer.current?.querySelector('.sh-root .xp-dock')?.scrollTo({ top: 0 });
+  }, [position, label]);
+  // A tap on the map moves the focus into its iframe, so the sheet's own Esc listener never hears the key there. The
+  // map forwards it; Esc order (FE-11): an open map card closes first (the map does that), then the sheet lowers.
+  useEffect(() => {
+    if (!phone) return;
+    const onMessage = (event: MessageEvent) => {
+      const frame = explorer.current?.querySelector<HTMLIFrameElement>('.xp-map iframe');
+      if (!isMapEscape(event, location.origin) || !frame || event.source !== frame.contentWindow) return;
+      // The map card is a portal and closes on the same message; it is still in the DOM while this runs.
+      if (document.querySelector('.mp-card')) return;
+      setSheet('peek');
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [phone]);
 
   const build = async (body: JobSubmitRequest) => {
     controller.current?.abort();
@@ -148,6 +198,8 @@ export function SkyExplorer({ sequences, systems, synthetic, manifestError }: Pr
     setLabel(options.label ?? '');
     setNote(options.note ?? '');
     setQuickLook(true);
+    const to = selectionSnap(origin === 'map' || !!options.fromMap, short);
+    setSheet((snap) => raiseSheet(snap, to));
     const catalogName = options.catalogName ?? (options.fieldId ? undefined : options.label);
     setLookup(origin === 'map' ? positionLookup(point.ra, point.dec)
       : catalogName ? nameLookup(catalogName) : coordinateLookup(point.ra, point.dec));
@@ -236,7 +288,16 @@ export function SkyExplorer({ sequences, systems, synthetic, manifestError }: Pr
     </div>
   </>;
 
-  return <section className="xp-explorer" aria-label="SPHEREx sky explorer">
+  // A tab tapped on a lowered sheet raises it too (the sheet state is unused on desktop).
+  const results = <PositionResults position={position} sequences={sequences} systems={systems} selectedFieldId={selectedFieldId}
+    job={job} quickLook={quickLook} lookup={lookup} label={label} note={note} synthetic={synthetic}
+    view={view} onView={(next) => { setView(next); setSheet((snap) => raiseSheet(snap, selectionSnap(false, short))); }} object={<ObjectCard lookup={lookup} />}
+    onCopyLink={() => { void navigator.clipboard.writeText(shareUrl).then(
+      () => setNotice('Link copied.'), () => setNotice('Copy the link from your browser address bar.')); }}
+    build={buildPanel} notice={notice} />;
+
+  // data-sheet lets explorer.css keep the map's credits above a half sheet (FRONTEND_PLAN §4.4).
+  return <section ref={explorer} className="xp-explorer" aria-label="SPHEREx sky explorer" data-sheet={phone ? sheet : undefined}>
     <div className="xp-map">
       <ExplorerMap layout="fill" center={mapCenter} footprintFieldId={footprintFieldId} recenterKey={recenter}
         autoZoomKey={recenter > 0 || initial.linked ? recenter : undefined}
@@ -246,6 +307,7 @@ export function SkyExplorer({ sequences, systems, synthetic, manifestError }: Pr
           if (target) {
             select(target, 'preset', {
               label: target.name, catalogName: target.catalogName, detector: target.detector, size: 0.15, note: presetNote(target),
+              fromMap: true,
             });
             return;
           }
@@ -265,11 +327,6 @@ export function SkyExplorer({ sequences, systems, synthetic, manifestError }: Pr
         {manifestError && <p className="error small" role="alert">Could not load saved fields: {manifestError}</p>}
       </div>
     </div>
-    <PositionResults position={position} sequences={sequences} systems={systems} selectedFieldId={selectedFieldId}
-      job={job} quickLook={quickLook} lookup={lookup} label={label} note={note} synthetic={synthetic}
-      view={view} onView={setView} object={<ObjectCard lookup={lookup} />}
-      onCopyLink={() => { void navigator.clipboard.writeText(shareUrl).then(
-        () => setNotice('Link copied.'), () => setNotice('Copy the link from your browser address bar.')); }}
-      build={buildPanel} notice={notice} />
+    {phone ? <BottomSheet label="position details" snap={sheet} onSnapChange={setSheet}>{results}</BottomSheet> : results}
   </section>;
 }

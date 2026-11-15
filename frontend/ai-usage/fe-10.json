@@ -1,0 +1,22 @@
+{
+  "updated_on": "2026-11-15",
+  "tool": "Anthropic Claude Code",
+  "package": "FE-10 (docs/FRONTEND_PLAN.md): phones get a full-screen map with the search and target chips over it and the dock in a bottom sheet",
+  "scope": "FE-10 (faricool54 with Anthropic Claude Code): new BottomSheet component (peek, half and full heights; drag the 44 px handle with pointer events, tap or Enter cycles, ArrowUp/ArrowDown step, Esc or the 44 px close button lower it to peek; Esc is last in the FE-11 order and ignores keys another layer already took; no history.pushState) and an SSR-safe useMediaQuery hook (false on the server). The home integrates them at <= 900 px only: the map fills the screen under the 48 px topbar and ends where the peek starts, so its credits strip and Aladin's zoom bar stay visible; the search row and one sideways-scrolling row of challenge chips float over the top of the map (44 px targets); FE-4's status notes move below the chips and the chips step aside while the Layers menu is open; the dock (PositionResults) lives in the sheet, where it scrolls as one piece with a sticky tab bar; the peek shows the name, the coordinates (and SYNTHETIC DATA when it applies) and the tabs, and the provenance note, links and notices are shown at half and full; any selection (map tap, chip, search) or a tab tap raises a lowered sheet to half and a new selection scrolls the dock back to its name. The map iframe is never hidden, unmounted or re-keyed: the sheet only covers it, and the map's size does not change with the sheet. Desktop (> 900 px) renders the same tree as before; PositionResults only gained the xp-coords and xp-synthetic classes. Checked in headless Chrome with a local CDP script (not committed) against the local API and the static real and synthetic datasets at 375x812, 360x640 and 1366x650: no page or horizontal scroll, map iframe from y = 48, peek 184 px (22.7 % and 28.8 % of the height), half and full heights, chip and map tap raising the sheet with the name shown, three drag open/close cycles plus Esc and the close button without the iframe reloading (a marker set on its window survived and 'Loading Aladin sky map' never reappeared), sticky tabs while the dock scrolls; desktop map 956x602 at y = 48 with the dock beside it. Server-rendered vitest tests for the three heights, the handle and close labels, the height rules, the Esc rule and the media query default. Not checked on a real touch device. No new external assets.",
+  "affected_paths": [
+    "frontend/src/components/BottomSheet.tsx",
+    "frontend/src/components/BottomSheet.test.tsx",
+    "frontend/src/components/useMediaQuery.ts",
+    "frontend/src/components/useMediaQuery.test.tsx",
+    "frontend/src/styles/sheet.css",
+    "frontend/src/styles/explorer.css",
+    "frontend/src/components/SkyExplorer.tsx",
+    "frontend/src/components/PositionResults.tsx",
+    "frontend/ai-usage/fe-10.json"
+  ],
+  "external_assets": [],
+  "generated_media": [],
+  "scientific_R05_validation": false,
+  "human_review": "pending",
+  "repository_disclosure": "AI_USAGE.md"
+}
