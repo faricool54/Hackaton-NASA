@@ -40,17 +40,35 @@ def _env_list(name: str, default: str) -> tuple[str, ...]:
 IRSA_COLLECTIONS = _env_list("ERRANTE_COLLECTIONS", "spherex_dr1,spherex_qr3")
 IRSA_DEEP_COLLECTIONS = ("spherex_dr1_deep", "spherex_qr3_deep")
 SIA_MAXREC = int(os.environ.get("ERRANTE_SIA_MAXREC", "50000"))
-SIA_TIMEOUT_S = float(os.environ.get("ERRANTE_SIA_TIMEOUT_S", "30"))
+# Per SIA attempt, before the budget caps it (an SIA attempt never gets more than half of a budget over 20 s, see
+# irsa.sia_budget, so this only matters for budgets over 60 s: build jobs, light curves, the CLI). SIA answered point
+# searches in 1-4 s on 2026-11-14 but took 22.4-23.4 s (server-side, time to first byte) on 2026-11-15 ~23:40 UTC:
+# 45 s keeps a margin above that.
+SIA_TIMEOUT_S = float(os.environ.get("ERRANTE_SIA_TIMEOUT_S", "45"))
 TAP_TIMEOUT_S = float(os.environ.get("ERRANTE_TAP_TIMEOUT_S", "60"))
-# Attempts per service on 5xx / connection errors (a timeout is retried once at most).
-# IRSA answered ~50% of SIA requests with a fast (< 1 s) 502 on 2026-11-14, so retry a few times.
+# Attempts per service (SIA and TAP, alternated) on 429/5xx, connection errors and timeouts (two timeouts at most
+# per service). IRSA answered ~50% of SIA requests with a fast (< 1 s) 502 on 2026-11-14 and SIA/TAP answered 502s
+# or hung intermittently on 2026-11-15, so retry a few times. Backoff after a fast failure: SEARCH_BACKOFF_S x 1, 2,
+# 4, ... (at most 4 s) plus up to 25 % jitter (errante.data.irsa._query_archive).
 SEARCH_ATTEMPTS = int(os.environ.get("ERRANTE_SEARCH_ATTEMPTS", "4"))
-SEARCH_BACKOFF_S = float(os.environ.get("ERRANTE_SEARCH_BACKOFF_S", "1"))
-# Wall-clock budget of one search (SIA retries + TAP fallback): SIA gets at most half, TAP the rest.
+SEARCH_BACKOFF_S = float(os.environ.get("ERRANTE_SEARCH_BACKOFF_S", "0.5"))
+# Wall-clock budget of one search (SIA/TAP retries): an SIA attempt gets at most half of what is left (>= 10 s).
 # Without it a dead IRSA held a backend worker ~2-3 min. 0 disables it. The backend does NOT lower it
 # to its own ERRANTE_API_TIMEOUT_S (30 s): a search with nothing to fall back on can still answer
 # HTTP 504 while its worker runs on (TODO(WS4): keep ERRANTE_SEARCH_DEADLINE_S < ERRANTE_API_TIMEOUT_S).
 SEARCH_DEADLINE_S = float(os.environ.get("ERRANTE_SEARCH_DEADLINE_S", "60"))
+# Supervised children answer no HTTP request themselves, so the API's short search budget
+# (ERRANTE_SEARCH_DEADLINE_S=25 in the Docker image, kept under ERRANTE_API_TIMEOUT_S=30) is too short for them.
+# ERRANTE_JOB_SUPERVISED=1 is exported by three parents: backend/errante_api/jobs/supervisor.py (build jobs, 900 s),
+# science_service._run_child (spectrum/science worker, 140 s; its point_series(deadline_s=70) still caps the search
+# at 70 s) and lightcurve_build.run_bounded (light curves, which also set ERRANTE_SEARCH_DEADLINE_S themselves,
+# 180 s by default). With 25 s every map-click Time build failed on 2026-11-15 (SIA read timeout at 12.45 s, then
+# TAP 502/timeout). 120 s fits SIA 30 s + TAP 60 s + a shorter second round (or up to 8 fast attempts with backoff)
+# and leaves a build job > 12 min for its downloads. The override only RAISES a shorter positive budget: an explicit
+# longer one (the light curve's 180 s) or 0 (unbounded) is kept.
+JOB_SEARCH_DEADLINE_S = float(os.environ.get("ERRANTE_JOB_SEARCH_DEADLINE_S", "120"))
+if os.environ.get("ERRANTE_JOB_SUPERVISED") == "1" and 0 < SEARCH_DEADLINE_S < JOB_SEARCH_DEADLINE_S:
+    SEARCH_DEADLINE_S = JOB_SEARCH_DEADLINE_S
 # Budget when the search can fall back on something (an expired cached answer, or a committed search
 # snapshot covering the position): IRSA gets at most this long, so the fallback still reaches an API
 # client before ERRANTE_API_TIMEOUT_S (30 s). 0 disables the cap (then SEARCH_DEADLINE_S alone).

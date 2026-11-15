@@ -254,10 +254,13 @@ def test_skips_rows_that_are_not_level2_frames(monkeypatch):
 
 
 def test_retries_5xx_then_succeeds(monkeypatch):
-    fake = install(monkeypatch, sia=[FakeResponse(503), FakeResponse(502), ok(SIA_XML)])
+    # SIA twice, then TAP, then SIA again (2026-11-15: IRSA answered SIA and TAP with intermittent fast 502s).
+    fake = install(monkeypatch, sia=[FakeResponse(503), FakeResponse(502), ok(SIA_XML)], tap=[FakeResponse(502)])
     rep = irsa.search_frames_report(RA, DEC)
     assert rep.service == "sia" and len(rep.result.frames) == 14
-    assert fake.count(settings.IRSA_SIA) == 3
+    assert [c["url"] for c in fake.calls] == [settings.IRSA_SIA] * 2 + [settings.IRSA_TAP_SYNC, settings.IRSA_SIA]
+    assert [e.split(":")[0] for e in rep.retries] == ["sia 1/3", "sia 2/3", "tap 1/3"]
+    assert rep.errors == []  # SIA answered on a retry: a complete answer, not a fallback (no `partial` downstream)
 
 
 def test_falls_back_to_tap_when_sia_keeps_failing(monkeypatch):
@@ -265,8 +268,8 @@ def test_falls_back_to_tap_when_sia_keeps_failing(monkeypatch):
     rep = irsa.search_frames_report(RA, DEC, mjd_min=60000, mjd_max=62000)
     assert rep.service == "tap"
     assert rep.result.frames
-    assert rep.errors and rep.errors[0].startswith("sia: HTTPError")
-    assert fake.count(settings.IRSA_SIA) == settings.SEARCH_ATTEMPTS
+    assert rep.errors and rep.errors[0].startswith("sia 1/3: HTTPError: HTTP 502")
+    assert fake.count(settings.IRSA_SIA) == 2  # SIA, SIA, then TAP answered
     tap = next(c for c in fake.calls if c["url"] == settings.IRSA_TAP_SYNC)
     assert tap["method"] == "POST" and tap["data"]["FORMAT"] == "csv" and tap["data"]["LANG"] == "ADQL"
     query = tap["data"]["QUERY"]
@@ -314,18 +317,19 @@ def test_timeout_reaches_cause_chain(monkeypatch):
     with pytest.raises(irsa.SearchError) as exc:
         irsa.search_frames(RA, DEC)
     assert any(isinstance(e, requests.Timeout) for e in _cause_chain(exc.value))
-    # A timeout is retried once, not SEARCH_ATTEMPTS times.
+    # A timeout switches service; a service that timed out twice is not asked again (not SEARCH_ATTEMPTS times).
     assert fake.count(settings.IRSA_SIA) == 2 and fake.count(settings.IRSA_TAP_SYNC) == 2
+    assert [c["url"] for c in fake.calls] == [settings.IRSA_SIA, settings.IRSA_TAP_SYNC] * 2
 
 
 def test_both_services_down_is_not_a_timeout(monkeypatch):
     install(monkeypatch, sia=[FakeResponse(502)], tap=[FakeResponse(503)])
-    with pytest.raises(irsa.SearchError, match="sia: HTTPError.*tap: HTTPError") as exc:
+    with pytest.raises(irsa.SearchError, match="after 6 attempt.*sia 1/3: HTTPError.*tap 1/3: HTTPError") as exc:
         irsa.search_frames(RA, DEC)
     chain = _cause_chain(exc.value)
     assert not any(isinstance(e, (requests.Timeout, TimeoutError)) for e in chain)
-    assert isinstance(chain[1], requests.HTTPError)
-    assert exc.value.is_outage and len(exc.value.failures) == 2
+    assert isinstance(chain[1], requests.HTTPError) and chain[1].response.status_code == 503  # the last error
+    assert exc.value.is_outage and len(exc.value.failures) == 6  # SEARCH_ATTEMPTS (3) per service
 
 
 def test_parse_failure_is_not_an_outage(monkeypatch):
@@ -542,7 +546,9 @@ def test_sia_timeout_then_tap_error_surfaces_as_timeout(monkeypatch):
         irsa.search_frames(RA, DEC)
     assert isinstance(exc.value.__cause__, requests.Timeout)
     assert exc.value.is_outage
-    assert [type(e) for e in exc.value.failures] == [requests.ReadTimeout, requests.HTTPError]
+    # SIA hang -> TAP 502 -> SIA hang (2nd timeout: SIA done) -> TAP 502 -> TAP 502 (3rd: TAP done).
+    rt, he = requests.ReadTimeout, requests.HTTPError
+    assert [type(e) for e in exc.value.failures] == [rt, he, rt, he, he]
 
 
 class FakeClock:
@@ -959,8 +965,8 @@ def test_stale_cache_beats_snapshot_and_no_cache_means_no_snapshot(monkeypatch, 
 # ERRANTE_API_TIMEOUT_S (errante_api.settings.Settings.live_timeout_s): the backend answers HTTP 504 after it.
 SHIPPED_BUDGET = {
     "SEARCH_ATTEMPTS": 4,
-    "SEARCH_BACKOFF_S": 1.0,
-    "SIA_TIMEOUT_S": 30.0,
+    "SEARCH_BACKOFF_S": 0.5,
+    "SIA_TIMEOUT_S": 45.0,
     "TAP_TIMEOUT_S": 60.0,
     "SEARCH_DEADLINE_S": 60.0,
     "SEARCH_FALLBACK_DEADLINE_S": 20.0,
@@ -1283,3 +1289,197 @@ def test_cli_snapshot_search_exits_1_when_the_point_check_fails(monkeypatch, tmp
     assert ("point check NOT run" if point_answer == "502" else "WARNING point check: live 0 vs replayed 14") in err
     assert "barnards-star.json fails CI (test_committed_snapshot_files)" in err
     assert irsa.load_snapshot(out / "barnards-star.json").field_id == "barnards-star"  # written, for inspection
+
+
+# --------------------------------------------------------------------------- retries on a flaky IRSA (2026-11-15)
+# On the VM every map-click Time build failed in ~30 s: "SIA search failed (ReadTimeout ... read timeout=12.45);
+# falling back to TAP", then "tap: ReadTimeout ... / HTTPError: HTTP 502". From a laptop SIA and TAP answered
+# intermittently (some requests a fast 502, others fine). One try per service is not enough for that.
+
+
+class FlakyIRSA:
+    """Scripted SIA/TAP on a FakeClock. Each item: an HTTP status (answers at once; 200 = the fixture), 'hang'
+    (uses the whole timeout, then ReadTimeout), or a float (answers 200 after that many seconds, a timeout if
+    given less). The last item of a queue repeats. Records (url, start, timeout) and every sleep."""
+
+    def __init__(self, clock: FakeClock, sia, tap):
+        self.clock = clock
+        self.queues = {settings.IRSA_SIA: list(sia), settings.IRSA_TAP_SYNC: list(tap)}
+        self.calls: list[tuple[str, float, float]] = []
+
+    def __call__(self, method, url, *, params=None, data=None, timeout):
+        self.calls.append((url, self.clock.now, timeout))
+        queue = self.queues[url]
+        item = queue.pop(0) if len(queue) > 1 else queue[0]
+        body = SIA_XML if url == settings.IRSA_SIA else TAP_CSV
+        if isinstance(item, FakeResponse):
+            return item
+        if item == "hang" or (isinstance(item, float) and item > timeout):
+            self.clock.now += timeout
+            raise requests.ReadTimeout(f"{url} read timeout={timeout:.2f}")
+        if isinstance(item, float):
+            self.clock.now += item
+            return ok(body)
+        return ok(body) if item == 200 else FakeResponse(item)
+
+    def services(self) -> list[str]:
+        return ["sia" if url == settings.IRSA_SIA else "tap" for url, _, _ in self.calls]
+
+
+def _flaky(monkeypatch, sia, tap, *, budget: float = 60.0, attempts: int = 4, backoff: float = 0.5):
+    clock = FakeClock()
+    sleeps: list[float] = []
+
+    def sleep(s: float) -> None:
+        sleeps.append(s)
+        clock.now += s
+
+    clock.sleep = sleep
+    monkeypatch.setattr(irsa, "time", clock)
+    fake = FlakyIRSA(clock, sia, tap)
+    monkeypatch.setattr(irsa, "_http", fake)
+    for name, value in {
+        "SEARCH_ATTEMPTS": attempts,
+        "SEARCH_BACKOFF_S": backoff,
+        "SIA_TIMEOUT_S": 30.0,
+        "TAP_TIMEOUT_S": 60.0,
+        "SEARCH_DEADLINE_S": budget,
+    }.items():
+        monkeypatch.setattr(settings, name, value)
+    return clock, fake, sleeps
+
+
+def test_vm_failure_2026_11_15_now_answers(monkeypatch):
+    """The VM's 25 s budget (ERRANTE_SEARCH_DEADLINE_S in the image): SIA hung 12.45 s, TAP answered 502. Before, that
+    was the end (SearchError); now SIA gets another try in what is left and answers."""
+    clock, fake, _ = _flaky(monkeypatch, sia=["hang", 200], tap=[502], budget=25.0)
+    t0 = clock.now
+    rep = irsa.search_frames_report(RA, DEC, use_cache=False)
+    assert rep.service == "sia" and len(rep.result.frames) == 14
+    assert fake.services() == ["sia", "tap", "sia"]
+    assert fake.calls[0][2] == pytest.approx(12.5)  # half of the 25 s budget, as on the VM (12.45)
+    assert [e.split(":")[0] for e in rep.retries] == ["sia 1/4", "tap 1/4"]
+    assert rep.errors == []
+    assert clock.now - t0 <= 25.0
+
+
+def test_retry_that_answers_is_not_a_fallback(monkeypatch):
+    """SIA 502 then SIA 200 (IRSA, 2026-11-15): the history goes to ``retries``; ``errors`` stays empty, so
+    point_series' search["errors"] is empty and lightcurve_build does not mark the light curve partial."""
+    clock, fake, _ = _flaky(monkeypatch, sia=[502, 200], tap=[])
+    rep = irsa.search_frames_report(RA, DEC, use_cache=False)
+    assert rep.service == "sia" and fake.services() == ["sia", "sia"]
+    assert rep.errors == [] and not rep.stale
+    assert len(rep.retries) == 1 and rep.retries[0].startswith("sia 1/4: HTTPError: HTTP 502")
+
+
+def test_502_then_success_on_both_services(monkeypatch):
+    clock, fake, _ = _flaky(monkeypatch, sia=[502, 502, 502, 200], tap=[502, 200])
+    rep = irsa.search_frames_report(RA, DEC, use_cache=False)
+    assert rep.service == "tap" and rep.result.frames  # SIA, SIA, TAP (502), SIA (502), TAP answers
+    # TAP answered: a real fallback, so ``errors`` keeps why (SIA's failures); ``retries`` keeps everything.
+    assert [e.split(":")[0] for e in rep.errors] == ["sia 1/4", "sia 2/4", "sia 3/4"]
+    assert [e.split(":")[0] for e in rep.retries] == ["sia 1/4", "sia 2/4", "tap 1/4", "sia 3/4"]
+    assert fake.services() == ["sia", "sia", "tap", "sia", "tap"]
+
+
+def test_timeout_then_success(monkeypatch):
+    clock, fake, sleeps = _flaky(monkeypatch, sia=["hang", 3.0], tap=["hang"], budget=120.0)
+    t0 = clock.now
+    rep = irsa.search_frames_report(RA, DEC, use_cache=False)
+    assert rep.service == "sia" and rep.result.frames
+    assert fake.services() == ["sia", "tap", "sia"]  # a timeout switches service at once
+    assert sleeps == []  # no backoff after a timeout: the attempt already waited
+    assert [t for _, _, t in fake.calls] == [30.0, 60.0, 15.0]  # SIA 30 s, TAP 60 s, SIA half of the 30 s left
+    assert clock.now - t0 == pytest.approx(93.0)
+
+
+def test_all_attempts_fail_reports_the_history(monkeypatch, caplog):
+    clock, fake, sleeps = _flaky(monkeypatch, sia=[502], tap=[503], budget=120.0)
+    with caplog.at_level("WARNING", logger="errante.data.irsa"), pytest.raises(irsa.SearchError) as exc:
+        irsa.search_frames_report(RA, DEC, use_cache=False)
+    order = ["sia", "sia", "tap", "sia", "tap", "sia", "tap", "tap"]
+    assert fake.services() == order  # SEARCH_ATTEMPTS (4) per service, alternated after SIA's quick second try
+    err = exc.value
+    assert len(err.failures) == 8 and err.is_outage
+    assert isinstance(err.__cause__, requests.HTTPError) and err.__cause__.response.status_code == 503
+    msg = str(err)
+    assert msg.startswith("IRSA frame search failed after 8 attempt(s) in ")
+    for service, n in (("sia", 1), ("sia", 4), ("tap", 1), ("tap", 4)):
+        assert f"{service} {n}/4: HTTPError: HTTP" in msg
+    # Backoff: 0.5 s x 1, 2, 4, 8 capped at 4 s, plus up to 25 % jitter.
+    base = [0.5, 1.0, 2.0, 4.0, 4.0, 4.0, 4.0]
+    assert len(sleeps) == 7 and all(b <= s <= 1.25 * b for s, b in zip(sleeps, base, strict=True))
+    logged = [r.getMessage() for r in caplog.records]
+    assert any(
+        m.startswith("SIA attempt 2/4 failed after 0.0 s: HTTPError: HTTP 502") and "TAP (1/4)" in m for m in logged
+    )
+    assert any("TAP attempt 4/4 failed" in m and "giving up (no attempts left)" in m for m in logged)
+
+
+@pytest.mark.parametrize("budget", [25.0, 60.0, 120.0])
+@pytest.mark.parametrize(
+    ("sia", "tap"),
+    [
+        (["hang"], ["hang"]),
+        ([502], ["hang"]),
+        (["hang"], [502]),
+        ([502, "hang", 502, 40.0], [503, 70.0]),
+        ([28.0], [55.0]),
+    ],
+)
+def test_no_attempt_outlives_the_deadline(monkeypatch, budget, sia, tap):
+    clock, fake, _ = _flaky(monkeypatch, sia=sia, tap=tap, budget=budget)
+    t0 = clock.now
+    deadline = t0 + budget
+    try:
+        rep = irsa.search_frames_report(RA, DEC, use_cache=False)
+    except irsa.SearchError as e:
+        assert e.is_outage and {"sia", "tap"} <= set(fake.services())  # both services got a turn
+    else:  # a slow answer that fits its attempt (SIA 28 s < 30 s)
+        assert rep.result.frames and rep.service in {"sia", "tap"}
+    assert fake.calls and clock.now - t0 <= budget + 1e-9
+    for _, start, timeout in fake.calls:
+        assert start <= deadline - irsa._MIN_ATTEMPT_S + 1e-9  # no attempt starts in the last 2 s
+        assert 0 < timeout <= deadline - start + 1e-9  # nor waits past the deadline
+
+
+def test_4xx_and_bad_answers_are_not_retried(monkeypatch):
+    clock, fake, _ = _flaky(monkeypatch, sia=[400], tap=[502, 200])
+    rep = irsa.search_frames_report(RA, DEC, use_cache=False)
+    assert rep.service == "tap" and fake.services() == ["sia", "tap", "tap"]  # SIA dropped after its 400
+    install(monkeypatch, sia=[ok(b"<html>not a votable</html>")], tap=[FakeResponse(404)])
+    with pytest.raises(irsa.SearchError) as exc:
+        irsa.search_frames_report(RA, DEC, use_cache=False)
+    assert len(exc.value.failures) == 2 and not exc.value.is_outage  # one try each: retrying will not help
+
+
+def test_retry_after_is_honoured(monkeypatch):
+    busy = FakeResponse(429, headers={"Retry-After": "3"})
+    clock, fake, sleeps = _flaky(monkeypatch, sia=[busy, 200], tap=[502])
+    rep = irsa.search_frames_report(RA, DEC, use_cache=False)
+    assert rep.service == "sia" and fake.services() == ["sia", "sia"] and sleeps == [pytest.approx(3.0)]
+
+
+def test_supervised_job_gets_its_own_search_budget(tmp_path):
+    """The jobs child inherits the API's ERRANTE_SEARCH_DEADLINE_S=25 from the image; ERRANTE_JOB_SUPERVISED=1 (set by
+    backend/errante_api/jobs/supervisor.py) switches it to ERRANTE_JOB_SEARCH_DEADLINE_S (120 s by default)."""
+    import os
+    import subprocess
+    import sys
+
+    code = "from errante import settings; print(settings.SEARCH_DEADLINE_S)"
+    pipeline = str(Path(irsa.__file__).resolve().parents[2])
+
+    def deadline(**env) -> float:
+        full = {k: v for k, v in os.environ.items() if not k.startswith("ERRANTE_")}
+        full |= {"PYTHONPATH": pipeline, "ERRANTE_SEARCH_DEADLINE_S": "25", **env}
+        out = subprocess.run([sys.executable, "-B", "-c", code], env=full, capture_output=True, text=True, check=True)
+        return float(out.stdout.strip())
+
+    assert deadline() == 25.0  # the API process keeps its short budget
+    assert deadline(ERRANTE_JOB_SUPERVISED="1") == 120.0
+    assert deadline(ERRANTE_JOB_SUPERVISED="1", ERRANTE_JOB_SEARCH_DEADLINE_S="90") == 90.0
+    # Only raised, never lowered: lightcurve_build.run_bounded sets its own 180 s, and 0 stays unbounded.
+    assert deadline(ERRANTE_JOB_SUPERVISED="1", ERRANTE_SEARCH_DEADLINE_S="180") == 180.0
+    assert deadline(ERRANTE_JOB_SUPERVISED="1", ERRANTE_SEARCH_DEADLINE_S="0") == 0.0

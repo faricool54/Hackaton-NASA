@@ -357,6 +357,51 @@ opcional (p. ej. `PointSpectrum`), con campos que salen directo de `CubeSpectrum
 que el PR de contrato las copie. Una regla sin FLAGS (`saturated` = algún núcleo vacío) marcaría el hueco como
 estrella saturada: no usarla.
 
+### 3.4 IRSA lento e intermitente: reintentos de la búsqueda y presupuesto de los jobs ✅ (2026-11-15, en vivo)
+
+Verificado por WS1 (Claude) el 15/11 ≈ 23:40–23:46 UTC desde la laptop de Buenos Aires (rama `ws1/irsa-retries`).
+
+- **Síntoma (VM, 15/11):** todo build "Time" desde un click en el mapa fallaba a los ~30 s. `child.log`: `SIA search
+  failed (ReadTimeout ... read timeout=12.45); falling back to TAP`, y `result.json`: `sia: ReadTimeout ...; tap:
+  ReadTimeout ... / HTTPError: HTTP 502 from .../TAP/sync`.
+- **Causa 1, latencia de SIA:** SIA contesta búsquedas puntuales en **22,4–23,4 s** (6 de 6 requests con 200; curl:
+  conexión 0,2 s, TLS 0,4 s, *time to first byte* 22,4 s, o sea, demora del servidor). El 14/11 tardaba 1–4 s.
+  Intercalados aparecen 502 rápidos (1,1–3,2 s). TAP contestó **502 en < 1 s** en las 4 consultas de esta ventana.
+- **Causa 2, presupuesto del job:** el hijo de los jobs (`backend/errante_api/jobs/child.py`) llama a
+  `search_frames` sin `deadline_s` y hereda `ERRANTE_SEARCH_DEADLINE_S=25` de `backend/Dockerfile` (pensado para
+  las búsquedas síncronas de la API, 30 s). `sia_budget(24,9)` = 12,45 s por intento de SIA: con SIA en ~23 s,
+  **siempre** timeout; TAP no tenía con qué compensar. El job, en cambio, tiene 900 s (`supervisor._DEADLINE_S`).
+- **Causa 3, un solo intento útil por servicio:** `_query_archive` probaba SIA (con `_fetch`, reintentando dentro
+  de su mitad) y después TAP, una vez cada uno; un timeout se reintentaba como mucho una vez.
+- **Cambios (WS1):** `_query_archive` alterna SIA, SIA, TAP, SIA, TAP... (un timeout cambia de servicio al toque),
+  backoff 0,5·2ⁿ s (tope 4 s) + hasta 25 % de jitter tras fallas rápidas, `Retry-After` respetado; reintenta solo
+  429/5xx, errores de conexión y timeouts (un 4xx o una respuesta que no parsea descarta ese servicio);
+  `SEARCH_ATTEMPTS` (4) intentos y 2 timeouts por servicio; ningún intento empieza con < 2 s ni dura más que lo que
+  queda. `SearchError` lista cada intento (`sia 2/4: HTTPError: HTTP 502 ...`). Con `ERRANTE_JOB_SUPERVISED=1`
+  (lo exportan tres padres: el supervisor de jobs, `science_service._run_child` y `lightcurve_build.run_bounded`)
+  un `SEARCH_DEADLINE_S` positivo **menor** que `ERRANTE_JOB_SEARCH_DEADLINE_S` (**120 s**) sube a 120 s; uno
+  mayor (los 180 s que fija la curva de luz) o 0 (sin límite) se respeta. `ERRANTE_SIA_TIMEOUT_S` por defecto
+  30 → **45 s** (solo pesa con presupuestos > 60 s); `ERRANTE_SEARCH_BACKOFF_S` 1 → 0,5.
+- **`errors` vs `retries`:** `SearchReport.errors` (lo copia `point_series` a `search["errors"]` y
+  `lightcurve_build` marca `partial` si no está vacío) solo lleva un fallback real: los intentos fallidos de SIA
+  cuando contestó TAP, o el `SearchError` cuando contestó caché vencida/snapshot. Una búsqueda que SIA contesta en
+  un reintento deja `errors` vacío; el historial completo va a `SearchReport.retries` (no es contrato) y al log.
+- **En vivo con el código nuevo** (caché y snapshots apagados, posiciones al azar): modo job (`ERRANTE_SEARCH_DEADLINE_S=25`
+  + `ERRANTE_JOB_SUPERVISED=1` → 120 s): 3/3 con SIA (424, 407 y 390 frames en 27,3, 24,0 y 26,1 s; el tercero tras
+  un 502 y un reintento). Primera corrida (`deadline_s=60`): 3/3 con SIA en 22,9–23,4 s. Modo API (25 s): (81,61; 67,61)
+  falló tras 6 intentos (5 × 502 de SIA/TAP) en 23,7 s: con SIA en ~23 s, 25 s no alcanzan.
+- **Espectro (cambio de comportamiento, no probado en vivo):** `exposure_spectrum` corre en el hijo de ciencia
+  (`science_child`, supervisado), así que su búsqueda pasa de 25 s a `min(120, 70)` = **70 s** (`point_series(
+  deadline_s=70)`), dentro del plazo del worker (`science_service._DEADLINE_S` = 140 s) y de su `live_timeout_s`
+  (150 s). Verificado solo leyendo el código y con `search_budget` en un proceso con esas variables; no se corrió un
+  espectro real contra IRSA con este cambio.
+- **Abierto (WS4):** `/api/search` (síncrona, en el proceso de la API, sin `ERRANTE_JOB_SUPERVISED`) sigue con 25 s
+  y sigue fallando mientras SIA tarde ~23 s: con 25 s, SIA recibe 12,5 s por intento. Opciones:
+  subir `ERRANTE_SEARCH_DEADLINE_S` solo si `ERRANTE_API_TIMEOUT_S` sube también, o que WS1 suba `_SIA_MIN_S`
+  (hoy 10 s) para darle a SIA todo un presupuesto corto, a costa del turno de TAP (no se cambió: decisión pendiente).
+  Lo más limpio para los jobs es que `supervisor._launch_child` fije `ERRANTE_SEARCH_DEADLINE_S` en el entorno
+  del hijo, como hace `lightcurve_build.run_bounded`.
+
 ## 4. Instrumento y survey 📄
 
 - 6 detectores H2RG 2040×2040 activos, píxel **6.15″**, campo ~3.5°×3.5° por detector; pares simultáneos
