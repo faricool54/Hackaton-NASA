@@ -31,6 +31,14 @@
   VARIANCE, λ/Δλ de WCS-WAVE, flags). Base de WS3-5/WS4-8/WS5-12 (espectro en el panel de la visión).
   Validado: estrella normal del campo de ε Ind vs 2MASS J/H/Ks = 1,025/1,058/1,062; WISE 0855 a 4,4–5 µm = 0,57 mJy
   (W2 = 0,57 mJy). Las estrellas saturadas (Barnard) quedan marcadas `saturated`: no hay flujo confiable.
+- ✅ Selección del pool: rechazo de frames malos y λ emparejada entre temporadas (#35), control de registro por frame
+  (`imaging/register.py`, #41: RW Aur pierde `2026W38_1A_0162_3D6`, 1,34 px) y arreglos de display (#48: SNOWBALL,
+  núcleos reales de estrellas, roll-off de altas luces en blancos limpios, thumbnail del blanco).
+- ✅ `imaging/color.py`: composites en falso color por temporada, modos `detectors` y `jhk` (#41; contrato 0.3.1 #39;
+  botón en la UI #40). Los 5 campos dorados se reconstruyeron con todo esto en #41.
+- ✅ `imaging/productcheck.py` (WS2-8, #70) y `imaging/animate.py` (GIFs y stills para la demo, #71): leen solo los
+  productos publicados (`data/products`).
+- ✅ Uso de IA (S08): registro de WS2 en [`pipeline/errante/imaging/ai-usage.json`](../pipeline/errante/imaging/ai-usage.json) (#68).
 - ⛔ `find_sources`, `link_tracks`, `score_tracks`, `inject_mover`.
 
 ## Tareas
@@ -52,23 +60,42 @@
 - [ ] **WS2-6 (P2) Inyección-recuperación** (`inject.py`): plantar movers en frames **reales**, grilla de
   flujo × velocidad, tabla de eficiencia → `data/products/limits.json` (proponer modelo a WS4/WS5 vía PR
   `contract:`). Es la base de la página "¿Qué tan lejos podemos ver?".
-- [~] **WS2-7 (P1, C03) Restas de épocas**: permitir A−B y opcionalmente `frame − cielo_estático`.
+- [x] **WS2-7 (P1, C03) Restas de épocas**: permitir A−B y opcionalmente `frame − cielo_estático`.
   WCS, PSF, fondo, unidades, máscara y λ compatibles; propagar errores y guardar entradas de la operación.
   Exponer PNG y metadatos con contrato aditivo coordinado con WS4/WS5.
-  🟡 Hecho en el pipeline: `errante compare <id>` escribe `compare/coadd_*.png`, `compare/diff_*.png` (naranja = más
-  brillante ahora, cian = antes, damero = sin datos) y `compare/compare.json` **provisional** (fuera del contrato).
-  En el campo real de Barnard la resta de un año muestra el dipolo norte en los 6 detectores. Falta: contrato aditivo
-  (`contract:`, WS3) y la capa en la UI (WS5); restas por frame individual y λ emparejada (`wavelength_at` ya está en main, #23/#25).
-- [ ] **WS2-8 (P0, R05) Validación visual/astrométrica entre pasadas.** Ayudar a WS3 con Barnard,
+  ✅ `errante compare <id>` escribe `compare/coadd_*.png`, `compare/diff_*.png` (naranja = más brillante ahora,
+  cian = antes, damero = sin datos) y `compare/compare.json`. En el campo real de Barnard la resta de un año muestra el
+  dipolo norte en los 6 detectores. Integración hecha por rpccp: contrato `ComparisonResponse` 0.4.0 (#53), API
+  (#54) y panel en la UI (#55).
+  Blancos débiles (#69): si el límite de color del campo es ≥ 2× el de la región del blanco (segundo mayor |residuo|
+  dentro de `target_exclude_px`, así un píxel caliente no lo fija; nunca < 10σ), el límite sale de esa región y la
+  diferencia lo dice ("field-star residuals clip"). Softening del asinh = `min(1, max(0,05, 3σ/límite))`, con σ =
+  sigma robusto de la diferencia. Notas nuevas: diferencia sin escala (s = 1) y núcleo marcado (`target_core_flagged`).
+  En los campos dorados la regla se activa en WISE 0855 (16/18) y ε Ind B (2/30); Barnard, RW Aur y R Dra quedan bit a
+  bit iguales. WISE 0855 en D5 S2−S0/S2−S1 muestra un residuo positivo en la posición de S2 sin lóbulo negativo claro:
+  mezcla movimiento y color (S0/S1 a 4,04–4,08 µm, S2 a 4,18–4,22 µm), no es un dipolo limpio; en D6 no se ve.
+  Pendiente: restas por frame individual.
+- [~] **WS2-8 (P0, R05) Validación visual/astrométrica entre pasadas.** Ayudar a WS3 con Barnard,
   Epsilon Indi B y WISE 0855; comprobar registro de fondo, épocas y desplazamiento/incertidumbre.
   Para RW Aurigae/R Draconis, garantizar render consistente; el brillo científico se mide desde FITS.
   No depende de implementar `link_tracks`. Evidencia según `docs/VALIDATION.md`.
+  🟡 Hecho (#70): `python -m errante.imaging.productcheck --products data/products --out <dir>` → `report.md`,
+  `report.json` y figuras. Chequeo versionado de los productos PUBLICADOS a nivel display (PNG de 8 bits con el
+  Stretch invertido), no fotometría ni astrometría científica. Mide centroides por temporada × detector contra el
+  movimiento propio de los comentarios de `fields.toml` (sin paralaje), re-mide el registro en los PNG y el núcleo por
+  frame de las variables. Cada blanco abre con sus advertencias (pocos frames en WISE 0855, PA de ε Ind B, offset de S1
+  de Barnard sin dirección afirmada, frames de la secuencia rechazada de RW Aur). Falta: que coordinación lleve los
+  números a `docs/validation/*.md`, que siguen describiendo el build de #17.
 - [ ] **WS2-9 (P2) Shift-and-stack** a lo largo de velocidades hipotéticas para objetos lentos y débiles
   (demo educativa del método de búsqueda del Planeta X).
-- [ ] **WS2-10 (P1, C02/C03) Sumas y coadds por detector.** Alinear y combinar por detector y visita,
+- [~] **WS2-10 (P1, C02/C03) Sumas y coadds por detector.** Alinear y combinar por detector y visita,
   con pesos derivados de VARIANCE, máscara/coverage y lista de miembros. Mantener separados los seis detectores;
   no borrar la secuencia temporal al sumar todas las épocas. Mostrar λ efectiva/rango y método de combinación.
   Validar el cambio de SNR en una fuente estable y preservar originales para comparar.
+  🟡 Coadds por temporada × detector con un peso por frame (1/mediana de VARIANCE), píxeles malos fuera y lista de
+  miembros (`compare.weighted_stack`). Desde #69 cada coadd exporta `weights` en el orden de `frame_ids`, y la API
+  puede llenar `ComparisonImage.weights`. Los composites en falso color (#41) usan los mismos coadds. Falta: validar
+  el cambio de SNR en una fuente estable.
 - [ ] **WS2-11 (P1, C07) Resumen de calidad.** Flags de contaminación y cobertura por frame/recorte,
   significado y política de máscara. SOURCE no implica contaminación; OUTLIER/TRANSIENT requieren contexto.
   Ausencia de flags se declara desconocida, no limpia. Coordinar contrato con WS4-10 y panel con WS5-10.
