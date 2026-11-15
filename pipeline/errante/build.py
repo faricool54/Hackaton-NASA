@@ -454,18 +454,29 @@ def _selection_note(sel: _Selection, max_frames: int) -> str:
     )
 
 
-def _render(cfg: FieldConfig, store: ProductStore, projected: list[_Projected]) -> list[Frame]:
-    """WS2: one contrast per detector, then one PNG per final frame and the thumbnail."""
+@dataclass(frozen=True)
+class _Rendered:
+    frames: list[Frame]
+    rolloff: dict[int, float]  # detector -> white level of the highlight roll-off above Stretch.vmax [MJy/sr]
+    thumb_detector: int | None
+
+
+def _render(cfg: FieldConfig, store: ProductStore, projected: list[_Projected]) -> _Rendered:
+    """WS2: one contrast per detector (with a highlight roll-off for a bright unsaturated target), one PNG per
+    final frame and the thumbnail."""
     from .imaging import render
 
-    stretches = render.field_stretches(
-        [p.data for p in projected], [p.detector for p in projected], [p.bad for p in projected]
-    )
+    images, detectors, bads = [p.data for p in projected], [p.detector for p in projected], [p.bad for p in projected]
+    stretches = render.field_stretches(images, detectors, bads)
+    highlights = render.target_highlights(images, detectors, bads, stretches)
     frames: list[Frame] = []
     field_dir = store.field_dir(cfg.id)
-    for p, stretch in zip(projected, stretches, strict=True):
+    rolloff: dict[int, float] = {}
+    for p, stretch, highlight in zip(projected, stretches, highlights, strict=True):
         rel = f"frames/{p.frame_id}.png"
-        render.save_png(p.data, field_dir / rel, stretch)
+        render.save_png(p.data, field_dir / rel, stretch, highlight)
+        if highlight is not None:
+            rolloff[p.detector] = max(rolloff.get(p.detector, 0.0), highlight - stretch.vmax)
         frames.append(
             Frame(
                 id=p.frame_id,
@@ -482,8 +493,34 @@ def _render(cfg: FieldConfig, store: ProductStore, projected: list[_Projected]) 
                 stretch=stretch,
             )
         )
-    _write_thumbnail(field_dir, frames)
-    return frames
+    scores = render.target_scores(images, bads, stretches)
+    thumb_detector = _write_thumbnail(field_dir, frames, scores)
+    return _Rendered(frames, rolloff, thumb_detector)
+
+
+def _display_note(rendered: _Rendered) -> str:
+    from .imaging.render import HIGHLIGHT_KNEE
+
+    text = (
+        "Pixel values and stretch limits are IMAGE - ZODI (SPHEREx zodiacal model subtracted) in MJy/sr; "
+        "PNGs use an asinh mapping with the same contrast for every frame of a detector, and transparent "
+        "pixels mean no data. Saturated star cores that SPHEREx left empty (NaN) and detector-defect pixels "
+        "(NONFUNC, HOT, COLD, PERSIST, SNOWBALL, and SUR_ERROR that is not part of a star's profile, e.g. "
+        "cosmic-ray hits) are filled from their neighbours for display only; SUR_ERROR pixels on a star and "
+        "finite OVERFLOW pixels are shown as recorded. All of them count as invalid in valid_fraction."
+    )
+    if rendered.rolloff:
+        whites = "; ".join(f"D{d}: white = vmax + {top:.3g} MJy/sr" for d, top in sorted(rendered.rolloff.items()))
+        text += (
+            " Highlight roll-off where the target at the centre outshines the field's bright end (Stretch.vmax) "
+            "and its core is unflagged (not saturated) in most frames: instead of clipping to white, values above "
+            f"vmax are compressed logarithmically into the top {1 - HIGHLIGHT_KNEE:.0%} of the grey range, so the "
+            f"target's brightness changes stay visible in the blink; vmax maps to {HIGHLIGHT_KNEE:.0%} grey, so "
+            f"these detectors look {1 - HIGHLIGHT_KNEE:.0%} dimmer than the others ({whites})."
+        )
+    if rendered.thumb_detector is not None:
+        text += f" thumb.png is a D{rendered.thumb_detector} frame."
+    return text
 
 
 def build_field(
@@ -513,15 +550,13 @@ def build_field(
         _raise_nothing_usable(cfg, sel.skipped)
 
     # 2. WS2: PNGs of the final frames only.
-    frames = _render(cfg, store, sel.frames)
+    rendered = _render(cfg, store, sel.frames)
+    frames = rendered.frames
     notes = [
         "Automatic analysis has not completed."
         if analyze
         else "Automatic detection and catalog matching were not run.",
-        "Pixel values and stretch limits are IMAGE - ZODI (SPHEREx zodiacal model subtracted) in MJy/sr; "
-        "PNGs use an asinh mapping with the same contrast for every frame of a detector, and transparent "
-        "pixels mean no data. Saturated star cores and detector-defect pixels are filled from their neighbours "
-        "for display only; they count as invalid in valid_fraction.",
+        _display_note(rendered),
         _selection_note(sel, cfg.max_frames),
     ]
     if sel.skipped:
@@ -578,18 +613,40 @@ def _analyze(
     store.rebuild_manifest()
 
 
-def _write_thumbnail(field_dir: Path, frames: list[Frame]) -> None:
-    """thumb.png = the middle epoch of the detector that covers the most seasons."""
+THUMB_MIN_SNR = 5.0  # the target must be detected (median core peak / sky noise)...
+THUMB_MIN_PROMINENCE = 1.0  # ...and outshine the field's bright end for its detector to win
+
+
+def _write_thumbnail(
+    field_dir: Path, frames: list[Frame], scores: Sequence[tuple[float, float]] | None = None
+) -> int | None:
+    """thumb.png = the middle epoch of the detector where the target stands out most; returns that detector.
+
+    ``scores`` = per frame (target S/N, prominence) from ``render.target_scores``. Among the detectors where
+    the target is detected (median S/N >= ``THUMB_MIN_SNR``) and outshines the field's bright end (median
+    prominence >= ``THUMB_MIN_PROMINENCE``) the most prominent wins: RW Aurigae dominates its field in D4-D6
+    but not in D1, which the old rule picked (docs/validation/rw-aurigae.md). Otherwise — no scores, or a
+    target that never stands out, e.g. WISE 0855, whose centre holds a static field source in D1-D4 — the
+    detector covering the most seasons wins, as before.
+    """
     if not frames:
-        return
-    by_detector: dict[int, list[Frame]] = defaultdict(list)
-    for fr in frames:
-        by_detector[fr.detector].append(fr)
+        return None
+    by_detector: dict[int, list[int]] = defaultdict(list)
+    for i, fr in enumerate(frames):
+        by_detector[fr.detector].append(i)
 
     def coverage(det: int) -> tuple[int, int, int]:
-        mjds = [f.mjd for f in by_detector[det]]
+        mjds = [frames[i].mjd for i in by_detector[det]]
         return (max(season_index(mjds)) + 1, len(mjds), -det)
 
-    best = sorted(by_detector[max(by_detector, key=coverage)], key=lambda f: f.mjd)
+    detected: dict[int, float] = {}
+    if scores is not None:
+        for det, idx in by_detector.items():
+            snr, prominence = (float(np.median([scores[i][k] for i in idx])) for k in (0, 1))
+            if snr >= THUMB_MIN_SNR and prominence >= THUMB_MIN_PROMINENCE:
+                detected[det] = prominence
+    det = max(detected, key=lambda d: (detected[d], coverage(d))) if detected else max(by_detector, key=coverage)
+    best = sorted((frames[i] for i in by_detector[det]), key=lambda f: f.mjd)
     chosen = best[len(best) // 2]
     shutil.copyfile(field_dir / chosen.image, field_dir / "thumb.png")
+    return det
