@@ -66,7 +66,7 @@ MIN_BLANK_APERTURES = 10
 MIN_FRAMES = 2
 LOW_RATIO = 0.8  # a group whose median ratio is below this gains well below expectation
 FLUX_TOLERANCE = 0.1  # |flux consistency - 1| above this is flagged
-STATIC_TOLERANCE = 0.15  # a static-sky model "explains" a low gain when it predicts the coadd noise this well
+STATIC_TOLERANCE = 0.15  # frame-to-frame covariance accounts for a low gain when it predicts the coadd noise this well
 METHODS = ("variance", "annulus", "blank")
 REPORT_JSON = "snr_report.json"
 REPORT_MD = "snr_report.md"
@@ -192,8 +192,8 @@ def blank_noise(data: np.ndarray, positions: Sequence[tuple[int, int]]) -> tuple
 def random_noise_scale(fluxes: np.ndarray, weights: Sequence[float]) -> float:
     """k with random aperture noise variance k / w_i in frame i, from pairwise differences at the same blank positions.
 
-    Static sky structure (faint sources, background) is the same in every frame and cancels in b_i - b_j,
-    whose variance is then k (1/w_i + 1/w_j): the frame noise ratio is taken from the weights (VARIANCE).
+    Whatever is the same in every frame (presumably static sky structure: faint sources, background) cancels in
+    b_i - b_j, whose variance is then k (1/w_i + 1/w_j): the frame noise ratio is taken from the weights (VARIANCE).
     Median over pairs; NaN with fewer than ``MIN_BLANK_APERTURES`` common positions.
     """
     ks = []
@@ -331,14 +331,15 @@ def _flags(group: dict) -> list[str]:
             b["noise_ratio_with_static"] is not None and abs(b["noise_ratio_with_static"] - 1) <= STATIC_TOLERANCE
         )
         if b["noise_ratio"] < LOW_RATIO and static_ok:
+            identity = " (for 2 frames a consistency identity, not a separate test)" if group["n_frames"] == 2 else ""
             why = (
-                f"static sky structure: only {b['random_fraction_single']:.0%} of the single-frame blank noise "
-                "changes between frames, the rest (faint sources, background) is the same in every frame and does "
-                f"not average down; with that static part the expected coadd noise matches "
-                f"(ratio {b['noise_ratio_with_static']:.2f})"
+                f"frame-to-frame correlated sky noise: only {b['random_fraction_single']:.0%} (in sigma) of the "
+                "single-frame blank noise changes between frames; the correlated rest (probably static sky "
+                "structure, not tested) cannot average down, and with that covariance included the coadd noise is "
+                f"accounted for (ratio {b['noise_ratio_with_static']:.2f}){identity}"
             )
         elif b["noise_ratio"] < LOW_RATIO:
-            why = "the blank-sky noise itself drops less than expected and a static-sky model does not explain it"
+            why = "the blank-sky noise drops less than expected; the frame-to-frame covariance does not account for it"
         elif corr_s and math.isfinite(corr_c) and corr_c > 1.2 * corr_s:
             why = "the coadd's pixel correlation is higher than in the single frames"
         out.append(f"gain well below expectation (blank-noise ratio {ratio:.2f}): {why}")
@@ -393,7 +394,13 @@ def summarise(fields: list[dict]) -> dict:
     """Median ratio and spread over all stars (per method), flux consistency, sky-noise ratio, flagged groups."""
     groups = [g for f in fields for g in f["groups"]]
     stars = [s for g in groups for s in g["stars"]]
-    out: dict = {"n_groups": len(groups), "n_stars": len(stars), "methods": {}}
+    n_frames = sorted(g["n_frames"] for g in groups)
+    out: dict = {
+        "n_groups": len(groups),
+        "n_stars": len(stars),
+        "n_groups_by_n_frames": {str(n): n_frames.count(n) for n in sorted(set(n_frames))},
+        "methods": {},
+    }
     for name in METHODS:
         ratios = [s["snr"][name]["ratio"] for s in stars if name in s["snr"]]
         gains = [(s["snr"][name]["gain_measured"], s["snr"][name]["gain_expected"]) for s in stars if name in s["snr"]]
@@ -475,14 +482,18 @@ METHOD_TEXT = [
     "weighted mean of the single-frame fluxes.",
     "Sky-noise ratio (per group): expected / measured blank-aperture noise of the coadd. Correlation factor: "
     "blank-aperture scatter / the prediction for independent pixels of the same per-pixel scatter.",
-    "Static vs random sky: the difference of two frames at the same blank positions cancels what is the same in "
-    "every frame (faint sources, background structure), so its scatter gives the random noise, k / w_i in frame "
-    "i (noise ratio between frames from the weights). Static variance = single-frame blank variance - k / w_i "
+    "Random vs frame-to-frame correlated sky noise: the difference of two frames at the same blank positions "
+    "cancels what is the same in every frame, so its scatter gives the random noise, k / w_i in frame i (noise "
+    "ratio between frames from the weights). Static (correlated) variance = single-frame blank variance - k / w_i "
     "(median over frames). 'With static' = expected coadd noise sqrt(static + k / sum w) / measured.",
 ]
 LIMITS_TEXT = [
-    "Two or three frames per (season, detector): each group's medians rest on few frames, so single groups "
-    "scatter; the all-star median is the meaningful number.",
+    "'With static' is a consistency check, not an independent test. For a 2-frame group the static variance is "
+    "the covariance of the two frames' blank fluxes, so static + k / sum w is the variance of their weighted mean "
+    "(exactly for equal weights); it departs from 1 mainly through robust-scatter vs variance differences and "
+    "unequal weights. What is measured is that blank-aperture noise is positively correlated between frames of "
+    "one season, and correlated noise cannot average down. That the correlated part is static sky structure "
+    "(faint sources, background) is a plausible reading the check does not test.",
     "Stars are not checked against a catalogue for variability. Each frame samples another wavelength (linear "
     "variable filter), so a star's flux changes between frames; the expected SNR uses each frame's own flux, so "
     "the test does not need constant fluxes, but a flux consistency far from 1 would show a non-linear step.",
@@ -491,13 +502,26 @@ LIMITS_TEXT = [
     "VARIANCE as the weights say, not an independent test. The `blank` noise is the honest one, but it is "
     "background-only: it leaves out the star's own Poisson noise, so its SNRs are upper limits for bright stars.",
     "Blank positions avoid coadd pixels > 3 sigma (grown by 3 px); fainter, unresolved sources stay in the "
-    "background. Static structure does not average down, so a sky-noise ratio below 1 is a property of the sky, "
-    "not a bug of the coadd.",
+    "background. Noise that is the same in every frame does not average down, so a sky-noise ratio below 1 "
+    "comes from frame-to-frame correlated noise in the inputs, not from the coadd weighting.",
     "The static/random split assumes the static sky is identical in every frame; frames of one season sample "
     "slightly different wavelengths, so part of the static structure leaks into the differences and the random "
     "part is an upper limit.",
     "Golden fields only (the five official targets, cached cutouts as built). Results do not cover other fields.",
 ]
+
+
+def frames_limit(summary: dict) -> str:
+    """The few-frames limit, with the frames-per-group counts of this run."""
+    counts = {int(n): c for n, c in summary["n_groups_by_n_frames"].items()}
+    if not counts:
+        return "No (season, detector) group had enough usable frames."
+    span = f"{min(counts)}-{max(counts)}" if len(counts) > 1 else str(min(counts))
+    mode = max(counts, key=lambda n: (counts[n], -n))
+    return (
+        f"{span} frames per (season, detector) ({counts[mode]} of {summary['n_groups']} groups have {mode}): each "
+        "group's medians rest on few frames, so single groups scatter; the all-star median is the meaningful number."
+    )
 
 
 def _fmt(v, nd: int = 2) -> str:
@@ -546,8 +570,8 @@ def render_markdown(report: dict) -> str:
         f"- Flux consistency (coadd / weighted mean of singles): median {_fmt(fc['median'], 3)}, "
         f"p16-p84 {_fmt(fc['p16'], 3)}-{_fmt(fc['p84'], 3)}.",
         f"- Sky-noise ratio (expected / measured blank-aperture noise of the coadd), median over groups: "
-        f"{_fmt(s['blank_noise_ratio_median'])}; with a static-sky part that does not average down: "
-        f"{_fmt(s['blank_noise_ratio_with_static_median'])}.",
+        f"{_fmt(s['blank_noise_ratio_median'])}; including the frame-to-frame covariance ('with static', a "
+        f"consistency check, see Limits): {_fmt(s['blank_noise_ratio_with_static_median'])}.",
         f"- Random (frame-to-frame) part of the single-frame blank noise, median over groups: "
         f"{_fmt(s['random_fraction_single_median'])} (from pairwise frame differences at the blank positions).",
         f"- Correlation factor (blank scatter / independent-pixel prediction): single frames "
@@ -566,7 +590,7 @@ def render_markdown(report: dict) -> str:
         "",
         "## Limits",
         "",
-        *[f"- {t}" for t in LIMITS_TEXT],
+        *[f"- {t}" for t in report["limitations"]],
         "",
     ]
     return "\n".join(lines)
@@ -574,12 +598,13 @@ def render_markdown(report: dict) -> str:
 
 def write_report(fields: list[dict], out: Path) -> dict:
     """Write ``out/snr_report.json`` and ``out/snr_report.md``; return the report."""
+    summary = summarise(fields)
     report = {
         "format": "errante-snrcheck/0 (provisional; not part of the data contract)",
         "built_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "method": METHOD_TEXT,
-        "limitations": LIMITS_TEXT,
-        "summary": summarise(fields),
+        "limitations": [frames_limit(summary), *LIMITS_TEXT],
+        "summary": summary,
         "fields": fields,
     }
     report = _clean(report)

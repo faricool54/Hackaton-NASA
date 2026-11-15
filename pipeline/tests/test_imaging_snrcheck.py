@@ -105,7 +105,17 @@ def test_static_sky_explains_a_low_gain():
     assert blank["noise_ratio"] < snrcheck.LOW_RATIO  # static structure does not average down
     assert blank["noise_ratio_with_static"] == pytest.approx(1.0, abs=0.15)
     assert blank["random_fraction_single"] == pytest.approx(math.sqrt(0.5), abs=0.1)
-    assert any("static sky structure" in f for f in group["flags"])
+    assert any("frame-to-frame correlated sky noise" in f for f in group["flags"])
+    assert not any("consistency identity" in f for f in group["flags"])  # 4 frames: not the 2-frame identity
+
+
+def test_with_static_is_an_identity_for_two_frames():
+    """With 2 frames the 'with static' ratio is ~1 whether or not the sky has static structure."""
+    for static in (0.0, 2.0):
+        group = snrcheck.check_group(_frames([1.0, 1.0], static=static), season=0)
+        assert group["blank"]["noise_ratio_with_static"] == pytest.approx(1.0, abs=0.15)
+    assert group["blank"]["noise_ratio"] < snrcheck.LOW_RATIO
+    assert any("consistency identity" in f for f in group["flags"])
 
 
 def test_correlated_noise_is_seen_by_blank_apertures_only():
@@ -142,6 +152,14 @@ def test_report_is_strict_json_and_markdown(tmp_path):
     report = snrcheck.write_report(fields, tmp_path)
     loaded = json.loads((tmp_path / snrcheck.REPORT_JSON).read_text(encoding="utf-8"))
     assert loaded["summary"]["n_groups"] == 1
+    assert loaded["summary"]["n_groups_by_n_frames"] == {"3": 1}
+    assert loaded["limitations"][0].startswith("3 frames per (season, detector) (1 of 1 groups have 3)")
     assert report["summary"]["methods"]["blank"]["median_ratio"] == pytest.approx(1.0, abs=0.15)
     md = (tmp_path / snrcheck.REPORT_MD).read_text(encoding="utf-8")
     assert "## Limits" in md and "| synthetic | D1_S0 | 3 |" in md
+    assert loaded["limitations"][0] in md
+
+
+def test_frames_limit_counts_groups_by_frame_number():
+    summary = {"n_groups": 86, "n_groups_by_n_frames": {"2": 70, "3": 12, "4": 4}}
+    assert snrcheck.frames_limit(summary).startswith("2-4 frames per (season, detector) (70 of 86 groups have 2)")

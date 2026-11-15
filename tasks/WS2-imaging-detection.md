@@ -98,8 +98,10 @@
   ✅ SNR validado (V21, `python -m errante.imaging.snrcheck --out <dir>`, offline, 5 campos dorados, 532 estrellas
   de campo en 86 grupos temporada × detector): flujo coadd / media ponderada 1.002; VARIANCE propagada da
   medido/esperado 1.01, pero con ruido empírico (aperturas en cielo vacío) la ganancia es 1.15 vs 1.41 esperada
-  (cociente 0.80, p16–p84 0.70–1.01): solo ~70 % del ruido de un frame (en σ; Barnard 38 %) cambia entre
-  frames, el resto es estructura estática del cielo que no promedia; con ella el ruido del coadd coincide (1.02).
+  (cociente 0.80, p16–p84 0.70–1.01): el ruido de cielo vacío está correlacionado entre frames de una temporada
+  (solo ~70 % en σ cambia entre frames; Barnard 38 %), probablemente estructura estática del cielo (no testeado);
+  el ruido correlacionado no promedia, y con esa covarianza el ruido del coadd queda explicado (1.02; en grupos de
+  2 frames, 70 de 86, es una identidad de consistencia, no un test aparte).
 - [ ] **WS2-11 (P1, C07) Resumen de calidad.** Flags de contaminación y cobertura por frame/recorte,
   significado y política de máscara. SOURCE no implica contaminación; OUTLIER/TRANSIENT requieren contexto.
   Ausencia de flags se declara desconocida, no limpia. Coordinar contrato con WS4-10 y panel con WS5-10.
