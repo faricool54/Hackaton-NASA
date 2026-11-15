@@ -128,7 +128,8 @@ cada squash traer main, check/push y retargetear el siguiente PR. `compare.json`
 ## Ficha del objeto (0.5.0, C05; panel de VISION.md)
 
 `GET /api/object` con **exactamente uno** de `name` o `ra`+`dec` (ICRS grados a `epoch_mjd`, default MJD 61000 =
-era SPHEREx); `radius_arcsec` 0–60 (default 8, ~1.3 píxeles SPHEREx). WS3 `object_context` + `to_response`
+era SPHEREx); `radius_arcsec` 0–12 (default 8, ~1.3 píxeles SPHEREx; la regla de WS3 que adopta una fuente
+mucho más brillante "que domina el píxel" no vale con radios mayores). WS3 `object_context` + `to_response`
 arma la respuesta; el backend no hace ciencia. **Es contexto de catálogo de otras misiones, no mediciones SPHEREx**
 (`note` lo dice y la UI lo muestra).
 
@@ -140,7 +141,13 @@ arma la respuesta; el backend no hace ciencia. **Es contexto de catálogo de otr
   `ambiguous` (varias fuentes de brillo similar en el radio) · `loose` (la fuente adoptada está a más de medio
   radio del click) · `none` (sin identificación: nada de Gaia en el radio, o un nombre no resuelto por SIMBAD) ·
   `unavailable` (Gaia no respondió: **desconocido, no negativo**). `identity_uncertain = true` ⇒ los valores que
-  dependen de la identidad pueden ser de un vecino; la UI lo advierte.
+  dependen de la identidad (también VSX y planetas) pueden ser de un vecino; la UI lo advierte.
+- `identity.n_gaia_within_radius: null` = ningún cono de Gaia DR3 respondió (caída o plazo de la API). Con
+  `match: "name"` y sin `gaia_source_id`, la contraparte Gaia es **desconocida**: la UI solo dice "sin
+  contraparte Gaia DR3" cuando el campo es un número y ninguna consulta Gaia quedó sin respuesta (un `error` de
+  `gaia-esa` cubierto por `gaia-vizier`, la copia de Gaia DR3 en VizieR CfA, cuenta como respuesta).
+- `matched` es un match por posición: un objeto ausente de Gaia DR3 (p. ej. una enana marrón fría como
+  WISE 0855) en el mismo píxel SPHEREx no se ve; la UI lo aclara. Los presets del reto se consultan por nombre.
 - `identity.gaia_source_id` es **string** (64 bits; un `number` de JS pierde dígitos).
 - `facts`: los `Fact` de siempre (Teff, radio, luminosidad, masa, distancia, tipo espectral, tipo y período de
   variabilidad); `value: "unknown"` = no medido o no encontrado; `verified` exige identificación segura.
@@ -148,7 +155,8 @@ arma la respuesta; el backend no hace ciencia. **Es contexto de catálogo de otr
   `radius_calculated` = radio estimado por el archivo. `nearby_planet_hosts` son vecinos que **no** son el objeto.
 - `photometry`: 2MASS/AllWISE con `other_mission: true` (literal), banda, λ nominal, Vega, flags y límites.
 - `provenance[]`: servicio, catálogo, URL, `status` `ok|no_match|error|skipped`, fecha, `cached`, `stale`, nota.
-  `error` = el servicio no respondió (o se salteó por no aceptar conexiones): desconocido, no negativo.
+  `error` = el servicio no respondió (o se salteó el archivo ESA de Gaia, que tiene respaldo en VizieR CfA, por no
+  aceptar conexiones): desconocido, no negativo.
 - `partial: true` cuando algún servicio no respondió, incluido el plazo de la API (respuesta re-leída offline de
   la caché de WS3; los pendientes dicen "no answer within the N s API deadline"). Nunca se sirve desde la caché.
 
