@@ -1,13 +1,15 @@
-/* FE-4 · map (ExplorerMap layout="fill"). Prefix: .mp-. Tokens come from FE-1 (docs/FRONTEND_PLAN.md §3.2); until
-   they are in styles.css every var() carries a fallback. Only the "fill" layout uses these classes: the default
-   "panel" layout keeps the old styles.css look.
+/* FE-4 · map (ExplorerMap). Prefix: .mp-. Tokens come from FE-1 (docs/FRONTEND_PLAN.md §3.2); until they are in
+   styles.css every var() carries a fallback. The "fill" layout uses these classes; the default "panel" layout keeps
+   the old styles.css look and only shares the hover card (.mp-card).
 
-   Zones over the map (§3.4): top left, status messages; top right, "Layers"; bottom right, legend and credits;
-   bottom left is left free for the cursor readout (FE-4a). Zones ignore the pointer so the map still drags under
-   them; only their panels take it. */
+   Zones over the map (§3.4): top left is FE-2's (the search and chips float there, outside ExplorerMap); top right,
+   "Layers" with the status messages under the button; bottom right, legend and credits; bottom left, the cursor
+   readout. The hover card follows the cursor (--z-popover, in a portal on body). Zones ignore the pointer so the map
+   still drags under them; only their panels take it. */
 
 .mp-root.mp-fill {
   --mp-inset: var(--gutter, 12px);
+  --mp-layers-h: var(--control-h, 34px);
   position: relative;
   width: 100%;
   height: 100%;
@@ -42,13 +44,15 @@
 }
 .mp-root .mp-zone > * { pointer-events: auto; }
 .mp-root .mp-zone--status {
-  top: var(--mp-inset);
-  left: var(--mp-inset);
-  align-items: flex-start;
-  /* leave room for the Layers button on the right */
-  max-width: min(360px, calc(100% - 2 * var(--mp-inset) - 120px));
+  /* Under the Layers button: the top left corner belongs to FE-2's search, which would cover these notes. */
+  top: calc(var(--mp-inset) + var(--mp-layers-h) + var(--sp-2, 8px));
+  right: var(--mp-inset);
+  align-items: flex-end;
+  max-width: min(360px, calc(100% - 2 * var(--mp-inset)));
 }
 .mp-root .mp-zone--layers {
+  /* The open menu covers the status notes under the button until it closes. */
+  z-index: calc(var(--z-map-ui, 10) + 1);
   top: var(--mp-inset);
   right: var(--mp-inset);
   /* the open menu stops above the credits strip and scrolls inside if the map is short */
@@ -59,7 +63,8 @@
   right: var(--mp-inset);
   bottom: var(--mp-inset);
   align-items: flex-end;
-  max-width: min(560px, calc(100% - 2 * var(--mp-inset)));
+  /* 240 px stay free bottom left for the cursor readout (FE-4a). */
+  max-width: min(560px, calc(100% - 2 * var(--mp-inset) - 240px));
 }
 
 /* Dark glass. The fallback is the requested rgba(10,16,30,.72); FE-1's --surface-glass (0.9) replaces it. */
@@ -190,16 +195,108 @@
   margin-right: 6px;
   vertical-align: -1px;
 }
-/* Same colours as the sky-map.html overlays: SPHEREx grid outline and Gaia circles. */
+/* Same colours and shapes as the sky-map.html overlays: SPHEREx grid outline, Gaia circles, target squares. */
 .mp-root .mp-swatch--footprint { border: 2px solid var(--src-spherex, #7cc4ff); border-radius: 1px; }
 .mp-root .mp-swatch--gaia { width: 9px; border: 1.5px solid var(--src-gaia, #6ff4f1); border-radius: 50%; }
+.mp-root .mp-swatch--targets { width: 9px; border: 1.5px solid var(--src-catalog, #f5c26b); border-radius: 1px; }
 .mp-root .mp-swatch--allwise { height: 6px; vertical-align: 1px; background: var(--src-catalog, #f5c26b); border-radius: 2px; }
 
+/* "Zoom in to see Gaia stars" (status zone): information only, the map keeps the pointer. */
+.mp-root .mp-zone > .mp-zoom-hint { pointer-events: none; }
+
+/* Cursor readout (bottom left, fill layout only). Aladin keeps its zoom and FOV bar in that corner (3 px from the
+   edges, 28 px tall), so the readout sits just above it. */
+.mp-root .mp-zone--readout {
+  left: var(--mp-inset);
+  bottom: calc(var(--mp-inset) + 30px);
+  max-width: calc(100% - 2 * var(--mp-inset));
+}
+.mp-root .mp-zone--readout > * { pointer-events: none; }
+.mp-root .mp-readout {
+  margin: 0;
+  padding: 3px 8px;
+  font-family: var(--font-mono, ui-monospace, 'Cascadia Mono', 'SF Mono', Menlo, Consolas, monospace);
+  font-size: var(--fs-xs, 0.75rem);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--text, #e6e9f2);
+  background: var(--surface-glass, rgb(9 13 24 / 0.9));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--r-sm, 6px);
+}
+
+/* Hover card (both layouts): fixed to the viewport in a portal on body, so FE-2's overlays (--z-map-ui) never cover
+   it; ExplorerMap computes the position and keeps it inside .explorer-map. Not scoped to .mp-root, because the card
+   is outside it. width: max-content keeps the measured size independent of where the card currently sits. */
+.mp-card {
+  z-index: var(--z-popover, 40);
+  box-sizing: border-box;
+  width: max-content;
+  max-width: min(300px, calc(100vw - 24px));
+  margin: 0;
+  padding: 8px 10px;
+  display: grid;
+  gap: 2px;
+  font-family: var(--font-ui, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif);
+  font-size: var(--fs-xs, 0.75rem);
+  line-height: 1.4;
+  text-align: left;
+  color: var(--text, #e6e9f2);
+  background: var(--surface-glass, rgb(9 13 24 / 0.9));
+  -webkit-backdrop-filter: blur(var(--glass-blur, 10px));
+  backdrop-filter: blur(var(--glass-blur, 10px));
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: var(--r-md, 10px);
+  box-shadow: var(--shadow-pop, 0 12px 32px rgb(0 0 0 / 0.55));
+  /* A card that only follows the cursor never takes the pointer from the map. */
+  pointer-events: none;
+}
+.mp-card--pinned { pointer-events: auto; padding-right: 30px; }
+/* The source is never told by colour alone: the footer says it in words. */
+.mp-card--gaia { border-left: 3px solid var(--src-gaia, #6ff4f1); }
+.mp-card--targets { border-left: 3px solid var(--src-catalog, #f5c26b); }
+.mp-card p { margin: 0; }
+.mp-card-title {
+  font-size: var(--fs-sm, 0.8125rem);
+  font-weight: var(--fw-bold, 650);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.mp-card-line { font-variant-numeric: tabular-nums; color: var(--text, #e6e9f2); }
+.mp-card .mp-card-footer {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: var(--fs-2xs, 0.6875rem);
+  color: var(--text-2, #c8cfdf);
+}
+.mp-card-close {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--text, #e6e9f2);
+  background: transparent;
+  border: 1px solid var(--line-control, #626d88);
+  border-radius: var(--r-sm, 6px);
+  cursor: pointer;
+}
+.mp-card-close:hover { border-color: var(--accent, #7cc4ff); }
+.mp-card-close:focus-visible { outline: 2px solid var(--accent-strong, #a6e0ff); outline-offset: 1px; }
+
 @media (prefers-reduced-motion: no-preference) {
+  .mp-card { animation: mp-fade-in var(--dur-fast, 120ms) var(--ease-out, cubic-bezier(0.2, 0.8, 0.2, 1)); }
   .mp-root .mp-popover:not([hidden]) { animation: mp-pop-in var(--dur-fast, 120ms) var(--ease-out, cubic-bezier(0.2, 0.8, 0.2, 1)); }
   .mp-root .mp-caret { transition: transform var(--dur-fast, 120ms) ease; }
 }
 @keyframes mp-pop-in { from { opacity: 0; transform: translateY(-4px); } }
+@keyframes mp-fade-in { from { opacity: 0; } }
 
 /* Narrow maps (≤ 900 px of map, so a dock beside it counts too). Aladin keeps its zoom and FOV bar bottom left
    (3 px from the edges, 28 px tall): once the strip can reach that corner it sits above the bar. */
@@ -211,6 +308,17 @@
   .mp-root .mp-zone--credits { bottom: calc(var(--mp-inset) + 30px); }
 }
 @media (pointer: coarse) {
+  .mp-root.mp-fill { --mp-layers-h: var(--touch-min, 44px); }
   .mp-root .mp-layers-button, .mp-root .mp-button, .mp-root .mp-popover select { min-height: var(--touch-min, 44px); }
   .mp-root .mp-check { min-height: var(--touch-min, 44px); }
+  /* No hover on touch: no cursor readout either. The pinned card's close button gets a touch-size target. */
+  .mp-root .mp-zone--readout { display: none; }
+  .mp-card--pinned { padding-right: 52px; }
+  .mp-card-close { width: var(--touch-min, 44px); height: var(--touch-min, 44px); top: 0; right: 0; border: 0; }
+  .mp-root .mp-zone--credits { max-width: min(560px, calc(100% - 2 * var(--mp-inset))); }
+}
+/* Too narrow for the readout beside the credits: the credits take the width back. */
+@container mp-map (max-width: 600px) {
+  .mp-root .mp-zone--readout { display: none; }
+  .mp-root .mp-zone--credits { max-width: min(560px, calc(100% - 2 * var(--mp-inset))); }
 }
