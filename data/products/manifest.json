@@ -1,6 +1,6 @@
 {
-  "schema_version": "0.4.0",
-  "generated_at": "2026-11-15T05:12:09.466694Z",
+  "schema_version": "0.8.0",
+  "generated_at": "2026-11-15T20:48:48.745377Z",
   "synthetic": false,
   "fields": [
     {
@@ -75,7 +75,7 @@
     {
       "id": "rw-aurigae",
       "name": "RW Aurigae",
-      "description": "Official test target. Young T Tauri star (A+B, 1.5\" apart, unresolved): it does not move, it changes brightness. Saturated in D2–D6; measured offline on unsaturated D1 exposures at matched wavelength, it brightened by about 1 mag (0.75–0.77 µm) from Sep 2025 to Sep 2026. The images here do not show that change. The light curve below plots those D1 measurements of the blended pair; saturation removes most exposures of the bright state.",
+      "description": "Official test target. Young T Tauri star (A+B, 1.5\" apart, unresolved): it does not move, it changes brightness. Saturated in D2–D6; measured offline on unsaturated D1 exposures at matched wavelength, it brightened by about 1 mag (0.75–0.77 µm) from Sep 2025 to Sep 2026. In the B/W blink only the D1 frames can show it (a 2.6x display-level brightness ratio between 2025W36_1A_0233_3D1 and 2026W37_1A_0234_3D1, measured on the published images); the D2–D6 cores are saturated. Brightness for science comes from the FITS light curve below, which plots those D1 measurements of the blended pair; saturation removes most exposures of the bright state.",
       "tags": [
         "official-target",
         "variable"

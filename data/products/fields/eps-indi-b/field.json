@@ -797,375 +797,6 @@
       }
     }
   ],
-  "provenance": {
-    "pipeline_version": "0.1.0",
-    "built_at": "2026-11-15T04:06:01.643573Z",
-    "synthetic": false,
-    "data_releases": [
-      "dr1",
-      "qr3"
-    ],
-    "notes": [
-      "Automatic detection and catalog matching were not run.",
-      "Pixel values and stretch limits are IMAGE - ZODI (SPHEREx zodiacal model subtracted) in MJy/sr; PNGs use an asinh mapping with the same contrast for every frame of a detector, and transparent pixels mean no data. Saturated star cores that SPHEREx left empty (NaN) and detector-defect pixels (NONFUNC, HOT, COLD, PERSIST, SNOWBALL, and SUR_ERROR that is not part of a star's profile, e.g. cosmic-ray hits) are filled from their neighbours for display only; SUR_ERROR pixels on a star and finite OVERFLOW pixels are shown as recorded. All of them count as invalid in valid_fraction. Highlight roll-off where the target at the centre outshines the field's bright end (Stretch.vmax) and its core is unflagged (not saturated) in most frames: instead of clipping to white, values above vmax are compressed logarithmically into the top 15% of the grey range, so the target's brightness changes stay visible in the blink; vmax maps to 85% grey, so these detectors look 15% dimmer than the others (D2: white = vmax + 17.6 MJy/sr; D3: white = vmax + 13.5 MJy/sr; D4: white = vmax + 2.76 MJy/sr; D5: white = vmax + 22 MJy/sr; D6: white = vmax + 5.49 MJy/sr). thumb.png is a D5 frame.",
-      "Frame selection: downloaded 80 candidate frame(s) (up to 2 x max_frames=40) and kept 40, spread round-robin over seasons x detectors; inside each (season, detector) the frames whose wavelength at the field centre is closest to a per-detector reference (D1 0.869 um, D2 1.505 um, D3 1.740 um, D4 2.498 um, D5 4.175 um, D6 4.508 um) come first, then those nearest the season middle; frames without a known wavelength rank last. Rejected 2 bad frame(s) whose IMAGE - ZODI robust scatter exceeds 15x the noise of their VARIANCE plane (background steps). Downloaded 75 more D2/D3 frame(s) only to find J/H/Ks wavelengths for the false-color composites; they are not blink frames.",
-      "Registration check: every frame's field stars were compared with their median position over the field's candidate frames (all detectors: a correct WCS puts a star at the same grid position at every wavelength); 75 of 78 blink candidate frame(s) and 74 of 75 J/H/Ks top-up frame(s) checked (kept: median 0.04 px, max 0.25 px); the other 4 had fewer than 3 field stars measurable to 0.15 px (e.g. around a saturated target) or too few frames for a consensus, and were kept unchecked.",
-      "False-color composites: 4 'detectors' and 3 'jhk' season composite(s) (infrared, not true color). detectors = full range: blue = D1 (fallback D2), green = D3 (D4), red = D6 (D5), coadds of the season's published frames. jhk = 2MASS-like: blue / green / red = coadd of the season's downloaded exposures (including unpublished candidates) within 0.06 um of J 1.25 / H 1.65 / Ks 2.17 um at the field centre, else the nearest one within 0.12 um. Each channel: one weight per frame, sky removed, bad pixels left out; a pixel bad in every frame of a channel (saturated core, detector defect, ramp-fit error) is drawn neutral at the brightest channel's level, so saturated cores look white (display only). Green spans 2 sigma below the sky to the bright end of its usable pixels; red and blue are scaled to green by the median field-star flux ratio (target halo excluded), so typical field stars look white; limits shared by every season with the same detectors; colour-preserving asinh (Lupton et al. 2004). Skipped: jhk S0: no exposure within 0.12 um of red (Ks 2.17 um); nearest 2.376 um.",
-      "Skipped 2 frame(s): 2025W17_4B_0468_1D1: bad frame: noise 45.5x VARIANCE; 2025W17_4B_0468_2D1: bad frame: noise 24.6x VARIANCE"
-    ]
-  },
-  "composites": [
-    {
-      "id": "detectors_S0",
-      "mode": "detectors",
-      "season": 0,
-      "mjd_min": 60790.26312899,
-      "mjd_max": 60815.131868492,
-      "image": "color/detectors_S0.png",
-      "channels": [
-        {
-          "color": "red",
-          "detector": 6,
-          "wavelength_um": 4.51134296094118,
-          "wavelength_min_um": 4.495023255497726,
-          "wavelength_max_um": 4.527662666384633,
-          "frame_ids": [
-            "2025W19_1B_0344_4D6",
-            "2025W21_1B_0227_1D6"
-          ]
-        },
-        {
-          "color": "green",
-          "detector": 3,
-          "wavelength_um": 1.7439712975148665,
-          "wavelength_min_um": 1.724156697463948,
-          "wavelength_max_um": 1.763785897565785,
-          "frame_ids": [
-            "2025W19_1B_0344_4D3",
-            "2025W21_1B_0227_1D3"
-          ]
-        },
-        {
-          "color": "blue",
-          "detector": 1,
-          "wavelength_um": 0.7564682410748427,
-          "wavelength_min_um": 0.7564682410748427,
-          "wavelength_max_um": 0.7564682410748427,
-          "frame_ids": [
-            "2025W17_4B_0077_3D1"
-          ]
-        }
-      ],
-      "notes": [
-        "False color: SPHEREx infrared wavelengths mapped to red, green and blue (infrared, not true color).",
-        "Full range: red = D6 4.51 um, green = D3 1.74 um, blue = D1 0.76 um (mean wavelength at the field centre).",
-        "Colour balance: red and blue scaled to green by the median flux ratio of the field stars (red x0.222, blue x0.745; median of 3 season fit(s)), so typical field stars look white.",
-        "The red channel (D6) is noisy here (pixel noise 4% of its range): isolated red specks are mostly noise, not red objects.",
-        "Colours are relative to the field: typical field stars look roughly white and an object redder than they are looks red."
-      ]
-    },
-    {
-      "id": "detectors_S1",
-      "mode": "detectors",
-      "season": 1,
-      "mjd_min": 60949.54314502,
-      "mjd_max": 60980.445239499,
-      "image": "color/detectors_S1.png",
-      "channels": [
-        {
-          "color": "red",
-          "detector": 6,
-          "wavelength_um": 4.508347846982201,
-          "wavelength_min_um": 4.508235738579831,
-          "wavelength_max_um": 4.508459955384572,
-          "frame_ids": [
-            "2025W40_1A_0559_1D6",
-            "2025W44_2B_0494_1D6"
-          ]
-        },
-        {
-          "color": "green",
-          "detector": 3,
-          "wavelength_um": 1.7401648999356012,
-          "wavelength_min_um": 1.7400250200781182,
-          "wavelength_max_um": 1.7403047797930844,
-          "frame_ids": [
-            "2025W40_1A_0559_1D3",
-            "2025W44_2B_0494_1D3"
-          ]
-        },
-        {
-          "color": "blue",
-          "detector": 1,
-          "wavelength_um": 0.8243449387106545,
-          "wavelength_min_um": 0.7760049038492561,
-          "wavelength_max_um": 0.872684973572053,
-          "frame_ids": [
-            "2025W42_1A_0259_1D1",
-            "2025W43_1A_0019_1D1"
-          ]
-        }
-      ],
-      "notes": [
-        "False color: SPHEREx infrared wavelengths mapped to red, green and blue (infrared, not true color).",
-        "Full range: red = D6 4.51 um, green = D3 1.74 um, blue = D1 0.82 um (mean wavelength at the field centre).",
-        "Colour balance: red and blue scaled to green by the median flux ratio of the field stars (red x0.222, blue x0.745; median of 3 season fit(s)), so typical field stars look white.",
-        "The red channel (D6) is noisy here (pixel noise 4% of its range): isolated red specks are mostly noise, not red objects.",
-        "Colours are relative to the field: typical field stars look roughly white and an object redder than they are looks red."
-      ]
-    },
-    {
-      "id": "detectors_S2",
-      "mode": "detectors",
-      "season": 2,
-      "mjd_min": 61151.898093666,
-      "mjd_max": 61161.26891943,
-      "image": "color/detectors_S2.png",
-      "channels": [
-        {
-          "color": "red",
-          "detector": 6,
-          "wavelength_um": 4.630355889864891,
-          "wavelength_min_um": 4.427989778324276,
-          "wavelength_max_um": 4.832722001405505,
-          "frame_ids": [
-            "2026W18_1A_0529_1D6",
-            "2026W18_2A_0174_2D6"
-          ]
-        },
-        {
-          "color": "green",
-          "detector": 3,
-          "wavelength_um": 1.9062878046226632,
-          "wavelength_min_um": 1.6435923404369084,
-          "wavelength_max_um": 2.168983268808418,
-          "frame_ids": [
-            "2026W18_1A_0529_1D3",
-            "2026W18_2A_0174_2D3"
-          ]
-        },
-        {
-          "color": "blue",
-          "detector": 1,
-          "wavelength_um": 0.9472246613257174,
-          "wavelength_min_um": 0.8694693445215272,
-          "wavelength_max_um": 1.0249799781299074,
-          "frame_ids": [
-            "2026W17_1B_0351_1D1",
-            "2026W18_1A_0032_1D1"
-          ]
-        }
-      ],
-      "notes": [
-        "False color: SPHEREx infrared wavelengths mapped to red, green and blue (infrared, not true color).",
-        "Full range: red = D6 4.63 um, green = D3 1.91 um, blue = D1 0.95 um (mean wavelength at the field centre).",
-        "Colour balance: red and blue scaled to green by the median flux ratio of the field stars (red x0.222, blue x0.745; median of 3 season fit(s)), so typical field stars look white.",
-        "The red channel (D6) is noisy here (pixel noise 4% of its range): isolated red specks are mostly noise, not red objects.",
-        "Colours are relative to the field: typical field stars look roughly white and an object redder than they are looks red."
-      ]
-    },
-    {
-      "id": "detectors_S3",
-      "mode": "detectors",
-      "season": 3,
-      "mjd_min": 61308.281933805,
-      "mjd_max": 61313.307759557,
-      "image": "color/detectors_S3.png",
-      "channels": [
-        {
-          "color": "red",
-          "detector": 6,
-          "wavelength_um": 4.639905306002266,
-          "wavelength_min_um": 4.623029582962142,
-          "wavelength_max_um": 4.65678102904239,
-          "frame_ids": [
-            "2026W39_2A_0169_1D6",
-            "2026W39_2A_0169_2D6"
-          ]
-        },
-        {
-          "color": "green",
-          "detector": 3,
-          "wavelength_um": 1.9076008669323654,
-          "wavelength_min_um": 1.8857081401846245,
-          "wavelength_max_um": 1.9294935936801063,
-          "frame_ids": [
-            "2026W39_2A_0169_1D3",
-            "2026W39_2A_0169_2D3"
-          ]
-        },
-        {
-          "color": "blue",
-          "detector": 2,
-          "wavelength_um": 1.4742681698226001,
-          "wavelength_min_um": 1.3690201971687508,
-          "wavelength_max_um": 1.5795161424764494,
-          "frame_ids": [
-            "2026W40_1A_0453_1D2",
-            "2026W40_1A_0518_1D2"
-          ]
-        }
-      ],
-      "notes": [
-        "False color: SPHEREx infrared wavelengths mapped to red, green and blue (infrared, not true color).",
-        "Full range: red = D6 4.64 um, green = D3 1.91 um, blue = D2 1.47 um (mean wavelength at the field centre).",
-        "blue uses D2: no usable D1 frame in this season.",
-        "Colour balance: red and blue scaled to green by the median flux ratio of the field stars (red x0.246, blue x1.15; median of 1 season fit(s)), so typical field stars look white.",
-        "The red channel (D6) is noisy here (pixel noise 5% of its range): isolated red specks are mostly noise, not red objects.",
-        "Colours are relative to the field: typical field stars look roughly white and an object redder than they are looks red."
-      ]
-    },
-    {
-      "id": "jhk_S1",
-      "mode": "jhk",
-      "season": 1,
-      "mjd_min": 60950.021856803,
-      "mjd_max": 60986.966340506,
-      "image": "color/jhk_S1.png",
-      "channels": [
-        {
-          "color": "red",
-          "detector": 3,
-          "wavelength_um": 2.188561815349268,
-          "wavelength_min_um": 2.188561815349268,
-          "wavelength_max_um": 2.188561815349268,
-          "frame_ids": [
-            "2025W41_1A_0052_1D3"
-          ]
-        },
-        {
-          "color": "green",
-          "detector": 2,
-          "wavelength_um": 1.6177100687531074,
-          "wavelength_min_um": 1.6177100687531074,
-          "wavelength_max_um": 1.6177100687531074,
-          "frame_ids": [
-            "2025W40_2B_0093_3D2"
-          ]
-        },
-        {
-          "color": "blue",
-          "detector": 2,
-          "wavelength_um": 1.2524829237924373,
-          "wavelength_min_um": 1.2169610225870822,
-          "wavelength_max_um": 1.3062538615942971,
-          "frame_ids": [
-            "2025W40_1A_0661_3D2",
-            "2025W40_1A_0661_4D2",
-            "2025W40_2B_0107_1D2",
-            "2025W41_1A_0081_1D2",
-            "2025W45_2A_0315_1D2"
-          ]
-        }
-      ],
-      "notes": [
-        "False color: SPHEREx infrared wavelengths mapped to red, green and blue (infrared, not true color).",
-        "2MASS-like: each channel holds narrow SPHEREx samples near J, H or Ks, not the 2MASS filters or 2MASS photometry. red = D3 2.19 um, green = D2 1.62 um, blue = D2 1.25 um (mean wavelength at the field centre).",
-        "Colour balance: red and blue scaled to green by the median flux ratio of the field stars (red x0.697, blue x0.911; median of 3 season fit(s)), so typical field stars look white.",
-        "Colours are relative to the field: typical field stars look roughly white and an object redder than they are looks red."
-      ]
-    },
-    {
-      "id": "jhk_S2",
-      "mode": "jhk",
-      "season": 2,
-      "mjd_min": 61155.092015819,
-      "mjd_max": 61161.26891943,
-      "image": "color/jhk_S2.png",
-      "channels": [
-        {
-          "color": "red",
-          "detector": 3,
-          "wavelength_um": 2.168983268808418,
-          "wavelength_min_um": 2.168983268808418,
-          "wavelength_max_um": 2.168983268808418,
-          "frame_ids": [
-            "2026W18_1A_0529_1D3"
-          ]
-        },
-        {
-          "color": "green",
-          "detector": 3,
-          "wavelength_um": 1.6435923404369084,
-          "wavelength_min_um": 1.6435923404369084,
-          "wavelength_max_um": 1.6435923404369084,
-          "frame_ids": [
-            "2026W18_2A_0174_2D3"
-          ]
-        },
-        {
-          "color": "blue",
-          "detector": 2,
-          "wavelength_um": 1.305040093631503,
-          "wavelength_min_um": 1.305040093631503,
-          "wavelength_max_um": 1.305040093631503,
-          "frame_ids": [
-            "2026W17_2A_0355_1D2"
-          ]
-        }
-      ],
-      "notes": [
-        "False color: SPHEREx infrared wavelengths mapped to red, green and blue (infrared, not true color).",
-        "2MASS-like: each channel holds narrow SPHEREx samples near J, H or Ks, not the 2MASS filters or 2MASS photometry. red = D3 2.17 um, green = D3 1.64 um, blue = D2 1.31 um (mean wavelength at the field centre).",
-        "Colour balance: red and blue scaled to green by the median flux ratio of the field stars (red x0.697, blue x0.911; median of 3 season fit(s)), so typical field stars look white.",
-        "Colours are relative to the field: typical field stars look roughly white and an object redder than they are looks red."
-      ]
-    },
-    {
-      "id": "jhk_S3",
-      "mode": "jhk",
-      "season": 3,
-      "mjd_min": 61308.215137648,
-      "mjd_max": 61315.274302844,
-      "image": "color/jhk_S3.png",
-      "channels": [
-        {
-          "color": "red",
-          "detector": 3,
-          "wavelength_um": 2.2611154822440644,
-          "wavelength_min_um": 2.2611154822440644,
-          "wavelength_max_um": 2.2611154822440644,
-          "frame_ids": [
-            "2026W39_2A_0155_1D3"
-          ]
-        },
-        {
-          "color": "green",
-          "detector": null,
-          "wavelength_um": 1.6281321776385136,
-          "wavelength_min_um": 1.5988715446474089,
-          "wavelength_max_um": 1.6571048863665883,
-          "frame_ids": [
-            "2026W39_2A_0312_3D3",
-            "2026W39_2A_0312_4D3",
-            "2026W40_2A_0172_1D2",
-            "2026W40_2A_0172_2D2"
-          ]
-        },
-        {
-          "color": "blue",
-          "detector": 2,
-          "wavelength_um": 1.2411055847067742,
-          "wavelength_min_um": 1.2034788488921466,
-          "wavelength_max_um": 1.2913944647268698,
-          "frame_ids": [
-            "2026W40_1A_0613_1D2",
-            "2026W40_1A_0734_3D2",
-            "2026W40_2A_0143_1D2",
-            "2026W40_2A_0143_2D2",
-            "2026W40_2A_0143_3D2"
-          ]
-        }
-      ],
-      "notes": [
-        "False color: SPHEREx infrared wavelengths mapped to red, green and blue (infrared, not true color).",
-        "2MASS-like: each channel holds narrow SPHEREx samples near J, H or Ks, not the 2MASS filters or 2MASS photometry. red = D3 2.26 um, green = D2+D3 1.63 um, blue = D2 1.24 um (mean wavelength at the field centre).",
-        "red (Ks 2.17 um) uses the nearest exposure, 2.261 um (0.091 um away): none within 0.06 um.",
-        "Colour balance: red and blue scaled to green by the median flux ratio of the field stars (red x0.697, blue x0.911; median of 3 season fit(s)), so typical field stars look white.",
-        "Colours are relative to the field: typical field stars look roughly white and an object redder than they are looks red."
-      ]
-    }
-  ],
   "frame_flags": {
     "2025W17_4B_0077_3D1": {
       "coverage_fraction": 1.0,
@@ -2247,5 +1878,380 @@
         "HALO": 0.013946280991735538
       }
     }
-  }
+  },
+  "provenance": {
+    "pipeline_version": "0.1.0",
+    "built_at": "2026-11-15T04:06:01.643573Z",
+    "synthetic": false,
+    "data_releases": [
+      "dr1",
+      "qr3"
+    ],
+    "notes": [
+      "Automatic detection and catalog matching were not run.",
+      "Pixel values and stretch limits are IMAGE - ZODI (SPHEREx zodiacal model subtracted) in MJy/sr; PNGs use an asinh mapping with the same contrast for every frame of a detector, and transparent pixels mean no data. Saturated star cores that SPHEREx left empty (NaN) and detector-defect pixels (NONFUNC, HOT, COLD, PERSIST, SNOWBALL, and SUR_ERROR that is not part of a star's profile, e.g. cosmic-ray hits) are filled from their neighbours for display only; SUR_ERROR pixels on a star and finite OVERFLOW pixels are shown as recorded. All of them count as invalid in valid_fraction. Highlight roll-off where the target at the centre outshines the field's bright end (Stretch.vmax) and its core is unflagged (not saturated) in most frames: instead of clipping to white, values above vmax are compressed logarithmically into the top 15% of the grey range, so the target's brightness changes stay visible in the blink; vmax maps to 85% grey, so these detectors look 15% dimmer than the others (D2: white = vmax + 17.6 MJy/sr; D3: white = vmax + 13.5 MJy/sr; D4: white = vmax + 2.76 MJy/sr; D5: white = vmax + 22 MJy/sr; D6: white = vmax + 5.49 MJy/sr). thumb.png is a D5 frame.",
+      "Frame selection: downloaded 80 candidate frame(s) (up to 2 x max_frames=40) and kept 40, spread round-robin over seasons x detectors; inside each (season, detector) the frames whose wavelength at the field centre is closest to a per-detector reference (D1 0.869 um, D2 1.505 um, D3 1.740 um, D4 2.498 um, D5 4.175 um, D6 4.508 um) come first, then those nearest the season middle; frames without a known wavelength rank last. Rejected 2 bad frame(s) whose IMAGE - ZODI robust scatter exceeds 15x the noise of their VARIANCE plane (background steps). Downloaded 75 more D2/D3 frame(s) only to find J/H/Ks wavelengths for the false-color composites; they are not blink frames.",
+      "Registration check: every frame's field stars were compared with their median position over the field's candidate frames (all detectors: a correct WCS puts a star at the same grid position at every wavelength); 75 of 78 blink candidate frame(s) and 74 of 75 J/H/Ks top-up frame(s) checked (kept: median 0.04 px, max 0.25 px); the other 4 had fewer than 3 field stars measurable to 0.15 px (e.g. around a saturated target) or too few frames for a consensus, and were kept unchecked.",
+      "False-color composites: 4 'detectors' and 3 'jhk' season composite(s) (infrared, not true color). detectors = full range: blue = D1 (fallback D2), green = D3 (D4), red = D6 (D5), coadds of the season's published frames. jhk = 2MASS-like: blue / green / red = coadd of the season's downloaded exposures (including unpublished candidates) within 0.06 µm of J 1.25 / H 1.65 / Ks 2.17 µm at the field centre, else the nearest one within 0.12 µm. Each channel: one weight per frame, sky removed, bad pixels left out; a pixel bad in every frame of a channel (saturated core, detector defect, ramp-fit error) is drawn neutral at the brightest channel's level, so saturated cores look white (display only). Green spans 2 sigma below the sky to the bright end of its usable pixels; red and blue are scaled to green by the median field-star flux ratio (target halo excluded), so typical field stars look white; limits shared by every season with the same detectors; a noisy channel (pixel noise above 3% of its range) has its black point raised to the sky + 2 sigma, so its speckle goes black; colour-preserving asinh (Lupton et al. 2004). Skipped: jhk S0: no exposure within 0.12 µm of red (Ks 2.17 µm); nearest 2.376 µm.",
+      "Skipped 2 frame(s): 2025W17_4B_0468_1D1: bad frame: noise 45.5x VARIANCE; 2025W17_4B_0468_2D1: bad frame: noise 24.6x VARIANCE",
+      "Updated in place on 2026-11-15 20:48 UTC (WS2): false-color composites and provenance/composite notes regenerated with the current pipeline from the same frames (frame PNGs, frame metadata and frame_flags unchanged; built_at is the build time of those frames)."
+    ]
+  },
+  "composites": [
+    {
+      "id": "detectors_S0",
+      "mode": "detectors",
+      "season": 0,
+      "mjd_min": 60790.26312899,
+      "mjd_max": 60815.131868492,
+      "image": "color/detectors_S0.png",
+      "channels": [
+        {
+          "color": "red",
+          "detector": 6,
+          "wavelength_um": 4.51134296094118,
+          "wavelength_min_um": 4.495023255497726,
+          "wavelength_max_um": 4.527662666384633,
+          "frame_ids": [
+            "2025W19_1B_0344_4D6",
+            "2025W21_1B_0227_1D6"
+          ]
+        },
+        {
+          "color": "green",
+          "detector": 3,
+          "wavelength_um": 1.7439712975148665,
+          "wavelength_min_um": 1.724156697463948,
+          "wavelength_max_um": 1.763785897565785,
+          "frame_ids": [
+            "2025W19_1B_0344_4D3",
+            "2025W21_1B_0227_1D3"
+          ]
+        },
+        {
+          "color": "blue",
+          "detector": 1,
+          "wavelength_um": 0.7564682410748427,
+          "wavelength_min_um": 0.7564682410748427,
+          "wavelength_max_um": 0.7564682410748427,
+          "frame_ids": [
+            "2025W17_4B_0077_3D1"
+          ]
+        }
+      ],
+      "notes": [
+        "False color: SPHEREx infrared wavelengths mapped to red, green and blue (infrared, not true color).",
+        "Full range: red = D6 4.51 µm, green = D3 1.74 µm, blue = D1 0.76 µm (mean wavelength at the field centre).",
+        "Seasons use different detectors (red/green/blue = S0, S1, S2: D6/D3/D1; S3: D6/D3/D2): colour differences between them can be instrumental (other wavelengths), so they are not evidence of a colour change of the object.",
+        "Colour balance: red and blue scaled to green by the median flux ratio of the field stars (red x0.222, blue x0.745; median of 3 season fit(s)), so typical field stars look white.",
+        "The red channel (D6, 2 frame(s)) is noisy here (pixel noise 4% of its colour-balanced range), so its black point is raised to 2 sigma of that noise above the sky: most noise specks are black, but faint red light is hidden too (faint field stars look cyan), and isolated red specks that remain are mostly noise, not red objects.",
+        "Colours are relative to the field: typical field stars look roughly white and an object redder than they are looks red."
+      ]
+    },
+    {
+      "id": "detectors_S1",
+      "mode": "detectors",
+      "season": 1,
+      "mjd_min": 60949.54314502,
+      "mjd_max": 60980.445239499,
+      "image": "color/detectors_S1.png",
+      "channels": [
+        {
+          "color": "red",
+          "detector": 6,
+          "wavelength_um": 4.508347846982201,
+          "wavelength_min_um": 4.508235738579831,
+          "wavelength_max_um": 4.508459955384572,
+          "frame_ids": [
+            "2025W40_1A_0559_1D6",
+            "2025W44_2B_0494_1D6"
+          ]
+        },
+        {
+          "color": "green",
+          "detector": 3,
+          "wavelength_um": 1.7401648999356012,
+          "wavelength_min_um": 1.7400250200781182,
+          "wavelength_max_um": 1.7403047797930844,
+          "frame_ids": [
+            "2025W40_1A_0559_1D3",
+            "2025W44_2B_0494_1D3"
+          ]
+        },
+        {
+          "color": "blue",
+          "detector": 1,
+          "wavelength_um": 0.8243449387106545,
+          "wavelength_min_um": 0.7760049038492561,
+          "wavelength_max_um": 0.872684973572053,
+          "frame_ids": [
+            "2025W42_1A_0259_1D1",
+            "2025W43_1A_0019_1D1"
+          ]
+        }
+      ],
+      "notes": [
+        "False color: SPHEREx infrared wavelengths mapped to red, green and blue (infrared, not true color).",
+        "Full range: red = D6 4.51 µm, green = D3 1.74 µm, blue = D1 0.82 µm (mean wavelength at the field centre).",
+        "Seasons use different detectors (red/green/blue = S0, S1, S2: D6/D3/D1; S3: D6/D3/D2): colour differences between them can be instrumental (other wavelengths), so they are not evidence of a colour change of the object.",
+        "Curated caveat (checked by eye on 2026-11-15, not an automatic test): both D6 exposures of this season (2025W40_1A_0559_1D6, 2025W44_2B_0494_1D6) show a red band about 35 px long from the target toward the lower right that no other season shows. In the original detector images it runs along the detector rows, and no SPHEREx flag marks it: an instrumental artifact of unknown cause, not motion of the target.",
+        "Colour balance: red and blue scaled to green by the median flux ratio of the field stars (red x0.222, blue x0.745; median of 3 season fit(s)), so typical field stars look white.",
+        "The red channel (D6, 2 frame(s)) is noisy here (pixel noise 4% of its colour-balanced range), so its black point is raised to 2 sigma of that noise above the sky: most noise specks are black, but faint red light is hidden too (faint field stars look cyan), and isolated red specks that remain are mostly noise, not red objects.",
+        "Colours are relative to the field: typical field stars look roughly white and an object redder than they are looks red."
+      ]
+    },
+    {
+      "id": "detectors_S2",
+      "mode": "detectors",
+      "season": 2,
+      "mjd_min": 61151.898093666,
+      "mjd_max": 61161.26891943,
+      "image": "color/detectors_S2.png",
+      "channels": [
+        {
+          "color": "red",
+          "detector": 6,
+          "wavelength_um": 4.630355889864891,
+          "wavelength_min_um": 4.427989778324276,
+          "wavelength_max_um": 4.832722001405505,
+          "frame_ids": [
+            "2026W18_1A_0529_1D6",
+            "2026W18_2A_0174_2D6"
+          ]
+        },
+        {
+          "color": "green",
+          "detector": 3,
+          "wavelength_um": 1.9062878046226632,
+          "wavelength_min_um": 1.6435923404369084,
+          "wavelength_max_um": 2.168983268808418,
+          "frame_ids": [
+            "2026W18_1A_0529_1D3",
+            "2026W18_2A_0174_2D3"
+          ]
+        },
+        {
+          "color": "blue",
+          "detector": 1,
+          "wavelength_um": 0.9472246613257174,
+          "wavelength_min_um": 0.8694693445215272,
+          "wavelength_max_um": 1.0249799781299074,
+          "frame_ids": [
+            "2026W17_1B_0351_1D1",
+            "2026W18_1A_0032_1D1"
+          ]
+        }
+      ],
+      "notes": [
+        "False color: SPHEREx infrared wavelengths mapped to red, green and blue (infrared, not true color).",
+        "Full range: red = D6 4.63 µm, green = D3 1.91 µm, blue = D1 0.95 µm (mean wavelength at the field centre).",
+        "Seasons use different detectors (red/green/blue = S0, S1, S2: D6/D3/D1; S3: D6/D3/D2): colour differences between them can be instrumental (other wavelengths), so they are not evidence of a colour change of the object.",
+        "Colour balance: red and blue scaled to green by the median flux ratio of the field stars (red x0.222, blue x0.745; median of 3 season fit(s)), so typical field stars look white.",
+        "The red channel (D6, 2 frame(s)) is noisy here (pixel noise 4% of its colour-balanced range), so its black point is raised to 2 sigma of that noise above the sky: most noise specks are black, but faint red light is hidden too (faint field stars look cyan), and isolated red specks that remain are mostly noise, not red objects.",
+        "Colours are relative to the field: typical field stars look roughly white and an object redder than they are looks red."
+      ]
+    },
+    {
+      "id": "detectors_S3",
+      "mode": "detectors",
+      "season": 3,
+      "mjd_min": 61308.281933805,
+      "mjd_max": 61313.307759557,
+      "image": "color/detectors_S3.png",
+      "channels": [
+        {
+          "color": "red",
+          "detector": 6,
+          "wavelength_um": 4.639905306002266,
+          "wavelength_min_um": 4.623029582962142,
+          "wavelength_max_um": 4.65678102904239,
+          "frame_ids": [
+            "2026W39_2A_0169_1D6",
+            "2026W39_2A_0169_2D6"
+          ]
+        },
+        {
+          "color": "green",
+          "detector": 3,
+          "wavelength_um": 1.9076008669323654,
+          "wavelength_min_um": 1.8857081401846245,
+          "wavelength_max_um": 1.9294935936801063,
+          "frame_ids": [
+            "2026W39_2A_0169_1D3",
+            "2026W39_2A_0169_2D3"
+          ]
+        },
+        {
+          "color": "blue",
+          "detector": 2,
+          "wavelength_um": 1.4742681698226001,
+          "wavelength_min_um": 1.3690201971687508,
+          "wavelength_max_um": 1.5795161424764494,
+          "frame_ids": [
+            "2026W40_1A_0453_1D2",
+            "2026W40_1A_0518_1D2"
+          ]
+        }
+      ],
+      "notes": [
+        "False color: SPHEREx infrared wavelengths mapped to red, green and blue (infrared, not true color).",
+        "Full range: red = D6 4.64 µm, green = D3 1.91 µm, blue = D2 1.47 µm (mean wavelength at the field centre).",
+        "blue uses D2: no usable D1 frame in this season.",
+        "Seasons use different detectors (red/green/blue = S0, S1, S2: D6/D3/D1; S3: D6/D3/D2): colour differences between them can be instrumental (other wavelengths), so they are not evidence of a colour change of the object.",
+        "Colour balance: red and blue scaled to green by the median flux ratio of the field stars (red x0.246, blue x1.15; median of 1 season fit(s)), so typical field stars look white.",
+        "The red channel (D6, 2 frame(s)) is noisy here (pixel noise 5% of its colour-balanced range), so its black point is raised to 2 sigma of that noise above the sky: most noise specks are black, but faint red light is hidden too (faint field stars look cyan), and isolated red specks that remain are mostly noise, not red objects.",
+        "Colours are relative to the field: typical field stars look roughly white and an object redder than they are looks red."
+      ]
+    },
+    {
+      "id": "jhk_S1",
+      "mode": "jhk",
+      "season": 1,
+      "mjd_min": 60950.021856803,
+      "mjd_max": 60986.966340506,
+      "image": "color/jhk_S1.png",
+      "channels": [
+        {
+          "color": "red",
+          "detector": 3,
+          "wavelength_um": 2.188561815349268,
+          "wavelength_min_um": 2.188561815349268,
+          "wavelength_max_um": 2.188561815349268,
+          "frame_ids": [
+            "2025W41_1A_0052_1D3"
+          ]
+        },
+        {
+          "color": "green",
+          "detector": 2,
+          "wavelength_um": 1.6177100687531074,
+          "wavelength_min_um": 1.6177100687531074,
+          "wavelength_max_um": 1.6177100687531074,
+          "frame_ids": [
+            "2025W40_2B_0093_3D2"
+          ]
+        },
+        {
+          "color": "blue",
+          "detector": 2,
+          "wavelength_um": 1.2524829237924373,
+          "wavelength_min_um": 1.2169610225870822,
+          "wavelength_max_um": 1.3062538615942971,
+          "frame_ids": [
+            "2025W40_1A_0661_3D2",
+            "2025W40_1A_0661_4D2",
+            "2025W40_2B_0107_1D2",
+            "2025W41_1A_0081_1D2",
+            "2025W45_2A_0315_1D2"
+          ]
+        }
+      ],
+      "notes": [
+        "False color: SPHEREx infrared wavelengths mapped to red, green and blue (infrared, not true color).",
+        "2MASS-like: each channel holds narrow SPHEREx samples near J, H or Ks, not the 2MASS filters or 2MASS photometry. red = D3 2.19 µm, green = D2 1.62 µm, blue = D2 1.25 µm (mean wavelength at the field centre).",
+        "Colour balance: red and blue scaled to green by the median flux ratio of the field stars (red x0.697, blue x0.911; median of 3 season fit(s)), so typical field stars look white.",
+        "Colours are relative to the field: typical field stars look roughly white and an object redder than they are looks red."
+      ]
+    },
+    {
+      "id": "jhk_S2",
+      "mode": "jhk",
+      "season": 2,
+      "mjd_min": 61155.092015819,
+      "mjd_max": 61161.26891943,
+      "image": "color/jhk_S2.png",
+      "channels": [
+        {
+          "color": "red",
+          "detector": 3,
+          "wavelength_um": 2.168983268808418,
+          "wavelength_min_um": 2.168983268808418,
+          "wavelength_max_um": 2.168983268808418,
+          "frame_ids": [
+            "2026W18_1A_0529_1D3"
+          ]
+        },
+        {
+          "color": "green",
+          "detector": 3,
+          "wavelength_um": 1.6435923404369084,
+          "wavelength_min_um": 1.6435923404369084,
+          "wavelength_max_um": 1.6435923404369084,
+          "frame_ids": [
+            "2026W18_2A_0174_2D3"
+          ]
+        },
+        {
+          "color": "blue",
+          "detector": 2,
+          "wavelength_um": 1.305040093631503,
+          "wavelength_min_um": 1.305040093631503,
+          "wavelength_max_um": 1.305040093631503,
+          "frame_ids": [
+            "2026W17_2A_0355_1D2"
+          ]
+        }
+      ],
+      "notes": [
+        "False color: SPHEREx infrared wavelengths mapped to red, green and blue (infrared, not true color).",
+        "2MASS-like: each channel holds narrow SPHEREx samples near J, H or Ks, not the 2MASS filters or 2MASS photometry. red = D3 2.17 µm, green = D3 1.64 µm, blue = D2 1.31 µm (mean wavelength at the field centre).",
+        "Colour balance: red and blue scaled to green by the median flux ratio of the field stars (red x0.697, blue x0.911; median of 3 season fit(s)), so typical field stars look white.",
+        "Colours are relative to the field: typical field stars look roughly white and an object redder than they are looks red."
+      ]
+    },
+    {
+      "id": "jhk_S3",
+      "mode": "jhk",
+      "season": 3,
+      "mjd_min": 61308.215137648,
+      "mjd_max": 61315.274302844,
+      "image": "color/jhk_S3.png",
+      "channels": [
+        {
+          "color": "red",
+          "detector": 3,
+          "wavelength_um": 2.2611154822440644,
+          "wavelength_min_um": 2.2611154822440644,
+          "wavelength_max_um": 2.2611154822440644,
+          "frame_ids": [
+            "2026W39_2A_0155_1D3"
+          ]
+        },
+        {
+          "color": "green",
+          "detector": null,
+          "wavelength_um": 1.6281321776385136,
+          "wavelength_min_um": 1.5988715446474089,
+          "wavelength_max_um": 1.6571048863665883,
+          "frame_ids": [
+            "2026W39_2A_0312_3D3",
+            "2026W39_2A_0312_4D3",
+            "2026W40_2A_0172_1D2",
+            "2026W40_2A_0172_2D2"
+          ]
+        },
+        {
+          "color": "blue",
+          "detector": 2,
+          "wavelength_um": 1.2411055847067742,
+          "wavelength_min_um": 1.2034788488921466,
+          "wavelength_max_um": 1.2913944647268698,
+          "frame_ids": [
+            "2026W40_1A_0613_1D2",
+            "2026W40_1A_0734_3D2",
+            "2026W40_2A_0143_1D2",
+            "2026W40_2A_0143_2D2",
+            "2026W40_2A_0143_3D2"
+          ]
+        }
+      ],
+      "notes": [
+        "False color: SPHEREx infrared wavelengths mapped to red, green and blue (infrared, not true color).",
+        "2MASS-like: each channel holds narrow SPHEREx samples near J, H or Ks, not the 2MASS filters or 2MASS photometry. red = D3 2.26 µm, green = D2+D3 1.63 µm, blue = D2 1.24 µm (mean wavelength at the field centre).",
+        "red (Ks 2.17 µm) uses the nearest exposure, 2.261 µm (0.091 µm away): none within 0.06 µm.",
+        "Colour balance: red and blue scaled to green by the median flux ratio of the field stars (red x0.697, blue x0.911; median of 3 season fit(s)), so typical field stars look white.",
+        "Colours are relative to the field: typical field stars look roughly white and an object redder than they are looks red."
+      ]
+    }
+  ]
 }

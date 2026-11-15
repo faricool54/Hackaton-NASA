@@ -1,11 +1,7 @@
 {
   "updated_on": "2026-11-15",
   "tool": "Anthropic Claude Code",
-  "v8": {
-    "tool": "OpenAI Codex",
-    "scope": "Computed per-frame archive flag fractions on the common grid, with real SPHEREx FITS cutouts and no changes to the rendered images."
-  },
-  "scope": "WS2 imaging and comparison (pull requests by V0id47 with Claude Code): reprojection of SPHEREx frames onto the field grid, season x detector frame selection, bad-frame rejection and per-frame registration check, consistent rendering and display-only repairs, season coadds and flux-matched season differences, forced photometry, false-color season composites, their regression tests, and the five published golden fields built by running that code on real NASA SPHEREx exposures; also the additive composites contract (#39), the WS5 blink image-mode toggle (#40) and the WS2 reservation (#13); later the AI-use record (#68), faint-target differences (#69), the published-product check (#70), demo animations (#71) and the task status (#72); plus #88 by faricool54 with Claude Code in WS2's data/products",
+  "scope": "WS2 imaging and comparison (pull requests by V0id47 with Claude Code): reprojection of SPHEREx frames onto the field grid, season x detector frame selection, bad-frame rejection and per-frame registration check, consistent rendering and display-only repairs, season coadds and flux-matched season differences, forced photometry, false-color season composites, their regression tests, and the five published golden fields built by running that code on real NASA SPHEREx exposures; also the additive composites contract (#39), the WS5 blink image-mode toggle (#40) and the WS2 reservation (#13); later the AI-use record (#68), faint-target differences (#69), the published-product check (#70), demo animations (#71) and the task status (#72); the record update (#112), the coadd S/N check (#115) and the honest false-color composites (this rebuild); plus #88 by faricool54 with Claude Code in WS2's data/products, and #119 by mateoa007 with OpenAI Codex (per-frame flag summaries, see other_ai_tools)",
   "affected_paths": [
     "pipeline/errante/imaging/",
     "pipeline/errante/detect/difference.py",
@@ -45,7 +41,7 @@
   "generated_media": [],
   "real_target_validation": false,
   "real_target_validation_basis": "The formal R05 per-target validation records are the coordinator's (docs/validation/, chore PRs #36 and #46) and their human review is pending (docs/VALIDATION.md); the golden fields being real SPHEREx data is not that validation",
-  "human_review": "V0id47 directed the work and approved and merged each pull request; a line-by-line human review of the code, tests or products is not claimed",
+  "human_review": "V0id47 directed the work and approved and merged each of their pull requests (and approved #119 by mateoa007 as WS2 owner); a line-by-line human review of the code, tests or products is not claimed",
   "repository_disclosure": "AI_USAGE.md",
   "integration_validation": {
     "source": "real SPHEREx",
@@ -65,8 +61,16 @@
   "provider": "Anthropic",
   "model": "Claude Opus 5.5",
   "model_basis": "Co-Authored-By trailers of the WS2 commits name Claude Opus 5.5; review subagents ran inside Claude Code and their individual models were not recorded",
-  "other_ai_tools": [],
-  "other_ai_tools_basis": "The commits of these pull requests carry only Claude co-author trailers; no other AI model, provider or coding tool, and no PRC-origin one, was used for this work",
+  "other_ai_tools": [
+    {
+      "tool": "OpenAI Codex",
+      "provider": "OpenAI",
+      "developer": "mateoa007",
+      "pull_request": "#119",
+      "scope": "Per-frame archive flag fractions on the common grid (reproject.summarize_flags, FrameFlagSummary, frame_flags in the five published field.json), computed from the real SPHEREx FITS cutouts with no change to the rendered images; V0id47 with Claude Code reviewed the computation and recomputed all 200 summaries independently"
+    }
+  ],
+  "other_ai_tools_basis": "Apart from #119 (OpenAI Codex, by mateoa007), the commits of the WS2 pull requests carry only Claude co-author trailers; no other AI model, provider or coding tool, and no PRC-origin one, was used for this work",
   "ai_review": "Several pull request bodies record review passes run by AI agents in Claude Code (per-target checks in #17, the ECC plugin python-reviewer agent in #31, adversarial reviewers and verifiers in #16, #19, #41 and #48); these are AI reviews, not human reviews",
   "line_by_line_human_review": false,
   "idea_origin": "Not covered by this record: the product vision is recorded in docs/VISION.md and AI_USAGE.md; this record covers implementation work only",
@@ -266,6 +270,36 @@
         "Products: the description text of four published field.json files and manifest.json, copied from the reviewed fields.toml texts (no frame, PNG or other key changed)"
       ],
       "humans": "faricool54 (with Claude Code) authored and merged it in WS2's data/products; V0id47 is the path owner; also listed in WS3's record (pipeline/errante/science/ai-usage.json)"
+    },
+    {
+      "number": 112,
+      "title": "ws2: add #68-#72 and #88 to the WS2 AI-use record",
+      "merged_at": "2026-11-15T18:30:35Z",
+      "ai_generated": [
+        "Record: imaging/ai-usage.json"
+      ],
+      "humans": "V0id47 directed the work and merged it"
+    },
+    {
+      "number": 115,
+      "title": "ws2: validate the season-coadd SNR gain on field stars (WS2-10, V21)",
+      "merged_at": "2026-11-15T18:50:20Z",
+      "ai_generated": [
+        "Code: imaging/snrcheck.py (offline coadd S/N check on field stars of the golden fields)",
+        "Tests: test_imaging_snrcheck.py",
+        "Docs: tasks/WS2-imaging-detection.md (WS2-10 result line)"
+      ],
+      "humans": "V0id47 directed the work and merged it"
+    },
+    {
+      "number": 119,
+      "title": "contract: publica flags de calidad por fotograma (V8)",
+      "merged_at": "2026-11-15T20:40:55Z",
+      "ai_generated": [
+        "Code (OpenAI Codex, see other_ai_tools): reproject.summarize_flags and flags.py header bits in WS2's imaging/, frame_flags in build.py",
+        "Products: frame_flags in the five published field.json (no PNG or other key changed)"
+      ],
+      "humans": "mateoa007 (with OpenAI Codex) authored it; V0id47 with Claude Code reviewed and approved the computation as WS2 owner; faricool54 merged it as coordinator"
     }
   ],
   "trailer_note": "The squash commits of rpccp's #53-#56 also list V0id47 and Claude as co-authors because those branches contained the #39 contract commits; their own AI use is recorded by WS4/WS5 (Codex)"
