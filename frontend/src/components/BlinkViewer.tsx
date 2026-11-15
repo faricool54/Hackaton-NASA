@@ -37,12 +37,27 @@ const STATUS_COLOR: Record<string, string> = {
 
 const ZOOM_LEVELS = [1, 2, 4] as const;
 
-function formatValidPixels(fraction: Frame['valid_fraction'] | undefined): string {
-  if (fraction == null) return 'valid coverage unknown';
+const FRAME_FLAGS = [
+  ['OVERFLOW', 'Saturation'],
+  ['NONLINEAR', 'Nonlinear response'],
+  ['PERSIST', 'Detector persistence'],
+  ['GHOST', 'Optical ghost'],
+  ['GHOST_FPA', 'Focal-plane ghost'],
+  ['GHOST_EXT', 'Extended ghost'],
+  ['STREAK', 'Streak'],
+  ['SNOWBALL', 'Snowball artifact'],
+  ['BLOOM', 'Blooming'],
+  ['HALO', 'Halo'],
+  ['SOURCE', 'Source'],
+  ['OUTLIER', 'Outlier'],
+  ['TRANSIENT', 'Transient'],
+] as const;
+
+function formatPixelFraction(fraction: number): string {
   const percent = fraction * 100;
-  if (percent > 0 && percent < 0.1) return '<0.1% valid pixels';
-  if (percent > 99.9 && percent < 100) return '>99.9% valid pixels';
-  return `${percent.toFixed(1)}% valid pixels`;
+  if (percent > 0 && percent < 0.1) return '<0.1%';
+  if (percent > 99.9 && percent < 100) return '>99.9%';
+  return `${percent.toFixed(1)}%`;
 }
 
 export function BlinkViewer({ field, frames, composites, imageUrl, candidates, known, prediction, selectedId, onSelect }: Props) {
@@ -123,6 +138,7 @@ export function BlinkViewer({ field, frames, composites, imageUrl, candidates, k
   const r = Math.max(2.5, w / 40);
   const stepDate = composite ? seasonRange(composite) : current ? formatMjd(current.mjd) : '';
   const predictedPixel = current && prediction ? predictedFramePixel(field.grid, prediction, current.mjd) : null;
+  const frameFlags = current && field.frame_flags?.[current.id];
   const sourceUri = current?.source_uri;
   const sourceUrl = sourceUri?.startsWith('ibe/data/spherex/')
     ? `https://irsa.ipac.caltech.edu/${sourceUri}`
@@ -367,11 +383,31 @@ export function BlinkViewer({ field, frames, composites, imageUrl, candidates, k
       {current && (
         <details className="object-details small" onKeyDown={(e) => e.stopPropagation()}
           onToggle={(e) => { if (e.currentTarget.open) setPlaying(false); }}>
-          <summary>Frame quality · {formatValidPixels(current.valid_fraction)}</summary>
+          <summary>
+            Frame quality · {current.valid_fraction == null
+              ? 'valid coverage unknown'
+              : `${formatPixelFraction(current.valid_fraction)} valid pixels`}
+          </summary>
           <p className="small muted">
             Valid coverage counts usable pixels across the whole image after masking.
-            Individual saturation and contamination flags are unavailable in the frame metadata.
           </p>
+          {frameFlags ? (
+            <details>
+              <summary>Archive flags · {formatPixelFraction(frameFlags.coverage_fraction)} of grid sampled</summary>
+              <p className="small muted">
+                Each percentage uses the covered part of the image. Flags can overlap.
+                SOURCE marks detected sky sources. OUTLIER or TRANSIENT can mark a moving source.
+              </p>
+              <ul>
+                {FRAME_FLAGS.map(([flag, label]) => {
+                  const fraction = frameFlags.fractions[flag];
+                  return <li key={flag}>{label} ({flag}) · {fraction == null ? 'unknown' : formatPixelFraction(fraction)}</li>;
+                })}
+              </ul>
+            </details>
+          ) : (
+            <p className="small muted">Archive saturation and contamination flags are unavailable for this frame.</p>
+          )}
           <p className="provenance-row small">
             MJD {current.mjd.toFixed(5)} · Observation {current.obs_id}
             {current.bandwidth_um != null && ` · Bandwidth ${current.bandwidth_um.toFixed(3)} µm`}

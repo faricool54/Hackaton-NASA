@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import type { Field, Frame } from '../api/types';
+import type { Field, Frame, FrameFlagSummary } from '../api/types';
 import { BlinkViewer } from './BlinkViewer';
 
 const field = Object.values(import.meta.glob<Field>(
@@ -9,9 +9,10 @@ const field = Object.values(import.meta.glob<Field>(
 ))[0];
 const frame = field.frames[0];
 
-function renderFrame(quality: Partial<Frame>) {
+function renderFrame(quality: Partial<Frame>, flags?: FrameFlagSummary) {
   return renderToStaticMarkup(
-    <BlinkViewer field={field} frames={[{ ...frame, ...quality }]}
+    <BlinkViewer field={{ ...field, frame_flags: flags ? { [frame.id]: flags } : undefined }}
+      frames={[{ ...frame, ...quality }]}
       imageUrl={(image) => image} candidates={[]} known={[]} selectedId={null} onSelect={() => {}} />,
   );
 }
@@ -23,7 +24,18 @@ describe('frame quality in the blink viewer', () => {
     expect(frame.source_uri).toMatch(/^ibe\/data\/spherex\//);
     expect(html).toContain(`href="https://irsa.ipac.caltech.edu/${frame.source_uri}"`);
     expect(html).toContain('across the whole image');
-    expect(html).toContain('Individual saturation and contamination flags are unavailable');
+    expect(html).toContain('Archive saturation and contamination flags are unavailable');
+  });
+
+  it('labels measured zero and missing archive bits separately', () => {
+    const html = renderFrame({}, {
+      coverage_fraction: 0.75, fractions: { OVERFLOW: 0.025, PERSIST: 0, SOURCE: 0.4 },
+    });
+    expect(html).toContain('Archive flags · 75.0% of grid sampled');
+    expect(html).toContain('Saturation (OVERFLOW) · 2.5%');
+    expect(html).toContain('Detector persistence (PERSIST) · 0.0%');
+    expect(html).toContain('Optical ghost (GHOST) · unknown');
+    expect(html).toContain('SOURCE marks detected sky sources');
   });
 
   it('keeps near-total and near-zero coverage distinct from the endpoints', () => {
