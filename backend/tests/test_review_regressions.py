@@ -271,7 +271,11 @@ def test_deadline_cleanup_kills_actual_child_and_descendant():
     try:
         kill_tree(proc, grace=0.2)
         proc.wait(timeout=5)
-        assert not descendant.is_running() or descendant.status() == psutil.STATUS_ZOMBIE
+        try:
+            assert not descendant.is_running() or descendant.status() == psutil.STATUS_ZOMBIE
+        except psutil.NoSuchProcess:
+            # Linux can reap the terminated descendant between the two observations.
+            pass
     finally:
         if proc.poll() is None:
             proc.kill()
