@@ -64,7 +64,8 @@ def test_browser_can_submit_and_open_first_built_field(tmp_path):
         field = client.get("/api/fields/" + fid).json()
         assert field["id"] == fid
         assert client.get(f"/data/fields/{fid}/" + field["frames"][0]["image"]).status_code == 200
-        assert fid in [f["id"] for f in client.get("/api/manifest").json()["fields"]]
+        assert fid not in [f["id"] for f in client.get("/api/manifest").json()["fields"]]
+        assert fid in [f["id"] for f in client.get("/api/manifest?include_jobs=true").json()["fields"]]
 
 
 def test_enabled_jobs_select_writable_products_even_without_manifest(tmp_path, monkeypatch):

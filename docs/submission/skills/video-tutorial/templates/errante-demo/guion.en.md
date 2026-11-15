@@ -17,15 +17,19 @@ updated: '${date}'
 |---|---|---|---|---|---|
 | 1 | Errante connects real NASA images, spectra, and light curves in one public explorer. | 🖼️ Slide 1 | | | |
 | 2 | Search the infrared sky and investigate how it changes. | 🎬 D1 | | | |
-| 3 | Compare real SPHEREx observations across dates, with wavelength and quality information. | 🎬 D2 | | | |
+| 3 | Barnard shifts between seasons. Its flagged core limits brightness measurements. | 🎬 D2 | | | |
 | 4 | Inspect brightness measurements and uncertainties in a light curve. | 🎬 D3 | | | |
 | 5 | Explore the changing sky with Errante. | 🖼️ Slide 2 | | | |
 
 ## Takes
 
-- D1: prepared R Draconis search results and context map. Select the saved sequence.
-- D2: R Draconis dated real-image playback, using one available detector. Keep source,
-  dates and quality indicators visible. No altered motion, flux or playback timestamps.
+- D1: prepared Barnard search results and context map. Select the saved sequence.
+- D2: Barnard's real D2 season difference, S2 minus scaled S0, selected in Compare seasons.
+  Prepare the calculation before recording. Show the orange/cyan dipole with dates,
+  detector, flux scale and limitations. This is a processed difference, not a raw frame
+  or a new parallax measurement; do not exaggerate displacement or erase caveats.
+  The narration names the flagged core explicitly. Both the full image and its
+  flagged-core warning must remain inside the recording frame.
 - D3: the real precomputed R Draconis light curve, loaded before the shot. Include axes,
   measurement errors and the adjacent limitations. A shot change is an editorial cut,
   not a claim that archive jobs complete instantly.

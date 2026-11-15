@@ -284,6 +284,35 @@
       "title": "Frame",
       "type": "object"
     },
+    "FrameFlagSummary": {
+      "additionalProperties": false,
+      "description": "Archive FLAGS sampled at the nearest detector pixel for each grid centre.",
+      "properties": {
+        "coverage_fraction": {
+          "description": "Fraction of the whole grid with a FLAGS sample",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Coverage Fraction",
+          "type": "number"
+        },
+        "fractions": {
+          "additionalProperties": {
+            "maximum": 1,
+            "minimum": 0,
+            "type": "number"
+          },
+          "description": "Fraction of covered grid pixels carrying each named archive bit. Keys may be absent. Zero means measured zero; flags can overlap.",
+          "title": "Fractions",
+          "type": "object"
+        }
+      },
+      "required": [
+        "coverage_fraction",
+        "fractions"
+      ],
+      "title": "FrameFlagSummary",
+      "type": "object"
+    },
     "Grid": {
       "additionalProperties": false,
       "description": "Common north-up TAN grid every frame of a field is reprojected onto.",
@@ -461,6 +490,14 @@
       "default": "",
       "title": "Description",
       "type": "string"
+    },
+    "frame_flags": {
+      "additionalProperties": {
+        "$ref": "#/$defs/FrameFlagSummary"
+      },
+      "description": "Archive flag summaries by frame ID on this field grid. Missing entries mean unknown.",
+      "title": "Frame Flags",
+      "type": "object"
     },
     "frames": {
       "items": {
