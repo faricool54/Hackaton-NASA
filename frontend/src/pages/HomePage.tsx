@@ -52,7 +52,7 @@ export function HomePage() {
         {/* TODO(WS6): final copy, project name, call to action. */}
       </section>
 
-      <SkyExplorer sequences={sequences} />
+      <SkyExplorer sequences={sequences} systems={manifest?.systems ?? []} />
       {error && <p className="error">Could not load curated fields: {error}</p>}
       {empty && <p className="muted">No curated fields yet. Build your first sequence above.</p>}
       {!manifest && !error && !empty && <p className="muted">Loading…</p>}

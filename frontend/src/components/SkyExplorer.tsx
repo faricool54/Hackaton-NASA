@@ -1,15 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { client } from '../api/client';
-import type { JobStatusResponse, JobSubmitRequest, SkyCoord } from '../api/types';
+import type { JobStatusResponse, JobSubmitRequest, SkyCoord, SystemSummary } from '../api/types';
 import { isTerminal, parseCoordinate, positionUrl, readPosition, watchJob } from '../api/jobs';
 import { DETECTOR_BANDS } from '../api/format';
 import { coordinateLookup, nameLookup, positionLookup, type ObjectLookup } from '../api/objectCard';
 import { SHOWCASE_TARGETS } from '../api/showcase';
 import type { SearchSequence } from '../api/skySearch';
-import { FieldPage } from '../pages/FieldPage';
 import { ExplorerMap } from './ExplorerMap';
 import { ObjectCard } from './ObjectCard';
-import { PositionSpectrum } from './PositionSpectrum';
+import { PositionResults } from './PositionResults';
 import { SkySearch } from './SkySearch';
 
 function initialPosition(): { request: JobSubmitRequest; error: string } {
@@ -24,7 +23,7 @@ function initialLookup(request: JobSubmitRequest, error: string): ObjectLookup |
   return !error && params.has('ra') && params.has('dec') ? coordinateLookup(request.ra, request.dec) : null;
 }
 
-export function SkyExplorer({ sequences }: { sequences: SearchSequence[] }) {
+export function SkyExplorer({ sequences, systems }: { sequences: SearchSequence[]; systems: SystemSummary[] }) {
   const [initial] = useState(initialPosition);
   const [center, setCenter] = useState<SkyCoord>(initial.request);
   const [ra, setRa] = useState(String(initial.request.ra));
@@ -40,6 +39,10 @@ export function SkyExplorer({ sequences }: { sequences: SearchSequence[] }) {
   // Catalog card: names (presets, name search) by NAME for a better identity, map clicks and coordinates by position;
   // a preset's untouched position (Build, shared link) stays a NAME lookup (coordinateLookup).
   const [lookup, setLookup] = useState<ObjectLookup | null>(() => initialLookup(initial.request, initial.error));
+  const [quickLook, setQuickLook] = useState(false);
+  const [selectedFieldId, setSelectedFieldId] = useState<string>();
+  const [reveal, setReveal] = useState(0);
+  const resultRef = useRef<HTMLDivElement>(null);
   const controller = useRef<AbortController | null>(null);
   const live = client.config.mode === 'api';
 
@@ -59,6 +62,11 @@ export function SkyExplorer({ sequences }: { sequences: SearchSequence[] }) {
     return () => abort.abort();
   }, [live, initial.error]);
   useEffect(() => () => controller.current?.abort(), []);
+  useEffect(() => {
+    if (!reveal) return;
+    resultRef.current?.focus({ preventScroll: true });
+    resultRef.current?.scrollIntoView({ block: 'start' });
+  }, [reveal]);
 
   const submit = async (position?: SkyCoord) => {
     if (!live) return;
@@ -79,6 +87,8 @@ export function SkyExplorer({ sequences }: { sequences: SearchSequence[] }) {
         detectors: [detector], max_frames: 40 };
       if (abort.signal.aborted) return;
       setCenter({ ra: body.ra, dec: body.dec }); setRa(String(body.ra)); setDec(String(body.dec));
+      if (point.ra !== center.ra || point.dec !== center.dec) setSelectedFieldId(undefined);
+      setQuickLook(true);
       history.replaceState(null, '', positionUrl(location.href, body));
       setShareUrl(location.href);
       const first = await client.submitJob(body, abort.signal);
@@ -94,6 +104,8 @@ export function SkyExplorer({ sequences }: { sequences: SearchSequence[] }) {
     controller.current?.abort();
     setBusy(false); setJob(null); setError(''); setNotice('');
     setCenter(point); setRa(String(point.ra)); setDec(String(point.dec));
+    setSelectedFieldId(undefined);
+    setQuickLook(true);
     setLookup(label ? nameLookup(label) : coordinateLookup(point.ra, point.dec));
     setResolved(label ? `${label} · ${source}` : '');
     // Keep a valid share link even if the user was in the middle of editing the field size.
@@ -101,6 +113,17 @@ export function SkyExplorer({ sequences }: { sequences: SearchSequence[] }) {
     const url = positionUrl(location.href, { ...initial.request, ra: point.ra, dec: point.dec,
       size_deg: size >= 0.01 && size <= 0.5 ? size : initial.request.size_deg, detectors: [detector] });
     history.replaceState(null, '', url); setShareUrl(url);
+  };
+
+  const selectSearchSequence = ({ field, href }: SearchSequence) => {
+    if (!href.startsWith('#/')) {
+      // The real fields in the static demo are served by a separate dataset.
+      location.assign(positionUrl(new URL(href, location.href).toString(), { ...initial.request, ...field.center }));
+      return;
+    }
+    locate(field.center);
+    setSelectedFieldId(field.id);
+    setReveal((count) => count + 1);
   };
 
   const stop = () => {
@@ -118,11 +141,15 @@ export function SkyExplorer({ sequences }: { sequences: SearchSequence[] }) {
   };
 
   return <section aria-labelledby="explore-title">
-    <SkySearch sequences={sequences} onLocate={locate} />
+    <SkySearch sequences={sequences} onSelectSequence={selectSearchSequence} onLocate={(point, label, source) => {
+      locate(point, label, source);
+      setReveal((count) => count + 1);
+    }} />
     <div className="explorer-layout">
       <ExplorerMap center={center} onSelect={(p) => {
         locate(p);
         setLookup(positionLookup(p.ra, p.dec));
+        setReveal((count) => count + 1);
         if (live) void submit(p);
       }} />
       <aside className="panel explore-form">
@@ -133,6 +160,8 @@ export function SkyExplorer({ sequences }: { sequences: SearchSequence[] }) {
           if (!target) return;
           controller.current?.abort(); setBusy(false); setJob(null); setError(''); setResolved('');
           setCenter(target); setRa(String(target.ra)); setDec(String(target.dec));
+          setSelectedFieldId(undefined);
+          setQuickLook(true);
           setFov('0.15'); setDetector(target.detector); setLookup(nameLookup(target.catalogName));
           setNotice(`${target.name}: ICRS position propagated to mean epoch MJD ${target.mjd}. Sesame/SIMBAD CfA astrometry, checked 14 Nov 2026. This preset is not a validated detection.`);
           const url = positionUrl(location.href, { ra: target.ra, dec: target.dec, size_deg: 0.15, detectors: [target.detector] });
@@ -182,9 +211,10 @@ export function SkyExplorer({ sequences }: { sequences: SearchSequence[] }) {
         <ObjectCard lookup={lookup} />
       </aside>
     </div>
-    <PositionSpectrum position={center} fieldId={job?.status === 'ready' ? job.result_field_id ?? undefined : undefined} />
-    {job?.status === 'ready' && job.result_field_id && <div className="explorer-result" aria-label="Time sequence result">
-      <FieldPage key={job.result_field_id} fieldId={job.result_field_id} embedded />
+    {(lookup || job) && <div ref={resultRef} className="position-result-anchor" tabIndex={-1}>
+      <PositionResults key={`${center.ra}/${center.dec}/${selectedFieldId ?? ''}/${quickLook}`}
+        position={center} sequences={sequences} systems={systems} selectedFieldId={selectedFieldId}
+        job={job} building={busy} buildError={error} quickLook={quickLook} />
     </div>}
   </section>;
 }
