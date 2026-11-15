@@ -1,7 +1,7 @@
 {
   "id": "wise-0855",
   "name": "WISE 0855−0714",
-  "description": "Official test target. Coldest known brown dwarf, ~2.3 pc away, ~8.2\"/yr. Extremely red (J=25, W2=13.7): look at the longest wavelengths. Only DR1 data so far: ~1.4 SPHEREx pixels of motion.",
+  "description": "Official test target. Coldest known brown dwarf, ~2.3 pc away, ~8.2\"/yr. Extremely red (J=25, W2=13.7): SPHEREx sees it only at 3.8–5.0 µm (D5–D6), faint in single exposures. Only DR1 data so far: ~1.4 SPHEREx pixels of motion.",
   "tags": [
     "official-target",
     "brown-dwarf",
