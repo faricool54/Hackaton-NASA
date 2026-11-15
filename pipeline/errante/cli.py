@@ -481,6 +481,125 @@ def cmd_spectrum(args: argparse.Namespace) -> int:
     return 0
 
 
+def _write_or_print(doc: dict, out: str | None, show: bool) -> None:
+    text = json.dumps(_finite_json(doc), indent=1, allow_nan=False)
+    if out:
+        path = Path(out)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text + "\n", encoding="utf-8")
+        print(f"Wrote {path}", file=sys.stderr)
+    if show:
+        print(text)
+
+
+def cmd_position_spectrum(args: argparse.Namespace) -> int:
+    """Spectrum of a position with seasons, saturation and a variability check (WS3-5, on WS2's photometry)."""
+    from .data.irsa import SearchError
+    from .science.spectra import position_spectrum
+
+    pm = None
+    if args.pm_ra is not None or args.pm_dec is not None:
+        pm = (args.pm_ra or 0.0, args.pm_dec or 0.0, args.pm_epoch)
+    try:
+        spec = position_spectrum(args.ra, args.dec, pm=pm, detectors=args.detector, max_frames=args.max_frames)
+    except (SearchError, ValueError) as e:
+        print(f"Spectrum failed: {e}", file=sys.stderr)
+        return 2
+    _write_or_print(spec.to_dict(), args.out, args.json)
+    if args.json:
+        return 0 if spec.samples else 4
+    print(
+        f"SPHEREx spectrum at ({spec.ra:.6f}, {spec.dec:+.6f}): {len(spec.usable())} of {len(spec.samples)} exposures usable"
+    )
+    for s in spec.seasons:
+        lam = f"{s.wavelength_min_um:.3f}-{s.wavelength_max_um:.3f} um" if s.wavelength_min_um else "no usable point"
+        print(
+            f"  season {s.season}: {s.date_min[:10]} -> {s.date_max[:10]}, {s.n_usable}/{s.n_points} usable "
+            f"({s.n_saturated} saturated), D{','.join(map(str, s.detectors))}, {lam}"
+        )
+    for w in spec.warnings:
+        print(f"  WARNING: {w}")
+    for n in spec.notes:
+        print(f"  note: {n}")
+    if spec.failures:
+        print(f"  {len(spec.failures)} exposures could not be measured")
+    return 0 if spec.samples else 4
+
+
+def cmd_lightcurve(args: argparse.Namespace) -> int:
+    """Light curve of a position within narrow wavelength bins, with comparison stars (WS3-9)."""
+    from .data.irsa import SearchError
+    from .science.variability import light_curve, matched_pairs
+
+    cols = args.collections
+    if args.deep:
+        cols = "spherex_dr1,spherex_qr3,spherex_dr1_deep,spherex_qr3_deep"
+    try:
+        lc = light_curve(
+            args.ra,
+            args.dec,
+            detectors=args.detector,
+            lambda_bin_frac=args.bin_frac,
+            method=args.method,
+            collections=cols,
+            deadline_s=args.deadline,
+            box_px=args.box,
+            max_frames=args.max_frames,
+            mjd_min=args.mjd_min,
+            mjd_max=args.mjd_max,
+            min_bin_span_days=args.min_bin_span,
+            period=True if args.period else None,
+            n_bootstrap=args.bootstrap,
+            n_permutations=args.permutations,
+        )
+    except (SearchError, ValueError) as e:
+        print(f"Light curve failed: {e}", file=sys.stderr)
+        return 2
+    doc = lc.to_dict()
+    doc["matched_pairs"] = matched_pairs(lc, max_frac=lc.lambda_bin_frac)
+    _write_or_print(doc, args.out, args.json)
+    if args.json:
+        return 0 if lc.used() else 4
+    print(f"SPHEREx light curve at ({lc.ra:.6f}, {lc.dec:+.6f}), method {lc.method}, flux in {lc.unit}")
+    for n in lc.notes:
+        print(f"  {n}")
+    for det, s in sorted(lc.summary.items()):
+        ctl = lc.control.get(det, {})
+        print(
+            f"  D{det}: {s.get('n', 0)} points in {s['n_bins']} bins, robust scatter {s.get('robust_sigma_mag', 0):.3f} mag, "
+            f"p5-p95 {s.get('p5_to_p95_mag', 0):.2f} mag; control {ctl.get('robust_sigma_mag', float('nan')):.3f} mag "
+            f"({ctl.get('n_stars', 0)} stars); excluded {s['excluded'] or 'none'}"
+        )
+    pairs = doc["matched_pairs"]
+    if pairs:
+        print(
+            f"  matched pairs (same detector, |dlambda|/lambda < {lc.lambda_bin_frac:.0%}, >= 30 d apart): {len(pairs)}"
+        )
+        for p in pairs[:20]:
+            ens = "" if p["ensemble_mag"] is None else f", comparisons {p['ensemble_mag']:+.3f} ({p['n_ensemble']})"
+            print(
+                f"    D{p['detector']} {p['date_a'][:10]} -> {p['date_b'][:10]} at {p['wavelength_a_um']:.4f}/"
+                f"{p['wavelength_b_um']:.4f} um: {p['delta_mag']:+.3f} mag{ens}"
+            )
+    if lc.period and lc.period.significant:  # the notes above already say when it is not
+        pe = lc.period
+        err = f" +- {pe.period_err_formal_days:.1f} (formal)" if pe.period_err_formal_days else ""
+        boot = (
+            f", bootstrap 95 % {pe.bootstrap_95_days[0]:.0f}-{pe.bootstrap_95_days[1]:.0f} d"
+            if pe.bootstrap_95_days
+            else ""
+        )
+        other = ", ".join(f"{p:.0f} d" for p, _ in pe.peaks[1:])
+        print(
+            f"  period {pe.period_days:.1f} d{err}{boot}, false-alarm {pe.false_alarm:.3f}; other peaks {other or 'none'}"
+        )
+    if lc.period:
+        print(f"  caveat: {lc.period.caveat}")
+    if lc.failures:
+        print(f"  {len(lc.failures)} exposures not read or not on the detector")
+    return 0 if lc.used() else 4
+
+
 def _say(text: str) -> None:
     """print() that never dies on a console code page without the character (Windows cp1252)."""
     enc = getattr(sys.stdout, "encoding", None) or "utf-8"
@@ -707,6 +826,59 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--max-frames", type=int, default=None)
     s.add_argument("--out", default=None, help="write the full result (all points, flags) as JSON")
     s.set_defaults(func=cmd_spectrum)
+
+    s = sub.add_parser(
+        "position-spectrum",
+        help="spectrum of a position by season, with saturation and a variability check (WS3-5)",
+        epilog="Exit codes: 0 = spectrum; 2 = search failed or invalid input; 4 = no exposure measured.",
+    )
+    s.add_argument("--ra", type=float, required=True)
+    s.add_argument("--dec", type=float, required=True)
+    s.add_argument("--pm-ra", type=float, default=None, help="proper motion in RA*cos(dec) [mas/yr]")
+    s.add_argument("--pm-dec", type=float, default=None, help="proper motion in Dec [mas/yr]")
+    s.add_argument("--pm-epoch", type=float, default=51544.5, help="epoch (MJD) of --ra/--dec [default J2000]")
+    s.add_argument("--detector", type=int, action="append", choices=range(1, 7), help="repeat for several")
+    s.add_argument(
+        "--max-frames", type=_positive_int, default=None, help="exposures evenly spread in time (~2 MB each)"
+    )
+    s.add_argument("--json", action="store_true", help="print the full result as JSON")
+    s.add_argument("--out", default=None, help="write the full result as JSON")
+    s.set_defaults(func=cmd_position_spectrum)
+
+    s = sub.add_parser(
+        "lightcurve",
+        help="light curve of a position in narrow wavelength bins, with comparison stars and a period (WS3-9)",
+        epilog="Exit codes: 0 = light curve; 2 = search failed or invalid input; 4 = no point in the light curve.",
+    )
+    s.add_argument("--ra", type=float, required=True)
+    s.add_argument("--dec", type=float, required=True)
+    s.add_argument(
+        "--method",
+        choices=("aperture", "wing"),
+        default="aperture",
+        help="aperture (r = 3 px, saturated exposures excluded) or wing (PSF wing of a saturated star, relative)",
+    )
+    s.add_argument("--detector", type=int, action="append", choices=range(1, 7), help="repeat for several")
+    s.add_argument("--collections", default=None, help="comma-separated IRSA collections (default dr1,qr3)")
+    s.add_argument("--deep", action="store_true", help="add the deep-field collections (dr1_deep, qr3_deep)")
+    s.add_argument("--max-frames", type=_positive_int, default=None, help="cap, spread over detectors and visits")
+    s.add_argument("--mjd-min", type=float, default=None)
+    s.add_argument("--mjd-max", type=float, default=None)
+    s.add_argument("--deadline", type=float, default=None, help="seconds for the whole archive read")
+    s.add_argument("--box", type=int, default=None, help="stamp side [px] (default 81 aperture, 111 wing)")
+    s.add_argument("--bin-frac", type=float, default=0.01, help="wavelength bin width, fraction of lambda (0.01)")
+    s.add_argument("--min-bin-span", type=float, default=30.0, help="drop bins spanning fewer days (default 30)")
+    s.add_argument("--period", action="store_true", help="always estimate a period (default: with >= 30 points)")
+    s.add_argument("--bootstrap", type=int, default=0, help="visit-bootstrap resamples for the period (e.g. 100)")
+    s.add_argument(
+        "--permutations",
+        type=int,
+        default=100,
+        help="visit permutations for the period's false-alarm probability (default 100; 0 = untested)",
+    )
+    s.add_argument("--json", action="store_true", help="print the full result (and matched pairs) as JSON")
+    s.add_argument("--out", default=None, help="write the full result as JSON")
+    s.set_defaults(func=cmd_lightcurve)
 
     s = sub.add_parser(
         "object",
