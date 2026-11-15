@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deck template</title>
+<!--
+  Deck template of a video-tutorial course. scaffold.py copies it to <course>/_template/ with the course's
+  design system filled in, and every new video starts from that copy with the example slides
+  (data-guia) removed. Each exported slide is one row of the montage sheet.
+
+  Keys: ← → navigate · T light/dark · F full screen · G recording mode.
+  URL:  #3 opens slide 3 · ?rec opens in recording mode (no help line, no cursor, no entry animation).
+
+  Builds: a <section data-steps="N"> expands into N slides on load. Slide k shows the elements with
+  data-in <= k, and the one entering at k is highlighted (.on). Numbering (#n, slide-NN.png) counts the
+  expanded slides.
+
+  Content rules: one accent word per title; the voice never reads the slide (the slide carries the
+  summary, the narration the reasoning); reuse these components before inventing new ones.
+-->
+<style>
+/* @fonts:start */
+/* @fonts:end */
+
+/* @tokens:start */
+:root {
+  --primary: #4f46e5;
+  --primary-container: #eef2ff;
+  --on-primary: #ffffff;
+  --on-primary-container: #4f46e5;
+  --font: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+[data-theme="dark"] {
+  --primary-container: #1e1b4b;
+  --on-primary-container: #c7d2fe;
+}
+/* @tokens:end */
+
+:root {
+  --surface: #f7f8f9;
+  --surface-lowest: #ffffff;
+  --surface-container: #f2f4f7;
+  --surface-high: #eceff3;
+  --surface-highest: #e2e6ec;
+  --warning: #b26a00;
+  --warning-container: #fdf3e2;
+  --on-surface: #171a1e;
+  --on-surface-variant: #5c6370;
+  --outline: #919aaa;
+  --outline-variant: #eceff3;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-2xl: 1.5rem;
+  --mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+}
+[data-theme="dark"] {
+  --surface: #171a1e;
+  --surface-lowest: #0e1013;
+  --surface-container: #1e2227;
+  --surface-high: #262b32;
+  --surface-highest: #2f353d;
+  --warning: #e0a04a;
+  --warning-container: #33260f;
+  --on-surface: #f7f8f9;
+  --on-surface-variant: #919aaa;
+  --outline: #5c6370;
+  --outline-variant: #2f353d;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--font);
+  background: var(--surface-highest);
+  color: var(--on-surface);
+  height: 100vh;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+/* A 16:9 canvas that scales to the viewport: a fixed frame to record and export */
+#deck {
+  position: relative;
+  width: min(100vw, 177.78vh);
+  height: min(56.25vw, 100vh);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.slide {
+  position: absolute;
+  inset: 0;
+  padding: 6% 8%;
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1.4em;
+  /* The whole deck scales with the width: sizes below are in em, never px */
+  font-size: clamp(14px, 1.55vw, 30px);
+}
+.slide.active { display: flex; animation: in .35s ease-out; }
+@keyframes in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+
+/* ---- Type scale ------------------------------------------------------------------------- */
+h1 { font-size: 3.4em; font-weight: 800; line-height: 1.02; letter-spacing: -0.03em; }
+h2 { font-size: 2em; font-weight: 700; line-height: 1.1; letter-spacing: -0.02em; }
+p  { font-size: 1.15em; line-height: 1.5; color: var(--on-surface-variant); max-width: 34ch; }
+.accent { color: var(--primary); }
+.kicker { font-size: .8em; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--primary); }
+code, .mono { font-family: var(--mono); }
+
+/* ---- Cover: a product capture behind, anchored right, at 25 % ------------------------------- */
+.slide.cover::before {
+  content: '';
+  position: absolute;
+  top: 0; right: 0; bottom: 0;
+  width: 70%;
+  background: url('assets/capturas/background.png') left center / auto 85% no-repeat;
+  opacity: .25;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 10%);
+  mask-image: linear-gradient(to right, transparent, #000 10%);
+  pointer-events: none;
+}
+.slide.cover { padding-left: 5%; }
+[data-theme="dark"] .slide.cover::before { opacity: .13; }
+.cover > * { position: relative; z-index: 1; }
+.slide.center { align-items: center; text-align: center; }
+.slide.center p { margin: 0 auto; }
+
+/* ---- Components ---------------------------------------------------------------------------- */
+
+/* Steps: a short path, the last one highlighted */
+.steps { display: flex; align-items: center; gap: .8em; margin-top: .4em; flex-wrap: wrap; }
+.step {
+  background: var(--surface-lowest); border: 1px solid var(--outline-variant); border-radius: var(--radius-md);
+  padding: .55em .9em; font-size: .92em; font-weight: 600; white-space: nowrap;
+}
+.step.last { border-color: var(--primary); background: var(--primary-container); color: var(--on-primary-container); }
+.steps .arrow { color: var(--outline); font-size: 1em; }
+
+/* Labelled facts: short lists, 2 to 6 */
+.fields { display: flex; flex-direction: column; gap: .45em; margin-top: .2em; }
+.field {
+  display: flex; align-items: baseline; gap: .6em; font-size: .95em; padding: .45em .7em;
+  background: var(--surface-lowest); border: 1px solid var(--outline-variant); border-radius: var(--radius-md);
+}
+.field .k { font-weight: 700; white-space: nowrap; min-width: 9ch; }
+.field .v { color: var(--on-surface-variant); font-weight: 600; }
+
+/* Two options side by side: .on marks the default or the one that matters */
+.modes { display: flex; align-items: stretch; gap: 1.1em; margin-top: .2em; }
+.mode {
+  flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: .35em;
+  border: 1px solid var(--outline-variant); border-radius: var(--radius-lg); padding: 1em 1.15em;
+  background: var(--surface-lowest);
+}
+.mode .pill {
+  align-self: flex-start; font-size: .78em; font-weight: 700; border-radius: 999px; padding: .25em .8em;
+  border: 1px solid var(--outline-variant); color: var(--on-surface-variant); white-space: nowrap;
+}
+.mode b { font-size: 1.05em; line-height: 1.2; }
+.mode .desc { font-size: .87em; color: var(--on-surface-variant); line-height: 1.45; }
+.mode.on { border-color: var(--primary); background: var(--primary-container); }
+.mode.on .pill { border-color: var(--primary); color: var(--on-primary-container); }
+.mode.on b { color: var(--on-primary-container); }
+
+/* Before / after: what it is not, struck; what it is, highlighted */
+.compare { display: flex; align-items: center; gap: 1.1em; margin-top: .2em; }
+.owner {
+  flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: .2em;
+  border: 1px solid var(--outline-variant); border-radius: var(--radius-lg); padding: .9em 1.1em;
+  background: var(--surface-lowest);
+}
+.owner b { font-size: 1.05em; }
+.owner span { font-size: .85em; color: var(--on-surface-variant); }
+.owner.no { opacity: .55; }
+.owner.no b { text-decoration: line-through; text-decoration-thickness: 2px; }
+.owner.yes { border-color: var(--primary); background: var(--primary-container); }
+.owner.yes b { color: var(--on-primary-container); }
+.compare .arrow { color: var(--outline); font-size: 1.3em; }
+
+/* Three cards in a row; .hi highlights one */
+.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.1em; }
+.card {
+  background: var(--surface-lowest); border: 1px solid var(--outline-variant); border-radius: var(--radius-2xl);
+  padding: 1.35em 1.5em; display: flex; flex-direction: column; gap: .4em;
+}
+.card.hi { border-color: var(--primary); background: var(--primary-container); }
+.card h3 { font-size: 1.25em; font-weight: 700; }
+.card p { font-size: .92em; max-width: none; line-height: 1.45; }
+
+/* A list with a big label; .warn for the case that confuses */
+.prefixes { display: flex; flex-direction: column; gap: .7em; margin-top: .3em; }
+.prefixes.dense { gap: .45em; margin-top: 0; }
+.prefix {
+  display: flex; align-items: center; gap: 1em; background: var(--surface-lowest);
+  border: 1px solid var(--outline-variant); border-radius: var(--radius-lg); padding: .8em 1.1em;
+}
+.prefixes.dense .prefix { padding: .5em 1.1em; }
+.prefix code {
+  font-size: 1.1em; font-weight: 700; color: var(--primary); background: var(--primary-container);
+  border-radius: var(--radius-md); padding: .25em .6em; min-width: 8ch; text-align: center; white-space: nowrap;
+}
+.prefix .who { display: flex; flex-direction: column; gap: .1em; min-width: 0; }
+.prefix .who b { font-size: 1.02em; }
+.prefix .who span { font-size: .85em; color: var(--on-surface-variant); }
+.prefix.warn { border-color: var(--warning); background: var(--warning-container); }
+.prefix.warn code { color: var(--warning); background: transparent; border: 1px dashed var(--warning); }
+
+/* The one warning of the video */
+.warnbox {
+  display: flex; align-items: flex-start; gap: .75em; border: 1px solid var(--warning);
+  background: var(--warning-container); border-radius: var(--radius-lg); padding: .9em 1.15em; margin-top: .2em;
+}
+.warnbox .mark { color: var(--warning); font-weight: 800; font-size: 1.05em; line-height: 1.3; }
+.warnbox p { max-width: none; font-size: .95em; color: var(--on-surface); }
+
+/* A chat recreated as a scene -- never a real screenshot, so no real names leak */
+.chat {
+  background: var(--surface-lowest); border: 1px solid var(--outline-variant); border-radius: var(--radius-lg);
+  padding: 2em 2.2em; width: min(46ch, 100%); margin: 0 auto; font-size: 1.45em;
+  display: flex; flex-direction: column; gap: 1.2em; box-shadow: 0 18px 50px rgb(0 0 0 / .09);
+}
+.msg { display: flex; gap: .8em; align-items: flex-start; }
+.av {
+  width: 2.2em; height: 2.2em; border-radius: var(--radius-md); background: var(--surface-highest); flex-shrink: 0;
+  display: grid; place-items: center; font-weight: 700; font-size: .8em; color: var(--on-surface-variant);
+}
+.who { font-weight: 700; font-size: .82em; margin-bottom: .18em; }
+.txt { font-size: .92em; line-height: 1.45; }
+
+/* Split: text on the left, a diagram or a capture on the right */
+.slide.split { flex-direction: row; align-items: center; gap: 3.5em; }
+.split .col { flex: 1 1 40%; display: flex; flex-direction: column; gap: 1em; }
+.split h2 { font-size: 1.85em; }
+.split p { font-size: 1.05em; max-width: 26ch; }
+.split .diagram { flex: 1 1 60%; min-width: 0; }
+
+/* SVG diagram: white nodes, an accent hub, grey arrows */
+.diagram { width: 100%; height: auto; }
+.diagram .node { fill: var(--surface-lowest); stroke: var(--outline-variant); stroke-width: 1.5; }
+.diagram .hub { fill: var(--primary); stroke: none; }
+.diagram .link { stroke: var(--outline); stroke-width: 2; fill: none; }
+.diagram .lbl { fill: var(--on-surface); font-size: 17px; font-weight: 600; font-family: var(--font); }
+.diagram .lbl-hub { fill: var(--on-primary); font-size: 19px; font-weight: 700; font-family: var(--font); }
+
+/* A product capture; if the file is missing, the slide names it instead of breaking */
+.shot { flex: 1 1 62%; min-width: 0; }
+.shot.wide { flex: none; }
+.shot img {
+  display: block; width: 100%; height: auto; border: 1px solid var(--outline-variant);
+  background: var(--surface-lowest); box-shadow: 0 18px 50px rgb(0 0 0 / .10);
+}
+.shot.wide img { border-radius: var(--radius-lg); }
+.shot .fallback {
+  display: none; align-items: center; justify-content: center; min-height: 14em; padding: 2em;
+  border: 2px dashed var(--outline); color: var(--on-surface-variant); font-size: .95em; font-weight: 600;
+  text-align: center;
+}
+.shot.broken img { display: none; }
+.shot.broken .fallback { display: flex; }
+
+/* ---- Builds: what has not entered keeps its place, so the layout does not jump between steps ---- */
+.pending { visibility: hidden; }
+.pending[data-collapse] { display: none; }
+.slide.build.active { animation: none; }
+.slide.build.active .on { animation: in .35s ease-out; }
+
+/* ---- Deck chrome and recording mode ------------------------------------------------------- */
+#hint { position: absolute; bottom: 1.6em; left: 2.4em; font-size: .72em; color: var(--outline); opacity: 0; transition: opacity .2s; }
+#deck:hover #hint { opacity: 1; }
+.rec #hint { display: none; }
+.rec, .rec * { cursor: none !important; }
+.still .slide.active, .still .slide.active .on { animation: none; }
+</style>
+</head>
+<body>
+
+<div id="deck">
+
+  <!-- Cover. Kicker: what the video is about, never its level. A short title with one accent word. -->
+  <section class="slide cover active">
+    <span class="kicker">Video 00 · Topic</span>
+    <h1>Video <span class="accent">title</span></h1>
+    <p>One line on what it is for, without repeating the title.</p>
+  </section>
+
+  <!-- ===== Example layouts (data-guia): copy what you need; scaffold.py strips them from new videos ===== -->
+
+  <section class="slide" data-guia>
+    <span class="kicker">Section kicker</span>
+    <h2>One idea per slide,<br><span class="accent">said in one line.</span></h2>
+    <p>The subtitle adds what the title cannot say, in two lines at most.</p>
+  </section>
+
+  <section class="slide" data-guia>
+    <span class="kicker">A path</span>
+    <h2>How it is <span class="accent">organized</span></h2>
+    <div class="steps">
+      <span class="step">First</span><span class="arrow">→</span>
+      <span class="step">Second</span><span class="arrow">→</span>
+      <span class="step last">Third</span>
+    </div>
+  </section>
+
+  <section class="slide" data-guia>
+    <span class="kicker">Labelled facts</span>
+    <h2>Three facts to <span class="accent">take away</span></h2>
+    <div class="fields">
+      <div class="field"><span class="k">Label</span><span class="v">the fact, in one line</span></div>
+      <div class="field"><span class="k">Label</span><span class="v">another fact of the same kind</span></div>
+      <div class="field"><span class="k">Label</span><span class="v">the last one, usually the consequence</span></div>
+    </div>
+  </section>
+
+  <section class="slide" data-guia>
+    <span class="kicker">Two options</span>
+    <h2>Which one <span class="accent">and when</span></h2>
+    <div class="modes">
+      <div class="mode on"><span class="pill">Default</span><b>Option A</b><span class="desc">What it does. The one that fits almost always.</span></div>
+      <div class="mode"><span class="pill">Specific case</span><b>Option B</b><span class="desc">What it does, and the case where it wins.</span></div>
+    </div>
+  </section>
+
+  <section class="slide" data-guia>
+    <span class="kicker">What it is not</span>
+    <h2>Every item belongs to a <span class="accent">team</span></h2>
+    <div class="compare">
+      <div class="owner no"><b>What people tend to think</b><span>Struck and grey</span></div>
+      <span class="arrow">→</span>
+      <div class="owner yes"><b>What it really is</b><span>Highlighted</span></div>
+    </div>
+  </section>
+
+  <section class="slide" data-guia>
+    <span class="kicker">Three paths</span>
+    <div class="cards">
+      <div class="card"><h3>A card</h3><p>A short title and one or two lines.</p></div>
+      <div class="card"><h3>Another card</h3><p>Same weight as the first.</p></div>
+      <div class="card hi"><h3>The highlighted one</h3><p>The one the video wants you to pick. One per slide.</p></div>
+    </div>
+  </section>
+
+  <!-- A build: three steps, one element entering per step, the warning last -->
+  <section class="slide" data-steps="3" data-guia>
+    <span class="kicker">Anatomy</span>
+    <h2>The parts of a <span class="accent">thing</span></h2>
+    <div class="prefixes dense">
+      <div class="prefix" data-in="1"><code># One</code><div class="who"><b>What it is</b><span>In a few words</span></div></div>
+      <div class="prefix warn" data-in="2"><code># Two</code><div class="who"><b>The part people forget</b><span>In amber, so it reads differently</span></div></div>
+    </div>
+    <div class="warnbox" data-in="3"><span class="mark">!</span><p>The one warning that matters, in <strong>one</strong> amber box.</p></div>
+  </section>
+
+  <section class="slide split" data-guia>
+    <div class="col">
+      <span class="kicker">How it works</span>
+      <h2>A relationship,<br><span class="accent">in a drawing.</span></h2>
+      <p>White nodes, the main one in the accent color, grey arrows.</p>
+    </div>
+    <svg class="diagram" viewBox="0 0 740 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Example diagram">
+      <defs><marker id="arrowhead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="var(--outline)"/></marker></defs>
+      <path class="link" d="M200 125 L 300 125" marker-end="url(#arrowhead)"/>
+      <path class="link" d="M480 125 C 520 125, 520 45, 560 45" marker-end="url(#arrowhead)"/>
+      <path class="link" d="M480 125 C 520 125, 520 205, 560 205" marker-end="url(#arrowhead)"/>
+      <rect class="node" x="20" y="98" width="180" height="54" rx="14"/><text class="lbl" x="110" y="125" text-anchor="middle" dominant-baseline="central">You</text>
+      <rect class="hub" x="310" y="92" width="166" height="66" rx="18"/><text class="lbl-hub" x="393" y="125" text-anchor="middle" dominant-baseline="central">Main</text>
+      <rect class="node" x="566" y="18" width="160" height="54" rx="14"/><text class="lbl" x="646" y="45" text-anchor="middle" dominant-baseline="central">Node A</text>
+      <rect class="node" x="566" y="178" width="160" height="54" rx="14"/><text class="lbl" x="646" y="205" text-anchor="middle" dominant-baseline="central">Node B</text>
+    </svg>
+  </section>
+
+  <section class="slide split" data-guia>
+    <div class="col">
+      <span class="kicker">Step 1</span>
+      <h2>What to <span class="accent">do</span></h2>
+      <p>The capture carries the detail; the narration, the reason.</p>
+    </div>
+    <figure class="shot">
+      <img src="assets/capturas/example.png" alt="A capture of the step">
+      <div class="fallback">missing&nbsp;<code>assets/capturas/example.png</code></div>
+    </figure>
+  </section>
+
+  <section class="slide" data-guia>
+    <div class="chat">
+      <div class="msg"><div class="av">M</div><div><div class="who">Made-up name · 09:14</div><div class="txt">The question this video will answer 🙏</div></div></div>
+    </div>
+  </section>
+
+  <div id="hint">← → navigate · T theme · F full screen · G recording mode</div>
+</div>
+
+<script>
+// Expands each build into one slide per step, before numbering
+document.querySelectorAll('.slide[data-steps]').forEach(src => {
+  const steps = parseInt(src.dataset.steps, 10);
+  for (let k = 1; k <= steps; k++) {
+    const s = src.cloneNode(true);
+    s.removeAttribute('data-steps');
+    if (k > 1) s.classList.add('build');
+    s.querySelectorAll('[data-in]').forEach(el => {
+      const at = parseInt(el.dataset.in, 10);
+      el.classList.toggle('pending', at > k);
+      el.classList.toggle('on', at === k);
+    });
+    src.before(s);
+  }
+  src.remove();
+});
+
+const slides = [...document.querySelectorAll('.slide')];
+let i = 0;
+
+function show(n) {
+  i = Math.max(0, Math.min(slides.length - 1, n));
+  slides.forEach((s, k) => s.classList.toggle('active', k === i));
+  // #n in the URL: one slide can be opened or exported, and a reload does not go back to the cover
+  history.replaceState(null, '', location.search + '#' + (i + 1));
+}
+
+if (new URLSearchParams(location.search).has('rec')) document.documentElement.classList.add('rec', 'still');
+
+// A capture not yet in assets/ shows which file is missing
+document.querySelectorAll('.shot img').forEach(img => {
+  const mark = () => img.closest('.shot').classList.add('broken');
+  img.addEventListener('error', mark);
+  if (img.complete && img.naturalWidth === 0) mark();
+});
+
+addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { show(i + 1); e.preventDefault(); }
+  if (e.key === 'ArrowLeft' || e.key === 'PageUp') { show(i - 1); e.preventDefault(); }
+  if (e.key === 'Home') show(0);
+  if (e.key === 'End') show(slides.length - 1);
+  const k = e.key.toLowerCase();
+  if (k === 't') { const r = document.documentElement; r.dataset.theme = r.dataset.theme === 'dark' ? 'light' : 'dark'; }
+  if (k === 'f') document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+  if (k === 'g') document.documentElement.classList.toggle('rec');
+});
+
+document.getElementById('deck').addEventListener('click', e => show(i + (e.clientX < innerWidth / 2 ? -1 : 1)));
+
+show((parseInt(location.hash.slice(1), 10) || 1) - 1);
+</script>
+</body>
+</html>

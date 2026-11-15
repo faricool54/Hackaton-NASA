@@ -1,0 +1,16 @@
+# Rappi's design system as the course decks use it: rappi-neon (#ff441f) and PP Object Sans.
+name: Rappi
+tokens:
+  primary: "#ff441f"
+  primary_container: "#fff1ed"
+  on_primary_container: "#ff441f"
+  primary_container_dark: "#3d1710"
+  on_primary_container_dark: "#ffd9cf"
+font:
+  family: "'PP Object Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
+  name: "PP Object Sans"
+  files:
+    400: PPObjectSans-Regular.woff2
+    500: PPObjectSans-Medium.woff2
+    700: PPObjectSans-Bold.woff2
+    800: PPObjectSans-Heavy.woff2
