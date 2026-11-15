@@ -1,163 +1,170 @@
 # Project submission draft - Errante
 
-**Draft: not ready for submission.** Complete team names, public links, measured outcomes and source/AI
-review before copying into the Project page. The field headings below follow the team-provided Project
-Submission Guide (pages 6-9). No character limit for these fields is specified in that PDF.
+**Technical status updated November 15, 2026. Team review is still required before submission.**
+The application is public and uses real SPHEREx observations. Remaining submission items are the final
+demo link, team/member details, source and AI inventory review, and confirmation of submission.
 
-Local Event confirmed by the team: **Universidad de Palermo, Buenos Aires, Argentina**.
-Guide-based deadline: **November 15, 2026 at 23:59 ART (UTC-3)**. Internal submission target: **21:00 ART**.
-Local judging times still require confirmation with the Local Lead. For this Local Event, verify **1–6
-accepted members**, including the Team Owner at the same event and everyone on the Members tab, before
-the deadline; the guide does not permit adding members after submission closes. Registration is not yet verified.
+Local Event: **Universidad de Palermo, Buenos Aires, Argentina**. Guide-based deadline:
+**November 15, 2026 at 23:59 ART (UTC-3)**; internal submission target: **21:00 ART**.
+Confirm the Local Lead's judging schedule separately. Verify all accepted members, including the Team Owner,
+on the same event's Members tab before the deadline.
 
 ## Project Name
 
-Errante - watch the infrared sky change (working title; team confirmation pending).
+Errante - watch the infrared sky change.
 
 ## High-Level Project Summary
 
-Errante is being developed as a public temporal explorer for NASA SPHEREx images. Users will enter right
-ascension and declination and play aligned observations of the same sky region to inspect motion and
-brightness changes. The validation plan covers Barnard's Star, Epsilon Indi B, WISE 0855, RW Aurigae and
-R Draconis. Image viewing is independent of optional automatic detection. Planned enhancements include
-wavelength selection, detector coadds, image arithmetic, configurable field of view, Gaia/WISE context,
-coordinate URLs and quality metadata. The current application is a labelled synthetic demonstration;
-real-data access, public coordinate requests and the five validation runs are still pending. Replace this
-status with verified outcomes before submission, without describing planned features as completed work.
+Errante is a public explorer of NASA SPHEREx observations. Search by name or sky coordinates, or click
+an infrared sky map, to build and play a dated sequence of real images. Five showcase fields offer
+immediate access to the challenge targets. Spectra, season comparisons, catalog context and precomputed
+light curves help investigate what changes, while provenance and quality information explain the limits.
+Offline FITS analyses recover known motion and variability; small shifts, saturation and faint sources
+mean those results are not necessarily visible in the displayed images. No new discovery is claimed.
 
 ## Link to Project Demo
 
-TODO: public external URL for a **video no longer than 30 seconds OR a deck of no more than 7 slides**,
-including title and introduction. All slides must be in English. A video narrated in another language
-requires English subtitles. Check the final file's duration/count and anonymous access.
+TODO: add the public external URL for a **video no longer than 30 seconds OR a deck of no more than
+7 slides**, including title and introduction. Include the team, members and challenge. Use English;
+non-English narration needs English subtitles. Check duration/count and anonymous access.
 
 ## Link to Final Project
 
-- Public application: TODO; deployment is pending.
-- Source repository: [Hackaton-NASA](https://github.com/faricool54/Hackaton-NASA).
-- The repository is currently private; it does not by itself satisfy anonymous access for judges.
-- Verify the final link without login, registration, passwords or permission requests.
+- [Open the public application](https://errante.34-148-242-13.sslip.io).
+- [About, methods and credits](https://errante.34-148-242-13.sslip.io/#/about).
+- [Source repository](https://github.com/faricool54/Hackaton-NASA), currently private; it is not the public
+  access route for judges. Do not substitute this link for the application.
+- The application and API share one HTTPS origin on Google Compute Engine. The address uses third-party
+  sslip.io DNS; a custom domain is optional. Keep the submitted address available during judging.
 
 ## Detailed Project Description
 
 ### Challenge, user and benefit
 
-Planet X and SPHEREx - NASA Space Apps Challenge 2026. The intended users are learners and citizen
-scientists who want to inspect how the infrared sky changes without handling large scientific FITS files.
-The intended benefit is a clear coordinate-to-sequence workflow with dates, wavelength context and honest
-quality information. User benefit remains to be tested rather than assumed.
+Planet X and SPHEREx - NASA Space Apps Challenge 2026. SPHEREx's repeated infrared observations contain
+motion and brightness changes, but comparing the underlying scientific files requires specialist tools.
+Errante lets learners and citizen scientists explore a sky position in a browser, with dates, detector
+and wavelength context alongside the images. Easier access is the intended benefit; user impact has not
+yet been measured in a completed independent user study.
 
 ### Behavior and implementation status
 
-- Required: public RA/Dec input, real SPHEREx temporal image sequences and usable playback.
-- Required validation: all five named targets, with identity, coordinates/epochs, provenance and evidence.
-- Available: numerical synthetic fields, playback, detector filter, candidate/spectrum examples, product API
-  and shared schemas. The image build is separated from optional analysis.
-- Available extension: a 3D gallery with five target-system presets and a synthetic orbital example.
-  These are illustrative models with hand-entered, unverified parameters, not SPHEREx images or validation results.
-- Pending: archive search/cutouts/reprojection, coordinate-build jobs, public deployment and five real tests.
-- Optional challenge considerations: releases, bands/coadds/spectra, addition/subtraction, FOV,
-  Gaia DR3/WISE, coordinate URLs/embedding, contamination metadata and public astronomy tools.
-- Team extensions: detection, JPL/SkyBoT matching, distance estimates, sensitivity tests and Planet X context.
+- **Interactive map:** Aladin Lite displays IRSA's SPHEREx DR1 HiPS sky cube with a wavelength selector and
+  optional AllWISE context. This map is a static coadd; the time sequence is built separately.
+- **Coordinate-to-sequence workflow:** name resolution, RA/Dec and map clicks feed persistent jobs that
+  search the archive, extract real FITS cutouts, align them and publish images. Progress, errors and
+  no-coverage outcomes are explicit. Coverage and external archive availability constrain each request.
+- **Temporal viewing:** play/pause, frame stepping, speed, detector selection, dates and source metadata.
+  Five precomputed real fields contain 40 frames each. Image viewing does not require automatic detection.
+- **Scientific context:** position spectra from the DR1 cube or L2 exposures, compatible season comparisons,
+  catalog object cards and precomputed light-curve panels for RW Aurigae and R Draconis.
+- **3D context:** catalog-based models link to the showcase targets and identify their sources and
+  representation limits. They are models, not SPHEREx images or measured orbits. Building physical models
+  from SPHEREx-derived temperature/radius remains separate work; no such inference is claimed here.
+- **Development fixtures:** a separate numerical synthetic dataset remains available and labelled.
+  It is not the data used by the public real-data application.
 
 ### How it works
 
-Target flow: coordinates -> archive/cached coverage -> FITS cutouts -> aligned grid and PNGs -> temporal
-viewer. Images are saved before optional analysis; `--analyze` opts into those later stages. Static mode
-currently reads prebuilt fields. The public service for arbitrary coordinates is not implemented yet.
+Coordinates -> archive search or cached coverage -> FITS cutouts -> a common sky grid and display PNGs
+-> temporal viewer. Images retain source URIs, observation dates, detector and release information.
+Spectra and brightness measurements are extracted from scientific data, not from display PNG values.
+The backend provides bounded jobs, caching and persistent runtime storage. The frontend and FastAPI API
+run together behind HTTPS; the application does not depend on a teammate's local computer.
 
 ### Validation and limitations
 
-| Target | Observed result |
-|---|---|
-| Barnard's Star | Pending real-data test |
-| Epsilon Indi B | Pending real-data test and component identity check |
-| WISE 0855 | Pending real-data test and epoch/astrometry verification |
-| RW Aurigae | Pending compatible-wavelength brightness comparison |
-| R Draconis | Pending compatible-wavelength brightness comparison |
+These results summarize the [five validation records](../validation/) and [WS3's review](../SCIENCE.md).
+They are offline FITS analyses with separate agent-based re-measurements, not five visual detections in
+the browser. Human review remains pending. Technical deployment checks do not certify scientific results.
 
-Report attempts separately from positive results. Synthetic examples do not establish a real recovery,
-spectrum, sensitivity or discovery. Unconfirmed sources may be artifacts, measurement errors or
-uncatalogued objects. No discovery of Planet X is claimed.
+| Target | Offline result and interpretation limit |
+|---|---|
+| Barnard's Star | About 10.2 arcsec (1.66 SPHEREx pixels) of motion between the Aug 2025 and Aug 2026 seasons, consistent with the catalog prediction; 358 exposures. The core saturates in 357/358, so positions use the PSF wings. This does not establish parallax. |
+| Epsilon Indi B | Ba+Bb are unresolved. About 1.03 pixels of motion between the May 2025 and Sep 2026 seasons agrees with the catalog prediction. No claim of resolving the pair or measuring its orbit. |
+| WISE 0855-0714 | Detected at 3.8-5.0 micrometres (D5-D6); about 8.4-8.5 arcsec of motion in 360 days, with blending by a background source. Combined exposures provide much stronger evidence than the faint single frames. DR1 only. |
+| RW Aurigae | About 1 mag of brightening at 0.75-0.77 micrometres between Sep 2025 and Sep 2026 in matched-wavelength, unsaturated D1 exposures. A+BC are unresolved. Saturation removes bright states and prevents a complete light curve; no period is established. |
+| R Draconis | The core saturates in every usable exposure. Relative PSF-wing photometry shows 0.5-1.3 mag variation and an effective cycle around 260 days in the offline analysis. This is not absolute flux or a uniquely confirmed period. |
+
+The app's R Draconis light curve uses **wide-survey DR1+QR3 only**, not the deep observations included in
+the larger offline record. RW Aurigae's curve excludes saturated measurements, preferentially removing
+bright states. Narrow wavelength bins, incomplete sampling and systematic errors limit interpretation.
+Displayed error bars are statistical; period significance indicates time-ordered variability, not a
+unique physical period. Comparison-star zero-point corrections are not applied to published relative
+magnitudes. The light-curve panels still need fuller inline warnings.
+
+Motion is only about 1-2 native pixels over these baselines. Saturated cores, display stretching and
+faintness can hide changes in the 40-frame previews. Human phone testing and correction of observed
+mobile horizontal overflow remain pending. No automatic discovery, Planet X detection, measured distance,
+temperature or radius from SPHEREx is claimed.
 
 ### Contribution and evidence for judging
 
-The team is developing an accessible temporal workflow for SPHEREx. WiseView and IRSA tools are credited
-as references; the team must identify a meaningful, demonstrated contribution rather than claim novelty
-for an existing blink interaction or a planned feature. The separated image/analysis build and shared
-contracts are implemented engineering choices, not evidence of a new astronomical result.
-The optional 3D gallery is an implemented presentation layer; its parameters, source claims and field links
-still require validation. Showing a model for each target does not establish successful observation of those targets.
-
-The Judging & Awards Guide evaluates each criterion from 1 to 5; this draft assigns no official or internal
-score. Complete the evidence below with actual observations before submission.
-
-| Criterion | Evidence to include | Current gap |
-|---|---|---|
-| Impact | Defined audience, problem and user-test observations; distinguish expected from measured benefit | User testing remains pending |
-| Creativity | Credited inspirations and a meaningful, working contribution | Describe the demonstrated improvement and its limits |
-| Validity | Reproducible real workflow, scientific checks, usability and five target-test results | Real archive/image processing and validation are pending |
-| Relevance | RA/Dec to actual SPHEREx sequences with provenance and dates | NASA observations are not yet integrated into the committed demo |
-| Presentation | Clear challenge, solution and significance across the written page and demo | Final demo, public links and team review are pending |
-
-Weights and an aggregate-score formula are not specified by the guide. The pipeline's 0–1 candidate
-confidence is unrelated to judging scores. Award categories are not a claim of nomination or success.
+Errante combines a sky map, coordinate jobs, image playback and scientific context in one public workflow.
+WiseView and IRSA tools are credited inspirations. The contribution is the working integration and its
+traceable data/limitations, not a claim to have invented blink comparison. NASA observations drive both
+the viewer and scientific products. User testing, the final demo and human review remain separate tasks.
 
 ### Tools and team
 
-Python, NumPy, Astropy, Pydantic, Pillow and Requests; FastAPI/Uvicorn; React, TypeScript and Vite.
-The optional 3D scene uses Three.js with a dynamically imported renderer.
-Validation uses pytest, Ruff, JSON Schema and Vitest. Optional scientific packages are only needed when
-the corresponding real-data stages are implemented. Complete versions and acknowledgments for actual use.
+Python, NumPy, Astropy, Pydantic, Pillow, Requests and scientific processing dependencies; FastAPI/Uvicorn;
+React, TypeScript, Vite, Three.js; Aladin Lite 3.8.2 (GPL-3); Docker, Caddy and Google Compute Engine.
+Automated validation uses pytest, Ruff, JSON Schema and Vitest.
 
-TODO: team name, all member names and roles; verify Team Owner, Members tab, 1–6 local members and no waitlist.
+TODO: confirm team name, member names/roles and accepted registration. Review the complete dependency
+and asset/license inventory before submitting.
 
 ## Use of Super Intelligence (SI)
 
-Yes. OpenAI Codex assisted with repository/source review, link checks, documentation, requirement and
-technical-workflow revisions, build/CLI changes, regression tests, draft submission text and attribution
-text. The verified scope is recorded in [AI_USAGE.md](../../AI_USAGE.md) and
-[ai-usage.json](ai-usage.json). The original scaffold and generator history still require team review.
-The imported 3D contribution declares Claude assistance in commit `cb19f8c`; that declaration is recorded
-without claiming a complete authorship audit or verified scientific parameters.
+Yes. OpenAI Codex assisted with review, documentation, implementation, integration, tests, deployment and
+this submission/About update. Anthropic Claude Code assisted contributors with data access, scientific
+analysis/review, catalog context and 3D work. Separate agents re-measured scientific results; that is not
+human review. Scope and metadata are recorded in [AI_USAGE.md](../../AI_USAGE.md),
+[submission metadata](ai-usage.json) and component inventories.
 
-The team must complete the origin-of-idea review and identify any other SI tools and generated assets.
-No AI-generated video, audio or image-model output was created in the reviewed session. Numerical demo
-images are labelled as simulations. This is not a claim that all existing assets have been audited.
-
-The guide requires visible watermarks for SI-generated images/videos and descriptive text plus metadata
-for SI-generated audio/code/data. Review NASA branding restrictions and source permissions. Public
-attribution remains necessary even though the form's SI answer itself is not shown to judges.
+The team-stated vision and Claude's feasibility/documentation role are recorded in [VISION.md](../VISION.md);
+the earlier agent-drafted outline was rejected. Team confirmation of the full idea-origin record,
+earlier scaffold/assets and all contributors' tool use is still required. Real FITS-derived images and
+plots are data processing, not invented sky imagery. Synthetic fixtures remain labelled. Review generated
+media, metadata, source permissions and branding; this draft does not claim a complete authorship audit.
 
 ## NASA Data
 
-Resources consulted during development:
+The application uses **real SPHEREx L2 observations from DR1 and QR3**, served through NASA/IPAC IRSA,
+plus the DR1 spectral cube and its HiPS representation. Products retain observation IDs, dates,
+detector/release and source URIs. The separate offline R Draconis analysis also uses deep collections;
+those are not included in the published precomputed light curve.
 
-- [NASA/IPAC IRSA SPHEREx resources](https://irsa.ipac.caltech.edu/Missions/spherex.html).
+This publication makes use of data products from the Spectro-Photometer for the History of the Universe,
+Epoch of Reionization and Ices Explorer (SPHEREx), which is a joint project of the Jet Propulsion
+Laboratory and the California Institute of Technology, and is funded by the National Aeronautics and
+Space Administration.
+
+- [NASA/IPAC IRSA SPHEREx data and documentation](https://irsa.ipac.caltech.edu/Missions/spherex.html).
 - [IRSA SPHEREx tutorial notebooks](https://caltech-ipac.github.io/irsa-tutorials/spherex/).
-
-Planned scientific input: SPHEREx Level 2 spectral images (NASA/JPL-Caltech/IPAC, via IRSA). **No real
-SPHEREx observations have yet been integrated into the committed demonstration.** When implemented,
-record actual releases, observation IDs, dates, source URIs and applicable acknowledgments.
-
-The guide requires at least one NASA data/resource for Global Award eligibility. Citing a consulted
-resource does not establish that the SPHEREx image-viewing requirement has been implemented.
-The Relevance criterion further calls for NASA data to be integral to the proposed solution. Demonstrate
-real observations driving the viewer rather than relying on a reference link or acknowledgment alone.
+- [NASA Exoplanet Archive](https://exoplanetarchive.ipac.caltech.edu/): confirmed-planet catalog context,
+  not planets detected in SPHEREx images. This research has made use of the NASA Exoplanet Archive, which
+  is operated by the California Institute of Technology, under contract with the National Aeronautics and
+  Space Administration under the Exoplanet Exploration Program.
 
 ## Space Agency Partner Data and Other References
 
-TODO: complete the inventory of all code, text, data, images and tools used, including free/open-source
-material, permission/license and attribution. Separate resources consulted from datasets actually processed.
+- Gaia DR3 catalog astrometry provides reference positions and motions, not SPHEREx distance measurements.
+  This work has made use of data from the European Space Agency (ESA) mission Gaia
+  (https://www.cosmos.esa.int/gaia), processed by the Gaia Data Processing and Analysis Consortium (DPAC,
+  https://www.cosmos.esa.int/web/gaia/dpac/consortium). Funding for the DPAC has been provided by national
+  institutions, in particular the institutions participating in the Gaia Multilateral Agreement.
+- AllWISE color context: NASA WISE/NEOWISE products, HiPS by CDS through the ESA ESASky mirror;
+  separate from SPHEREx observations.
+- Sesame, SIMBAD and VizieR through the CfA mirror; 2MASS and CatWISE2020 for identity checks.
+- AAVSO International Database observations inform the offline R Draconis phase comparison.
+- [Aladin Lite](https://aladin.cds.unistra.fr/AladinLite/) (CDS, GPL-3), Astropy and other dependencies;
+  WiseView as an interaction reference. NEOSSat/CADC were consulted as challenge resources, not used
+  as substitutes for SPHEREx images.
+- The supplied [Project Submission Guide](<../references/NASA Space Apps Challenge.pdf>) and
+  [Judging & Awards Guide](<../references/NASA Space Apps Challenge Judging & Awards Guide.pdf>) inform
+  the submission process; the original PDFs are preserved unchanged.
 
-- WiseView was consulted as a reference for interaction; its imagery is not SPHEREx imagery.
-- Gaia/MAST, CSA NEOSSat, CADC and the NEOSSat tutorial/dataset pages were checked as challenge resources;
-  no processing of those datasets is claimed.
-- Astropy is used for FITS/WCS. Aladin integration and JPL/SkyBoT analysis remain planned.
-- Add exact resources, dependencies and contributor acknowledgments that the final project actually uses.
-- Team-provided [Project Submission Guide](<../references/NASA Space Apps Challenge.pdf>) and
-  [Judging & Awards Guide](<../references/NASA Space Apps Challenge Judging & Awards Guide.pdf>), both dated
-  November 13, 2026, informed submission planning. The files are preserved unchanged in this repository.
-
-Partner resources are encouraged by the guide; they do not replace the required NASA resource and
-SPHEREx workflow. Review permissions and complete the inventory before submission.
+TODO: complete the exact resource, code, image and license inventory with the team. Final materials and
+links must be public and in English. Save Progress is not submission: confirm Submit for Judging and
+retain the confirmation before the deadline.

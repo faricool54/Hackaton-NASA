@@ -31,6 +31,10 @@ deploy público y formulario de Space Apps completo y a tiempo.
 - [ ] **WS6-3 (P0) Deploy público del frontend** (GitHub Pages/Vercel/Netlify, con WS4) — URL estable desde H+24.
 - [ ] **WS6-4 (P0) Texto de la entrega** en `docs/submission/PROJECT.md` (en inglés): problema, solución, cómo
   funciona, datos NASA usados, beneficios, límites honestos, herramientas y uso de IA, equipo.
+  Actualizado 15/11 por pedido del usuario: URL pública, cinco campos reales, jobs, espectros/comparaciones,
+  curvas de luz y resultados offline revisados por WS3. About y créditos actualizados en la misma entrega.
+  Faltan enlace de demo, datos de integrantes y revisión final del inventario/autoría por el equipo;
+  no se marca el formulario como enviado ni revisión humana completada.
 - [ ] **WS6-5 (P0, S02/S04) Demo obligatoria:** video **<= 30 s** o presentación **<= 7 slides**, contando
   portada/introducción. Guion actualizado en PITCH.md. Inglés; voz en otro idioma con subtítulos ingleses.
   Mostrar el estado real: si solo hay simulaciones, declararlo; nunca presentarlas como SPHEREx real.
