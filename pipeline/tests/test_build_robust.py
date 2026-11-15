@@ -236,7 +236,7 @@ def test_cli_overrides_reach_build_field(monkeypatch, tmp_path, extra, expected)
     calls = []
     monkeypatch.setattr(build, "build_field", lambda cfg, out, **kw: calls.append((cfg.id, kw)))
     assert main(["build", "wise-0855", "--out", str(tmp_path), *extra]) == 0
-    assert calls == [("wise-0855", {"analyze": False, "overrides": expected})]
+    assert calls == [("wise-0855", {"analyze": False, "overrides": expected, "jhk_topup": True})]
 
 
 @pytest.mark.parametrize("bad", [["--max-frames", "0"], ["--detectors", "7"], ["--detectors"]])
