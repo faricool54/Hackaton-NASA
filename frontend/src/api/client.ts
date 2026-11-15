@@ -15,6 +15,10 @@ import type {
   JobSubmitRequest,
   JobStatusResponse,
   ResolvedRegion,
+  SpectrumRequest,
+  SpectrumResponse,
+  ComparisonRequest,
+  ComparisonResponse,
 } from './types';
 
 export type DataMode = 'static' | 'api';
@@ -119,6 +123,19 @@ export function createClient(config: ClientConfig = envConfig()) {
       if (mode !== 'api') throw new ApiError('Jobs require live API mode.', 0);
       return getJson<JobStatusResponse>(`${apiBase}/api/jobs/${encodeURIComponent(id)}`, { signal });
     },
+    async getSpectrum(body: SpectrumRequest, signal?: AbortSignal): Promise<SpectrumResponse> {
+      if (mode !== 'api') throw new ApiError('Spectra require live API mode.', 0);
+      return getJson<SpectrumResponse>(`${apiBase}/api/spectra`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal,
+      });
+    },
+    async getComparisons(id: string, body: ComparisonRequest, signal?: AbortSignal): Promise<ComparisonResponse> {
+      if (mode !== 'api') throw new ApiError('Comparisons require live API mode.', 0);
+      return getJson<ComparisonResponse>(`${apiBase}/api/fields/${encodeURIComponent(id)}/comparisons`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal,
+      });
+    },
+    analysisImageUrl: (path: string) => `${apiBase}/data/${path}`,
 
     /** Live archive search — only in api mode (WS1+WS4). */
     async searchArchive(ra: number, dec: number): Promise<SearchResult> {

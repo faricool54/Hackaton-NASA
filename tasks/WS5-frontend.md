@@ -20,7 +20,8 @@ desplegable (`npm run build`) que también funciona contra el backend (`?mode=ap
   SVG, filtro por detector, About, badge de datos sintéticos, modos `static`/`api`.
 - ✅ Integración local: mapa real SPHEREx (Aladin 3.8.2/IRSA), λ propia y contexto AllWISE; búsqueda por
   nombre/RA-Dec → job → 40 PNG reales. URL restaurable, errores y modo estático explícito.
-- Pendientes: validación científica R05, comparaciones y espectro/3D medidos, auditoría Lighthouse,
+- ✅ Espectros por posición (cubo o L2) y comparaciones por temporada conectados al backend científico.
+- Pendientes: validación científica R05, 3D medido, auditoría Lighthouse,
   modo compacto y recorrido desde URL pública.
 
 ## Tareas
@@ -43,8 +44,9 @@ desplegable (`npm run build`) que también funciona contra el backend (`?mode=ap
   con progreso/sin cobertura/reintento; contar archivos sin abrir imágenes no alcanza. Accesos a los cinco
   blancos de VALIDATION.md con fuente/época verificadas. Resolver nombres es opcional. El modo estático
   explica su límite de campos curados y no simula una búsqueda arbitraria.
-- [ ] **WS5-8 (P1, C03) Suma/resta de épocas.** Elegir A/B o conjunto y ver suma/media/resta generada
-  por WS2/WS4, con fechas, banda y advertencias. Color compuesto y exportación GIF/MP4 quedan P2.
+- [x] **WS5-8 (P1, C03) Comparar épocas.** Elegir detector/rango de fechas y ver medias ponderadas por
+  temporada o diferencias escaladas de WS2/WS4 con entradas, fechas, λ, ruido y advertencias.
+  No se ofrece suma cruda arbitraria. Color compuesto #40/41 es trabajo separado; exportar GIF/MP4 queda P2.
 - [x] **WS5-9 (P1, C04) Campo de visión configurable.** Control con unidades y límites del servidor;
   explicar que más área implica más transferencia/procesamiento; progreso y estimación cuando exista.
   El FOV seleccionado afecta la solicitud, el producto y el enlace compartido.
@@ -54,9 +56,11 @@ desplegable (`npm run build`) que también funciona contra el backend (`?mode=ap
   `?mode=api&ra=<deg>&dec=<deg>&fov=<deg>&detector=<1..6>`. Restaurar formulario y secuencia en nueva sesión;
   copiar enlace, validar parámetros y ofrecer modo compacto. Probar iframe desde otro origen con WS4.
   La URL propuesta aún no está implementada; preservar las rutas hash y `mode`/`dataset` existentes.
-- [ ] **WS5-12 (P1, C02) Bandas, coadds y espectro al seleccionar una posición.** Elegir detector/λ,
+- [x] **WS5-12 (P1, C02) Bandas, coadds y espectro al seleccionar una posición.** Elegir detector/λ,
   activar coadd por detector/visita y solicitar espectro con flujo/error/fecha desde WS4-8. Funciona sin
   detector automático. Explicar que detector no equivale a una única λ ni garantiza 102 muestras disponibles.
+  Panel independiente en el mapa/campo: cubo DR1 estático o L2 por fecha, unidades/errores/flags/fuentes;
+  scatter sin interpolación, inválidos conservados en tabla y límites explícitos. Contrato 0.4.0.
 - [ ] **WS5-13 (P0, S04/S08) Textos públicos y atribución.** UI/materiales de evaluación en inglés;
   About declara estado real y asistencia conocida de Codex (texto actualizado). Completar con WS6 el
   inventario/revisión de aportes y medios; no presentar datos/catálogos futuros como implementados.
@@ -164,3 +168,11 @@ activar/desactivar múltiples bandas SPHEREx simultáneamente.
 - WS5-11: coordenadas/FOV/detector/job en URL implementados; modo compacto/iframe externo sigue pendiente.
 - WS5-4: mapa y capa AllWISE implementados; footprint, Gaia propagado y otras capas siguen pendientes.
 - No afirmar Lighthouse ≥90 ni prueba pública: no se midieron en esta integración local.
+
+## Espectros y comparaciones (15/11/2026)
+
+Integración real local: Barnard D2, tres medias y tres diferencias; cubo, 8/102 puntos utilizables;
+RW Aurigae L2, cuatro exposiciones con flujo/error/fuente retenidos, excluidas del gráfico por saturación.
+Escritorio y 390×844: sin desborde de página, tabla con scroll propio. Tests de selección UTC/detector,
+límites, payloads API/modo estático y flujos negativos. La validación de señal R05 sigue separada.
+Orden de integración: #39 → #53 → WS4 ciencia → WS5 ciencia. No modifica BlinkViewer ni el PR #40.

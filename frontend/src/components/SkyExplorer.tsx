@@ -6,6 +6,7 @@ import { DETECTOR_BANDS } from '../api/format';
 import { SHOWCASE_TARGETS } from '../api/showcase';
 import { FieldPage } from '../pages/FieldPage';
 import { ExplorerMap } from './ExplorerMap';
+import { PositionSpectrum } from './PositionSpectrum';
 
 function initialPosition(): { request: JobSubmitRequest; error: string } {
   try { return { request: readPosition(location.search), error: '' }; }
@@ -164,6 +165,7 @@ export function SkyExplorer() {
         </div>
       </aside>
     </div>
+    <PositionSpectrum position={center} fieldId={job?.status === 'ready' ? job.result_field_id ?? undefined : undefined} />
     {job?.status === 'ready' && job.result_field_id && <div className="explorer-result" aria-label="Time sequence result">
       <FieldPage key={job.result_field_id} fieldId={job.result_field_id} embedded />
     </div>}
