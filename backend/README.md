@@ -145,7 +145,8 @@ son responsabilidad del host/contenedor. Los resultados desaparecidos o inválid
 
 `no_coverage` requiere una consulta válida vacía; errores genéricos de proyección/descarga no se interpretan
 como ausencia de cobertura. Una secuencia técnica correcta tampoco certifica movimiento/variabilidad R05.
-La integración de espectros, comparaciones y fichas científicas sigue las dependencias de WS2/WS3 de VISION.md.
+Espectros y comparaciones se exponen mediante el contrato científico 0.4.0 descrito abajo.
+Las fichas y el modelo físico 3D siguen las dependencias de WS3/WS7 en VISION.md.
 
 Para verificar un PR apilado contra su base inmediata: `ERRANTE_BASE_REF=origin/<rama-base>` antes de
 `python scripts/dev.py check` (PowerShell: `$env:ERRANTE_BASE_REF=...`). La guardia mantiene las mismas
@@ -162,3 +163,38 @@ un SHA-256 del contenido de build/settings/models/data/imaging y versiones de la
 El hash usa nombres relativos: mover un worktree no cambia el resultado. Cambiar código o dependencias
 invalida resultados viejos sin tener que recordar subir una constante. Cada pedido conserva su contexto;
 un pedido en cola cuyo procesamiento cambió falla y debe reenviarse, en lugar de publicar bajo otra clave.
+
+## Espectros y comparaciones (15/11, C02/C03)
+
+Requieren instalar `pipeline[science]` junto al backend. Funcionan localmente; no requieren contratar hosting.
+Contrato compartido **0.4.0**, PR `contract/science-api` (depende de `contract/composites` #39).
+
+- `POST /api/spectra`: `{ "ra": 269.44623, "dec": 4.76870, "source": "dr1_cube", "aperture_px": 0 }`.
+  Cubo DR1 estático, 102 planos antes de filtrar detector, brillo superficial MJy/sr, sin sustracción de cielo
+  ni errores de flujo. Apertura 0–3 píxeles. No acepta filtro temporal: el cubo no tiene eje de tiempo.
+  Núcleos faltantes/saturados y canales dicroicos 50/51 permanecen inválidos; no se interpolan.
+- La misma ruta con `source: "l2_exposures"`, `max_frames: 24`, `detectors: [2]`, `mjd_min/max` opcionales:
+  fotometría forzada WS2 en stamps nativos IMAGE − ZODI, apertura y cielo local, flujo mJy y error por
+  exposición. 2–60 frames. `field_id` opcional usa las exposiciones del campo y exige posición dentro de él;
+  sin campo busca por coordenadas. Retiene flujos negativos, fechas, λ, release, fuente, flags y fallos.
+  Sin corrección de apertura disponible devuelve flujo de apertura sin corregir, identificado como tal.
+  No propaga movimiento propio/paralaje; λ y tiempo varían juntos. No es un espectro simultáneo.
+- `POST /api/fields/{id}/comparisons`: `{ "detectors": [2], "frame_ids": ["id1", "id2"] }`.
+  Sin `frame_ids` selecciona los del campo para esos detectores. 2–60 frames, grilla hasta 512² píxeles,
+  procedencia real obligatoria. Reconstruye medias ponderadas por temporada/detector y diferencias
+  `later − scale × earlier` mediante WS2. Devuelve entradas, épocas, λ, escala/ruido y limitaciones;
+  pesos individuales no exportados se indican como `null`. No ofrece suma arbitraria ni mezcla detectores.
+  Los PNG y `analysis.json` se publican atómicamente en `/data/analyses/{sha256}/`, conservando el campo.
+
+Todos los resultados llevan `synthetic: false`; un campo sintético se rechaza con 409. Sin cobertura o
+sin puntos utilizables no se inventa una detección. Filtro/posición inválidos: 422; selección demasiado
+grande: 413; ocupado/almacenamiento: 503; fallo remoto: 502; deadline: 504. OpenAPI incluye los modelos.
+
+Procesamiento científico en un hijo por instancia, independiente del worker de jobs: deadline duro 140 s,
+staging de 512 MiB, log de 1 MiB, watchdog del padre y terminación al apagar. Cupo ocupado hasta terminar;
+pedidos idénticos comparten trabajo y dejar de esperar en el frontend no cancela a otros clientes.
+Caché TTL memoria/disco en `ERRANTE_API_CACHE_DIR/science-results`, staging privado en `science-work`.
+La identidad incluye parámetros, campo/época, fuentes, schema, huella del pipeline y adaptador científico.
+Un PNG ausente/dañado invalida la reutilización. Admisión hasta 1 GiB de staging + análisis publicados y
+512 MiB libres; los productos públicos no se eliminan automáticamente. Para liberar espacio, detener el
+servicio y archivar/eliminar análisis viejos; nunca limpiar los campos originales para renovar esta caché.

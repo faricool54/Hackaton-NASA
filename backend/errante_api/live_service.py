@@ -16,7 +16,7 @@ import threading
 import time
 from collections import OrderedDict
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import TypeVar
@@ -42,6 +42,7 @@ class LiveService:
         self._slots = threading.BoundedSemaphore(settings.live_max_concurrent)
         self._lock = threading.Lock()
         self._memory: OrderedDict[str, tuple[float, object]] = OrderedDict()
+        self._pending: dict[str, Future] = {}
 
     def close(self) -> None:
         self._pool.shutdown(wait=False, cancel_futures=True)
@@ -103,7 +104,15 @@ class LiveService:
                 except OSError:
                     log.warning("Unable to remove temporary archive cache file")
 
-    async def call(self, operation: str, parameters: dict, function: Callable[[], T], adapter: TypeAdapter[T]) -> T:
+    async def call(
+        self,
+        operation: str,
+        parameters: dict,
+        function: Callable[[], T],
+        adapter: TypeAdapter[T],
+        *,
+        cache_validator: Callable[[T], bool] | None = None,
+    ) -> T:
         identity = {
             "operation": operation,
             "parameters": parameters,
@@ -114,28 +123,53 @@ class LiveService:
         }
         key = hashlib.sha256(json.dumps(identity, sort_keys=True, allow_nan=False).encode()).hexdigest()
         cached = self._read(key, adapter)
-        if cached is not None:
+        if cached is not None and (cache_validator is None or cache_validator(cached)):
             return cached
-        if not self._slots.acquire(blocking=False):
-            raise HTTPException(503, "Archive capacity is busy; retry later.", headers={"Retry-After": "2"})
+        if cached is not None:
+            with self._lock:
+                self._memory.pop(key, None)
+            try:
+                self._path(key).unlink(missing_ok=True)
+            except OSError:
+                log.warning("Unable to remove invalid cache entry", exc_info=True)
 
         def run() -> T:
             result = adapter.validate_python(function())
             self._write(key, result, adapter)
             return result
 
+        created = False
+        with self._lock:
+            future = self._pending.get(key)
+            if future is None:
+                if not self._slots.acquire(blocking=False):
+                    raise HTTPException(503, "Archive capacity is busy; retry later.", headers={"Retry-After": "2"})
+                try:
+                    future = self._pool.submit(run)
+                except RuntimeError as error:
+                    self._slots.release()
+                    raise HTTPException(503, "Archive service is shutting down.") from error
+                self._pending[key] = future
+                created = True
+        if created:
+
+            def completed(done):
+                with self._lock:
+                    if self._pending.get(key) is done:
+                        self._pending.pop(key, None)
+                self._slots.release()
+
+            future.add_done_callback(completed)
         try:
-            future = self._pool.submit(run)
-        except RuntimeError as error:
-            self._slots.release()
-            raise HTTPException(503, "Archive service is shutting down.") from error
-        future.add_done_callback(lambda _: self._slots.release())
-        try:
-            return await asyncio.wait_for(asyncio.wrap_future(future), timeout=self.settings.live_timeout_s)
+            return await asyncio.wait_for(
+                asyncio.shield(asyncio.wrap_future(future)), timeout=self.settings.live_timeout_s
+            )
         except NotImplementedError as error:
             raise HTTPException(501, "Archive integration is not implemented yet.") from error
         except (TimeoutError, requests.Timeout) as error:
             raise HTTPException(504, "Archive request timed out; retry later.") from error
+        except HTTPException:
+            raise
         except Exception as error:
             # WS1 retries may wrap a transport timeout; preserve that distinction.
             cause = error.__cause__

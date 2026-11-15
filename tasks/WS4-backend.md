@@ -62,12 +62,15 @@ Implementación y validación de esta etapa: [PR #6](https://github.com/faricool
   externamente. El PDF no autoriza sustituir una demo de proyecto por una URL inaccesible o solo documentación.
   Workflow opt-in `pages.yml` implementado; habilitar Pages/variables y comprobar acceso anónimo aún pendiente.
 - [ ] **WS4-7 (P2) `/api/limits`** cuando WS2 defina el contrato de límites.
-- [ ] **WS4-8 (P1, C02) Espectros bajo demanda.** Servicio de extracción por campo + posición elegida,
-  independiente de candidatos; integrar WS1-5 y WS3-5 con errores, límites y caché. Contrato/ruta por definir.
-- [ ] **WS4-9 (P1, C03) Operaciones de imágenes.** Conectar selección de frames con suma/media/resta de
-  WS2; devolver producto y procedencia de entradas, método, fechas, detector/λ y cobertura. Límites de recursos.
-- [ ] **WS4-10 (P0 para jobs; P1 para extras) Contratos aditivos.** Con WS1/2/3/5 definir solicitud y estados
-  de jobs; luego calidad/flags, coadds/diferencias y espectros en cualquier posición. Jobs ya formalizados en 0.3.0; extras científicos siguen pendientes. Mantener `models.py`,
+- [x] **WS4-8 (P1, C02) Espectros bajo demanda.** `POST /api/spectra` independiente de candidatos:
+  cubo DR1 estático MJy/sr o fotometría L2 mJy por exposición. Calidad/fuentes/fechas, errores, límites,
+  hijo supervisado y caché. La integración usa WS1 cube/point y WS2 photometry; no afirma validación R05.
+- [x] **WS4-9 (P1, C03) Operaciones de imágenes.** `POST /api/fields/{id}/comparisons` conecta selección
+  con medias ponderadas por temporada y diferencias escaladas WS2, por detector. PNG atómicos,
+  entradas/método/épocas/λ/cobertura y recursos acotados. No se implementa suma cruda arbitraria.
+- [x] **WS4-10 (P0 para jobs; P1 para extras) Contratos aditivos.** Con WS1/2/3/5 definir solicitud y estados
+  de jobs; luego calidad/flags, coadds/diferencias y espectros en cualquier posición. Jobs formalizados en 0.3.0;
+  espectros/comparaciones en 0.4.0 (`contract/science-api`, PR #53; depende de #39). Mantener `models.py`,
   schema y tipos TS sincronizados, versionar, y no documentar rutas propuestas como endpoints disponibles.
   S08 requiere metadata de atribución para código/datos generados con SI: el inventario actual está en
   `docs/submission/ai-usage.json`; coordinar procedencia de futuros productos sin confundir simulación numérica con imagen IA.
@@ -78,7 +81,8 @@ Implementación y validación de esta etapa: [PR #6](https://github.com/faricool
 - WS4: CORS POST, productos servidos en el destino del motor, locks entre procesos y manifest atómico.
 - Jobs: admisión transaccional, resultados verificados, recuperación por huellas y logs/almacenamiento acotados.
 - Errores públicos sanitizados; los tests de backend no dependen de IRSA/JPL.
-- Pendientes P1: fotometría/espectros WS3 y comparaciones WS2 con contrato. Hosting público pendiente de destino.
+- Espectros/comparaciones implementados con contrato, límites y procedencia; frontend en PR dependiente.
+  Hosting público pendiente de destino; fichas/3D físico y validación R05 tienen sus propios responsables.
 
 ## Prompt de arranque
 
@@ -90,4 +94,12 @@ Implementación y validación de esta etapa: [PR #6](https://github.com/faricool
 
 Integración con main actualizado: #17 aporta cinco campos reales (40 frames cada uno); #19 aporta
 comparaciones de temporadas con `compare.json` provisional. Se conservaron ambos. La comparación web
-requiere su propio contrato antes de exponerla; no se marca WS4-9 como terminada por tener la función.
+ahora se adapta a un contrato compartido antes de exponerla. Tener la función por sí sola no cerraba WS4-9.
+
+## Verificación de caché y ciencia (15/11/2026)
+
+Cache `display-mask-v4` + huella de código/dependencias: nuevos cambios WS2 invalidan jobs previos.
+Regresiones de flags SOURCE/HOT, huecos del cubo, fotometría firmada/saturación, PNG corrupto, singleflight,
+cancelación local, errores sanitizados y terminación real del hijo por disco/deadline.
+Recorrido real en navegador: Barnard D2 produjo tres medias y tres diferencias sin fallos de entrada;
+fechas, λ, escala y ruido visibles. Es aceptación técnica C02/C03, no validación científica de una señal.
