@@ -340,6 +340,18 @@ def from_spectrum_result(
         )
     elif n_sat:
         notes.append(f"{n_sat} saturated exposures (lower limits) are listed but not in the spectrum.")
+    n_usable = sum(s.usable for s in samples)
+    n_raw = sum(1 for s in samples if s.usable and s.aperture_correction is None)
+    if n_raw and n_raw < n_usable:
+        warnings.append(
+            f"{n_raw} of {n_usable} usable points have no aperture correction and the others do: the spectrum mixes "
+            "r = 2 px fluxes with corrected ones (a few per cent apart)."
+        )
+    elif n_raw:
+        notes.append(
+            f"No aperture correction (too few field stars in the patches): all {n_raw} usable fluxes are r = 2 px "
+            "aperture fluxes, a few per cent low (corrections were 1.03-1.10 on eps Ind B's exposures)."
+        )
     n_seasons_used = len({s.season for s in samples if s.usable})
     if variable or (variable is None and verdict):
         warnings.append(verdict)
@@ -497,7 +509,8 @@ def candidate_spectrum(
     the detection position, with the aperture correction fitted per detector against wavelength on the field stars of
     all the given images (``fit_corrections``; the all-detector fit when a detector has too few stars). Detections
     without an image, unusable measurements (saturated, bad pixels, off the detector) and frames whose detector has
-    no correction at all are dropped, never mixed in: an uncorrected r = 2 px flux is ~3-15 % lower on SPHEREx.
+    no correction at all are dropped, never mixed in: an uncorrected r = 2 px flux is a few per cent low (the
+    corrections were 1.03-1.10 on eps Ind B's exposures, measured 2026-11-15).
     Nothing is invented: a detection without flux or wavelength is skipped. Sorted by wavelength. Detections of a
     moving object are at different times: the spectrum mixes time and colour if the object varies (rotation of an
     asteroid), say so in the UI.

@@ -23,7 +23,9 @@ Measured with this code on 2026-11-15 (~04-06 UTC, laptop in Buenos Aires -> S3 
   r = 0.86 (single pixel) and 0.78 (r = 2 aperture); 714 season pairs, median |dm| 0.043, and every (season pair,
   detector) group agrees (largest median |dm| 0.102, a single D4 pair): not variable. The same exposures with an
   injected 1 mag (at 0.75 um) extinction-like brightening in one season are called variable (in D1, D2 and D3 at least).
-* WISE 0855 D5/D6 (93 exposures, 11 s cached): W2 window 0.540 +- 0.028 mJy vs AllWISE W2 0.567 mJy (ratio 0.95);
+* WISE 0855 D5/D6 (93 exposures, 11 s cached): W2 window 0.540 +- 0.028 mJy vs AllWISE W2 0.567 mJy (ratio 0.95),
+  with r = 2 px fluxes WITHOUT aperture correction (no field star in the D5/D6 patches; checked 2026-11-15: all 72
+  usable points 'no_aperture_correction'; eps Ind B's corrections were 1.03-1.10);
   per-exposure SNR < 10, so variability is "not testable". All six detectors: W1 window 0.19 mJy = 1.9 x AllWISE W1,
   because the Gaia DR3 star 5756956644387831296 (W2 15.05) sits 0.7-1.85 px away (docs/validation/wise-0855.md).
 """

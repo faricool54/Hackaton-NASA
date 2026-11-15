@@ -8,6 +8,7 @@ tests in test_science_validation_network.py.
 
 import json
 import math
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 
@@ -162,6 +163,16 @@ def test_saturated_exposures_are_lower_limits_outside_the_spectrum():
     assert len(spec.spectrum_points()) == 6
     assert any("saturates in 9 of 15" in w for w in spec.warnings)
     assert spec.seasons[0].n_saturated == 3
+
+
+def test_fluxes_without_aperture_correction_are_said():
+    res = star()
+    raw = [replace(p, aperture_correction=None, flags=("no_aperture_correction",)) for p in res.points]
+    spec = from_spectrum_result(SpectrumResult(10.0, 20.0, raw, [], []))  # WISE 0855 D5/D6: no field star at all
+    assert any("No aperture correction" in n and "all 15 usable" in n for n in spec.notes) and not spec.warnings
+    mixed = from_spectrum_result(SpectrumResult(10.0, 20.0, raw[:5] + res.points[5:], [], []))
+    assert any("5 of 15 usable points have no aperture correction" in w for w in mixed.warnings)
+    assert not any("aperture correction" in n for n in from_spectrum_result(res).notes)
 
 
 def test_to_dict_is_strict_json():
