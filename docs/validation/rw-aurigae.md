@@ -377,3 +377,17 @@ vecina con G < G+1,5 a menos de 15″. Las cifras son de sus propios pares a λ 
    - La asignación A/B de Gaia en `SCIENCE.md` no está verificada.
    - "3 puntos por detector" no se cumple: solo D1 es medible sin saturación.
    - El ❓ de saturación de `DATA.md` §6 queda resuelto para este blanco: `OVERFLOW` en 304 de 335 frames, ningún frame de D2–D6 limpio y 17 de 56 limpios en D1. (Corregido el 2026-11-15: la versión anterior decía «todo D2–D6 y 37 de 56 de D1», que suma 316, no 304; la tabla de clases no da el reparto por detector de `sat`.)
+
+## Addendum 2026-11-15 (WS3): curva de luz publicada en la app
+
+- **Qué hay.** El producto precalculado `GET /api/lightcurves/rw-aurigae` (#79), con su panel en la página del campo
+  (#83), usa las mismas 56 exposiciones D1 y los métodos de WS3 de este registro.
+- **Coincide con este registro:** los 17 frames limpios (10 usados + 7 sin pareja en λ) y los 8 pares emparejados en
+  λ, con ≤ 0,003 mag de diferencia (−1,008 y −1,034 mag a 0,75–0,77 µm entre el 2025-09-02 y el 2026-09-08).
+- **Límites que el producto no declara** (LC4 de la revisión):
+  - A y B (1,5″) caen en el mismo píxel;
+  - la saturación crece con el brillo (S0 7/19, S1 14/19, S2 16/18) y saca de la curva casi todo el estado brillante;
+  - el `summary` sale de bins de 2 puntos, así que es descriptivo y no una significancia;
+  - para los pares, el piso de las comparaciones es 0,033 mag (pares), no 0,018 (por punto).
+- **Revisión completa:** `docs/SCIENCE.md` § «Revisión científica de las curvas de luz» (#85). No es una validación
+  nueva ni reemplaza este registro.
