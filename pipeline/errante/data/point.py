@@ -46,7 +46,13 @@ Stamps are bit-identical to the same pixels of ``s3range.read_patch`` and of the
 are in native detector orientation (NOT north-up; MWIR frames are flipped in x, ``DETCOORD='sky'``, per
 docs/RECON_SPHEREX.md §2.4), numpy order ``[row, column]`` with row 0 = detector row ``y0``. (ra, dec) is a
 FIXED position: propagate proper motion yourself (Barnard's Star moves ~1.7 px per year) or use a box large
-enough. Bright stars saturate: Barnard's and R Dra's central pixels are often NaN with OVERFLOW (bit 1) set.
+enough. Bright stars saturate: their central pixels carry OVERFLOW (bit 1), with finite values or NaN (both
+occur within 3 px of Barnard's Star: finite OVERFLOW pixels in 339 of 358 exposures, NaN in 240), so mask OVERFLOW.
+
+Interactive use (WS4): ``deadline_s`` bounds the whole call, search included; frames are read interleaved by
+season and visit, so a cut series still spans the whole baseline; requests in flight stop at the deadline;
+every S3 request holds one of ``s3range.S3_MAX_CONNECTIONS`` process-wide slots (= the connection pool), so
+concurrent series share the pool instead of overflowing it.
 """
 
 from __future__ import annotations
@@ -78,7 +84,7 @@ from .. import settings
 from ..models import FrameRef
 from . import fits_io, irsa, s3range
 from .cutouts import KeyedLocks, NoOverlap
-from .epochs import VISIT_GAP_HOURS, _pick_spread
+from .epochs import VISIT_GAP_HOURS, _pick_spread, group_seasons, group_visits
 
 log = logging.getLogger(__name__)
 
@@ -250,9 +256,20 @@ class _IO:
     including those of frames that later fail (s3range's internal retries are not counted).
     ``wave_failures`` remembers the WCS-WAVE reads that failed on the network during this series, so the
     other frames of that calibration do not retry them one after another.
+
+    ``deadline`` (a ``time.monotonic()`` value) and ``cancel`` go with every S3 request: an attempt's timeout
+    never runs past the deadline and no retry starts after it, so requests in flight when the series gives up
+    end within about a second instead of ``settings.HTTP_TIMEOUT_S`` (120 s) x 4 attempts. :meth:`close`
+    stops everything at once (no new request, cancelled retries and backoffs).
     """
 
-    def __init__(self, pool: ThreadPoolExecutor | None = None, gap: int | None = None, max_parallel: int | None = None):
+    def __init__(
+        self,
+        pool: ThreadPoolExecutor | None = None,
+        gap: int | None = None,
+        max_parallel: int | None = None,
+        deadline: float | None = None,
+    ):
         self.pool = pool
         self.gap = MERGE_GAP if gap is None else gap
         self._slots = threading.BoundedSemaphore(max_parallel) if max_parallel else None
@@ -260,12 +277,40 @@ class _IO:
         self.requests = 0
         self.bytes = 0
         self.wave_failures: dict[tuple[str, str], str] = {}
-        self.closed = False  # set when the series' deadline passed: no new request is sent
+        self.deadline = deadline
+        self.cancel = threading.Event()  # set by close(): every read in flight stops at its next step
 
+    @property
+    def closed(self) -> bool:
+        return self.cancel.is_set()
+
+    def close(self) -> None:
+        """The series gave up (deadline): no new request; retries and backoffs in flight stop."""
+        self.cancel.set()
+
+    def _check(self) -> None:
+        if self.cancel.is_set():
+            raise TimeoutError("the point series stopped (deadline): request not sent")
+        if self.deadline is not None and time.monotonic() >= self.deadline:
+            raise TimeoutError("the point series' deadline passed: request not sent")
+
+    @contextlib.contextmanager
     def _slot(self):
-        if self.closed:
-            raise TimeoutError("the point series' deadline passed")
-        return self._slots if self._slots is not None else contextlib.nullcontext()
+        """One of the series' ``max_parallel`` request slots (waiting at most until the deadline / close)."""
+        self._check()
+        if self._slots is None:
+            yield
+            return
+        while not self._slots.acquire(timeout=0.25):
+            self._check()
+        try:
+            self._check()
+            yield
+        finally:
+            self._slots.release()
+
+    def _limits(self) -> dict:
+        return {"deadline": self.deadline, "cancel": self.cancel}
 
     def _count(self, nbytes: int) -> None:
         with self._lock:
@@ -273,8 +318,8 @@ class _IO:
             self.bytes += nbytes
 
     def _get(self, key: str, a: int, b: int) -> tuple[int, bytes, int | None, str]:
-        with self._slot():
-            data, size, etag = s3range.read_range_meta(key, a, b)  # looked up at call time: monkeypatchable
+        with self._slot():  # s3range.read_range_meta is looked up at call time: monkeypatchable
+            data, size, etag = s3range.read_range_meta(key, a, b, **self._limits())
         self._count(len(data))
         return a, data, size, etag
 
@@ -310,7 +355,7 @@ class _IO:
     def tail(self, key: str, nbytes: int, stats: _Stats) -> tuple[bytes, int]:
         """A suffix read: one more request and one more ROUND (it waits for the IMAGE header's calibration id)."""
         with self._slot():
-            data, size = s3range.read_tail(key, nbytes)
+            data, size = s3range.read_tail(key, nbytes, **self._limits())
         self._count(len(data))
         stats.requests += 1
         stats.bytes += len(data)
@@ -843,11 +888,7 @@ def _wave_hdu_in_tail(tail: bytes) -> bytes | None:
 
 
 def _wave_from_hdu_bytes(raw: bytes) -> fits_io.WaveTable:
-    blob = fits.PrimaryHDU().header.tostring().encode("ascii") + raw
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        with fits.open(_io.BytesIO(blob), memmap=False) as hl:
-            return fits_io.WaveTable.from_hdu(hl[fits_io.WAVE_EXTNAME])
+    return s3range.wave_table_from_bytes(raw)
 
 
 def _wave_table(layout: _Layout, io: _IO, stats: _Stats) -> fits_io.WaveTable:
@@ -937,7 +978,9 @@ class PointSample:
     the wavelength changes by 0.2-0.7 nm per pixel along y). ``flags`` is None when FLAGS could not be read
     (unknown, NOT clean); then ``core_flags`` is None too. ``core_flags`` ORs the FLAGS bits of the
     ``core_px`` x ``core_px`` pixels around the point; bit 21 (SOURCE) marks every catalogued star and is
-    NOT a defect (docs/DATA.md §2). Saturated cores are NaN with OVERFLOW (bit 1) set.
+    NOT a defect (docs/DATA.md §2). Saturated pixels carry OVERFLOW (bit 1) and their values may be finite OR
+    NaN: both occur, often in the same core (within 3 px of Barnard's Star, 358 exposures: OVERFLOW in 357, NaN
+    in 240, finite OVERFLOW pixels in 339; docs/validation/barnards-star.md). Mask OVERFLOW, not only NaN.
     """
 
     frame: FrameRef  # the archive frame, with ``wavelength_um`` set to the value at the point
@@ -1491,6 +1534,74 @@ def select_frames(frames: Sequence[FrameRef], max_frames: int | None) -> list[Fr
     return sorted(picked, key=lambda f: (f.mjd, f.detector, f.obs_id))
 
 
+def _season_groups(frames: Iterable[FrameRef]) -> list[list[FrameRef]]:
+    """Frames by release, then by season (``epochs.group_seasons``: gaps > 30 d), each in time order; the groups in
+    time order too."""
+    by_release: dict[str, list[FrameRef]] = {}
+    for f in sorted(frames, key=lambda f: (f.mjd, f.detector, f.obs_id)):
+        by_release.setdefault(f.release, []).append(f)
+    groups = [g for fs in by_release.values() for g in group_seasons(fs)]
+    return sorted(groups, key=lambda g: (g[0].mjd, g[0].release))
+
+
+def _coarse_to_fine(n: int) -> list[int]:
+    """0..n-1 so that every prefix is spread over the range: first, last, middle, then the quarters..."""
+    if n <= 0:
+        return []
+    order = [0] if n == 1 else [0, n - 1]
+    spans = [(0, n - 1)]
+    while spans:
+        nxt = []
+        for a, b in spans:
+            if b - a >= 2:
+                m = (a + b) // 2
+                order.append(m)
+                nxt += [(a, m), (m, b)]
+        spans = nxt
+    return order
+
+
+def _read_order(frames: Sequence[FrameRef]) -> list[FrameRef]:
+    """The order in which :func:`point_series` submits its frames, so that ANY prefix (what a deadline leaves)
+    is spread over the whole baseline instead of being its first weeks.
+
+    Seasons of each release (:func:`_season_groups`) take turns, one frame each. Inside a season the visits come
+    coarse to fine (first, last, middle, quarters...), one frame per visit per pass, and the frame taken from a
+    visit rotates over its detectors. A cut after ``k`` frames keeps about ``k / n_seasons`` frames of every
+    season, both releases included. (The frame pool runs frames in submission order.)
+    """
+    queues: list[list[FrameRef]] = []
+    for group in _season_groups(frames):
+        visits = group_visits(group, VISIT_GAP_HOURS)
+        rank = _coarse_to_fine(len(visits))
+        ordered = []
+        for r, i in enumerate(rank):
+            v = sorted(visits[i], key=lambda f: (f.detector, f.mjd, f.obs_id))
+            ordered.append(v[r % len(v) :] + v[: r % len(v)])
+        queue = [v[p] for p in range(max(map(len, ordered), default=0)) for v in ordered if p < len(v)]
+        queues.append(queue)
+    return [q[p] for p in range(max(map(len, queues), default=0)) for q in queues if p < len(q)]
+
+
+def _season_report(groups: list[list[FrameRef]], samples: Sequence[PointSample], timed_out: set) -> list[dict]:
+    """Per (release, season): frames asked, samples read and frames the deadline cut (JSON-safe)."""
+    read = {_frame_id(s.frame) for s in samples}
+    rows = []
+    for g in groups:
+        keys = [_frame_id(f) for f in g]
+        rows.append(
+            {
+                "release": g[0].release,
+                "mjd_min": g[0].mjd,
+                "mjd_max": g[-1].mjd,
+                "frames": len(g),
+                "samples": sum(k in read for k in keys),
+                "timed_out": sum(k in timed_out for k in keys),
+            }
+        )
+    return rows
+
+
 def _series_path(ident: dict) -> Path:
     h = hashlib.sha256(json.dumps(ident, sort_keys=True).encode()).hexdigest()[:24]
     return settings.CACHE_DIR / "point" / "series" / f"{ident['ra']:.7f}_{ident['dec']:+.7f}_b{ident['box']}_{h}.npz"
@@ -1510,15 +1621,20 @@ def _load_cached_series(path: Path) -> PointSeries | None:
         return None
 
 
+def _frame_id(f: FrameRef) -> object:
+    """The S3 object of a frame (its key), or (obs_id, detector, release) when it names none."""
+    try:
+        return s3range._frame_key(f)
+    except ValueError:
+        return (f.obs_id, f.detector, f.release)
+
+
 def _unique(frames: Iterable[FrameRef]) -> tuple[list[FrameRef], int]:
     """Frames without repeats (same S3 object), in order, and how many repeats were dropped."""
     out, seen = [], set()
     frames = list(frames)
     for f in frames:
-        try:
-            k: object = s3range._frame_key(f)
-        except ValueError:
-            k = (f.obs_id, f.detector, f.release)
+        k = _frame_id(f)
         if k not in seen:
             seen.add(k)
             out.append(f)
@@ -1527,15 +1643,15 @@ def _unique(frames: Iterable[FrameRef]) -> tuple[list[FrameRef], int]:
 
 def _retry_wavelengths(samples: Sequence[PointSample], io: _IO, until: float | None = None) -> int:
     """Second and last try of the WCS-WAVE reads that failed on the network during the series (one read per
-    calibration, as in the first pass), stopping at ``until`` (perf_counter). Returns how many samples got
-    their wavelength back."""
+    calibration, as in the first pass), stopping at ``until`` (``time.monotonic()``; the reads themselves are
+    bounded by ``io.deadline``). Returns how many samples got their wavelength back."""
     todo = [s for s in samples if s.meta.get("wave_error_transient")]
     if not todo:
         return 0
     io.wave_failures.clear()
     fixed = 0
     for s in todo:
-        if until is not None and time.perf_counter() >= until:
+        if until is not None and time.monotonic() >= until:
             break
         layout = _cached_layout(s3range._frame_key(s.frame))
         if layout is None:
@@ -1584,18 +1700,26 @@ def point_series(
     sample through :func:`to_spherex_image` to get the ``fits_io.SpherexImage`` that module takes. The read
     cost grows with the rows: one plane of a ``box_px`` stamp is ~``box_px`` x 8 KB (2040 x 4-byte rows).
 
-    ``deadline_s`` is a wall-clock budget for the whole call (for interactive use): frames not read by then
-    are ``failures`` with ``TimeoutError`` and the call returns at once (their requests finish in the
-    background, at most ``settings.HTTP_TIMEOUT_S`` per attempt). A WCS-WAVE read that failed on the network
-    is retried once at the end (``timings['wave_retried']``); samples still without it are counted in
-    ``timings['wave_errors']``.
+    ``deadline_s`` is a wall-clock budget for the WHOLE call (for interactive use), the archive search included:
+    the search gets what is left of it (``irsa.search_frames_report(deadline_s=...)``; with less than ~2 s left
+    IRSA is not asked and only a cached answer or a snapshot can answer, else ``irsa.SearchError`` with a
+    timeout cause). If the search used it all, no S3 read starts: every frame is a ``TimeoutError`` failure
+    that says so. Frames not read by the deadline are ``failures`` with ``TimeoutError`` and the call returns
+    at once; requests still in flight stop at the deadline (per-attempt timeout bounded by it, no retry after
+    it), so the reader threads end about a second later. Frames are submitted interleaved by season and visit
+    (:func:`_read_order`), so what a deadline keeps is spread over every season and both releases;
+    ``timings['seasons']`` says, per (release, season), how many frames were asked, read and cut. Samples are
+    returned in time order whatever was cut. A WCS-WAVE read that failed on the network is retried once at the
+    end (``timings['wave_retried']``); samples still without it are counted in ``timings['wave_errors']``.
+    Every S3 request also holds one of ``s3range.S3_MAX_CONNECTIONS`` process-wide slots: two series at once
+    share the connection pool instead of overflowing it.
 
     The result is cached (npz + json under CACHE_DIR/point/series) per (ra, dec, box, selection) for
     ``ERRANTE_POINT_TTL_S`` (default: the query-cache TTL, 1 day) only when it is complete: at least one
     sample, no failure other than ``NoOverlap`` (timeouts included), no network-missing wavelength, and a
     search that was neither stale nor truncated. ``use_cache=False`` skips both reading and writing.
     """
-    t0 = time.perf_counter()
+    t0, m0 = time.perf_counter(), time.monotonic()
     ra, dec = float(ra), float(dec)
     if not (math.isfinite(ra) and math.isfinite(dec) and -90.0 <= dec <= 90.0):
         raise ValueError(f"Invalid position ra={ra}, dec={dec}")
@@ -1612,6 +1736,7 @@ def point_series(
         raise ValueError("max_frames must be >= 1")
     if deadline_s is not None and not (deadline_s > 0):
         raise ValueError(f"deadline_s must be > 0, got {deadline_s}")
+    end = None if deadline_s is None else m0 + float(deadline_s)  # time.monotonic() deadline of the whole call
     det_list = None if detectors is None else list(detectors)
     if det_list is not None and not det_list:
         raise ValueError("detectors must not be empty (None means all six)")
@@ -1652,7 +1777,9 @@ def point_series(
 
     search: dict
     if frames is None:
-        rep = irsa.search_frames_report(ra, dec, 0.0, dets, mjd_min, mjd_max, collections=cols)
+        # The search gets what is left of the call's budget (irsa: none left -> only a cache/snapshot answers).
+        budget = None if end is None else max(0.0, end - time.monotonic())
+        rep = irsa.search_frames_report(ra, dec, 0.0, dets, mjd_min, mjd_max, collections=cols, deadline_s=budget)
         all_frames, extra_dups = _unique(rep.result.frames)
         search = {
             "service": rep.service,
@@ -1683,47 +1810,63 @@ def point_series(
     workers = max(1, min(int(max_workers or MAX_PARALLEL), 64))
     samples: list[PointSample] = []
     failures: list[tuple[FrameRef, str]] = []
-    timed_out = wave_retried = 0
-    io = _IO(max_parallel=workers)
+    timed_out: set = set()  # the frames the deadline cut (_frame_id)
+    wave_retried = 0
+    io = _IO(max_parallel=workers, deadline=end)
     t1 = time.perf_counter()
-    if chosen:
-        frame_workers = max(1, min(len(chosen), max(4, workers * 2 // 3)))
+    if chosen and end is not None and time.monotonic() >= end:
+        # The search used the whole budget: say so, and send nothing to S3.
+        why = (
+            f"TimeoutError: the {deadline_s} s deadline was used up by the archive search ({t_search:.1f} s): not read"
+        )
+        failures = [(f, why) for f in chosen]
+        timed_out = {_frame_id(f) for f in chosen}
+    elif chosen:
+        order = _read_order(chosen)  # any prefix spread over every season: what a deadline keeps
+        frame_workers = max(1, min(len(order), max(4, workers * 2 // 3)))
         io_pool = ThreadPoolExecutor(workers, thread_name_prefix="point-io")
         frame_pool = ThreadPoolExecutor(frame_workers, thread_name_prefix="point-frame")
         io.pool = io_pool
         pending: set = set()
+        late = f"TimeoutError: not read within the {deadline_s} s deadline"
         try:
             futures = [
                 frame_pool.submit(read_point_sample, f, ra, dec, box_px, planes=planes, core_px=core_px, io=io)
-                for f in chosen
+                for f in order
             ]
-            left = None if deadline_s is None else max(0.0, deadline_s - (time.perf_counter() - t0))
-            _, pending = wait(futures, timeout=left)
-            for f, fut in zip(chosen, futures, strict=True):
+            _, pending = wait(futures, timeout=None if end is None else max(0.0, end - time.monotonic()))
+            for f, fut in zip(order, futures, strict=True):
                 if fut in pending:
                     fut.cancel()
-                    failures.append((f, f"TimeoutError: not read within the {deadline_s} s deadline"))
-                    timed_out += 1
+                    failures.append((f, late))
+                    timed_out.add(_frame_id(f))
                     continue
                 try:
                     samples.append(fut.result())
+                except TimeoutError as e:  # a read stopped by the deadline (s3range / _IO)
+                    failures.append((f, f"{late} ({e})" if end is not None else f"TimeoutError: {e}"))
+                    if end is not None:
+                        timed_out.add(_frame_id(f))
                 except Exception as e:  # noqa: BLE001  (one bad frame never aborts the series)
                     failures.append((f, f"{type(e).__name__}: {e}"))
         finally:
-            # Past the deadline: return now. Frames still running stop at their next request (io.closed,
-            # cancelled pool reads); a request already in flight ends alone. Their results are dropped.
-            io.closed = bool(pending)
+            # Past the deadline: return now. io.close() stops every frame still running: no new request, no
+            # retry or backoff, and requests in flight time out at the deadline (s3range per-attempt timeout).
+            if pending:
+                io.close()
             frame_pool.shutdown(wait=not pending, cancel_futures=True)
             io_pool.shutdown(wait=not pending, cancel_futures=True)
         if not timed_out:
-            wave_retried = _retry_wavelengths(samples, io, None if deadline_s is None else t0 + deadline_s)
+            wave_retried = _retry_wavelengths(samples, io, end)
     t_fetch = time.perf_counter() - t1
     samples.sort(key=lambda s: (s.mjd, s.detector, s.obs_id))
+    failures.sort(key=lambda fr: (fr[0].mjd, fr[0].detector, fr[0].obs_id))
 
     no_overlap = sum(1 for _, r in failures if r.startswith("NoOverlap"))
     wave_errors = sum(1 for s in samples if s.meta.get("wave_error_transient"))
     timings = {
         "from_cache": False,
+        "deadline_s": deadline_s,
         "search_s": round(t_search, 3),
         "fetch_s": round(t_fetch, 3),
         "total_s": round(time.perf_counter() - t0, 3),
@@ -1731,7 +1874,7 @@ def point_series(
         "samples": len(samples),
         "failures": len(failures),
         "no_overlap": no_overlap,
-        "timed_out": timed_out,
+        "timed_out": len(timed_out),
         "wave_errors": wave_errors,
         "wave_retried": wave_retried,
         "requests": io.requests,  # every Range read of the series, failed frames included
@@ -1741,6 +1884,8 @@ def point_series(
         "max_rounds": max((s.io.get("rounds", 0) for s in samples), default=0),
         "layouts": dict(Counter(s.io.get("layout", "?") for s in samples)),
         "workers": workers,
+        # per (release, season): frames asked, samples read, frames the deadline cut
+        "seasons": _season_report(_season_groups(chosen), samples, timed_out),
     }
     if len(failures) > no_overlap:
         log.warning(

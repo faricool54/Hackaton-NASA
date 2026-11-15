@@ -612,6 +612,33 @@ def test_deadline_already_spent_raises_timeout(monkeypatch):
     assert fake.calls == []
 
 
+def test_callers_deadline_caps_the_search_budget(monkeypatch):
+    """``deadline_s`` (point_series' budget for the WHOLE call) caps SEARCH_DEADLINE_S; with no time left IRSA is
+    not asked: a fresh cached answer still answers, else SearchError with a timeout cause (backend: 504)."""
+    clock = FakeClock()
+    calls: list = []
+    monkeypatch.setattr(irsa, "time", clock)
+    monkeypatch.setattr(irsa, "_http", _hanging_http(clock, calls))
+    monkeypatch.setattr(settings, "SEARCH_ATTEMPTS", 4)
+    monkeypatch.setattr(settings, "SEARCH_BACKOFF_S", 1.0)
+    monkeypatch.setattr(settings, "SEARCH_DEADLINE_S", 60.0)
+    t0 = clock.now
+    with pytest.raises(irsa.SearchError) as exc:
+        irsa.search_frames_report(RA, DEC, deadline_s=10.0)
+    assert clock.now - t0 <= 10.0 and calls and all(timeout <= 10.0 for _, timeout in calls)
+    assert isinstance(exc.value.__cause__, requests.Timeout)
+    calls.clear()
+    with pytest.raises(irsa.SearchError) as exc:
+        irsa.search_frames_report(RA, DEC, deadline_s=0.0)
+    assert calls == [] and isinstance(exc.value.__cause__, requests.Timeout)  # nothing sent
+    fake = install(monkeypatch, sia=[ok(SIA_XML)])
+    first = irsa.search_frames_report(RA, DEC)
+    again = irsa.search_frames_report(RA, DEC, deadline_s=0.0)
+    assert again.from_cache and again.result.frames == first.result.frames and fake.count(settings.IRSA_SIA) == 1
+    with pytest.raises(ValueError):
+        irsa.search_frames_report(RA, DEC, deadline_s=float("nan"))
+
+
 def test_unknown_collection_is_reported(monkeypatch, caplog):
     install(monkeypatch, sia=[ok(_empty_votable())])
     with caplog.at_level("WARNING", logger="errante.data.irsa"):

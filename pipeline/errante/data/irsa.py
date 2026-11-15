@@ -204,6 +204,7 @@ def search_frames_report(
     collections: list[str] | tuple[str, ...] | None = None,
     use_cache: bool = True,
     use_snapshot: bool | None = None,
+    deadline_s: float | None = None,
 ) -> SearchReport:
     """Same as :func:`search_frames` but also says which service answered, cache use and timing.
 
@@ -211,7 +212,14 @@ def search_frames_report(
     resort, only after SIA and TAP both failed and no cached answer exists (see :func:`find_snapshot`).
     With such a fallback in hand IRSA gets ``settings.SEARCH_FALLBACK_DEADLINE_S`` at most
     (:func:`search_budget`).
+
+    ``deadline_s`` (optional) caps further the seconds this call may spend asking IRSA, for a caller with a
+    wall-clock budget of its own (``point.point_series(deadline_s=...)``). Like every budget here, no attempt
+    starts with less than ``_MIN_ATTEMPT_S`` (2 s) left: with less, IRSA is not asked and a fresh cached
+    answer, an expired one or a snapshot answers, else :class:`SearchError` (``requests.Timeout`` cause).
     """
+    if deadline_s is not None and math.isnan(deadline_s):
+        raise ValueError("deadline_s must be a number of seconds (or None)")
     t0 = time.monotonic()
     allow_snapshot = use_cache if use_snapshot is None else use_snapshot
     ra, dec, radius, dets = _validate(ra, dec, radius_deg, detectors, mjd_min, mjd_max)
@@ -239,6 +247,9 @@ def search_frames_report(
         snap = find_snapshot(ra, dec, radius, cols) if cached is None and allow_snapshot else None
         budget = search_budget(fallback=cached is not None or snap is not None)
         deadline = t0 + budget if budget > 0 else None
+        if deadline_s is not None:  # the caller's own budget (0 or less: IRSA is not asked)
+            cap = t0 + max(0.0, float(deadline_s))
+            deadline = cap if deadline is None else min(deadline, cap)
         try:
             raw, service, overflow, errors = _query_archive(ra, dec, radius, mjd_min, mjd_max, cols, deadline)
         except SearchError as e:

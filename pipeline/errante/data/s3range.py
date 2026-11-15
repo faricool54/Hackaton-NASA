@@ -35,6 +35,8 @@ falls back to an IBE cutout per frame; ``fetch_patches`` is the S3-only variant.
 from __future__ import annotations
 
 import base64
+import contextlib
+import functools
 import hashlib
 import io
 import json
@@ -47,7 +49,7 @@ import time
 import uuid
 import warnings
 from collections import OrderedDict
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
@@ -60,6 +62,7 @@ from astropy.wcs.utils import proj_plane_pixel_scales
 
 from .. import settings
 from ..models import FrameRef
+from . import fits_io
 from .cutouts import TRANSIENT_BODY_ERRORS, KeyedLocks, NoOverlap, fetch_aligned, fetch_report
 from .fits_io import SpherexImage
 from .s3 import irsa_uri_to_s3_key
@@ -86,6 +89,7 @@ __all__ = [
     "read_range",
     "read_range_meta",
     "read_tail",
+    "wave_table_from_bytes",
     "write_patch_fits",
 ]
 
@@ -93,6 +97,12 @@ BLOCK = 2880
 CARD = 80
 MAX_PARALLEL_S3 = int(os.environ.get("ERRANTE_MAX_PARALLEL_S3", "16"))
 """S3 is not IRSA: 16 parallel Range readers are fine (measured; IRSA needs <= 6-8)."""
+S3_MAX_CONNECTIONS = max(1, int(os.environ.get("ERRANTE_S3_MAX_CONNECTIONS", "64")))
+"""Process-wide cap on S3 requests in flight AND the size of the shared session's connection pool. Every
+request of this module takes one of these slots, so concurrent readers (two point series of 48 requests
+each, a field build) never need more connections than the pool keeps: before, two series overflowed the
+64-connection pool (urllib3 'Connection pool is full, discarding connection': a new TLS handshake for each
+discarded connection; seen by the #45 review with WS4's 2 concurrent jobs)."""
 DIR_CACHE_VERSION = 1
 RANGE_RETRIES = 4
 MAX_HEADER_BYTES = 360 * BLOCK
@@ -171,7 +181,7 @@ class _PreloadedCAAdapter(requests.adapters.HTTPAdapter):
 
 
 def _adapter() -> requests.adapters.HTTPAdapter:
-    kwargs = {"pool_connections": 4, "pool_maxsize": 64}
+    kwargs = {"pool_connections": 4, "pool_maxsize": S3_MAX_CONNECTIONS}
     if os.environ.get("REQUESTS_CA_BUNDLE") or os.environ.get("CURL_CA_BUNDLE"):
         return requests.adapters.HTTPAdapter(**kwargs)  # custom trust store: stock behaviour
     try:
@@ -191,9 +201,65 @@ def _session() -> requests.Session:
         if _SESSION is None:
             s = requests.Session()
             s.mount("https://", _adapter())
-            s.mount("http://", requests.adapters.HTTPAdapter(pool_connections=4, pool_maxsize=64))
+            s.mount("http://", requests.adapters.HTTPAdapter(pool_connections=4, pool_maxsize=S3_MAX_CONNECTIONS))
             _SESSION = s
         return _SESSION
+
+
+_REQUEST_SLOTS: threading.BoundedSemaphore | None = None
+
+
+def _request_slots() -> threading.BoundedSemaphore:
+    global _REQUEST_SLOTS
+    with _session_lock:
+        if _REQUEST_SLOTS is None:
+            _REQUEST_SLOTS = threading.BoundedSemaphore(S3_MAX_CONNECTIONS)
+        return _REQUEST_SLOTS
+
+
+def _stop_reason(key: str, deadline: float | None, cancel: threading.Event | None) -> str | None:
+    if cancel is not None and cancel.is_set():
+        return f"S3 read of {key} cancelled by its caller"
+    if deadline is not None and time.monotonic() >= deadline:
+        return f"S3 read of {key} stopped: the caller's deadline passed"
+    return None
+
+
+def _pause(seconds: float, key: str, deadline: float | None, cancel: threading.Event | None) -> None:
+    """The backoff before a retry; TimeoutError at once if it would end past the deadline or the read is cancelled."""
+    if deadline is not None and time.monotonic() + seconds >= deadline:
+        raise TimeoutError(f"S3 read of {key} stopped: no time left for a retry before the caller's deadline")
+    if cancel is not None:
+        if cancel.wait(seconds):
+            raise TimeoutError(f"S3 read of {key} cancelled by its caller")
+    else:
+        time.sleep(seconds)
+
+
+@contextlib.contextmanager
+def _attempt(key: str, deadline: float | None, cancel: threading.Event | None) -> Iterator[float]:
+    """One HTTP attempt: holds one of the :data:`S3_MAX_CONNECTIONS` process-wide request slots and yields its
+    timeout (``settings.HTTP_TIMEOUT_S``, or less: what is left before ``deadline``, a ``time.monotonic()``
+    value). Raises TimeoutError, sending nothing, when the deadline passed or ``cancel`` is set (also while
+    waiting for a slot)."""
+    slots = _request_slots()
+    while True:
+        reason = _stop_reason(key, deadline, cancel)
+        if reason:
+            raise TimeoutError(reason)
+        wait = 0.25 if deadline is None else min(0.25, max(0.0, deadline - time.monotonic()))
+        if slots.acquire(timeout=wait):
+            break
+    try:
+        reason = _stop_reason(key, deadline, cancel)
+        if reason:
+            raise TimeoutError(reason)
+        timeout = settings.HTTP_TIMEOUT_S
+        if deadline is not None:
+            timeout = max(0.001, min(timeout, deadline - time.monotonic()))
+        yield timeout
+    finally:
+        slots.release()
 
 
 def _content_range(value: str | None) -> tuple[int | None, int | None]:
@@ -204,18 +270,26 @@ def _content_range(value: str | None) -> tuple[int | None, int | None]:
     return int(m[1]), None if m[3] == "*" else int(m[3])
 
 
-def read_range(key: str, start: int, stop: int) -> bytes:
+def read_range(
+    key: str, start: int, stop: int, *, deadline: float | None = None, cancel: threading.Event | None = None
+) -> bytes:
     """Bytes [start, stop) of ``s3://nasa-irsa-spherex/<key>`` via anonymous HTTPS Range.
 
     Retries 5xx/429, timeouts, dropped connections and bodies cut mid-transfer with
     backoff; returns b"" past the end of the object (416) and a short read only at EOF.
     Refuses a 200 (whole-object) answer instead of silently downloading 60+ MB, and a 206
     for a range that does not start at ``start``.
+
+    ``deadline`` (a ``time.monotonic()`` value) bounds every attempt's timeout and stops retrying when it
+    passes; ``cancel`` stops the read at its next attempt or backoff. Both raise ``TimeoutError`` (an OSError).
+    Every request holds one of :data:`S3_MAX_CONNECTIONS` process-wide slots.
     """
-    return read_range_meta(key, start, stop)[0]
+    return read_range_meta(key, start, stop, deadline=deadline, cancel=cancel)[0]
 
 
-def read_range_meta(key: str, start: int, stop: int) -> tuple[bytes, int | None, str]:
+def read_range_meta(
+    key: str, start: int, stop: int, *, deadline: float | None = None, cancel: threading.Event | None = None
+) -> tuple[bytes, int | None, str]:
     """Like :func:`read_range`, plus WHICH object answered: (bytes, total object size, ETag).
 
     Every 206 carries the object's size (``Content-Range: bytes a-b/<size>``) and its ``ETag``; they change
@@ -227,12 +301,10 @@ def read_range_meta(key: str, start: int, stop: int) -> tuple[bytes, int | None,
     url = f"{settings.S3_HTTPS}/{key.lstrip('/')}"
     last: Exception | None = None
     for attempt in range(RANGE_RETRIES):
-        if attempt:
-            time.sleep(0.5 * 2 ** (attempt - 1))
         try:
-            with _session().get(
-                url, headers={"Range": f"bytes={start}-{stop - 1}"}, stream=True, timeout=settings.HTTP_TIMEOUT_S
-            ) as r:
+            if attempt:
+                _pause(0.5 * 2 ** (attempt - 1), key, deadline, cancel)
+            with _attempt(key, deadline, cancel) as timeout, _get(url, f"bytes={start}-{stop - 1}", timeout) as r:
                 if r.status_code == 416:
                     return b"", None, ""
                 if r.status_code == 206:
@@ -253,27 +325,34 @@ def read_range_meta(key: str, start: int, stop: int) -> tuple[bytes, int | None,
                     raise OSError(f"unexpected HTTP {r.status_code} for {url}")
         except _TRANSIENT as e:
             last = e
+        except TimeoutError as e:  # deadline passed or cancelled: no further attempt
+            raise e from last
     raise OSError(f"S3 range read failed after {RANGE_RETRIES} attempts: {key} [{start}:{stop})") from last
 
 
-def read_tail(key: str, nbytes: int) -> tuple[bytes, int]:
+def _get(url: str, byte_range: str, timeout: float) -> requests.Response:
+    return _session().get(url, headers={"Range": byte_range}, stream=True, timeout=timeout)
+
+
+def read_tail(
+    key: str, nbytes: int, *, deadline: float | None = None, cancel: threading.Event | None = None
+) -> tuple[bytes, int]:
     """The last ``nbytes`` of ``s3://nasa-irsa-spherex/<key>`` and the object's total size.
 
     One suffix Range request (``bytes=-N``, answered 206 by S3; verified 2026-11-14). The WCS-WAVE
-    HDU of an L2 file is its last 5760 bytes, so this needs no HDU walk. Same retries as
-    :func:`read_range`; the whole object comes back when it is shorter than ``nbytes``.
+    HDU of an L2 file is its last 5760 bytes, so this needs no HDU walk. Same retries, ``deadline``,
+    ``cancel`` and request slots as :func:`read_range`; the whole object comes back when it is shorter
+    than ``nbytes``.
     """
     if nbytes <= 0:
         raise ValueError("nbytes must be > 0")
     url = f"{settings.S3_HTTPS}/{key.lstrip('/')}"
     last: Exception | None = None
     for attempt in range(RANGE_RETRIES):
-        if attempt:
-            time.sleep(0.5 * 2 ** (attempt - 1))
         try:
-            with _session().get(
-                url, headers={"Range": f"bytes=-{nbytes}"}, stream=True, timeout=settings.HTTP_TIMEOUT_S
-            ) as r:
+            if attempt:
+                _pause(0.5 * 2 ** (attempt - 1), key, deadline, cancel)
+            with _attempt(key, deadline, cancel) as timeout, _get(url, f"bytes=-{nbytes}", timeout) as r:
                 if r.status_code == 206:
                     first, total = _content_range(r.headers.get("Content-Range"))
                     if first is None or total is None:
@@ -292,6 +371,8 @@ def read_tail(key: str, nbytes: int) -> tuple[bytes, int]:
                     raise OSError(f"unexpected HTTP {r.status_code} for {url}")
         except _TRANSIENT as e:
             last = e
+        except TimeoutError as e:  # deadline passed or cancelled: no further attempt
+            raise e from last
     raise OSError(f"S3 suffix read failed after {RANGE_RETRIES} attempts: {key} [-{nbytes}:]") from last
 
 
@@ -650,13 +731,20 @@ def _shift_header(h: fits.Header, x0: int, y0: int, nx: int, ny: int) -> fits.He
     return out
 
 
-def _mid_mjd(h: fits.Header) -> float:
-    """Mid-exposure MJD: MJD-AVG, else MJD-OBS + XPOSURE/2 (MJD-OBS is the START)."""
-    if "MJD-AVG" in h:
-        return float(h["MJD-AVG"])
-    if "XPOSURE" in h:
-        return float(h["MJD-OBS"]) + float(h["XPOSURE"]) / 2.0 / 86400.0
-    return float(h["MJD-OBS"])
+@functools.lru_cache(maxsize=64)
+def wave_table_from_bytes(raw: bytes) -> fits_io.WaveTable:
+    """The :class:`fits_io.WaveTable` of raw ``WCS-WAVE`` HDU bytes (header + padded data, as
+    ``HduDirectory.wcs_wave`` keeps them). Raises ValueError/KeyError/TypeError/IndexError/OSError when they do
+    not parse. The table is identical in every file of one calibration (897 real files, 6 ids), so each is parsed
+    once per process; the cached tables are shared, their arrays read-only."""
+    blob = fits.PrimaryHDU().header.tostring().encode("ascii") + raw
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        with fits.open(io.BytesIO(blob), memmap=False) as hl:
+            table = fits_io.WaveTable.from_hdu(hl[fits_io.WAVE_EXTNAME])
+    for arr in (table.x_nodes, table.y_nodes, table.wavelength, table.bandwidth):
+        arr.flags.writeable = False
+    return table
 
 
 # --- pixel reads --------------------------------------------------------------
@@ -783,10 +871,12 @@ def read_patch(
 
     Same pixels, box and WCS as the IRSA cutout of that file (minus the EPSF table).
     ``with_planes=False`` skips VARIANCE and ZODI (IMAGE only: ~0.4 MB at 5').
-    ``mjd`` is mid-exposure (MJD-AVG). ``extra`` holds the S3 key, the 0-based inclusive
-    ``bbox`` (x0, x1, y0, y1), ``flags`` ('ok' | 'unavailable' | 'skipped'), the bytes and
-    requests used, and what ``write_patch_fits`` needs (plane headers, WCS-WAVE bytes).
-    Raises :class:`NoOverlap` when the box misses the detector.
+    ``mjd`` is mid-exposure (MJD-AVG) and ``date_obs`` the same instant (DATE-AVG), as
+    ``fits_io.read_spherex`` gives them. ``wave`` is the file's WCS-WAVE table, so ``wavelength_at`` works on
+    the patch in memory (an unparsable table leaves ``wave=None`` with ``extra['wave_error']``). ``extra``
+    holds the S3 key, the 0-based inclusive ``bbox`` (x0, x1, y0, y1), ``flags`` ('ok' | 'unavailable' |
+    'skipped'), the bytes and requests used, and what ``write_patch_fits`` needs (plane headers, WCS-WAVE
+    bytes). Raises :class:`NoOverlap` when the box misses the detector.
     """
     t0 = time.perf_counter()
     rd = _CountingReader(_resolve(reader))
@@ -838,6 +928,13 @@ def read_patch(
     hdr["PATCHSRC"] = ("s3range", "read with HTTP Range from the S3 L2 file")
     if extra["flags"] != "ok":
         hdr["PATCHFLG"] = (extra["flags"], "FLAGS not in this patch: unknown, NOT clean")
+    wave = None
+    if d.wcs_wave:
+        try:
+            wave = wave_table_from_bytes(d.wcs_wave)
+        except (ValueError, KeyError, TypeError, IndexError, OSError) as e:  # an odd table never fails the patch
+            extra["wave_error"] = f"{type(e).__name__}: {e}"
+    mjd, mjd_source = fits_io.mid_exposure_mjd(hdr)
     extra.update(
         s3_key=s3_key,
         bbox=(x0, x1, y0, y1),
@@ -845,6 +942,7 @@ def read_patch(
         requests=rd.requests,
         seconds=time.perf_counter() - t0,
         mjd_obs=float(hdr["MJD-OBS"]) if "MJD-OBS" in hdr else None,
+        mjd_source=mjd_source,
         plane_headers=plane_headers,
         primary_header=d.primary,
         wcs_wave=d.wcs_wave,
@@ -858,10 +956,11 @@ def read_patch(
         header=hdr,
         obs_id=str(hdr.get("OBSID", "")),
         detector=int(hdr.get("DETECTOR", 0)),
-        mjd=_mid_mjd(hdr),
-        date_obs=str(hdr.get("DATE-OBS", "")),
+        mjd=mjd,
+        date_obs=fits_io.mid_exposure_date(hdr, mjd, mjd_source),
         source=f"{settings.S3_HTTPS}/{s3_key}",
         extra=extra,
+        wave=wave,
     )
 
 
