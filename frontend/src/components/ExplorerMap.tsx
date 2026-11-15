@@ -53,7 +53,7 @@ const SR_ONLY: CSSProperties = {
   whiteSpace: 'nowrap', border: 0,
 };
 
-export function ExplorerMap({ center, footprintFieldId, onSelect, layout = 'panel', recenterKey, onView }: {
+export function ExplorerMap({ center, footprintFieldId, onSelect, layout = 'panel', recenterKey, onView, autoZoomKey }: {
   center: SkyCoord;
   footprintFieldId?: string;
   onSelect: (p: MapSelection) => void;
@@ -62,6 +62,10 @@ export function ExplorerMap({ center, footprintFieldId, onSelect, layout = 'pane
   recenterKey?: string | number;
   /** The map view after the user pans or zooms (centre and the larger field-of-view side), at most every 500 ms. */
   onView?: (view: MapView) => void;
+  /** When set or changed, the map zooms once to the open sequence's footprint as soon as it is known, so a picked
+   *  target shows its grid outline and Gaia stars without opening Layers. The parent changes it only for picks
+   *  (target chips, search), never for map clicks. */
+  autoZoomKey?: string | number;
 }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const section = useRef<HTMLElement>(null);
@@ -312,6 +316,15 @@ export function ExplorerMap({ center, footprintFieldId, onSelect, layout = 'pane
     if (!position || !corners) return;
     post({ type: 'zoom-footprint', ...position, radius: footprintRadiusArcsec(position, corners) / 3600 });
   };
+  const autoZoomed = useRef<string | null>(null);
+  useEffect(() => {
+    if (autoZoomKey === undefined || !ready || !mapField?.center || !corners) return;
+    // One zoom per key: a later map click into another sequence keeps the user's view.
+    const key = String(autoZoomKey);
+    if (autoZoomed.current === key) return;
+    autoZoomed.current = key;
+    zoomToSequence();
+  }, [autoZoomKey, ready, mapField?.fieldId, mapField?.center, corners]);
   const toggleGaia = (checked: boolean) => {
     if (checked && currentGaia?.data === null) setGaia(null);
     setShowGaia(checked);

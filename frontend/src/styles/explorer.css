@@ -69,3 +69,9 @@ main.xp-app {
   .xp-dock { border-inline-start: 0; border-block-start: 1px solid var(--border); }
   .xp-dock-body { overflow: visible; }
 }
+
+/* Empty dock: three short steps instead of a blank panel. */
+.xp-welcome { display: grid; gap: 8px; }
+.xp-steps { margin: 4px 0 0; padding-inline-start: 1.3em; display: grid; gap: 8px; }
+.xp-steps li::marker { color: var(--accent); font-weight: 600; }
+.xp-welcome p { margin: 0; }
