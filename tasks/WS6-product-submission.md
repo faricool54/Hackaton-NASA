@@ -43,11 +43,6 @@ deploy público y formulario de Space Apps completo y a tiempo.
   portada/introducción. Guion actualizado en PITCH.md. Inglés; voz en otro idioma con subtítulos ingleses.
   Mostrar el estado real: si solo hay simulaciones, declararlo; nunca presentarlas como SPHEREx real.
   Incluir equipo/integrantes/reto, producto, experiencia y uso NASA. Medir archivo final y alojarlo externamente.
-- [x] **WS6-5a (S02/S04/S08) Herramienta reutilizable para producir la demo.** Skill aportada por el usuario,
-  adaptada e incorporada en `docs/submission/skills/video-tutorial/`; descarga/uso en
-  [VIDEO_SKILL.md](../docs/submission/VIDEO_SKILL.md). Perfil con narración inglesa sin subtítulos,
-  propuesta de valor en los primeros ~10 s, créditos y verificación estricta de 30 s sobre el MP4 final.
-  No equivale a video producido, revisión humana, publicación ni envío; WS6-5 sigue pendiente.
 - [ ] **WS6-6 (P0; herramientas opcionales C08) About/Créditos**: SPHEREx/IRSA y recursos realmente usados;
   Astropy/Aladin, Gaia/WISE, CSA/CADC/NEOSSat o JPL/IMCCE solo cuando corresponda. Revisar términos de uso,
   licencias del tutorial y cita requerida por IRSA; registrar acceso fallido sin inventar contenido.
