@@ -1,6 +1,6 @@
 {
-  "schema_version": "0.3.1",
-  "generated_at": "2026-11-15T04:06:38.565726Z",
+  "schema_version": "0.4.0",
+  "generated_at": "2026-11-15T05:12:09.466694Z",
   "synthetic": false,
   "fields": [
     {
@@ -118,5 +118,111 @@
       "synthetic": false
     }
   ],
-  "systems": []
+  "systems": [
+    {
+      "id": "barnards-star",
+      "name": "Barnard's Star system",
+      "description": "Challenge test target: the fastest-moving star in our sky, with four small planets.",
+      "tags": [
+        "test-target",
+        "proper-motion",
+        "exoplanets"
+      ],
+      "center": {
+        "ra": 269.44850252543836,
+        "dec": 4.739420051112412
+      },
+      "n_bodies": 5,
+      "kinds": [
+        "planet",
+        "star"
+      ],
+      "field_id": "barnards-star",
+      "synthetic": false
+    },
+    {
+      "id": "epsilon-indi",
+      "name": "Epsilon Indi system",
+      "description": "Challenge test target: a Sun-like star, a cold giant planet and a pair of brown dwarfs.",
+      "tags": [
+        "test-target",
+        "brown-dwarf",
+        "binary",
+        "exoplanets"
+      ],
+      "center": {
+        "ra": 330.8724078795965,
+        "dec": -56.79725466122902
+      },
+      "n_bodies": 4,
+      "kinds": [
+        "brown_dwarf",
+        "planet",
+        "star"
+      ],
+      "field_id": "eps-indi-b",
+      "synthetic": false
+    },
+    {
+      "id": "r-draconis",
+      "name": "R Draconis",
+      "description": "Challenge test target: a giant star that swells and fades every ~8 months.",
+      "tags": [
+        "test-target",
+        "variable"
+      ],
+      "center": {
+        "ra": 248.1673783672889,
+        "dec": 66.75500674547219
+      },
+      "n_bodies": 1,
+      "kinds": [
+        "star"
+      ],
+      "field_id": "r-draconis",
+      "synthetic": false
+    },
+    {
+      "id": "rw-aurigae",
+      "name": "RW Aurigae",
+      "description": "Challenge test target: a young binary star whose dusty disk causes deep dimming events.",
+      "tags": [
+        "test-target",
+        "variable",
+        "binary",
+        "young-star"
+      ],
+      "center": {
+        "ra": 76.9565443110343,
+        "dec": 30.401316149887936
+      },
+      "n_bodies": 3,
+      "kinds": [
+        "disk",
+        "star"
+      ],
+      "field_id": "rw-aurigae",
+      "synthetic": false
+    },
+    {
+      "id": "wise-0855",
+      "name": "WISE 0855−0714",
+      "description": "Challenge test target: the coldest known brown dwarf, near the freezing point of water.",
+      "tags": [
+        "test-target",
+        "brown-dwarf",
+        "proper-motion"
+      ],
+      "center": {
+        "ra": 133.780984,
+        "dec": -7.243932
+      },
+      "n_bodies": 1,
+      "kinds": [
+        "brown_dwarf"
+      ],
+      "field_id": "wise-0855",
+      "synthetic": false
+    }
+  ]
 }

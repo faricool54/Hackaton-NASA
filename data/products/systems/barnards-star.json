@@ -1,0 +1,391 @@
+{
+  "id": "barnards-star",
+  "name": "Barnard's Star system",
+  "description": "Challenge test target: the fastest-moving star in our sky, with four small planets.",
+  "tags": [
+    "test-target",
+    "proper-motion",
+    "exoplanets"
+  ],
+  "center": {
+    "ra": 269.44850252543836,
+    "dec": 4.739420051112412
+  },
+  "motion": {
+    "distance_pc": 1.8282,
+    "parallax_mas": 546.976,
+    "pm_ra_cosdec_mas_yr": -801.551,
+    "pm_dec_mas_yr": 10362.394,
+    "radial_velocity_km_s": -110.47,
+    "epoch": "J2016.0"
+  },
+  "field_id": "barnards-star",
+  "bodies": [
+    {
+      "id": "barnards-star",
+      "name": "Barnard's Star",
+      "kind": "star",
+      "description": "A small, cool red dwarf. It moves faster across our sky than any other star.",
+      "radius_km": 128704.5,
+      "mass_kg": 3.22218e+29,
+      "teff_k": 3195.0,
+      "spectral_type": "M4V",
+      "rotation_period_hours": 3480.0,
+      "orbit": null,
+      "variability": null,
+      "appearance": {
+        "model": "star",
+        "color_hex": null,
+        "mesh_url": null,
+        "texture_url": null
+      },
+      "facts": [
+        {
+          "label": "Spectral type",
+          "value": "M4V",
+          "unit": null,
+          "source": "SIMBAD (Kirkpatrick et al. 1991)",
+          "verified": true
+        },
+        {
+          "label": "Temperature",
+          "value": "3195 ± 28",
+          "unit": "K",
+          "source": "NASA Exoplanet Archive, pscomppars (González Hernández et al. 2024, A&A 690, A79)",
+          "verified": true
+        },
+        {
+          "label": "Mass",
+          "value": "0.162 ± 0.007",
+          "unit": "solar masses",
+          "source": "NASA Exoplanet Archive, pscomppars (González Hernández et al. 2024, A&A 690, A79)",
+          "verified": true
+        },
+        {
+          "label": "Radius",
+          "value": "0.185 ± 0.006",
+          "unit": "solar radii",
+          "source": "NASA Exoplanet Archive, pscomppars (González Hernández et al. 2024, A&A 690, A79)",
+          "verified": true
+        },
+        {
+          "label": "Distance",
+          "value": "1.828",
+          "unit": "pc",
+          "source": "Gaia DR3 4472832130942575872 (parallax 546.976 ± 0.040 mas)",
+          "verified": true
+        },
+        {
+          "label": "Proper motion",
+          "value": "10.39",
+          "unit": "arcsec/yr",
+          "source": "Gaia DR3 4472832130942575872",
+          "verified": true
+        },
+        {
+          "label": "Radial velocity",
+          "value": "−110.47 ± 0.13",
+          "unit": "km/s",
+          "source": "Gaia DR3 4472832130942575872",
+          "verified": true
+        },
+        {
+          "label": "Rotation period",
+          "value": "145 ± 15",
+          "unit": "days",
+          "source": "Toledo-Padrón et al. 2019, MNRAS 488, 5145 (activity indices + 15 yr of photometry)",
+          "verified": true
+        }
+      ],
+      "candidate_id": null
+    },
+    {
+      "id": "barnard-d",
+      "name": "Barnard d",
+      "kind": "planet",
+      "description": "A small planet found by radial velocity (minimum mass well below Earth's); probably rocky. Too hot for liquid water.",
+      "radius_km": 4421.473999999999,
+      "mass_kg": 1.570636e+24,
+      "teff_k": null,
+      "spectral_type": null,
+      "rotation_period_hours": null,
+      "orbit": {
+        "parent": "barnards-star",
+        "semi_major_axis_au": 0.0188,
+        "period_days": 2.3402,
+        "eccentricity": 0.0,
+        "inclination_deg": 0.0,
+        "ascending_node_deg": 0.0,
+        "arg_periapsis_deg": 0.0,
+        "mean_anomaly_deg": 270.0,
+        "epoch_mjd": 60243.2,
+        "quality": "fitted",
+        "note": "Drawn circular: the fitted eccentricities are consistent with zero (Basant et al. 2025 favour e < 0.02). Orbit inclination unknown (radial-velocity detection). Phase: the planet is drawn in front of the star (on the 'toward Earth' arrow) at t0 = BJD 2460243.70 +0.08/−0.07 (Basant et al. 2025, Table 3), read as the time of inferior conjunction as used by juliet/RadVel (tc); the paper text says periastron. 1-sigma phase spread from t0 and P (2.3402 ± 0.0003 d): ±16° on 2025-04-24, ±25° on 2026-10-05 (linear propagation; the t0-P covariance is not published and is ignored). The sense of motion on the sky is unknown: drawn counter-clockwise seen from above."
+      },
+      "variability": null,
+      "appearance": {
+        "model": "rocky",
+        "color_hex": null,
+        "mesh_url": null,
+        "texture_url": null
+      },
+      "facts": [
+        {
+          "label": "Orbital period",
+          "value": "2.3402 ± 0.0003",
+          "unit": "days",
+          "source": "Basant et al. 2025, ApJL 982, L1, Table 3 (arXiv:2503.08095)",
+          "verified": true
+        },
+        {
+          "label": "Reference time t0",
+          "value": "2460243.70 +0.08/−0.07",
+          "unit": "BJD",
+          "source": "Basant et al. 2025, ApJL 982, L1, Table 3 (arXiv:2503.08095), listed as BJD − 2450000. Verified for the value only: the paper calls t0 the time of periastron, the fitting code (juliet, RadVel 'tc') the time of conjunction; see the orbit note",
+          "verified": true
+        },
+        {
+          "label": "Minimum mass",
+          "value": "0.263",
+          "unit": "Earth masses",
+          "source": "NASA Exoplanet Archive, pscomppars (Basant et al. 2025, ApJL 982, L1)",
+          "verified": true
+        },
+        {
+          "label": "Orbit size",
+          "value": "0.0188",
+          "unit": "AU",
+          "source": "NASA Exoplanet Archive, pscomppars (Basant et al. 2025, ApJL 982, L1)",
+          "verified": true
+        },
+        {
+          "label": "Radius (model estimate)",
+          "value": "~0.69",
+          "unit": "Earth radii",
+          "source": "NASA Exoplanet Archive, pscomppars: calculated from the mass, not measured (no transits)",
+          "verified": true
+        }
+      ],
+      "candidate_id": null
+    },
+    {
+      "id": "barnard-b",
+      "name": "Barnard b",
+      "kind": "planet",
+      "description": "A small planet found by radial velocity (minimum mass well below Earth's); probably rocky. Too hot for liquid water.",
+      "radius_km": 4587.12,
+      "mass_kg": 1.785628e+24,
+      "teff_k": null,
+      "spectral_type": null,
+      "rotation_period_hours": null,
+      "orbit": {
+        "parent": "barnards-star",
+        "semi_major_axis_au": 0.0229,
+        "period_days": 3.1542,
+        "eccentricity": 0.0,
+        "inclination_deg": 0.0,
+        "ascending_node_deg": 0.0,
+        "arg_periapsis_deg": 0.0,
+        "mean_anomaly_deg": 270.0,
+        "epoch_mjd": 60242.88,
+        "quality": "fitted",
+        "note": "Drawn circular: the fitted eccentricities are consistent with zero (Basant et al. 2025 favour e < 0.02). Orbit inclination unknown (radial-velocity detection). Phase: the planet is drawn in front of the star (on the 'toward Earth' arrow) at t0 = BJD 2460243.38 ± 0.09 (Basant et al. 2025, Table 3), read as the time of inferior conjunction as used by juliet/RadVel (tc); the paper text says periastron. 1-sigma phase spread from t0 and P (3.1542 ± 0.0004 d): ±13° on 2025-04-24, ±19° on 2026-10-05 (linear propagation; the t0-P covariance is not published and is ignored). The sense of motion on the sky is unknown: drawn counter-clockwise seen from above."
+      },
+      "variability": null,
+      "appearance": {
+        "model": "rocky",
+        "color_hex": null,
+        "mesh_url": null,
+        "texture_url": null
+      },
+      "facts": [
+        {
+          "label": "Orbital period",
+          "value": "3.1542 ± 0.0004",
+          "unit": "days",
+          "source": "Basant et al. 2025, ApJL 982, L1, Table 3 (arXiv:2503.08095)",
+          "verified": true
+        },
+        {
+          "label": "Reference time t0",
+          "value": "2460243.38 ± 0.09",
+          "unit": "BJD",
+          "source": "Basant et al. 2025, ApJL 982, L1, Table 3 (arXiv:2503.08095), listed as BJD − 2450000. Verified for the value only: the paper calls t0 the time of periastron, the fitting code (juliet, RadVel 'tc') the time of conjunction; see the orbit note",
+          "verified": true
+        },
+        {
+          "label": "Minimum mass",
+          "value": "0.299",
+          "unit": "Earth masses",
+          "source": "NASA Exoplanet Archive, pscomppars (Basant et al. 2025, ApJL 982, L1)",
+          "verified": true
+        },
+        {
+          "label": "Orbit size",
+          "value": "0.0229",
+          "unit": "AU",
+          "source": "NASA Exoplanet Archive, pscomppars (Basant et al. 2025, ApJL 982, L1)",
+          "verified": true
+        },
+        {
+          "label": "Radius (model estimate)",
+          "value": "~0.72",
+          "unit": "Earth radii",
+          "source": "NASA Exoplanet Archive, pscomppars: calculated from the mass, not measured (no transits)",
+          "verified": true
+        }
+      ],
+      "candidate_id": null
+    },
+    {
+      "id": "barnard-c",
+      "name": "Barnard c",
+      "kind": "planet",
+      "description": "A small planet found by radial velocity (minimum mass well below Earth's); probably rocky. Too hot for liquid water.",
+      "radius_km": 4733.653,
+      "mass_kg": 2.00062e+24,
+      "teff_k": null,
+      "spectral_type": null,
+      "rotation_period_hours": null,
+      "orbit": {
+        "parent": "barnards-star",
+        "semi_major_axis_au": 0.0274,
+        "period_days": 4.1244,
+        "eccentricity": 0.0,
+        "inclination_deg": 0.0,
+        "ascending_node_deg": 0.0,
+        "arg_periapsis_deg": 0.0,
+        "mean_anomaly_deg": 270.0,
+        "epoch_mjd": 60242.42,
+        "quality": "fitted",
+        "note": "Drawn circular: the fitted eccentricities are consistent with zero (Basant et al. 2025 favour e < 0.02). Orbit inclination unknown (radial-velocity detection). Phase: the planet is drawn in front of the star (on the 'toward Earth' arrow) at t0 = BJD 2460242.92 ± 0.10 (Basant et al. 2025, Table 3), read as the time of inferior conjunction as used by juliet/RadVel (tc); the paper text says periastron. 1-sigma phase spread from t0 and P (4.1244 ± 0.0006 d): ±11° on 2025-04-24, ±16° on 2026-10-05 (linear propagation; the t0-P covariance is not published and is ignored). The sense of motion on the sky is unknown: drawn counter-clockwise seen from above."
+      },
+      "variability": null,
+      "appearance": {
+        "model": "rocky",
+        "color_hex": null,
+        "mesh_url": null,
+        "texture_url": null
+      },
+      "facts": [
+        {
+          "label": "Orbital period",
+          "value": "4.1244 ± 0.0006",
+          "unit": "days",
+          "source": "Basant et al. 2025, ApJL 982, L1, Table 3 (arXiv:2503.08095)",
+          "verified": true
+        },
+        {
+          "label": "Reference time t0",
+          "value": "2460242.92 ± 0.10",
+          "unit": "BJD",
+          "source": "Basant et al. 2025, ApJL 982, L1, Table 3 (arXiv:2503.08095), listed as BJD − 2450000. Verified for the value only: the paper calls t0 the time of periastron, the fitting code (juliet, RadVel 'tc') the time of conjunction; see the orbit note",
+          "verified": true
+        },
+        {
+          "label": "Minimum mass",
+          "value": "0.335",
+          "unit": "Earth masses",
+          "source": "NASA Exoplanet Archive, pscomppars (Basant et al. 2025, ApJL 982, L1)",
+          "verified": true
+        },
+        {
+          "label": "Orbit size",
+          "value": "0.0274",
+          "unit": "AU",
+          "source": "NASA Exoplanet Archive, pscomppars (Basant et al. 2025, ApJL 982, L1)",
+          "verified": true
+        },
+        {
+          "label": "Radius (model estimate)",
+          "value": "~0.74",
+          "unit": "Earth radii",
+          "source": "NASA Exoplanet Archive, pscomppars: calculated from the mass, not measured (no transits)",
+          "verified": true
+        }
+      ],
+      "candidate_id": null
+    },
+    {
+      "id": "barnard-e",
+      "name": "Barnard e",
+      "kind": "planet",
+      "description": "A small planet found by radial velocity (minimum mass well below Earth's); probably rocky. Too hot for liquid water.",
+      "radius_km": 4058.327,
+      "mass_kg": 1.152596e+24,
+      "teff_k": null,
+      "spectral_type": null,
+      "rotation_period_hours": null,
+      "orbit": {
+        "parent": "barnards-star",
+        "semi_major_axis_au": 0.0381,
+        "period_days": 6.7392,
+        "eccentricity": 0.0,
+        "inclination_deg": 0.0,
+        "ascending_node_deg": 0.0,
+        "arg_periapsis_deg": 0.0,
+        "mean_anomaly_deg": 270.0,
+        "epoch_mjd": 60244.8,
+        "quality": "fitted",
+        "note": "Drawn circular: the fitted eccentricities are consistent with zero (Basant et al. 2025 favour e < 0.02). Orbit inclination unknown (radial-velocity detection). Phase: the planet is drawn in front of the star (on the 'toward Earth' arrow) at t0 = BJD 2460245.30 +0.37/−0.36 (Basant et al. 2025, Table 3), read as the time of inferior conjunction as used by juliet/RadVel (tc); the paper text says periastron. 1-sigma phase spread from t0 and P (6.7392 ± 0.0028 d): ±23° on 2025-04-24, ±31° on 2026-10-05 (linear propagation; the t0-P covariance is not published and is ignored). The sense of motion on the sky is unknown: drawn counter-clockwise seen from above."
+      },
+      "variability": null,
+      "appearance": {
+        "model": "rocky",
+        "color_hex": null,
+        "mesh_url": null,
+        "texture_url": null
+      },
+      "facts": [
+        {
+          "label": "Orbital period",
+          "value": "6.7392 ± 0.0028",
+          "unit": "days",
+          "source": "Basant et al. 2025, ApJL 982, L1, Table 3 (arXiv:2503.08095)",
+          "verified": true
+        },
+        {
+          "label": "Reference time t0",
+          "value": "2460245.30 +0.37/−0.36",
+          "unit": "BJD",
+          "source": "Basant et al. 2025, ApJL 982, L1, Table 3 (arXiv:2503.08095), listed as BJD − 2450000. Verified for the value only: the paper calls t0 the time of periastron, the fitting code (juliet, RadVel 'tc') the time of conjunction; see the orbit note",
+          "verified": true
+        },
+        {
+          "label": "Minimum mass",
+          "value": "0.193",
+          "unit": "Earth masses",
+          "source": "NASA Exoplanet Archive, pscomppars (Basant et al. 2025, ApJL 982, L1)",
+          "verified": true
+        },
+        {
+          "label": "Orbit size",
+          "value": "0.0381",
+          "unit": "AU",
+          "source": "NASA Exoplanet Archive, pscomppars (Basant et al. 2025, ApJL 982, L1)",
+          "verified": true
+        },
+        {
+          "label": "Radius (model estimate)",
+          "value": "~0.64",
+          "unit": "Earth radii",
+          "source": "NASA Exoplanet Archive, pscomppars: calculated from the mass, not measured (no transits)",
+          "verified": true
+        }
+      ],
+      "candidate_id": null
+    }
+  ],
+  "representation_note": "3D model drawn from published catalog and literature values (each fact shows its source) - not an image. Sizes and distances may be exaggerated for visibility.",
+  "provenance": {
+    "pipeline_version": "0.1.0",
+    "built_at": "2026-11-15T05:12:09.454672Z",
+    "synthetic": false,
+    "data_releases": [],
+    "notes": [
+      "Values checked on 2026-11-14 against the NASA Exoplanet Archive, SIMBAD (CfA mirror), Gaia DR3, VizieR and the cited papers (tasks/WS7-3d-systems.md, WS7-2). Facts still marked 'unverified' are estimates no source states.",
+      "Planet phases follow the t0 and periods of Basant et al. 2025 (Table 3), read as times of inferior conjunction: a position on a real date is a prediction with the 1-sigma spread given in each orbit note. The star's rotational phase is not known.",
+      "Planet masses are minimum masses (M sin i) and planet radii are estimates: radial velocity measures neither the inclination nor the size."
+    ]
+  }
+}
