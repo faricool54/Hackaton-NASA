@@ -59,6 +59,16 @@
   brillante ahora, cian = antes, damero = sin datos) y `compare/compare.json` **provisional** (fuera del contrato).
   En el campo real de Barnard la resta de un año muestra el dipolo norte en los 6 detectores. Falta: contrato aditivo
   (`contract:`, WS3) y la capa en la UI (WS5); restas por frame individual y λ emparejada (`wavelength_at` ya está en main, #23/#25).
+  🟡 Blancos débiles (2026-11-15, `compare.py`, claves nuevas y aditivas en `compare.json`): si el límite de color del
+  campo es ≥ 2× el de la región del blanco (círculo `target_exclude_px`, nunca < 10σ), el límite sale de esa región
+  (`limit_rule`, `field_limit_mjy_sr`, `target_limit_mjy_sr` + nota "field-star residuals clip"); el softening del asinh
+  es `max(0.05, 3σ/límite)` (`display_softening`) para que el ruido quede oscuro. Notas nuevas: diferencia sin escala
+  (s = 1) y núcleo del blanco saturado/marcado (`target_core_flagged`; `core_*_px` por coadd). Cada coadd exporta
+  `weights` (1/mediana de VARIANCE, mismo orden que `frame_ids`; `weights_definition`). En los 5 campos dorados la regla
+  se activa en WISE 0855 16/18 y ε Ind B 1/30; Barnard, RW Aur y R Dra quedan con PNG idénticos bit a bit. WISE 0855
+  con 2 frames por temporada × detector: D5 S2−S0/S2−S1 muestran un residuo positivo en la posición de S2 sin lóbulo
+  negativo claro (S0/S1 a 4,04–4,08 µm, donde el objeto es más débil que en S2 a 4,18–4,22 µm, y el corrimiento es de
+  0,7–1,3 px): mezcla movimiento y color, no es un dipolo limpio. En D6 no se ve (SNR del coadd 1,0–4,4).
 - [ ] **WS2-8 (P0, R05) Validación visual/astrométrica entre pasadas.** Ayudar a WS3 con Barnard,
   Epsilon Indi B y WISE 0855; comprobar registro de fondo, épocas y desplazamiento/incertidumbre.
   Para RW Aurigae/R Draconis, garantizar render consistente; el brillo científico se mide desde FITS.
