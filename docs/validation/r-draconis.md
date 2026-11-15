@@ -17,7 +17,7 @@ La variabilidad es clara y significativa:
 - el tamaño del núcleo saturado varía con el ala;
 - las estrellas de comparación varían ≤ 0,07 mag.
 
-Además, la serie SPHEREx **sigue a la curva V contemporánea de AAVSO** (818 observaciones, máximos V en MJD 60811,4, 61046,5 y 61304,3). El retraso va de −1 d en D1 a +47 d en D4. El período efectivo de SPHEREx, ~260 d (bootstrap 95 %: 255–265 d), coincide con la duración del último ciclo observado por AAVSO (258 d; el anterior fue de 235 d) y es compatible con Gaia DR3 (247,2 ± 6,0 d). **Límite:** la medición es un análisis offline del FITS. El campo publicado (40 PNG) no la reproduce: `wavelength_um` es nulo y el núcleo saturado está rellenado solo para mostrarlo.
+Además, la serie SPHEREx **sigue a la curva V contemporánea de AAVSO** (818 observaciones, máximos V en MJD 60811,4, 61046,5 y 61304,3). El retraso va de −1 d en D1 a +47 d en D4. El período efectivo de SPHEREx, ~260 d (bootstrap 95 %: 255–265 d), coincide con la duración del último ciclo observado por AAVSO (258 d; el anterior fue de 235 d) y es compatible con Gaia DR3 (247,2 ± 6,0 d). **Límite:** la medición es un análisis offline del FITS. El campo publicado (40 PNG) no la reproduce: `wavelength_um` es nulo y el núcleo saturado está rellenado solo para mostrarlo. *(2026-11-15: `wavelength_um` ya no es nulo; el `field.json` publicado la trae en los 40 frames (ver el problema 1). El campo publicado sigue sin reproducir la medición: el núcleo es blanco en todos los PNG, ver el addendum de las 15:00.)*
 
 ## Registro (plantilla de VALIDATION.md)
 
@@ -139,6 +139,9 @@ Además, la serie SPHEREx **sigue a la curva V contemporánea de AAVSO** (818 ob
   - D3 tiene el piso residual más grande (0,38 mag). Su curva de 30 d llega a +1,7 mag con solo 4 frames: la amplitud de D3 es la menos confiable.
   - D2 y D5 solo tienen 89 frames, sin campos profundos. D2 es marginal: Δχ² 23 contra un máximo nulo de 19.
   - El periodograma de SPHEREx solo tiene un alias fuerte en 144 d (Δχ² 4308, frente a 5717 en 260 d). La fase la confirma AAVSO.
+    *(Corrección 2026-11-15, de la revisión humana de #126: el periodograma conjunto de §3 es menos limpio. Además del
+    alias de 144 d, da Δχ² alto en 800 d (4578, más que el alias) y en 500 d (3539), y 247 d da 5635, a 82 del
+    máximo en 260 d. Los números son los de §3; no se volvió a correr el análisis.)*
   - La efeméride VSX extrapolada se desvía −4, −15 y −3 d de los máximos V observados. Para validar la fase conviene usar la curva AAVSO contemporánea, no la efeméride.
   - Los máximos AAVSO salen de parábolas de ±40 d sobre estimaciones visuales y V. Su error formal es de 0,5–0,8 d, y el real es mayor (❓ INFERIDO: unos pocos días).
   - GCVS y 2MASS no pudieron consultarse: VizieR CfA seguía caído a las 19:23 UTC.
@@ -299,6 +302,9 @@ Además, `errante compare r-draconis --dir review/products` sobre una copia del 
    - Se eligen exposiciones consecutivas: 22 obs_id y 14 visitas.
    - El blink mezcla λ de hasta un 56 % de diferencia dentro de un detector.
    - Arreglo: calcular `wavelength_at` en el target desde el patch antes de ordenar y publicarla.
+   - **Actualización 2026-11-15:** el `field.json` publicado trae `wavelength_um`/`bandwidth_um` en los 40 frames
+     (verificado; en el centro del campo, donde está R Dra) y desde #35/#41 la selección ordena por λ medida. La mezcla
+     dentro de un detector bajó pero sigue: hasta 40 % en D4 (2,513–3,528 µm) y 38 % en D1 (0,771–1,062 µm).
 2. **WS2 (render) + WS5 (UI):** R Dra está saturada en 2488 de 2488 frames.
    - El PNG rellena el núcleo solo para mostrarlo: la caja central de 16×16 tiene entre 23 y 255 píxeles a 255.
    - La UI debe marcar «saturado: el brillo del PNG no es una medida».
@@ -359,3 +365,4 @@ Además, `errante compare r-draconis --dir review/products` sobre una copia del 
   - reproducir, pausar, «Next frame» y «Previous frame» funcionan (por ejemplo, 10 → 11 → 10).
   - Un job nuevo por RA/Dec en la URL pública devolvió frames reales en 49 s (auditoría del 15/11; también #91 y #95).
   - **Falta:** que una persona lo recorra en incógnito y en celular, y la revisión humana de este registro.
+    *(2026-11-15: la revisión humana quedó firmada por DankoLiv en #126; sigue faltando la prueba en incógnito y en celular.)*

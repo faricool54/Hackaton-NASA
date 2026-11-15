@@ -1,0 +1,20 @@
+{
+  "updated_on": "2026-11-15",
+  "tool": "OpenAI Codex; Anthropic Claude Code",
+  "package": "FE-2 (docs/FRONTEND_PLAN.md): explorer layout with the map, search over it and the tabbed dock",
+  "scope": "FE-2 explorer layout, dock navigation and shared selection flow (mateoa007 with OpenAI Codex). Takeover after the author could not continue (faricool54 with Anthropic Claude Code, review of #127): merged main (FE-1, FE-3, FE-4a.0, FE-9); restored the two provenance notes lost in the draft as one line in the dock header (preset: position propagated to the mean SPHEREx epoch, Sesame/SIMBAD CfA astrometry, not a validated detection; name search: resolver name and source, catalog position, coverage checked separately); replaced the preset select with the FE-3 TargetChips; shared links with an invalid position open the Time tab where the error is shown; the backend's disabled-jobs 503 reads as a visitor sentence again; the spectrum panel remounts per position and quick look starts only after a selection, not on an opened shared link; the 'SPHEREx observations' label also checks the field's synthetic flag; on phones the search sits above the map instead of covering it; D-1 build decision, provenance texts and dock keyboard order moved to pure functions with vitest tests. No new external assets",
+  "affected_paths": [
+    "frontend/src/components/SkyExplorer.tsx",
+    "frontend/src/components/SkyExplorer.test.tsx",
+    "frontend/src/components/ExplorerDock.tsx",
+    "frontend/src/components/PositionResults.tsx",
+    "frontend/src/pages/HomePage.tsx",
+    "frontend/src/styles/explorer.css",
+    "frontend/ai-usage/fe-2.json"
+  ],
+  "external_assets": [],
+  "generated_media": [],
+  "scientific_R05_validation": false,
+  "human_review": "pending",
+  "repository_disclosure": "AI_USAGE.md"
+}

@@ -75,3 +75,23 @@ export function validPosition(value: unknown): value is SkyCoord {
   const p = value as SkyCoord;
   return Number.isFinite(p.ra) && p.ra >= 0 && p.ra < 360 && Number.isFinite(p.dec) && p.dec >= -90 && p.dec <= 90;
 }
+
+export function stageLabel(job: Pick<JobStatusResponse, 'status' | 'stage'>): string {
+  switch (job.status) {
+    case 'queued': return 'Queued';
+    case 'ready': return 'Ready';
+    case 'no_coverage': return 'No archive coverage';
+    case 'pipeline_not_ready': return 'Pipeline unavailable';
+    case 'failed': return job.stage === 'interrupted' ? 'Build interrupted' : 'Build failed';
+    case 'running':
+      if (job.stage === 'publish' || job.stage === 'publishing') return 'Publishing';
+      if (job.stage === 'build') return 'Building real observations';
+      return job.stage || 'Working';
+  }
+}
+
+export function jobSteps(job: Pick<JobStatusResponse, 'status' | 'stage'>) {
+  const labels = ['Queued', 'Building real observations', 'Publishing', 'Ready'];
+  const active = labels.indexOf(stageLabel(job));
+  return labels.map((label, index) => ({ label, current: index === active, complete: index < active }));
+}

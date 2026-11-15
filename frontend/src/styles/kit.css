@@ -1,0 +1,19 @@
+.kit-skeleton { display: grid; gap: var(--sp-2, 8px); }
+.kit-skeleton span {
+  display: block;
+  min-height: 0.85rem;
+  border-radius: var(--r-sm, 6px);
+  background: linear-gradient(90deg, var(--surface-1, var(--panel)), var(--surface-2, #171e31), var(--surface-1, var(--panel)));
+  background-size: 220% 100%;
+  animation: kit-shimmer 1.4s linear infinite;
+}
+.kit-skeleton span:last-child { width: 72%; }
+@keyframes kit-shimmer { to { background-position: -220% 0; } }
+@media (prefers-reduced-motion: reduce) { .kit-skeleton span { animation: none; } }
+.kit-empty, .kit-job { padding: var(--sp-3, 12px); border: 1px solid var(--line, var(--border)); border-radius: var(--r-md, 10px); }
+.kit-empty p, .kit-job p { margin: 0 0 var(--sp-1, 4px); }
+.kit-empty-action { margin-top: var(--sp-2, 8px); }
+.kit-job ol { margin-block: var(--sp-2, 8px); padding-inline-start: 1.3em; }
+.kit-job li[aria-current="step"] { font-weight: 650; color: var(--accent); }
+.kit-tabs [aria-selected="true"] { background: var(--accent); color: var(--accent-ink, #07111c); }
+.kit-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }

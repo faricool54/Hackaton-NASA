@@ -1,0 +1,5 @@
+{
+  "tool": "OpenAI Codex",
+  "scope": "FE-3 search keyboard navigation, preset chips, sequence matching and local verification",
+  "human_review": "pending"
+}

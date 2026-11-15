@@ -19,13 +19,14 @@ jurado desde `Candidate.score`. La revisión interna queda separada en `submissi
 revisión adversarial independiente con código propio) sobre los FITS reales. **Revisión humana: DankoLiv, 2026-11-15** (guiada con la hoja de V5; los análisis no se volvieron a correr).
 Se analizaron sobre el build de #17. #41 reconstruyó los campos (comparten 18–28 de 40 frames con ese build): las mediciones sobre todas las exposiciones siguen valiendo, y cada registro tiene una nota de actualización que dice qué cambió en lo publicado. Todos piden arreglos de render,
 selección y UI para que el recorrido público *muestre* lo medido; cada registro los lista con su dueño.
+Las notas fechadas del 2026-11-15 en cada registro dicen cuáles ya se resolvieron (λ en `field.json`, retícula de catálogo de #96/#99, A/B de RW Aur por #101) y cuáles siguen.
 Barnard's Star se midió el 15/11 sobre las 358 exposiciones (no solo los 40 frames publicados).
 
 No rellenar coordenadas faltantes a partir de la memoria ni tomar una posición antigua como posición actual.
 `config/fields.toml` contiene presets de desarrollo; no es un registro de validaciones aprobadas.
 ✅ 2026-11-14: los cinco presets están en `fields.toml` con astrometría de Sesame/SIMBAD (CfA) propagada a la
 época media de los datos SPHEREx ([`SCIENCE.md`](SCIENCE.md) §0). Los ensayos con imágenes reales están
-documentados arriba; la aprobación humana es de DankoLiv (2026-11-15) y el cierre del paso 6 está en el addendum de cada registro. #95 comprobó
+documentados arriba; la aprobación humana es de DankoLiv (2026-11-15, #126) y la parte técnica del paso 6 está en el addendum de cada registro (#104); falta la prueba humana en incógnito y en celular. #95 comprobó
 técnicamente 200 frames PNG + 196 comparaciones y las dos curvas en la URL pública, sin sustituir ese cierre.
 Los cinco SystemModel de WS7 son modelos ilustrativos de esos nombres, no registros de ensayo.
 No copiar posiciones, períodos u órbitas de `systems/catalog.py` como datos verificados para esta validación.
