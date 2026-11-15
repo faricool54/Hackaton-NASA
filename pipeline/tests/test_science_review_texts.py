@@ -120,3 +120,48 @@ def test_severity_counts_match_the_table() -> None:
     m = re.search(r"(\d+)\s+filas:\s+(\d+)\s+bloquean,\s+(\d+)\s+son\s+importantes\s+y\s+(\d+)\s+menores", review)
     assert m, "the review must state its row and severity counts"
     assert [int(g) for g in m.groups()] == [len(rows), *counts.values()]
+
+
+# --- Scientific review of the 3D (WS7, #47) -------------------------------------------------------------------
+
+REVIEW_3D_HEADING = "## Revisión científica del 3D"
+
+# Counts and measurements from the validation records that the 3D review quotes in its suggested texts:
+# saturation and NaN counts, per-exposure S/N, the AAVSO maxima of R Dra and its SPHEREx infrared cycle.
+MEASURED_3D = re.compile(r"\b\d[\d,]* of \d[\d,]*\b|\b2,488\b|every D2–D6|S/N|60811\.4|0\.5–1\.3|about 1 mag|47 days")
+
+# RW Aur: D2–D6 hold 55 + 4 × 56 = 279 frames, and 279 + 37 D1 frames = 316, not the 304 frames with OVERFLOW in the
+# record (whose class table also leaves 12 D2–D6 frames outside `sat`). What the record does support is that none of
+# the 279 D2–D6 frames is clean, so no text may say that it saturates in every (or all) D2–D6 frame.
+EVERY_D2_D6 = re.compile(r"\b(every|all|todos?)\b\W+(?:\w+\s+){0,2}D2–D6")
+
+
+def _review_3d() -> str:
+    text = SCIENCE_MD.read_text(encoding="utf-8")
+    if REVIEW_3D_HEADING not in text:
+        pytest.skip("docs/SCIENCE.md has no scientific review of the 3D")
+    return text[text.index(REVIEW_3D_HEADING) :]
+
+
+def test_3d_review_suggested_texts_that_quote_a_validation_count_say_offline() -> None:
+    rows = _table_rows(_review_3d())
+    quoting = [row for row in rows if MEASURED_3D.search(row[3])]
+    assert len(quoting) >= 8, "the pattern no longer finds the rows that quote the validation records"
+    missing = [row[0] for row in quoting if "offline" not in row[3]]
+    assert not missing, f"suggested texts quote validation counts without saying 'offline': {missing}"
+
+
+def test_3d_review_does_not_say_rw_aur_saturates_every_d2_d6_frame() -> None:
+    rows = _table_rows(_review_3d())
+    wrong = [row[0] for row in rows if EVERY_D2_D6.search(row[2]) or EVERY_D2_D6.search(row[3])]
+    assert not wrong, f"the RW Aur record does not support 'every D2–D6 frame saturates': {wrong}"
+
+
+def test_3d_review_severity_counts_match_the_table() -> None:
+    review = _review_3d()
+    rows = _table_rows(review)
+    counts = {s: sum(1 for r in rows if r[4] == s) for s in SEVERITIES}
+    assert sum(counts.values()) == len(rows), "a row has an unknown severity"
+    m = re.search(r"(\d+)\s+filas:\s+(\d+)\s+bloquean?,\s+(\d+)\s+(?:son\s+)?importantes\s+y\s+(\d+)\s+menores", review)
+    assert m, "the 3D review must state its row and severity counts"
+    assert [int(g) for g in m.groups()] == [len(rows), *counts.values()]
