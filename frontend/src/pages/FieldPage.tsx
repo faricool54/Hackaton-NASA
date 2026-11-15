@@ -12,7 +12,6 @@ import { SyntheticBadge } from '../components/SyntheticBadge';
 import { FieldComparisons } from '../components/FieldComparisons';
 import { PositionSpectrum } from '../components/PositionSpectrum';
 import { LightCurvePanel } from '../components/LightCurvePanel';
-import { SystemPreview } from '../components/SystemPreview';
 import { trackAstrometry, type TrackAstrometry } from '../three/skyTrack';
 
 export function FieldPage({ fieldId, embedded = false }: { fieldId: string; embedded?: boolean }) {
@@ -160,16 +159,8 @@ export function FieldPage({ fieldId, embedded = false }: { fieldId: string; embe
       {!field.provenance.synthetic && !embedded && <PositionSpectrum position={field.center} fieldId={field.id} />}
       {!field.provenance.synthetic && !field.id.startsWith('job-') &&
         <LightCurvePanel key={field.id} targetId={field.id} />}
-      {!embedded && systemId && <FieldModelPanel key={systemId} systemId={systemId} />}
       <FieldComparisons field={field} />
     </Container>
   );
 }
 
-function FieldModelPanel({ systemId }: { systemId: string }) {
-  const [open, setOpen] = useState(false);
-  return <details className="panel system-preview-panel" onToggle={(event) => setOpen(event.currentTarget.open)}>
-    <summary>3D model</summary>
-    {open && <SystemPreview systemId={systemId} allowSynthetic />}
-  </details>;
-}

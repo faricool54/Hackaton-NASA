@@ -1,10 +1,18 @@
 import { parseCoordinate } from './jobs';
 import { SHOWCASE_TARGETS } from './showcase';
 import type { FieldSummary, SkyCoord } from './types';
+import { separationArcsec } from '../three/skyTrack';
 
 export interface SearchSequence {
   field: FieldSummary;
   href: string;
+}
+
+/** A saved field can cover many stars. Match its target within about half a SPHEREx pixel. */
+export function localTargetSequences(entries: SearchSequence[], position: SkyCoord): SearchSequence[] {
+  const point = { raDeg: position.ra, decDeg: position.dec };
+  return entries.filter(({ field, href }) => !field.synthetic && href.startsWith('#/') &&
+    separationArcsec(point, { raDeg: field.center.ra, decDeg: field.center.dec }) <= 3);
 }
 
 export function searchKey(text: string): string {

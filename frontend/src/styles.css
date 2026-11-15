@@ -28,8 +28,8 @@ h1, h2, h3 { line-height: 1.2; }
 .muted { color: var(--muted); }
 .small { font-size: 0.85rem; }
 .error { color: var(--error); }
-.science-panel, .system-preview-panel { margin: 18px 0; min-width: 0; }
-.science-panel > summary, .system-preview-panel > summary { cursor: pointer; font-size: 1.05rem; font-weight: 600; padding: 6px 0; }
+.science-panel { margin: 18px 0; min-width: 0; }
+.science-panel > summary { cursor: pointer; font-size: 1.05rem; font-weight: 600; padding: 6px 0; }
 .science-panel label { display: grid; gap: 5px; font-size: .85rem; margin: 8px 0; }
 .science-controls { display: flex; gap: 10px 18px; flex-wrap: wrap; align-items: end; }
 .science-controls > label { flex: 1 1 160px; min-width: 0; }

@@ -1,17 +1,13 @@
 import { useState } from 'react';
 import { client } from '../api/client';
 import { formatRaDec } from '../api/format';
-import { searchSequences, type SearchSequence } from '../api/skySearch';
+import { localTargetSequences, searchSequences, type SearchSequence } from '../api/skySearch';
 import type { JobStatusResponse, SkyCoord, SystemSummary } from '../api/types';
 import { FieldPage } from '../pages/FieldPage';
-import { separationArcsec } from '../three/skyTrack';
 import { PositionSpectrum } from './PositionSpectrum';
 import { SystemPreview } from './SystemPreview';
 
 const VIEWS = ['Time', 'Spectrum', '3D'] as const;
-// A saved field can cover many stars. Use half a native SPHEREx pixel around
-// the curated target center when associating a position with its catalog model.
-const TARGET_RADIUS_ARCSEC = 3;
 
 interface Props {
   position: SkyCoord;
@@ -29,9 +25,7 @@ export function PositionResults({ position, sequences, systems, selectedFieldId,
   const live = client.config.mode === 'api';
   const readyFieldId = job?.status === 'ready' ? job.result_field_id ?? undefined : undefined;
   const nearby = searchSequences(sequences, '', position).filter(({ field }) => !field.synthetic);
-  const point = { raDeg: position.ra, decDeg: position.dec };
-  const targets = nearby.filter(({ field, href }) => href.startsWith('#/') &&
-    separationArcsec(point, { raDeg: field.center.ra, decDeg: field.center.dec }) <= TARGET_RADIUS_ARCSEC);
+  const targets = localTargetSequences(nearby, position);
   const savedFieldId = selectedFieldId ?? targets[0]?.field.id;
   const timeFieldId = readyFieldId ?? savedFieldId;
   const model = systems.find((system) => !system.synthetic && targets.some(({ field }) =>
