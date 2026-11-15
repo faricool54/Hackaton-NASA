@@ -1,0 +1,459 @@
+/* FE-12 (WS7): 3D pages, viewer and body panel. Prefix .s3d-; FE-1 tokens with fallbacks.
+   Loaded after styles.css (main.tsx imports it first), and every rule here that must win over an old
+   styles.css rule on the same element is one class more specific, never !important (FRONTEND_PLAN §4.4).
+
+   The elements keep their old class names next to the .s3d- ones, and the rules here repeat the old values,
+   so the two never disagree and FE-1b can delete the styles.css "3D systems (WS7)" section (.badge.model,
+   .badge.unverified-badge, .system-viewer, .scene-*, .body-label, .body-list, .body-panel, .facts, .unverified
+   and the `.system-viewer .blink-controls` transport of BenjaminPondal #26/#27) without a visible change:
+   .s3d-viewer, .s3d-stage, .s3d-msg, .s3d-labels, .s3d-body-label, .s3d-body, .s3d-facts, .s3d-unverified
+   and .s3d-transport cover it, and the UNVERIFIED VALUES badge takes its colour from .u-badge--warn
+   (--warn, the value of --unconfirmed). The 3D speed control (#27) also mirrors the shared WS5 UI-2
+   .speed-control / .speed-value rules, which BlinkViewer keeps using. */
+
+/* --- Viewer ------------------------------------------------------------------------------------------ */
+.s3d-viewer { min-width: 0; margin-bottom: var(--sp-2, 8px); }
+.s3d-stage {
+  position: relative;
+  width: 100%;
+  height: min(70vh, 620px);
+  min-height: 320px;
+  background: #03050a;
+  border: 1px solid var(--line, #232a3d);
+  border-radius: 8px;
+  overflow: hidden;
+  touch-action: none;
+}
+.s3d-stage canvas { display: block; }
+.s3d-viewer .s3d-stage.s3d-stage--compact { height: 230px; min-height: 0; }
+.s3d-msg { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; padding: var(--sp-4, 16px); text-align: center; }
+/* The CSS2DRenderer label layer and the body labels of three/SystemScene.ts (same values as .scene-labels / .body-label). */
+.s3d-labels { position: absolute; inset: 0; pointer-events: none; }
+.s3d-body-label {
+  pointer-events: auto;
+  background: rgba(7, 9, 15, 0.7);
+  border: 1px solid var(--border, #232a3d);
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 0.75rem;
+  color: var(--text, #e6e9f2);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.s3d-body-label:hover { border-color: var(--accent, #7cc4ff); }
+
+/* Honesty chips over the canvas: text always, colour is never the only signal. */
+.s3d-chips {
+  position: absolute;
+  top: var(--sp-2, 8px);
+  left: var(--sp-2, 8px);
+  right: var(--sp-2, 8px);
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  pointer-events: none;
+}
+.s3d-chip { background: rgb(3 5 10 / 0.75); }
+.s3d-chip--false { --badge-color: #f9a8d4; }
+.s3d-false-text { color: #f9a8d4; }
+.s3d-fullview {
+  position: absolute;
+  right: var(--sp-2, 8px);
+  bottom: var(--sp-2, 8px);
+  z-index: 3;
+  padding: 3px 10px;
+  border: 1px solid var(--line-control, #626d88);
+  border-radius: var(--r-pill, 999px);
+  background: var(--surface-glass, rgb(9 13 24 / 0.9));
+  color: var(--accent, #7cc4ff);
+  font-size: var(--fs-xs, 0.75rem);
+  font-weight: var(--fw-medium, 500);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.s3d-fullview:hover { border-color: var(--accent, #7cc4ff); color: var(--accent-strong, #a6e0ff); }
+
+/* --- Transport (same values as styles.css `.system-viewer .blink-controls …`) ---------------------- */
+.s3d-viewer .s3d-transport {
+  display: flex; align-items: center; gap: 10px 12px; flex-wrap: wrap;
+  margin: 0 0 16px; padding: 12px 14px;
+  color: var(--muted); font-size: 0.78rem;
+  background: linear-gradient(145deg, rgba(20, 28, 44, 0.96), rgba(13, 17, 28, 0.96));
+  border: 1px solid rgba(124, 196, 255, 0.12); border-top: 0; border-radius: 0 0 14px 14px;
+}
+.s3d-transport input[type='range'] { flex: 1; min-width: 120px; }
+/* The #27 speed control: the shared WS5 UI-2 .speed-control values, including their 520 px step below. */
+.s3d-transport .speed-control { display: flex; align-items: center; gap: 9px; }
+.s3d-transport .speed-control input[type='range'] { width: 98px; height: 4px; accent-color: var(--accent); cursor: pointer; }
+.s3d-transport .speed-value { min-width: 2.7em; color: var(--text); font-variant-numeric: tabular-nums; }
+@media (max-width: 520px) {
+  .s3d-transport .speed-control { gap: 6px; }
+  .s3d-transport .speed-control input[type='range'] { width: 76px; }
+}
+.s3d-viewer .s3d-transport > button {
+  min-height: var(--button-height, 40px); padding: 7px 13px;
+  color: #b8c7da; background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(184, 199, 218, 0.15); border-radius: 999px;
+  transition: color 0.15s, background 0.15s, border-color 0.15s, transform 0.15s;
+}
+.s3d-viewer .s3d-transport > button:hover {
+  color: white; background: rgba(124, 196, 255, 0.12);
+  border-color: rgba(124, 196, 255, 0.55); transform: translateY(-1px);
+}
+.s3d-viewer .s3d-transport > button:first-child {
+  min-width: 94px; color: var(--button-ink); font-weight: 650;
+  background: var(--button-fill); border: 0;
+  box-shadow: 0 5px 20px rgba(80, 166, 232, 0.2);
+}
+.s3d-viewer .s3d-transport > button:first-child:hover {
+  color: var(--button-ink); background: var(--button-highlight); box-shadow: 0 7px 24px rgba(80, 166, 232, 0.32);
+}
+.s3d-viewer .s3d-transport > label {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 36px;
+  white-space: nowrap;
+}
+.s3d-viewer .s3d-transport select {
+  min-height: 36px; padding: 5px 30px 5px 11px;
+  color: var(--text); background-color: rgba(255, 255, 255, 0.045);
+  border-color: rgba(184, 199, 218, 0.16); border-radius: 9px;
+}
+.s3d-viewer .s3d-transport > span { color: var(--muted); font-variant-numeric: tabular-nums; }
+.s3d-viewer .s3d-transport > label:has(input[type='checkbox']),
+.s3d-viewer .s3d-options-body > label:has(input[type='checkbox']) {
+  min-height: 34px; padding: 4px 10px; gap: 7px;
+  color: #b8c7da; background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(184, 199, 218, 0.13); border-radius: 999px;
+  cursor: pointer; transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+.s3d-viewer .s3d-transport > label:has(input[type='checkbox']):hover,
+.s3d-viewer .s3d-options-body > label:has(input[type='checkbox']):hover {
+  color: var(--text); border-color: rgba(124, 196, 255, 0.4);
+}
+.s3d-viewer .s3d-transport input[type='checkbox'] { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); }
+.s3d-viewer .s3d-transport button:focus-visible,
+.s3d-viewer .s3d-transport select:focus-visible,
+.s3d-viewer .s3d-transport input:focus-visible,
+.s3d-viewer .s3d-transport summary:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 3px;
+}
+
+/* Clock buttons sit inside a group span, so the pill styles above do not reach them. */
+.s3d-clock { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.s3d-viewer .s3d-clock > .s3d-clock-btn {
+  min-height: 34px;
+  padding: 5px 12px;
+  border: 1px solid rgba(184, 199, 218, 0.15);
+  border-radius: 999px;
+  color: #b8c7da;
+  font-weight: 400;
+  background: rgba(255, 255, 255, 0.035);
+}
+.s3d-viewer .s3d-clock > .s3d-clock-btn[aria-pressed='true'] {
+  border-color: rgba(124, 196, 255, 0.55);
+  color: var(--text, #e6e9f2);
+  font-weight: 600;
+  background: rgba(124, 196, 255, 0.12);
+}
+
+/* Compact (dock) only: secondary view options behind a disclosure. */
+.s3d-options { flex: 0 1 auto; }
+.s3d-options[open] { flex: 1 1 100%; }
+.s3d-options > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 3px 10px;
+  border: 1px solid rgba(184, 199, 218, 0.15);
+  border-radius: 999px;
+  color: #b8c7da;
+  background: rgba(255, 255, 255, 0.035);
+  cursor: pointer;
+  list-style: none;
+}
+.s3d-options > summary::-webkit-details-marker { display: none; }
+.s3d-options > summary::after { content: ' ▾'; }
+.s3d-options[open] > summary::after { content: ' ▴'; }
+.s3d-options-body { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 6px; }
+.s3d-options-body > label { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; white-space: nowrap; }
+
+/* --- Compact viewer: <= 320 px stage, smaller controls that wrap --------------------------------------- */
+.s3d-viewer.s3d-viewer--compact .s3d-transport { gap: 6px 8px; margin-bottom: var(--sp-2, 8px); padding: 8px 10px; font-size: var(--fs-2xs, 0.6875rem); }
+.s3d-viewer.s3d-viewer--compact .s3d-transport > button { min-height: 30px; padding: 3px 10px; }
+.s3d-viewer.s3d-viewer--compact .s3d-transport > button:first-child { min-width: 72px; }
+.s3d-viewer.s3d-viewer--compact .s3d-transport > label { gap: 6px; min-height: 28px; }
+.s3d-viewer.s3d-viewer--compact .s3d-transport input[type='range'] { flex: none; width: 72px; min-width: 0; }
+.s3d-viewer.s3d-viewer--compact .s3d-transport select { min-height: 28px; padding: 2px 20px 2px 8px; font-size: var(--fs-2xs, 0.6875rem); }
+.s3d-viewer.s3d-viewer--compact .s3d-options-body > label:has(input[type='checkbox']) { min-height: 28px; padding: 2px 8px; }
+.s3d-viewer.s3d-viewer--compact .s3d-clock > .s3d-clock-btn { min-height: 28px; padding: 3px 9px; font-size: var(--fs-2xs, 0.6875rem); }
+
+/* --- Legends ----------------------------------------------------------------------------------------- */
+.s3d-legend p { margin: 0 0 4px; }
+.s3d-legend .s3d-legend-title { color: var(--text, #e6e9f2); }
+.s3d-legend-list { margin: 0 0 6px; padding-left: 18px; }
+.s3d-legend-list li { margin: 0 0 2px; }
+.s3d-legend-source { opacity: 0.8; }
+.s3d-dots { display: inline-flex; gap: 2px; margin-right: 2px; vertical-align: middle; }
+.s3d-dot { width: 4px; height: 4px; border-radius: 50%; }
+.s3d-swatch { display: inline-block; width: 14px; height: 0; margin-right: 2px; border-top: 3px solid; vertical-align: middle; }
+.s3d-disclosure > summary {
+  cursor: pointer;
+  padding: 2px 0;
+  color: var(--accent, #7cc4ff);
+  font-size: var(--fs-xs, 0.75rem);
+}
+.s3d-legend-details { margin: 0 0 var(--sp-2, 8px); }
+.s3d-legend-details[open] > summary { margin-bottom: var(--sp-1, 4px); }
+
+/* --- Body panel -------------------------------------------------------------------------------------- */
+/* Base: same values as the styles.css .body-panel dl / .facts / .unverified rules on the same elements. */
+.s3d-body dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 8px 0; }
+.s3d-body dt { color: var(--muted, #8e97ad); }
+.s3d-body dd { margin: 0; }
+.s3d-facts { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 0.9rem; }
+.s3d-facts th {
+  width: 40%;
+  padding: 4px 8px 4px 0;
+  border-top: 1px solid var(--border, #232a3d);
+  color: var(--muted, #8e97ad);
+  font-weight: 500;
+  text-align: left;
+  vertical-align: top;
+}
+.s3d-facts td { padding: 4px 0; border-top: 1px solid var(--border, #232a3d); }
+.s3d-unverified { color: var(--unconfirmed, #fbbf24); font-size: 0.75rem; }
+.s3d-origin, .s3d-tier {
+  display: inline-block;
+  padding: 0 6px;
+  border: 1px solid var(--chip-c);
+  border-radius: 999px;
+  color: var(--chip-c);
+  font-size: 0.66rem;
+  font-weight: 600;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+  vertical-align: middle;
+}
+/* Fact origins with the provenance colours of FRONTEND_PLAN §3.2 (the label always says the origin). */
+.s3d-origin { --chip-c: var(--src-catalog, #f5c26b); }
+.s3d-origin--spherex { --chip-c: var(--src-spherex, #7cc4ff); }
+.s3d-origin--derived { --chip-c: #2dd4bf; }
+.s3d-origin--catalog { --chip-c: var(--src-catalog, #f5c26b); }
+.s3d-origin--unsourced { --chip-c: var(--warn, #fbbf24); border-style: dashed; }
+.s3d-origin--synthetic { --chip-c: var(--src-synthetic, #f472b6); }
+/* Tiers of 'How this body is drawn' (appearanceNotes.ts); not-drawn uses a dashed border. */
+.s3d-tier { --chip-c: #8e97ad; white-space: nowrap; }
+.s3d-tier--measured { --chip-c: #4ade80; }
+.s3d-tier--derived { --chip-c: #2dd4bf; }
+.s3d-tier--model { --chip-c: #7cc4ff; }
+.s3d-tier--range-pick { --chip-c: #bef264; }
+.s3d-tier--class-typical { --chip-c: #fb923c; }
+.s3d-tier--theory { --chip-c: #c084fc; }
+.s3d-tier--illustrative { --chip-c: #fbbf24; }
+.s3d-tier--display { --chip-c: #a5b4c8; }
+.s3d-tier--not-drawn { --chip-c: #8e97ad; border-style: dashed; }
+.s3d-colour-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 4px;
+  border: 1px solid var(--line, #232a3d);
+  border-radius: 2px;
+  vertical-align: middle;
+}
+.s3d-notes-details { margin-top: 10px; padding-top: var(--sp-2, 8px); border-top: 1px solid var(--line, #232a3d); }
+.s3d-notes-details > summary { cursor: pointer; padding: 4px 0; font-weight: 600; }
+.s3d-notes-sub { margin-bottom: 0; }
+.s3d-facts.s3d-notes-table { table-layout: fixed; }
+.s3d-notes-table th, .s3d-notes-table td { overflow-wrap: anywhere; }
+.s3d-notes-table td.s3d-note-row { padding-top: 0; padding-bottom: 6px; border-top: none; }
+.s3d-flags { color: var(--unconfirmed, #fbbf24); }
+.s3d-cite { font-style: italic; }
+
+/* Compact body panel: key data first, the full panel behind a disclosure. One class above `.body-panel dl`
+   (0,1,1) and `.s3d-body dl`, so the compact grid wins on the same <dl> (§4.4). The label column may wrap
+   ("Radius (derived from the catalog luminosity)"). */
+.s3d-body--compact h2 { margin: 0 0 2px; font-size: var(--fs-lg, 1.0625rem); }
+.s3d-body--compact > p { margin: 0 0 var(--sp-1, 4px); }
+.s3d-body .s3d-body-key {
+  display: grid;
+  grid-template-columns: fit-content(48%) minmax(0, 1fr);
+  gap: 2px var(--sp-3, 12px);
+  margin: var(--sp-1, 4px) 0;
+  font-size: var(--fs-sm, 0.8125rem);
+}
+.s3d-body .s3d-body-key dt { color: var(--muted, #8e97ad); }
+.s3d-body .s3d-body-key dd { margin: 0; overflow-wrap: anywhere; }
+.s3d-origins { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-1, 4px); }
+
+/* --- Catalog model of any object (ObjectSystemPreview) ------------------------------------------------ */
+.s3d-preview-title { margin: 0 0 var(--sp-1, 4px); font-size: var(--fs-md, 0.9375rem); line-height: var(--lh-tight, 1.2); }
+.s3d-preview-title .badge { margin: 2px 0; }
+.s3d-preview > p { margin: 0 0 var(--sp-1, 4px); }
+.s3d-preview--compact > p, .s3d-preview--compact .s3d-note { font-size: var(--fs-xs, 0.75rem); line-height: 1.35; }
+/* One class above `.s3d-preview > p` (0,1,1): the body-chip row is a <p> child of .s3d-preview. */
+.s3d-preview .s3d-bodies { display: flex; flex-wrap: wrap; gap: 4px 6px; margin: var(--sp-1, 4px) 0 var(--sp-2, 8px); }
+.s3d-model-notes { display: grid; gap: 4px; margin: var(--sp-2, 8px) 0 0; padding-left: 18px; }
+
+/* --- System page (#/system/<id>): no page scroll at 1366x650, panels scroll inside ------------------- */
+main.s3d-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2, 8px);
+  max-width: 1440px;
+  /* The page minus the topbar and the one-line footer of App.tsx. */
+  height: calc(100vh - var(--topbar-h, 48px) - var(--s3d-footer-h, 42px));
+  height: calc(100dvh - var(--topbar-h, 48px) - var(--s3d-footer-h, 42px));
+  min-height: 440px;
+  padding: var(--sp-2, 8px) var(--sp-4, 16px);
+  overflow: hidden;
+}
+.s3d-head { flex: none; display: grid; gap: 2px; min-width: 0; }
+.s3d-head-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px var(--sp-4, 16px); }
+.s3d-back { margin: 0; font-size: var(--fs-sm, 0.8125rem); white-space: nowrap; }
+.s3d-title { margin: 0; font-size: var(--fs-2xl, 1.625rem); line-height: var(--lh-tight, 1.2); }
+.s3d-title .badge { font-size: var(--fs-xs, 0.75rem); }
+.s3d-desc { margin: 0; color: var(--text-2, #b4bdd1); font-size: var(--fs-sm, 0.8125rem); }
+.s3d-note { margin: 0; color: var(--muted, #8e97ad); font-size: var(--fs-xs, 0.75rem); line-height: 1.4; }
+.s3d-layout {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(320px, 30vw, 420px);
+  gap: var(--sp-4, 16px);
+  min-height: 0;
+}
+.s3d-main, .s3d-side { min-width: 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.s3d-side { padding-right: 2px; }
+/* Stage + transport fill the first screen of the left column; the legends follow inside its scroll. */
+.s3d-page .s3d-viewer .s3d-stage {
+  height: clamp(240px, calc(100vh - 340px), 620px);
+  height: clamp(240px, calc(100dvh - 340px), 620px);
+  min-height: 240px;
+}
+
+/* "In this system" and "Where it is" cards (BenjaminPondal #30), same values as their inline styles. */
+.s3d-info {
+  margin-bottom: 12px;
+  padding: 18px;
+  border: 1px solid var(--border, #232a3d);
+  border-radius: 16px;
+  background:
+    radial-gradient(ellipse at 100% 0%, rgba(124, 196, 255, 0.08), transparent 48%),
+    linear-gradient(155deg, #121a2a, #0d111c 76%);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.18);
+}
+.s3d-eyebrow { margin: 0; color: #8e97ad; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+.s3d-section-heading { margin: 4px 0 0; font-size: 1.12rem; }
+h3.s3d-section-heading { margin-bottom: 13px; }
+.s3d-info-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.s3d-count {
+  flex: none;
+  padding: 4px 9px;
+  border: 1px solid rgba(124, 196, 255, 0.2);
+  border-radius: 999px;
+  color: #a9d9ff;
+  background: rgba(124, 196, 255, 0.07);
+  font-size: 0.73rem;
+  font-variant-numeric: tabular-nums;
+}
+.s3d-body-list { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.s3d-body-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 42px;
+  padding: 9px 11px;
+  border: 1px solid rgba(184, 199, 218, 0.1);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.025);
+  color: #dce8f7;
+  text-decoration: none;
+}
+.s3d-body-link-name { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.s3d-body-index {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 23px;
+  height: 23px;
+  border-radius: 50%;
+  color: #9aabc3;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+}
+.s3d-truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.s3d-arrow { color: #7cc4ff; font-size: 1.1rem; line-height: 1; }
+.s3d-coords { padding: 11px 12px; border: 1px solid rgba(124, 196, 255, 0.14); border-radius: 11px; background: rgba(3, 8, 16, 0.38); }
+.s3d-coords-label { color: #8e97ad; font-size: 0.69rem; letter-spacing: 0.08em; text-transform: uppercase; }
+.s3d-coords-value { margin-top: 3px; color: #e6f3ff; font-size: 1.04rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+.s3d-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(125px, 1fr)); gap: 8px; margin-top: 9px; }
+.s3d-stat { padding: 9px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.035); }
+.s3d-stat-label { color: #8e97ad; font-size: 0.69rem; }
+.s3d-stat-value { margin-top: 2px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.s3d-stat-aside { color: #a7b3c7; font-size: 0.78rem; }
+.s3d-field-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(124, 196, 255, 0.2);
+  border-radius: 10px;
+  background: rgba(124, 196, 255, 0.07);
+  text-decoration: none;
+}
+.s3d-field-missing { margin-top: 12px; padding: 9px 11px; border-left: 2px solid #68758d; border-radius: 0 8px 8px 0; background: rgba(255, 255, 255, 0.025); }
+.notes.s3d-prov-notes { display: grid; gap: 6px; margin: 12px 0 0; padding-left: 18px; font-size: 0.81rem; line-height: 1.45; }
+
+/* Below 900 px the two columns stack and the page scrolls normally. */
+@media (max-width: 900px) {
+  main.s3d-page { height: auto; min-height: 0; overflow: visible; }
+  .s3d-layout { grid-template-columns: minmax(0, 1fr); }
+  .s3d-main, .s3d-side { overflow: visible; }
+  .s3d-page .s3d-viewer .s3d-stage { height: min(60vh, 480px); min-height: 280px; }
+}
+@media (max-width: 560px) {
+  .s3d-viewer .s3d-transport { gap: 8px; padding: 10px 11px; }
+  .s3d-viewer .s3d-transport > label { gap: 6px; min-width: 0; max-width: 100%; white-space: normal; }
+  .s3d-viewer .s3d-transport > label:has(select) { flex: 1 1 100%; }
+  .s3d-viewer .s3d-transport select { min-width: 0; flex: 1; padding-right: 12px; }
+  .s3d-viewer .s3d-transport input[type='checkbox'] { flex: none; }
+  .s3d-title { font-size: var(--fs-xl, 1.25rem); }
+}
+
+/* --- Systems list (#/systems) ------------------------------------------------------------------------- */
+.s3d-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr)); gap: var(--sp-4, 16px); }
+.s3d-card {
+  display: grid;
+  align-content: start;
+  gap: var(--sp-2, 8px);
+  padding: var(--sp-4, 16px);
+  border: 1px solid var(--line, #232a3d);
+  border-radius: var(--r-md, 10px);
+  background: var(--surface-1, #0f1422);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color var(--dur-fast, 120ms) var(--ease-out, ease-out), background var(--dur-fast, 120ms) var(--ease-out, ease-out);
+}
+.s3d-card:hover { border-color: var(--accent, #7cc4ff); background: var(--surface-2, #171e31); }
+.s3d-card:focus-visible { outline: 2px solid var(--accent-strong, #a6e0ff); outline-offset: 2px; }
+.s3d-card h3 { margin: 0; font-size: var(--fs-lg, 1.0625rem); }
+.s3d-card p { margin: 0; }
+.s3d-card-desc { color: var(--text-2, #b4bdd1); font-size: var(--fs-sm, 0.8125rem); }
+.s3d-card-meta { color: var(--muted, #8e97ad); font-size: var(--fs-xs, 0.75rem); }
+.s3d-card-badges, .s3d-kinds { display: flex; flex-wrap: wrap; gap: var(--sp-1, 4px); }
+.s3d-kind {
+  padding: 1px 8px;
+  border: 1px solid var(--line-control, #626d88);
+  border-radius: var(--r-pill, 999px);
+  color: var(--text-2, #b4bdd1);
+  font-size: var(--fs-xs, 0.75rem);
+}
+.s3d-card-open { color: var(--accent, #7cc4ff); font-size: var(--fs-sm, 0.8125rem); }
+.s3d-hero { max-width: 80ch; margin-bottom: var(--sp-5, 24px); }
+.s3d-hero h1 { margin: var(--sp-2, 8px) 0 var(--sp-3, 12px); font-size: var(--fs-2xl, 1.625rem); }
+section.s3d-hero p { margin: 0 0 var(--sp-3, 12px); color: var(--text-2, #b4bdd1); font-size: var(--fs-md, 0.9375rem); }
+section.s3d-hero p.s3d-hero-note { color: var(--muted, #8e97ad); font-size: var(--fs-sm, 0.8125rem); }

@@ -1,6 +1,6 @@
 // Info panel for one body of a 3D system ("entering" a planet/star).
-import { Fragment, useEffect, useMemo, useState, type CSSProperties } from 'react';
-import type { Body, SystemModel } from '../api/types';
+import { Fragment, useEffect, useMemo, useState } from 'react';
+import type { Body, Fact, SystemModel } from '../api/types';
 // From the astro-free module: appearance.ts would pull astro.ts into the main chunk.
 import { KIND_LABEL } from '../three/kindLabels';
 // Types only: the module itself is loaded on demand (loadNotes), so it stays out of the main chunk.
@@ -10,6 +10,7 @@ import {
   formatOrbitPeriod,
   isNonFittedOrbit,
   modelValuesUnverified,
+  twoSigFigs,
   variabilityAnimationNote,
   variabilityText,
 } from '../three/bodyFormat';
@@ -20,6 +21,7 @@ import {
   factOrigin,
   isColourKnown,
   isSizeKnown,
+  keyFact,
   UNKNOWN_COLOUR_REASON,
   UNKNOWN_COLOUR_TEXT,
   UNKNOWN_SIZE_REASON,
@@ -27,6 +29,7 @@ import {
   unknownReason,
   type FactOrigin,
 } from '../three/factOrigin';
+import '../three/system.css';
 
 interface Props {
   system: SystemModel;
@@ -34,9 +37,91 @@ interface Props {
   fieldExists: boolean;
   /** True when the linked field or the system is synthetic: never call it a SPHEREx field then. */
   fieldSynthetic?: boolean;
+  /**
+   * Dock / tab size (FE-12): name, kind, temperature and radius (or "unknown") and the fact origins, with
+   * the full panel behind a disclosure. Default false.
+   */
+  compact?: boolean;
 }
 
-export function BodyPanel({ system, body, fieldExists, fieldSynthetic }: Props) {
+export function BodyPanel(props: Props) {
+  if (props.compact) return <CompactBodyPanel {...props} />;
+  return <FullBodyPanel {...props} />;
+}
+
+const R_SUN_KM = 695_700; // IAU 2015 nominal solar radius
+
+/** Key data only; the full panel (facts, sources, drawing notes) opens below. */
+function CompactBodyPanel(props: Props) {
+  const { system, body } = props;
+  const synthetic = system.provenance.synthetic;
+  const parent = body.orbit ? system.bodies.find((b) => b.id === body.orbit!.parent) : undefined;
+  const real = !synthetic;
+  const teff = body.teff_k != null && body.teff_k > 0 ? body.teff_k : null;
+  const radius = isSizeKnown(body) ? body.radius_km! : null;
+  const stellar = body.kind === 'star' || body.kind === 'brown_dwarf';
+  const colourUnknown = real && !isColourKnown(body);
+  const sizeUnknown = real && !isSizeKnown(body);
+  // Each value is shown under the label of the fact that gives it ("Radius (model estimate)"), with that fact's
+  // origin and verified flag: a qualifier never stays folded in the disclosure while its value is visible.
+  const teffFact = teff !== null ? keyFact(body.facts, 'temperature', teff) : null;
+  const radiusFact = radius !== null ? keyFact(body.facts, 'radius', radius) : null;
+  const origins = [...new Set(body.facts.map((f) => factOrigin(f, synthetic)))];
+  const unverified = modelValuesUnverified(system);
+  return (
+    <div className="panel body-panel s3d-body s3d-body--compact">
+      <h2>{body.name}</h2>
+      <p className="muted small">
+        {KIND_LABEL[body.kind] ?? body.kind}
+        {body.spectral_type ? ` · ${body.spectral_type}` : ''}
+        {parent ? ` · orbits ${parent.name}` : ''}
+      </p>
+      <dl className="s3d-body-key">
+        <dt>{teffFact?.label ?? 'Temperature'}</dt>
+        <dd>
+          {teff !== null ? `~${Math.round(teff)} K` : colourUnknown ? `unknown: ${UNKNOWN_COLOUR_TEXT}` : 'unknown'}
+          {teffFact && <FactFlags fact={teffFact} synthetic={synthetic} />}
+        </dd>
+        <dt>{radiusFact?.label ?? 'Radius'}</dt>
+        <dd>
+          {radius !== null
+            ? `~${twoSigFigs(radius)} km${stellar ? ` (${twoSigFigs(radius / R_SUN_KM)} R☉)` : ''}`
+            : sizeUnknown
+              ? `unknown: ${UNKNOWN_SIZE_TEXT}`
+              : 'unknown'}
+          {radiusFact && <FactFlags fact={radiusFact} synthetic={synthetic} />}
+        </dd>
+      </dl>
+      {(origins.length > 0 || unverified) && (
+        <p className="s3d-origins small">
+          {origins.length > 0 && <span className="muted">All facts:</span>}
+          {origins.map((o) => (
+            <OriginChip key={o} origin={o} />
+          ))}
+          {unverified && (
+            <span className="unverified s3d-unverified" title="Some values of this system are estimates that no catalog or paper states">
+              unverified
+            </span>
+          )}
+        </p>
+      )}
+      <details className="s3d-disclosure">
+        <summary>All facts, sources and drawing notes</summary>
+        <BodyDetails {...props} heading={false} />
+      </details>
+    </div>
+  );
+}
+
+function FullBodyPanel(props: Props) {
+  return (
+    <div className="panel body-panel s3d-body">
+      <BodyDetails {...props} heading />
+    </div>
+  );
+}
+
+function BodyDetails({ system, body, fieldExists, fieldSynthetic, heading }: Props & { heading: boolean }) {
   const parent = body.orbit ? system.bodies.find((b) => b.id === body.orbit!.parent) : undefined;
   const children = system.bodies.filter((b) => b.orbit?.parent === body.id);
   // A synthetic system can only point at synthetic frames, even if the caller did not say so.
@@ -53,13 +138,17 @@ export function BodyPanel({ system, body, fieldExists, fieldSynthetic }: Props) 
   const unverified = modelValuesUnverified(system);
   const animationNote = body.variability ? variabilityAnimationNote(body.variability) : null;
   return (
-    <div className="panel body-panel">
-      <h2>{body.name}</h2>
-      <p className="muted small">
-        {KIND_LABEL[body.kind] ?? body.kind}
-        {body.spectral_type ? ` · ${body.spectral_type}` : ''}
-        {parent ? ` · orbits ${parent.name}` : ''}
-      </p>
+    <>
+      {heading && (
+        <>
+          <h2>{body.name}</h2>
+          <p className="muted small">
+            {KIND_LABEL[body.kind] ?? body.kind}
+            {body.spectral_type ? ` · ${body.spectral_type}` : ''}
+            {parent ? ` · orbits ${parent.name}` : ''}
+          </p>
+        </>
+      )}
       {body.description && <p>{body.description}</p>}
 
       {hasModelRows && (
@@ -67,7 +156,7 @@ export function BodyPanel({ system, body, fieldExists, fieldSynthetic }: Props) 
           <p className="muted small">
             Model parameters used to draw the scene
             {unverified && (
-              <span className="unverified" title="Some values of this system are estimates that no catalog or paper states">
+              <span className="unverified s3d-unverified" title="Some values of this system are estimates that no catalog or paper states">
                 {' '}
                 unverified
               </span>
@@ -104,7 +193,7 @@ export function BodyPanel({ system, body, fieldExists, fieldSynthetic }: Props) 
                 <dd>
                   {formatAu(body.orbit.semi_major_axis_au)}
                   {isNonFittedOrbit(body.orbit) && (
-                    <span className="unverified">
+                    <span className="unverified s3d-unverified">
                       {' '}
                       {body.orbit.quality === 'assumed' ? 'assumed, not fitted' : 'hypothetical'}
                     </span>
@@ -135,7 +224,7 @@ export function BodyPanel({ system, body, fieldExists, fieldSynthetic }: Props) 
       {body.orbit?.note && <p className="muted small">Orbit: {body.orbit.note}</p>}
 
       {body.facts.length > 0 && (
-        <table className="facts">
+        <table className="facts s3d-facts">
           <tbody>
             {body.facts.map((f, i) => (
               <tr key={i}>
@@ -144,7 +233,7 @@ export function BodyPanel({ system, body, fieldExists, fieldSynthetic }: Props) 
                   {f.value}
                   {f.unit ? ` ${f.unit}` : ''} <OriginChip origin={factOrigin(f, system.provenance.synthetic)} />
                   {!f.verified && (
-                    <span className="unverified" title="An estimate, or a value not found in its source">
+                    <span className="unverified s3d-unverified" title="An estimate, or a value not found in its source">
                       {' '}
                       unverified
                     </span>
@@ -185,45 +274,40 @@ export function BodyPanel({ system, body, fieldExists, fieldSynthetic }: Props) 
           )}
         </p>
       )}
-    </div>
+    </>
   );
 }
 
-/** Chip colours of the fact origins (factOrigin.ts), readable on the dark panel background. */
-const ORIGIN_COLOR: Readonly<Record<FactOrigin, string>> = {
-  spherex: '#f9a8d4',
-  derived: '#2dd4bf',
-  catalog: '#a5b4c8',
-  unsourced: '#fbbf24',
-  synthetic: '#fbbf24',
-};
-
-/** Where a fact comes from: SPHEREx-measured, derived, catalog (not measured by SPHEREx), no source, or synthetic demo. */
+/**
+ * Where a fact comes from: SPHEREx-measured, derived, catalog (not measured by SPHEREx), no source, or synthetic
+ * demo. Colours: the provenance tokens of FRONTEND_PLAN §3.2 (three/system.css); the label always says it.
+ */
 function OriginChip({ origin }: { origin: FactOrigin }) {
-  const color = ORIGIN_COLOR[origin];
   return (
-    <span
-      title={FACT_ORIGIN_MEANING[origin]}
-      style={{
-        display: 'inline-block',
-        fontSize: '0.66rem',
-        fontWeight: 600,
-        lineHeight: 1.5,
-        letterSpacing: '0.02em',
-        padding: '0 6px',
-        borderRadius: 999,
-        border: `1px solid ${color}`,
-        color,
-        verticalAlign: 'middle',
-      }}
-    >
+    <span className={`s3d-origin s3d-origin--${origin}`} title={FACT_ORIGIN_MEANING[origin]}>
       {FACT_ORIGIN_LABEL[origin]}
     </span>
   );
 }
 
+/** A fact's origin chip and, when it is not verified, the same 'unverified' tag as its row in the facts table. */
+function FactFlags({ fact, synthetic }: { fact: Fact; synthetic: boolean }) {
+  return (
+    <>
+      {' '}
+      <OriginChip origin={factOrigin(fact, synthetic)} />
+      {!fact.verified && (
+        <span className="unverified s3d-unverified" title="An estimate, or a value not found in its source">
+          {' '}
+          unverified
+        </span>
+      )}
+    </>
+  );
+}
+
 // --- 'How this body is drawn' and 'At SPHEREx scale' (WS7 M6) ------------------------------------
-// Inline styles only: styles.css belongs to WS5. Everything here is computed in the browser from the
+// Styles: three/system.css (.s3d-). Everything here is computed in the browser from the
 // catalog values with the formulae stated on each row (three/appearanceNotes.ts); nothing here feeds
 // the UNVERIFIED VALUES logic above.
 //
@@ -252,25 +336,6 @@ function loadNotes(): Promise<NotesModule> {
 }
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
-
-/** Chip colours, readable on the dark panel background; not-drawn uses a dashed border. */
-const TIER_COLOR: Readonly<Record<string, string>> = {
-  measured: '#4ade80',
-  derived: '#2dd4bf',
-  model: '#7cc4ff',
-  'range-pick': '#bef264',
-  'class-typical': '#fb923c',
-  theory: '#c084fc',
-  illustrative: '#fbbf24',
-  display: '#a5b4c8',
-  'not-drawn': '#8e97ad',
-};
-
-const DETAILS_STYLE: CSSProperties = { marginTop: 10, borderTop: '1px solid var(--border)', paddingTop: 8 };
-const SUMMARY_STYLE: CSSProperties = { cursor: 'pointer', fontWeight: 600, padding: '4px 0' };
-const TABLE_STYLE: CSSProperties = { tableLayout: 'fixed' };
-const WRAP: CSSProperties = { overflowWrap: 'anywhere' };
-const NOTE_ROW_STYLE: CSSProperties = { borderTop: 'none', paddingTop: 0, paddingBottom: 6, overflowWrap: 'anywhere' };
 
 function DrawingNotes({ system, body }: { system: SystemModel; body: Body }) {
   const [mod, setMod] = useState<NotesModule | null>(notesModule);
@@ -334,12 +399,12 @@ function DrawingNotes({ system, body }: { system: SystemModel; body: Body }) {
   const count = (n: number) => (rows ? <span className="muted small">({n} rows)</span> : null);
   return (
     <>
-      <details style={DETAILS_STYLE} onToggle={onToggle}>
-        <summary style={SUMMARY_STYLE} onPointerEnter={request} onFocus={request}>
+      <details className="s3d-notes-details" onToggle={onToggle}>
+        <summary onPointerEnter={request} onFocus={request}>
           How this body is drawn {count(drawn.length + derived.length)}
         </summary>
         <p className="muted small">
-          <span className="badge model">3D MODEL · NOT AN IMAGE</span>{' '}
+          <span className="badge u-badge u-badge--model">3D MODEL · NOT AN IMAGE</span>{' '}
           {mod && (
             <>
               {mod.NOTES_HEADER}. Every colour mode is listed; the 3D view opens in{' '}
@@ -352,7 +417,7 @@ function DrawingNotes({ system, body }: { system: SystemModel; body: Body }) {
             <NotesTable rows={drawn} notes={mod} />
             {derived.length > 0 && (
               <>
-                <p className="muted small" style={{ marginBottom: 0 }}>
+                <p className="muted small s3d-notes-sub">
                   Physical quantities behind the drawing
                 </p>
                 <NotesTable rows={derived} notes={mod} />
@@ -363,8 +428,8 @@ function DrawingNotes({ system, body }: { system: SystemModel; body: Body }) {
           pending
         )}
       </details>
-      <details style={DETAILS_STYLE} onToggle={onToggle}>
-        <summary style={SUMMARY_STYLE} onPointerEnter={request} onFocus={request}>
+      <details className="s3d-notes-details" onToggle={onToggle}>
+        <summary onPointerEnter={request} onFocus={request}>
           At SPHEREx scale {count(spherex.length)}
         </summary>
         {mod && rows ? (
@@ -384,30 +449,28 @@ function DrawingNotes({ system, body }: { system: SystemModel; body: Body }) {
 
 function NotesTable({ rows, notes }: { rows: readonly AppearanceNote[]; notes: NotesModule }) {
   return (
-    <table className="facts" style={TABLE_STYLE}>
+    <table className="facts s3d-facts s3d-notes-table">
       <tbody>
         {rows.map((n, i) => (
           <Fragment key={`${n.property}-${i}`}>
             <tr>
-              <th scope="row" style={WRAP}>
-                {n.property}
-              </th>
-              <td style={WRAP}>
+              <th scope="row">{n.property}</th>
+              <td>
                 <ColourSwatch value={n.value} />
                 {n.value}
                 {n.unit ? ` ${n.unit}` : ''} <TierChip tier={n.tier} notes={notes} />
                 {n.flags.length > 0 && (
-                  <div className="small" style={{ color: 'var(--unconfirmed)' }}>
+                  <div className="small s3d-flags">
                     {n.flags.map((f) => notes.FLAG_TEXT[f] ?? f).join('; ')}
                   </div>
                 )}
               </td>
             </tr>
             <tr>
-              <td colSpan={2} className="muted small" style={NOTE_ROW_STYLE}>
+              <td colSpan={2} className="muted small s3d-note-row">
                 {n.method}
                 <br />
-                <span style={{ fontStyle: 'italic' }}>Source: {n.citation}</span>
+                <span className="s3d-cite">Source: {n.citation}</span>
               </td>
             </tr>
           </Fragment>
@@ -417,25 +480,10 @@ function NotesTable({ rows, notes }: { rows: readonly AppearanceNote[]; notes: N
   );
 }
 
+/** Tier colours in three/system.css (.s3d-tier--<tier>); not-drawn uses a dashed border, the label always says it. */
 function TierChip({ tier, notes }: { tier: NoteTier; notes: NotesModule }) {
-  const color = TIER_COLOR[tier] ?? '#8e97ad';
   return (
-    <span
-      title={notes.NOTE_TIER_MEANING[tier] ?? tier}
-      style={{
-        display: 'inline-block',
-        fontSize: '0.66rem',
-        fontWeight: 600,
-        lineHeight: 1.5,
-        letterSpacing: '0.02em',
-        padding: '0 6px',
-        borderRadius: 999,
-        border: `1px ${tier === 'not-drawn' ? 'dashed' : 'solid'} ${color}`,
-        color,
-        whiteSpace: 'nowrap',
-        verticalAlign: 'middle',
-      }}
-    >
+    <span className={`s3d-tier s3d-tier--${tier}`} title={notes.NOTE_TIER_MEANING[tier] ?? tier}>
       {notes.NOTE_TIER_LABEL[tier] ?? tier.toUpperCase()}
     </span>
   );
@@ -445,19 +493,6 @@ function TierChip({ tier, notes }: { tier: NoteTier; notes: NotesModule }) {
 function ColourSwatch({ value }: { value: string }) {
   const hex = /^#[0-9a-f]{6}\b/i.exec(value)?.[0];
   if (!hex) return null;
-  return (
-    <span
-      aria-hidden="true"
-      style={{
-        display: 'inline-block',
-        width: 10,
-        height: 10,
-        marginRight: 4,
-        verticalAlign: 'middle',
-        background: hex,
-        border: '1px solid var(--border)',
-        borderRadius: 2,
-      }}
-    />
-  );
+  // Dynamic: the colour of the row itself.
+  return <span aria-hidden="true" className="s3d-colour-swatch" style={{ background: hex }} />;
 }

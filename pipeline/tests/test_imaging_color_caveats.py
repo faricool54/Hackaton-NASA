@@ -86,7 +86,7 @@ def test_the_white_point_stays_above_a_raised_black_point():
     assert color._speckle_black_point(stretch, sky=0.0, sigma=0.1).vmax == 1.0  # normally kept
 
 
-def test_an_undetected_target_in_a_noisy_channel_is_said_not_to_be_visible():
+def test_an_undetected_target_in_a_noisy_channel_is_not_called_absent():
     comp, balance = balanced(frames(red_noise=0.5, red_target=0.0))
     snr = balance.target_snr[(comp.id, "red")]
     assert snr is not None and snr < color.TARGET_MIN_SNR
@@ -98,8 +98,37 @@ def test_an_undetected_target_in_a_noisy_channel_is_said_not_to_be_visible():
         f"{snr:.1f} at the field centre, below 3). This is not evidence that it is absent: a red speck at its "
         "position cannot be told apart from noise here."
     ]
-    # With a noisy red channel, fainter field stars look cyan, and the balance note says so.
-    assert "fainter ones look cyan because the red black point is raised" in balance.notes[comp.id][0]
+    # With a noisy red channel most field stars look cyan, and the balance note says so.
+    assert (
+        "only the brightest field stars look roughly white; most look cyan because the red black point is raised"
+        in (balance.notes[comp.id][0])
+    )
+    assert balance.noisy[comp.id] == ["red"]
+
+
+def test_a_noisy_composite_closes_with_a_relative_note_that_does_not_promise_white_stars_or_red_objects():
+    comp, balance = balanced(frames(red_noise=0.5, red_target=0.0))
+    contract = color._to_contract(comp, balance.notes[comp.id], balance.noisy[comp.id])
+    assert contract.notes[-1] != RELATIVE_NOTE
+    assert contract.notes[-1] == (
+        "Colours are relative to the field, but with the red black point raised only the brightest field stars look "
+        "roughly white (most look cyan); an object redder than the field stars looks red only if it is bright enough "
+        "in the red channel."
+    )
+    clean_comp, clean = balanced(frames(red_noise=0.01, red_target=0.0))
+    assert clean.noisy[clean_comp.id] == []
+    assert color._to_contract(clean_comp, clean.notes[clean_comp.id], []).notes[-1] == RELATIVE_NOTE
+
+
+def test_the_provenance_note_says_a_noisy_black_point_is_set_per_season():
+    plan = plan_composites(frames(), pool=frames())
+    text = color.provenance_note(plan)
+    assert "except that a noisy channel" in text and "black point set per season at its own sky" in text
+
+
+def test_the_eps_indi_b_caveat_names_only_the_flags_that_were_checked():
+    caveat = color.CURATED_FRAME_CAVEATS["2025W40_1A_0559_1D6"]
+    assert "no SPHEREx ghost or streak flag marks it" in caveat and "no SPHEREx flag marks it" not in caveat
 
 
 def test_a_detected_target_in_a_noisy_channel_gets_no_such_note_and_stays_red():

@@ -1,5 +1,5 @@
 import type { Grid, SkyCoord } from './types';
-import { separationArcsec } from '../three/skyTrack';
+import { separationArcsec, tangentOffsetArcsec } from '../three/skyTrack';
 
 const DEG = Math.PI / 180;
 
@@ -18,6 +18,26 @@ export function tangentPlanePosition(center: SkyCoord, eastDeg: number, northDeg
   const ra = center.ra + Math.atan2(east, denominator) / DEG;
   const dec = Math.atan2(sinDec + north * cosDec, Math.hypot(denominator, east)) / DEG;
   return { ra: ((ra % 360) + 360) % 360, dec };
+}
+
+/**
+ * True when `point` falls inside the footprint polygon (corners in order), tested on the tangent plane at `center`.
+ * Footprints are a fraction of a degree, so anything more than 45° away is outside.
+ */
+export function pointInFootprint(center: SkyCoord, corners: SkyCoord[], point: SkyCoord): boolean {
+  if (corners.length < 3) return false;
+  const ref = { raDeg: center.ra, decDeg: center.dec };
+  const plane = ({ ra, dec }: SkyCoord) => tangentOffsetArcsec(ref, { raDeg: ra, decDeg: dec });
+  if (separationArcsec(ref, { raDeg: point.ra, decDeg: point.dec }) > 45 * 3600) return false;
+  const { east: x, north: y } = plane(point);
+  const polygon = corners.map(plane);
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const a = polygon[i];
+    const b = polygon[j];
+    if ((a.north > y) !== (b.north > y) && x < (b.east - a.east) * (y - a.north) / (b.north - a.north) + a.east) inside = !inside;
+  }
+  return inside;
 }
 
 /** Corners of Errante's north-up TAN grid, at the outer FITS pixel edges. */
