@@ -1,5 +1,5 @@
 {
-  "document_version": "1.5",
+  "document_version": "1.6",
   "updated_on": "2026-11-15",
   "status": "draft_requires_team_review",
   "scope": "Verified assistance in the current Codex session; not a complete repository authorship audit",
@@ -13,7 +13,8 @@
     "Processing cache invalidation, shared spectrum/comparison contract, supervised API and frontend scientific panels with real-data integration checks",
     "Updated PROJECT.md and the public About page to describe deployed real SPHEREx data, five offline validation records, reviewed light-curve limitations, sources and remaining human/submission tasks",
     "User-authorized WS6 documentation-only refresh of README and status/architecture/contract/requirement/coordination documents against merged/published main 3ed5c91 (#97) and public acceptance; no demo creation, human scientific approval or submission completed",
-    "WS3 V18 conditional colour temperatures, descriptive IR colours and remaining LC24 summary, with review follow-ups requested by faricool54/Claude. Component attribution: pipeline/errante/science/continuum-ai-usage.json; no human R05 approval or calibrated stellar Teff claim."
+    "WS3 V18 conditional colour temperatures, descriptive IR colours and remaining LC24 summary, with review follow-ups requested by faricool54/Claude. Component attribution: pipeline/errante/science/continuum-ai-usage.json; no human R05 approval or calibrated stellar Teff claim.",
+    "User-requested adaptation and repository import of the supplied video-tutorial skill: English narration without subtitles, demonstrated value within approximately the first 10 seconds, strict 30-second MP4 verification, source/AI credits, templates and regression tests. Component attribution: docs/submission/skills/video-tutorial/ai-usage.json; no final video/voiceover, upload or submission completed."
   ],
   "known_affected_code": [
     "pipeline/errante/build.py",
@@ -59,6 +60,7 @@
     "Any later images, video, audio, code or data assets"
   ],
   "component_metadata": [
-    "pipeline/errante/science/continuum-ai-usage.json"
+    "pipeline/errante/science/continuum-ai-usage.json",
+    "docs/submission/skills/video-tutorial/ai-usage.json"
   ]
 }
