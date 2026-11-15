@@ -2,7 +2,8 @@
 
 Fuente de verdad: [`pipeline/errante/models.py`](../pipeline/errante/models.py).
 Generado: [`shared/schema/*.schema.json`](../shared/schema/) (`python scripts/dev.py schema`). Espejo TS:
-[`frontend/src/api/types.ts`](../frontend/src/api/types.ts). Versión actual: **0.3.0** (#32): agrega `JobSubmitRequest`, `JobStatusResponse` y `ResolvedRegion`.
+[`frontend/src/api/types.ts`](../frontend/src/api/types.ts). Versión de esta integración: **0.4.0** (#53),
+después de **0.3.1** composites (#39, ya mergeado). **0.3.0** (#32) agregó `JobSubmitRequest`, `JobStatusResponse` y `ResolvedRegion`.
 0.2.0 agregó sistemas 3D y 0.2.1 `Orbit.quality`/`note`. Los productos anteriores siguen siendo compatibles.
 Ejemplos sintéticos: [`data/demo/`](../data/demo/). Los cinco campos reales de WS2 están en
 [`data/products/`](../data/products/); sus imágenes no equivalen a cinco validaciones científicas R05.
@@ -36,6 +37,9 @@ leer `Provenance.synthetic`, notas y `Fact.verified`. Un SystemModel es un model
 | `POST /api/jobs` | `JobStatusResponse`, HTTP 202 | ✅ habilitar `ERRANTE_ENABLE_JOBS=1` |
 | `GET /api/jobs/{id}` | `JobStatusResponse` | ✅ |
 | `GET /api/resolve-name?name=...` | `ResolvedRegion` | ✅ Sesame/CfA |
+| `POST /api/spectra` | `SpectrumResponse` | ✅ WS1 cube/point + WS2 photometry; extra science |
+| `POST /api/fields/{id}/comparisons` | `ComparisonResponse` | ✅ WS2 temporadas/diferencias; extra science |
+| `GET /data/analyses/{sha256}/...` | PNG y `analysis.json` | ✅ publicación independiente e inmutable |
 | `GET /api/known-objects?ra&dec&mjd[&radius_deg]` | `KnownObject[]` | 501 → WS3+WS4 |
 
 ## Convenciones
@@ -88,15 +92,43 @@ El resolver devuelve `ra`, `dec`, `object_type`, `resolved_name`, `source`. Su c
 certifica cobertura ni está propagada automáticamente a la época SPHEREx; los cinco presets sí tienen
 centros propagados documentados en `fields.toml`. CfA puede devolver decimal o jpos sexagesimal con dos puntos.
 
+## Espectros y comparaciones (0.4.0, C02/C03)
+
+`SpectrumRequest`: RA/Dec finitos, `source` (`dr1_cube` default o `l2_exposures`), `detectors` (vacío = todos),
+`field_id` opcional, `aperture_px` 0–3 para cubo; L2 admite `mjd_min/max` ordenados y `max_frames` 2–60.
+El cubo rechaza filtro temporal; L2 rechaza apertura del cubo distinta de cero. Un campo adjunto exige
+procedencia real y posición dentro de su WCS. Sin campo la extracción funciona por coordenadas.
+
+`SpectrumResponse`: centro/fuente, puntos λ/ancho, flujo/error nullable, detector, MJD/release, URI, flags,
+`usable`, nhits/n_used/corrección de apertura si existen; notas, fallos parciales, stale/truncated.
+Cubo = `static_coadd: true`, MJy/sr sin cielo sustraído ni error de flujo. L2 = `static_coadd: false`, mJy
+con cielo local sustraído, errores por exposición. No interpolar ni convertir null a cero; conservar negativos.
+Un cubo de 102 planos no garantiza 102 mediciones válidas. No se afirma simultaneidad ni seguimiento de movimiento.
+
+`ComparisonRequest`: `detectors` y `frame_ids` opcional (2–60 IDs únicos y existentes). El servidor filtra
+el campo, exige 2–60 entradas y grilla ≤512², mantiene detectores separados y llama WS2 compare_field.
+`ComparisonResponse`: id SHA-256, field_id/época original, fecha de cálculo, unidad MJy/sr, método, todos
+los Frame de entrada, productos, fallos y notas. Cada `ComparisonImage` conserva IDs, detector, épocas,
+λ/cobertura si existen. `weighted_mean` identifica temporada; `scaled_difference` referencia dos medias
+y escala later − scale × earlier, ajuste/estrellas/ruido/límite de display. Pesos individuales desconocidos
+son `null`; no inventarlos. No hay suma cruda arbitraria ni interpretación automática de variabilidad.
+
+`ComparisonImage.image` es relativa a la raíz pública: `analyses/{id}/compare/{name}.png`, a diferencia
+de `Frame.image`, relativa al campo. Validadores cruzan IDs/épocas/detectores y referencias. Se publica
+`analyses/{id}/analysis.json` junto a PNG verificados sin cambiar field.json ni el manifest original.
+Las respuestas científicas exigen `synthetic: false`; un campo sintético se rechaza con 409.
+422 = selección/posición inválida, 413 = exceso, 503 = cupo/disco, 502/504 = fallo/deadline.
+Sin cobertura o cero puntos utilizables sigue siendo un resultado explícito, nunca una detección inventada.
+
+Contrato, backend y UI se integraron en main en orden #53 → #54 → #55, después de la caché #52.
+Se conservaron composites y modos de color #39/#40/#41 sin modificar sus ramas. Para futuras pilas, tras
+cada squash traer main, check/push y retargetear el siguiente PR. `compare.json` interno de WS2 no se consume directamente en UI.
+
 ## Extensiones aún sin contrato publicado
 
-- #39 propone `Field.composites` (falso color por temporada), todavía en revisión sobre 0.2.2. Si entra
-  después de #32, actualizarlo a 0.3.1 con schema/TS; no mezclar cambios de versión de ramas distintas.
+- `Field.composites` (falso color por temporada) está integrado desde #39 en 0.3.1; 0.4.0 lo conserva.
 - C01/C07: metadatos ampliados de selección, cobertura y flags con significado.
-- C02/C03: WS2 #19 implementa comparaciones; `compare/compare.json` es provisional. Acordar miembros,
-  pesos, método, fechas/bandas, máscaras, unidades y limitaciones antes de integrarlo en API/UI.
-- C02: WS2 #31 implementa fotometría forzada por exposición. Falta acordar un contrato público de espectro
-  por posición, con λ/ancho, flujo/error, fecha, calidad y fallos parciales, con WS3/4/5.
+- C02/C03: revisión de interpretación científica y futuras medidas adicionales con WS3; no duplicar la API 0.4.0.
 - C05: ficha Gaia y mediciones para modelos físicos 3D; no usar el esquema ilustrativo como mediciones nuevas.
 
 Las coordenadas/FOV/detector/job en URL ya se restauran en el frontend. Modo compacto/iframe externo pendiente.
