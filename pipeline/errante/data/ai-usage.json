@@ -1,0 +1,195 @@
+{
+  "updated_on": "2026-11-15",
+  "tool": "Anthropic Claude Code",
+  "scope": "WS1 SPHEREx data access (pull requests by faricool54 with Claude Code): frame search (SIA2 VOTable over spherex_dr1 + spherex_qr3 with a TAP fallback, deduplication, disk cache with a stale fallback, retries and deadlines) and the committed search snapshots of the five targets; pixels from S3 HTTP Range patches with an IRSA IBE cutout fallback; FITS reading with the per-pixel WCS-WAVE wavelength and the mid-exposure time; spectra of any position from the DR1 HiPS cube on S3; point_series (every exposure at a point as S3 stamps); deploy facts for WS4; the verified data facts in docs/DATA.md; their regression tests and real-data fixtures; also the WS1 reservation (#10). No generated sky imagery and no independent human R05 certification",
+  "affected_paths": [
+    "pipeline/errante/data/",
+    "pipeline/errante/cli.py",
+    "pipeline/errante/settings.py",
+    "pipeline/tests/test_data_search.py",
+    "pipeline/tests/test_data_epochs.py",
+    "pipeline/tests/test_data_s3range.py",
+    "pipeline/tests/test_data_cutouts.py",
+    "pipeline/tests/test_data_fits_io.py",
+    "pipeline/tests/test_data_cube.py",
+    "pipeline/tests/test_data_cube_spectra_fixtures.py",
+    "pipeline/tests/test_data_point.py",
+    "pipeline/tests/test_data_ai_usage.py",
+    "pipeline/tests/test_network.py",
+    "pipeline/tests/fixtures/ws1/",
+    "data/index/search/",
+    "docs/DATA.md",
+    "tasks/WS1-data-access.md",
+    "docs/TEAM.md"
+  ],
+  "generated_media": [],
+  "real_target_validation": false,
+  "real_target_validation_basis": "The formal R05 per-target validation records are the coordinator's (docs/validation/, chore pull requests #36 and #46) and their human review is pending (docs/VALIDATION.md); WS1 returning real SPHEREx frames for the five targets is not that validation",
+  "human_review": "faricool54 directed the work and merged each WS1 pull request (rpccp merged the #10 reservation); no GitHub review was recorded on them, and a line-by-line human review of the code, tests, fixtures or snapshots is not claimed",
+  "repository_disclosure": "AI_USAGE.md",
+  "integration_validation": {
+    "source": "real SPHEREx",
+    "arbitrary_coordinate_job": "not part of the WS1 checks (coordinate jobs are WS4's); WS1's search, S3 patches, cube spectra and point_series were run live on the five targets and on other positions, as the pull requests report",
+    "checks_reported_in_pull_requests": [
+      "#22: the S3 Range patch is bit-for-bit identical to the IRSA IBE cutout (IMAGE, FLAGS, VARIANCE, ZODI and headers) on Barnard's Star (D1/D5/D6 at 5 and 10 arcmin), WISE 0855 (D1-D6), R Draconis (including a box cut by the detector edge) and a qr2 file",
+      "#23: the WCS-WAVE wavelength agrees with the IRSA tutorial method to < 2e-15 um on 18 Barnard's Star frames; a full file and its cutout give the same wavelength",
+      "#24 / docs/DATA.md 3.1: errante build barnards-star with #21-#23 and WS2's #16 gave 40 real frames (6 detectors, 3 seasons) in 22 s, all from S3, and errante validate passed",
+      "#43: the five committed search snapshots match live SIA answers; with SIA answering 502 and TAP hanging, the API answered HTTP 200 from the Barnard's Star snapshot (358 frames) at 20 s",
+      "#49: 14 cube spectra recorded live from S3 (five targets, an empty sky and a coverage hole near the Galactic Centre, apertures 0 and 2) are committed as fixtures"
+    ],
+    "checks_basis": "Run with AI assistance and reported in the pull request bodies and docs/DATA.md; not independently verified by a human. The TAP fallback query is still not verified live (IRSA TAP did not answer on 2026-11-14; docs/DATA.md 6)",
+    "scientific_R05_validation": false
+  },
+  "cache_revision": "WS1 versions its own caches (irsa.CACHE_FORMAT and SNAPSHOT_FORMAT, point.SERIES_FORMAT and LAYOUT_FORMAT, cube.RESULT_CACHE_VERSION, s3range.DIR_CACHE_VERSION); WS4's processing fingerprint (backend/errante_api/processing.py) hashes every pipeline/errante/data/*.py module, so WS1 code changes invalidate cached products. This JSON record is not a .py file and does not change that fingerprint",
+  "workstream": "WS1",
+  "developer": "faricool54",
+  "provider": "Anthropic",
+  "model": "Claude Opus 5.5",
+  "model_basis": "The Co-Authored-By trailers of the 14 WS1 squash commits (#10, #21-#24, #42-#45, #49, #50, #61, #67, #92) name Claude Opus 5.5 and no other model; the review agents ran inside Claude Code and their individual models were not recorded",
+  "other_ai_tools": [],
+  "other_ai_tools_basis": "The commits of these pull requests carry only Claude co-author trailers; no other AI model, provider or coding tool, and no PRC-origin one, is recorded for this work",
+  "ai_review": "Several pull request bodies record review passes: an independent review of each branch of #21-#23 (#24 and docs/DATA.md 3.1), adversarial reviews in #42 and #45 (#45: 1 must-fix and 9 should-fix, resolved with tests that fail on the old version), a must-fix from review in #43 and the follow-ups of the #45 review and of the branch's own review in #50. The reviews were run by AI agents in Claude Code (AI_USAGE.md records this for #21-#23); none is recorded as a human review",
+  "line_by_line_human_review": false,
+  "idea_origin": "Not covered by this record: the product vision is recorded in docs/VISION.md and AI_USAGE.md; this record covers WS1 implementation work only",
+  "nasa_branding_generated": false,
+  "committed_data": {
+    "paths": [
+      "data/index/search/",
+      "pipeline/tests/fixtures/ws1/"
+    ],
+    "origin": "Answers of NASA/IPAC IRSA's SIA service (search snapshots of the five targets, 2026-11-14 19:31-19:35 UTC per #43), real SPHEREx L2 and DR1 cube headers and WCS-WAVE tables read from the public S3 bucket and IBE, and cube spectra read live from S3 (2026-11-15 ~02:10-02:40 UTC, docs/DATA.md 3.3 d), written by running the AI-assisted WS1 code; the values are not AI-generated",
+    "exception": "pipeline/tests/fixtures/ws1/barnard_tap_from_sia.csv holds real SIA rows rewritten in TAP's CSV format because IRSA TAP was down; it is not a recorded TAP answer, as test_data_search.py states",
+    "ai_generated_values": false,
+    "synthetic": false
+  },
+  "pull_requests": [
+    {
+      "number": 10,
+      "title": "chore: reserve WS1 (faricool54 + Claude)",
+      "merged_at": "2026-11-14T16:55:47Z",
+      "ai_generated": ["Docs: two-line WS1 reservation in docs/TEAM.md"],
+      "humans": "faricool54 directed the change; rpccp merged it"
+    },
+    {
+      "number": 21,
+      "title": "ws1: SPHEREx frame search (SIA2 + TAP fallback), query cache and season selection",
+      "merged_at": "2026-11-14T18:33:37Z",
+      "ai_generated": [
+        "Code: data/irsa.py (SIA2 VOTable search over spherex_dr1 + spherex_qr3, TAP fallback, deduplication by (obs_id, detector) preferring DR1 and the newest pipeline version, mid-exposure MJD, 24 h disk cache with a stale fallback, retries and a total deadline), data/epochs.py (visit and season grouping, select_per_season), collections in settings.py, errante search in cli.py",
+        "Tests: test_data_search.py, test_data_epochs.py, test_network.py, with a recorded SIA answer for Barnard's Star (trimmed to 14 of its 358 rows) as fixture"
+      ],
+      "humans": "faricool54 directed the work and merged it"
+    },
+    {
+      "number": 22,
+      "title": "ws1: pixels from S3 Range patches with IBE cutout fallback (None per failed frame)",
+      "merged_at": "2026-11-14T18:33:41Z",
+      "ai_generated": [
+        "Code: data/s3range.py (HTTP Range patches of SPHEREx L2 files on S3, FLAGS rows from the RICE_1 heap, IBE-identical box and WCS shifts), data/cutouts.py (fetch_cutouts: S3 first, IBE fallback, one path or None per frame with the failure reasons)",
+        "Tests: test_data_s3range.py, test_data_cutouts.py",
+        "Live comparisons of S3 patches with IBE cutouts"
+      ],
+      "humans": "faricool54 directed the work and merged it"
+    },
+    {
+      "number": 23,
+      "title": "ws1: per-pixel wavelength from WCS-WAVE and mid-exposure time in fits_io",
+      "merged_at": "2026-11-14T18:33:46Z",
+      "ai_generated": [
+        "Code: fits_io.wavelength_at (bilinear interpolation of the WCS-WAVE table, SIP removed) for full files, IBE cutouts and S3 patches; frame time from MJD-AVG / DATE-AVG instead of the exposure start",
+        "Tests: test_data_fits_io.py, with headers and a WCS-WAVE table of a real exposure as fixtures"
+      ],
+      "humans": "faricool54 directed the work and merged it"
+    },
+    {
+      "number": 24,
+      "title": "ws1: record verified SPHEREx facts from the WS1 implementation (DATA.md §3.1) and task status",
+      "merged_at": "2026-11-14T18:34:06Z",
+      "ai_generated": ["Docs: docs/DATA.md 3.1 (facts measured live while implementing #21-#23) and tasks/WS1-data-access.md"],
+      "humans": "faricool54 directed the work and merged it"
+    },
+    {
+      "number": 42,
+      "title": "ws1: spectrum of any position from the SPHEREx DR1 cube on S3",
+      "merged_at": "2026-11-14T20:44:13Z",
+      "ai_generated": [
+        "Code: data/cube.py (cube_spectrum: HTTP Range reads of the DR1 HiPS FITS cube tiles on S3 with the IRSA copy as fallback, header and result caches), errante cube-spectrum in cli.py",
+        "Tests: test_data_cube.py, with real tile headers and HEALPix tile/pixel references as fixtures"
+      ],
+      "humans": "faricool54 directed the work and merged it"
+    },
+    {
+      "number": 43,
+      "title": "ws1: committed search snapshots so the demo survives an IRSA outage",
+      "merged_at": "2026-11-14T20:47:14Z",
+      "ai_generated": [
+        "Data: data/index/search/<field>.json, live SIA answers for the five targets written by the WS1 code",
+        "Code: snapshot fallback in irsa.search_frames_report (SIA, TAP, stale cache, snapshot), errante snapshot-search in cli.py, settings.py",
+        "Tests: test_data_search.py, test_network.py"
+      ],
+      "humans": "faricool54 directed the work and merged it"
+    },
+    {
+      "number": 44,
+      "title": "ws1: record validation and vision-track data facts",
+      "merged_at": "2026-11-14T20:47:38Z",
+      "ai_generated": ["Docs: docs/DATA.md 3.2 (facts from the validation records #36 and the vision tracks) and tasks/WS1-data-access.md"],
+      "humans": "faricool54 directed the work and merged it"
+    },
+    {
+      "number": 45,
+      "title": "ws1: all SPHEREx exposures at a point as S3 stamps (point_series, errante point)",
+      "merged_at": "2026-11-14T22:27:58Z",
+      "ai_generated": [
+        "Code: data/point.py (point_series: a stamp of IMAGE, VARIANCE, ZODI and FLAGS of every exposure covering a point, with its wavelength and time), changes to data/s3range.py, errante point in cli.py",
+        "Tests: test_data_point.py, test_data_s3range.py",
+        "Docs: tasks/WS1-data-access.md"
+      ],
+      "humans": "faricool54 directed the work and merged it"
+    },
+    {
+      "number": 49,
+      "title": "ws1: deploy facts for WS4 and real cube-spectrum fixtures",
+      "merged_at": "2026-11-15T03:19:28Z",
+      "ai_generated": [
+        "Docs: docs/DATA.md 3.3 (deploy facts for WS4: search snapshots, time budgets against the API timeout, disk writes; a proposal for a contract PR) and tasks/WS1-data-access.md",
+        "Data: 14 cube spectra read live from S3 as fixtures in pipeline/tests/fixtures/ws1/cube_spectra/",
+        "Code: the text of one cube_spectrum note in data/cube.py",
+        "Tests: test_data_cube_spectra_fixtures.py, test_data_cube.py"
+      ],
+      "humans": "faricool54 directed the work and merged it"
+    },
+    {
+      "number": 50,
+      "title": "ws1: point_series follow-ups from the #45 review (deadline, season spread, S3 pool, CLI, patch wave)",
+      "merged_at": "2026-11-15T03:20:01Z",
+      "ai_generated": [
+        "Code: a deadline for the whole point_series call including the search (irsa deadline_s and sia_budget), a read order spread over seasons and releases, a shared S3 connection pool, unreadable WCS-WAVE tables reported instead of raised, CLI changes; in data/point.py, data/irsa.py, data/s3range.py, data/fits_io.py and cli.py",
+        "Tests: test_data_point.py, test_data_s3range.py, test_data_fits_io.py, test_data_search.py"
+      ],
+      "humans": "faricool54 directed the work and merged it"
+    },
+    {
+      "number": 61,
+      "title": "ws1: make the S3 pool concurrency test deterministic",
+      "merged_at": "2026-11-15T04:49:16Z",
+      "ai_generated": ["Tests: a gated, deterministic S3 pool concurrency test in test_data_point.py (the code of #50 was unchanged)"],
+      "humans": "faricool54 directed the work and merged it"
+    },
+    {
+      "number": 67,
+      "title": "ws1: fix the RW Aur saturation summary in DATA.md",
+      "merged_at": "2026-11-15T05:54:19Z",
+      "ai_generated": ["Docs: the RW Aurigae saturation summary in docs/DATA.md 3.2"],
+      "humans": "faricool54 directed the work and merged it"
+    },
+    {
+      "number": 92,
+      "title": "ws1: clamp point_series' search budget to the caller's deadline",
+      "merged_at": "2026-11-15T16:04:24Z",
+      "ai_generated": ["Code: one line in data/point.py so the search never gets more than the caller's deadline"],
+      "humans": "faricool54 directed the work and merged it"
+    }
+  ],
+  "related_work_note": "Work by the same developer with Claude Code outside WS1's paths is not covered here: AI_USAGE.md describes the collaboration infrastructure (#2), the data-facts documentation (#3, #24) and the validation records of the five targets; the chore #66 (RW Aurigae saturation counts in docs/validation/rw-aurigae.md, merged with #67) also carries a Claude co-author trailer"
+}
