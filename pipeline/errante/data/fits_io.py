@@ -372,7 +372,8 @@ def read_spherex(path: str | Path, with_planes: bool = True) -> SpherexImage:
             wave = WaveTable.from_hdu(hdul[WAVE_EXTNAME])
         except KeyError:
             wave = None
-        except (ValueError, TypeError, IndexError) as e:  # one odd file must not abort a whole field build
+        except Exception as e:  # one odd file must not abort a whole field build (astropy raises VerifyError on
+            # an unparsable card and AttributeError on a _CorruptedHDU, not only ValueError: review 2026-11-15)
             wave, wave_error = None, f"{type(e).__name__}: {e}"
             log.warning("%s: unusable %s table (%s); wavelength lookup disabled", path, WAVE_EXTNAME, wave_error)
         extra = {
