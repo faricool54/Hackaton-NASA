@@ -1,7 +1,7 @@
 {
   "updated_on": "2026-11-15",
   "tool": "OpenAI Codex",
-  "scope": "Authorized WS5 integration: SPHEREx map, coordinate/name form, jobs client/polling, shared links, playback loading/errors and tests; position spectra and season-comparison panels, quality/provenance, API selection tests, desktop/mobile acceptance; light-curve panel, wavelength-bin plot, quality and period displays, and local browser verification of two precomputed products; user-authorized About copy update for the real public deployment, offline validation evidence, reviewed light-curve limitations and source/AI credits; pixelated blink zoom, Gaia position overlay for Barnard's Star, narrow-view layout fixes, and the V7 position panel with automatic DR1 quick look and existing catalog models; unified search and saved-field navigation, with a collapsible 3D preview on field pages",
+  "scope": "Authorized WS5 integration: SPHEREx map, coordinate/name form, jobs client/polling, shared links, playback loading/errors and tests; position spectra and season-comparison panels, quality/provenance, API selection tests, desktop/mobile acceptance; light-curve panel, wavelength-bin plot, quality and period displays, and local browser verification of two precomputed products; user-authorized About copy update for the real public deployment, offline validation evidence, reviewed light-curve limitations and source/AI credits; pixelated blink zoom, Gaia position overlay for Barnard's Star, narrow-view layout fixes, and the V7 position panel with automatic DR1 quick look and existing catalog models; unified search and saved-field navigation; filtered drag events from Aladin click selection; V17 sequence-grid footprint and Gaia DR3 positions propagated to the median frame epoch",
   "affected_paths": [
     "frontend/src/",
     "frontend/src/components/LightCurvePanel.tsx",
@@ -9,10 +9,12 @@
     "frontend/README.md",
     "tasks/WS5-frontend.md"
   ],
+  "home_link_fix": "OpenAI Codex corrected the challenge-field shortcut to use the active data source and verified API and static home navigation.",
   "external_assets": [
     "Aladin Lite 3.8.2 GPL-3 via jsdelivr",
     "IRSA SPHEREx DR1 HiPS",
-    "ESA AllWISEColor HiPS"
+    "ESA AllWISEColor HiPS",
+    "ESA Gaia DR3 (VizieR I/355/gaiadr3, CfA mirror)"
   ],
   "generated_media": [],
   "scientific_R05_validation": false,

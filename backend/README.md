@@ -9,6 +9,10 @@ Datos servidos: `ERRANTE_DATA_DIR` si está definido; si no, `data/products` si 
 CORS: `ERRANTE_CORS_ORIGINS` (coma-separado, default `*`; restringir en producción).
 
 Endpoints vigentes: [CONTRACT.md](../docs/CONTRACT.md). Tests: `pytest -q backend/tests`.
+`GET /api/manifest` muestra los campos curados, excluyendo IDs `job-*` de la vitrina.
+`GET /api/manifest?include_jobs=true` devuelve el catálogo completo para inspección.
+Los productos de jobs, sus URLs compartidas y `GET /api/jobs/{id}` siguen disponibles;
+esta selección no modifica el manifest persistido ni elimina campos, cachés o SQLite.
 Asistencia de código/documentación: OpenAI Codex, metadata en [ai-usage.json](ai-usage.json). La ficha del
 objeto (`/api/object`) se hizo con Claude Code (trailer `Co-Authored-By` en sus commits); falta registrarla en
 el inventario de IA (coordinación): agregar claves a `ai-usage.json` rompe el espejo que exige WS2.

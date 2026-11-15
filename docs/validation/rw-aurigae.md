@@ -4,7 +4,7 @@
 >
 > **Vigencia (2026-11-14).** Se analizó el build de integración (main `9b8ba42` + `ws2/season-compare`, 18:41 UTC). El campo publicado en `main` por #17 (18:54 UTC) tiene **los mismos 40 frames y PNG idénticos bit a bit** (md5), así que este registro vale para el campo publicado. Única diferencia: #17 ya publica `wavelength_um`/`bandwidth_um` en el centro del campo en los 40 frames, así que lo que abajo se dice de «λ nula en `field.json`» quedó resuelto en el producto. Sigue abierto que la *selección* de frames no ordena por λ: las filas SIA no traen λ y la selección de #17 es idéntica.
 >
-> Los scripts y la caché del análisis quedaron en el scratch local de la sesión de Claude y no se versionan («scratch local» abajo). Las figuras sí están en el repo, en [`figures/rw-aurigae/`](figures/rw-aurigae/). Revisión humana pendiente.
+> Los scripts y la caché del análisis quedaron en el scratch local de la sesión de Claude y no se versionan («scratch local» abajo). Las figuras sí están en el repo, en [`figures/rw-aurigae/`](figures/rw-aurigae/). Revisión humana: DankoLiv, 2026-11-15 (guiada; los análisis no se volvieron a correr).
 
 **Resultado: `success` para la variabilidad, medida en los FITS y solo en D1 (0,74–0,88 µm).** Se compararon frames sin flags
 del mismo detector a longitud de onda compatible (|Δλ|/λ < 1 %). RW Aur (A+B sin resolver) **se abrillanta ~1 mag a
@@ -20,6 +20,8 @@ queda limpio: los 17 frames sin flags en el objetivo son todos de D1 (17 de 56).
 mancha blanca compacta de 4–7 px, igual que otras 8–13 estrellas del campo, porque el stretch las satura a todas. En D1 no es
 más brillante que el resto del campo: vale 0,4–1,2× la fuente más brillante. En D4–D6, en cambio, domina la imagen. Además, la
 UI no marca el objetivo. Los dueños son WS2 (render) y WS5 (UI).
+*(2026-11-15: en el build publicado hoy el núcleo de D1 ya no queda blanco y el cambio de 0,76 µm se ve en el blink;
+desde #99 la UI marca la posición predicha por catálogo. Ver la actualización del problema 1.)*
 La revisión encontró dos problemas nuevos:
 - `repair_for_display` borra parte del núcleo de la estrella en 4 frames de D3, D4 y D6 publicados.
 - Un frame del archivo (2026W38_1A_0162_3D6) tiene su WCS corrida 1,29 px.
@@ -34,6 +36,8 @@ La revisión encontró dos problemas nuevos:
     - 156430817820015232: G = 13,04, plx 5,454 ± 0,332 mas, RUWE 16,4.
   - SPHEREx no resuelve el par (píxel 6,15″, FWHM 7,5–9,0″).
   - **No verificado:** qué fuente es A y cuál es B. Sesame CfA no resuelve `RW Aur A` ni `RW Aur B` y CDS está caído.
+    *(Verificado el 2026-11-15 en SCIENCE.md §0.3 con el WDS, 05078+3024 JOY 5: A = 156430817820015232 y
+    B = 156430822114424576. La ficha del objeto los nombra así desde #101.)*
   - Una tercera fuente Gaia (G = 18,8, a ~6″) se desprecia.
   - 2MASS 05074953+3024050 (J = 8,38, K = 7,02) coincide con la posición.
   - VSX (`B/vsx` en VizieR CfA, re-consultado el 2026-11-14): tipo `CTTS/ROT+CTTS`, V 9,2–13,6, P = 2,64 d.
@@ -191,7 +195,7 @@ La revisión encontró dos problemas nuevos:
     - 3,3 veces su percentil 95;
     - 1,4 veces su máximo (0,27 mag).
   - No se afirma la causa física.
-  - Los PNG no muestran el cambio. Paso 6 en la URL pública (desde #84): ver el addendum del 2026-11-15, 15:00 ART.
+  - Los PNG no muestran el cambio (los del build analizado; los de hoy, ver el problema 1). Paso 6 en la URL pública (desde #84): ver el addendum del 2026-11-15, 15:00 ART.
 - **Limitations and failed downloads:**
   - 0 descargas fallidas: 0 de 40 en el build; 335 de 335 patches de 8′ presentes en caché.
   - Solo D1 es medible: ningún frame de D2–D6 queda limpio (`OVERFLOW`, otros flags o borde). Hay 17 frames limpios, todos D1, que dan 8 pares emparejados.
@@ -204,8 +208,10 @@ La revisión encontró dos problemas nuevos:
   - **Indicio no válido**, con frames `OVERFLOW` incluidos: la mediana S0→S2 es D1 −0,45, D2 −0,38, D3 −0,11,
     D4 +0,28, D5 +0,74 y D6 +0,75 mag (revisión; el original da valores similares). Con saturación el recorte crece cuanto
     más brilla la estrella, así que el signo en D4–D6 podría ser un artefacto.
-  - No se verificó la identificación A/B en Gaia.
-  - La visualización pública no muestra el cambio: PNG en 255 y sin marcador del objetivo.
+  - No se verificó la identificación A/B en Gaia. *(Verificada después, el 2026-11-15: ver la identidad arriba.)*
+  - La visualización pública no muestra el cambio: PNG en 255 y sin marcador del objetivo. *(2026-11-15: superado en
+    parte: en D1 los PNG ya no quedan en 255 y un par muestra el cambio en el blink; la retícula de #99 marca la
+    posición predicha por catálogo. Ver el problema 1.)*
 - **Product field ID / public URL / screenshot or animation:**
   - Field ID: `rw-aurigae` (`data/products/fields/rw-aurigae/`). URL pública: https://errante.34-148-242-13.sslip.io/#/field/rw-aurigae (desde #84; ver el addendum del paso 6).
   - Recorrido revisado solo en la vista local `/?dataset=real#/field/rw-aurigae` (paso 6 en la URL pública: ver el addendum del 2026-11-15, 15:00 ART).
@@ -225,7 +231,7 @@ La revisión encontró dos problemas nuevos:
     - [fig_review_pairs.png](figures/rw-aurigae/fig_review_pairs.png): Revisión: Δm de los pares frente a las comparaciones
     - [fig_review_compare.png](figures/rw-aurigae/fig_review_compare.png): Revisión: coadds y diferencias de `compare`
 
-- **Reviewer / date:** Claude (WS1) con revisión adversarial independiente / 2026-11-14; revisión humana pendiente.
+- **Reviewer / date:** Claude (WS1) con revisión adversarial independiente / 2026-11-14; revisión humana: DankoLiv / 2026-11-15 (revisión guiada de resultado, evidencia, figuras y limitaciones con la hoja de V5; los análisis no se volvieron a correr).
 
 ## Detalle de la medición
 
@@ -334,6 +340,15 @@ vecina con G < G+1,5 a menos de 15″. Las cifras son de sus propios pares a λ 
      miniatura del detector donde el objetivo domina.
    - WS5: dibujar una retícula en la posición del objetivo; hoy `BlinkViewer` solo dibuja candidatos y objetos conocidos,
      ambos vacíos. Mostrar un badge de saturación por frame.
+   - **Actualización 2026-11-15 (build publicado después de #41/#48; chequeo de productos del addendum de las 15:00).**
+     D1 tiene ahora un roll-off de brillos altos y el núcleo no queda blanco en 8 de sus 9 PNG (en el noveno,
+     2026W37_1A_0234_3D1, un solo píxel llega a 255). El par 2025W36_1A_0233_3D1 → 2026W37_1A_0234_3D1 da en los PNG
+     un cociente de 2,59, igual a los 2,59× de este registro en el FITS (76,2 → 197,0 mJy; el chequeo acepta ±15 %), y
+     se ve en el blink (gris pico 240 → 255). De 24 pares a λ emparejada, 7 muestran un cambio en el blink: 1 en D1 y 6 en D5/D6,
+     donde el núcleo es blanco en ambos frames y solo cambia el tamaño del disco blanco; los 3 de D6 dependen de un
+     único frame. Es nivel de display, no fotometría. En D2–D6 el núcleo sigue blanco. La retícula de catálogo marca la
+     posición predicha del objetivo desde #99. El badge de saturación por frame no está en `main`: los flags por frame de V8 siguen en PRs
+     abiertos (#116, #119, #120).
 2. **Integración `build.py` (WS1 + WS2 + WS4): `wavelength_um` y `bandwidth_um` son `null` en los 40 frames.**
    - Las filas SIA no traen λ y el build no la calcula con `wavelength_at`.
    - `plan_frames` no puede ordenar por λ, así que el blink mezcla λ dentro de un detector: D1 0,741–1,036 µm y D3
@@ -341,6 +356,9 @@ vecina con G < G+1,5 a menos de 15″. Las cifras son de sus propios pares a λ 
    - La UI muestra solo la banda nominal.
    - Arreglo propuesto: llenar `Frame.wavelength_um` y `bandwidth_um` con `img.wavelength_at(objetivo)` y leer WCS-WAVE antes
      de seleccionar.
+   - **Actualización 2026-11-15:** el `field.json` publicado trae `wavelength_um`/`bandwidth_um` en los 40 frames
+     (verificado; en el centro del campo) y desde #35/#41 la selección ordena por λ medida. La mezcla dentro de un
+     detector sigue en D1 (0,741–1,036 µm) y D2 (1,094–1,533 µm); en D3 bajó a 1,659–1,720 µm.
 3. **WS2 (`compare`) / WS3: saturación.**
    - 304 de 335 frames tienen `OVERFLOW` en el objetivo.
    - Los coadds de `errante compare` (corrido sobre una copia) tienen 1–11 px transparentes en el núcleo en D2–D6.
@@ -374,7 +392,8 @@ vecina con G < G+1,5 a menos de 15″. Las cifras son de sus propios pares a λ 
 8. **WS3 (`fields.toml`, `SCIENCE.md`).**
    - El centro usa la posición SIMBAD/Hipparcos, a 0,9–1,1″ (≤ 0,18 px) del centroide medido. El fotocentro Gaia DR3 A+B
      coincide a 0,1–0,4″, según el método. Es cosmético.
-   - La asignación A/B de Gaia en `SCIENCE.md` no está verificada.
+   - La asignación A/B de Gaia en `SCIENCE.md` no está verificada. *(Verificada el 2026-11-15: SCIENCE.md §0.3, con el
+     WDS; #101 la aplica en la ficha del objeto.)*
    - "3 puntos por detector" no se cumple: solo D1 es medible sin saturación.
    - El ❓ de saturación de `DATA.md` §6 queda resuelto para este blanco: `OVERFLOW` en 304 de 335 frames, ningún frame de D2–D6 limpio y 17 de 56 limpios en D1. (Corregido el 2026-11-15: la versión anterior decía «todo D2–D6 y 37 de 56 de D1», que suma 316, no 304; la tabla de clases no da el reparto por detector de `sat`.)
 
@@ -389,7 +408,12 @@ vecina con G < G+1,5 a menos de 15″. Las cifras son de sus propios pares a λ 
   - la saturación crece con el brillo (S0 7/19, S1 14/19, S2 16/18) y saca de la curva casi todo el estado brillante
     (nota de #93);
   - para los pares, el piso de las comparaciones es 0,033 mag (pares), no 0,018 (por punto) (nota de #93).
+    *(Actualización 2026-11-15: desde #106/#113 el control por punto es 0,023 mag (5 estrellas, n = 91), porque ahora
+    excluye los bins de 2 exposiciones igual que el `summary`; el piso de pares sigue en 0,033 mag (180 pares).
+    Verificado en `backend/errante_api/curated/lightcurves/rw-aurigae.json`.)*
   - Sigue sin declararse: el `summary` sale de bins de 2 puntos, así que es descriptivo y no una significancia.
+    *(2026-11-15: resuelto por #102 (y #106 para el control), publicado con el rebuild de #113. El `summary` ya no usa
+    los extremos de bins de 2 exposiciones: en D1 queda con n = 0, y una nota del producto lo declara.)*
   - La ficha del objeto nombra A y B según el WDS desde #101 (antes seguía el cross-id invertido de SIMBAD).
 - **Revisión completa:** `docs/SCIENCE.md` § «Revisión científica de las curvas de luz» (#85). No es una validación
   nueva ni reemplaza este registro.
@@ -417,3 +441,4 @@ vecina con G < G+1,5 a menos de 15″. Las cifras son de sus propios pares a λ 
   - reproducir, pausar, «Next frame» y «Previous frame» funcionan (por ejemplo, 10 → 11 → 10).
   - Un job nuevo por RA/Dec en la URL pública devolvió frames reales en 49 s (auditoría del 15/11; también #91 y #95).
   - **Falta:** que una persona lo recorra en incógnito y en celular, y la revisión humana de este registro.
+    *(2026-11-15: la revisión humana quedó firmada por DankoLiv en #126; sigue faltando la prueba en incógnito y en celular.)*

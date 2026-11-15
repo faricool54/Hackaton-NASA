@@ -8,7 +8,7 @@
 >
 > Las dos búsquedas fueron SIA2 en vivo. No se usó el snapshot versionado, que da el mismo conjunto.
 >
-> Los scripts y la caché de A y de R quedaron en el scratch local de la sesión de Claude y no se versionan («scratch local» abajo; los de R están en `review/`). scipy 1.18.1 y matplotlib 3.11.2 se instalaron en ese scratch, fuera del venv del repo, y A y R usan esas mismas bibliotecas. Las figuras van en [`figures/barnards-star/`](figures/barnards-star/). Revisión humana pendiente.
+> Los scripts y la caché de A y de R quedaron en el scratch local de la sesión de Claude y no se versionan («scratch local» abajo; los de R están en `review/`). scipy 1.18.1 y matplotlib 3.11.2 se instalaron en ese scratch, fuera del venv del repo, y A y R usan esas mismas bibliotecas. Las figuras van en [`figures/barnards-star/`](figures/barnards-star/). Revisión humana: DankoLiv, 2026-11-15 (guiada; los análisis no se volvieron a correr).
 
 **Resultado: success.** Se ensayó el movimiento propio de Barnard's Star (Gaia DR3 4472832130942575872) con las 358 exposiciones SPHEREx que cubren la posición: DR1 + QR3, 3 temporadas, del 2025-08-15 al 2026-09-22. La estrella **satura** (VERIFICADO por A y R, con los mismos conteos):
 - `OVERFLOW` en el núcleo en 357 de 358 exposiciones (1–11 px a ≤ 3 px);
@@ -42,7 +42,7 @@ S1 tiene el detector girado 180°, y ese giro coincide con la fase de paralaje:
 - es un sesgo del centroide en coordenadas del detector, degenerado con la paralaje;
 - la paralaje no se puede medir aquí.
 
-No es un descubrimiento: se recupera un movimiento conocido. En los 40 PNG publicados el movimiento está: el centroide de la meseta saturada se mueve 1,60 px contra 1,68 px esperados (A y R). Pero Barnard es un disco blanco de ~7 px y la UI no marca la posición, así que a simple vista cuesta verlo.
+No es un descubrimiento: se recupera un movimiento conocido. En los 40 PNG publicados el movimiento está: el centroide de la meseta saturada se mueve 1,60 px contra 1,68 px esperados (A y R). Pero Barnard es un disco blanco de ~7 px y la UI no marca la posición, así que a simple vista cuesta verlo. *(2026-11-15: desde #96 y #99 el visor tiene zoom 1×/2×/4× y dibuja la retícula de la posición predicha por catálogo; ver el problema 1.)*
 
 Convención: **VERIFICADO** = medido en esta sesión (script en scratch); **INFERIDO** = interpretación no comprobada; 🧮 = cálculo. (A) = análisis original; (R) = revisión adversarial independiente, con código propio.
 
@@ -223,7 +223,7 @@ Convención: **VERIFICADO** = medido en esta sesión (script en scratch); **INFE
     - con gaussianas, µα* sale sesgado hacia el oeste: −1099 ± 380 mas/año en S0→S2, y entre −1057 y −1426 en los ajustes de tres temporadas de A (no reproducidos por R);
     - con el perfil radial (R): −858 ± 117 mas/año, a −0,5σ del catálogo.
   - D1 a λ < 0,85 µm, la que menos satura (1–4 px de `OVERFLOW`; n = 9 en S0 y 6 en S2): el residuo S2 − S0 vale (−0,04, −0,21)″ en A y (+0,22, −0,24)″ en R.
-  - Paso 6 de VALIDATION.md pendiente: en esta sesión no se levantaron servidores ni se revisó la UI. Tampoco se corrió `errante compare` para este campo.
+  - Paso 6 de VALIDATION.md pendiente: en esta sesión no se levantaron servidores ni se revisó la UI. Tampoco se corrió `errante compare` para este campo. *(Superado el 2026-11-15: la parte técnica del paso 6 se hizo en la URL pública, ver el addendum de las 15:00; falta la prueba humana en incógnito y en celular.)*
 - **Product field ID / public URL / screenshot or animation:**
   - barnards-star (data/products/fields/barnards-star/). URL pública: https://errante.34-148-242-13.sslip.io/#/field/barnards-star (desde #84; ver el addendum del paso 6).
   - Figuras (gráficos generados con código a partir de los FITS reales de SPHEREx y de los PNG publicados):
@@ -237,7 +237,7 @@ Convención: **VERIFICADO** = medido en esta sesión (script en scratch); **INFE
     - [fig3_wcs.png](figures/barnards-star/fig3_wcs.png): Análisis original: punto cero del WCS por exposición.
     - [fig4_published_pngs.png](figures/barnards-star/fig4_published_pngs.png): Análisis original: los 40 PNG publicados con la posición predicha y el centroide de la meseta.
     - [fig5_methods.png](figures/barnards-star/fig5_methods.png): Análisis original: máscaras de cada método y residuos frente a la fase subpíxel.
-- **Reviewer / date:** Claude (WS1) con revisión adversarial independiente / 2026-11-15; revisión humana pendiente
+- **Reviewer / date:** Claude (WS1) con revisión adversarial independiente / 2026-11-15; revisión humana: DankoLiv / 2026-11-15 (revisión guiada de resultado, evidencia, figuras y limitaciones con la hoja de V5; los análisis no se volvieron a correr)
 
 ## Detalle de la medición
 
@@ -400,6 +400,10 @@ En S0→S2 se resta la paralaje del catálogo, (+0,027, +0,027)″ en 0,9813 añ
      - WS2: render; por ejemplo, un recuadro o un estiramiento propio para el blanco brillante;
      - WS5: overlay con la posición predicha por época;
      - WS3: trayectoria de los blancos oficiales en `known.json`.
+   - **Actualización 2026-11-15: resuelto en la UI.** #96 agregó zoom 1×/2×/4× y la retícula «Gaia prediction» de
+     Barnard; #99 la extendió a los cinco blancos, con la trayectoria predicha y la nota «Crosshair shows the position
+     predicted from the Gaia catalog, not a measurement». La predicción se calcula en el navegador
+     (`frontend/src/three/skyTrack.ts`, `blinkTarget.ts`): `known.json` sigue vacío y el render de WS2 no cambió por esto.
 2. **Astrometría de estrellas saturadas** (VERIFICADO por A y R; R amplía el diagnóstico).
    - Enmascarar solo `OVERFLOW` no alcanza: los píxeles `SUR_ERROR` vecinos del núcleo duplican la dispersión por frame, dejan outliers de ~0,5 px y giran la dirección de S0→S2 unos 4°.
    - Una caja fija, sin re-centrar, alarga S0→S2 entre +0,08″ (R) y +0,17″ (A).
@@ -413,6 +417,9 @@ En S0→S2 se resta la paralaje del catálogo, (+0,027, +0,027)″ en 0,9813 añ
    - DATA.md §3.2 dice que los `OVERFLOW` son finitos (R Dra, RW Aur); en Barnard aparecen los dos casos.
    - DATA.md §6 todavía lista «❓ Saturación de Barnard», y SCIENCE.md §0.3 dice «❓ puede saturar». Las dos se pueden cerrar con la tabla de este registro.
    - Dueño: WS1, con el coordinador para SCIENCE.md.
+   - **Actualización 2026-11-15: resuelto.** #50 corrigió el docstring de `pipeline/errante/data/point.py`: ahora dice
+     que los píxeles `OVERFLOW` pueden ser finitos o NaN, con los conteos de este registro, y pide enmascarar `OVERFLOW`
+     y no solo NaN. DATA.md §6 y SCIENCE.md §0.3 ya registran que Barnard satura.
 4. **Hay un frame con el WCS corrido 0,27–0,28 px** (VERIFICADO por A y R).
    - 2026W34_1A_0431_2D6: (+0,66, −1,50)″ en A y (+0,68, −1,60)″ en R. Tiene `MATCH_NSTARS` 1255, contra 2292–2357 en sus vecinas D6 (a 0,011 y 0,039 px), y `FINAST` = 0.
    - No está en el build, pero otra selección podría tomarlo.
@@ -460,3 +467,4 @@ Sin problema (VERIFICADO por A y R):
   - reproducir, pausar, «Next frame» y «Previous frame» funcionan (por ejemplo, 10 → 11 → 10). La retícula «Gaia prediction» (#96) está disponible en este campo.
   - Un job nuevo por RA/Dec en la URL pública devolvió frames reales en 49 s (auditoría del 15/11; también #91 y #95).
   - **Falta:** que una persona lo recorra en incógnito y en celular, y la revisión humana de este registro.
+    *(2026-11-15: la revisión humana quedó firmada por DankoLiv en #126; sigue faltando la prueba en incógnito y en celular.)*

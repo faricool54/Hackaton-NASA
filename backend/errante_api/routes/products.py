@@ -23,14 +23,25 @@ def _require_field(store: ProductStore, field_id: str) -> None:
 
 
 @router.get("/manifest", response_model=Manifest)
-def get_manifest(request: Request) -> Manifest:
+def get_manifest(request: Request, include_jobs: bool = False) -> Manifest:
     store = _store(request)
     if not store.manifest_path.exists():
         raise HTTPException(
             status_code=503,
             detail="No products built. Run `make demo` or `errante build`.",
         )
-    return store.read_manifest()
+    manifest = store.read_manifest()
+    if include_jobs:
+        return manifest
+    # Generated sequences stay accessible by ID and through their job/share URL;
+    # the public showcase must not fill up with smoke tests or other visitors' jobs.
+    fields = [field for field in manifest.fields if not field.id.startswith("job-")]
+    return manifest.model_copy(
+        update={
+            "fields": fields,
+            "synthetic": any(f.synthetic for f in fields) or any(s.synthetic for s in manifest.systems),
+        }
+    )
 
 
 @router.get("/fields/{field_id}", response_model=SkyField)

@@ -15,19 +15,25 @@ No usar futuro o una pantalla de demo sintética para insinuar que se procesaron
 
 | Tiempo | Imagen | Voz / texto en inglés |
 |---|---|---|
-| 00:00-00:02 | Nombre de portavoz/equipo, solo personas adultas si aparecen | "I'm [name], from [team]." |
-| 00:02-00:05 | Reto y región del cielo | "We want everyone to explore the changing infrared sky." |
-| 00:05-00:10 | Nombre Errante y vista del proyecto | "Errante is our SPHEREx temporal sky explorer." |
-| 00:10-00:20 | RA/Dec, secuencia y fechas; usar comportamiento real disponible | "[Describe the implemented workflow and show its current status.]" |
-| 00:20-00:28 | Fuente NASA usada, evidencia y propósito | "[State one verified result or limitation, and the benefit for learners.]" |
-| 00:28-00:30 | URL pública legible | "Explore with us: [short public URL]." |
+| 00:00-00:06 | Errante, equipo/integrantes/reto visibles y entrada a la app | "Errante connects real NASA images, spectra, and light curves in one public explorer." |
+| 00:06-00:10 | Búsqueda de Barnard y selección de su secuencia real | "Search the infrared sky and investigate how it changes." |
+| 00:10-00:18 | Compare seasons: Barnard D2, S2 − escala × S0; imagen, leyenda y aviso del núcleo marcado dentro de cuadro | "Barnard shifts between seasons. Its flagged core limits brightness measurements." |
+| 00:18-00:25 | Curva real de R Draconis con ejes, incertidumbres y advertencias | "Inspect brightness measurements and uncertainties in a light curve." |
+| 00:25-00:29 | URL pública, equipo y créditos NASA/IRSA/voz; metadatos y descripción con citas completas | "Explore the changing sky with Errante." |
 
 La narración completa debe ensayarse y cronometrarse; no rellenar con resultados inexistentes.
+Estos intervalos son un objetivo editorial: medir la voz y todas las pausas. El diferencial
+debe quedar explicado en los primeros ~10 s; el MP4 final completo debe medir <= 30 s.
+La resta S2−S0 es la toma propuesta por WS2 en #100 y contrastada con #70. Su dipolo puede
+verse aunque el movimiento sea pequeño en el blink: no implica paralaje, órbitas ni una
+nueva detección. Mantener escala, detector, fechas y avisos. Preparar cargas/cálculos fuera
+de cámara y hacer cortes honestos. El perfil ejecutable está en [VIDEO_SKILL.md](VIDEO_SKILL.md).
+Captura de aceptación a 1920×1080: [imagen y advertencia completas](figures/demo-barnard-d2.png).
 Si al grabar solo existe el demo sintético, decirlo de forma audible/visible y explicar qué falta.
 Para R05, mostrar un ensayo real cuando exista; la evidencia de los cinco queda en la descripción escrita,
 no hace falta meter cinco pruebas ilegibles en 30 s.
 
-Voz en español permitida **solo con subtítulos en inglés**, sincronizados y dentro de los mismos 30 s.
+Elección del equipo para este video: **narración en inglés, sin subtítulos**.
 Si hay imágenes o video generados con SI, marca de agua visible; si hay voz SI, texto descriptivo y metadatos.
 No generar ni alterar elementos de marca NASA. Si no hay medios SI, no inventar que los hay.
 

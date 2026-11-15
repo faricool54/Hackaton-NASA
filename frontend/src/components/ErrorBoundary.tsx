@@ -1,5 +1,6 @@
 // Keeps a crash in one part of the page (e.g. the 3D view) from blanking the whole site.
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { EmptyState } from './EmptyState';
 
 interface Props {
   children: ReactNode;
@@ -21,13 +22,11 @@ export class ErrorBoundary extends Component<Props, { error: Error | null }> {
   render() {
     if (!this.state.error) return this.props.children;
     return (
-      <div className="panel error" role="alert">
-        <p>
-          {this.props.what ?? 'This part of the page'} stopped working: {this.state.error.message}
-        </p>
-        <button type="button" onClick={() => this.setState({ error: null })}>
-          Try again
-        </button>
+      <div role="alert">
+        <EmptyState title={`${this.props.what ?? 'This part of the page'} stopped working`}
+          action={<button type="button" onClick={() => this.setState({ error: null })}>Reload view</button>}>
+          <p className="error">{this.state.error.message}</p>
+        </EmptyState>
       </div>
     );
   }

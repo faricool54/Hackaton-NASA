@@ -32,8 +32,9 @@ export function AboutPage() {
       <p>
         Offline analyses of the scientific FITS files recover known motion in Barnard’s Star, Epsilon Indi B
         and WISE 0855-0714, and brightness changes in RW Aurigae and R Draconis. Separate agents re-measured
-        the results; human review remains pending. These records are distinct from browser playback and
-        technical deployment checks. No new astronomical discovery is claimed.
+        the results. DankoLiv signed the five records after a guided human review on November 15, 2026;
+        the analyses were not rerun during that review. This sign-off is distinct from browser playback,
+        deployment checks and a line-by-line code review. No new astronomical discovery is claimed.
       </p>
       <p>
         Motion is only about 1–2 native pixels over the available baselines. Saturation and faint sources
@@ -73,6 +74,11 @@ export function AboutPage() {
       </p>
       <h2>Sources and acknowledgments</h2>
       <p>
+        This research has made use of the NASA/IPAC Infrared Science Archive, which is funded by the
+        National Aeronautics and Space Administration and operated by the California Institute of Technology.
+        {' '}<a href="https://irsa.ipac.caltech.edu/ack.html">IRSA acknowledgment and citation guidance</a>.
+      </p>
+      <p>
         This publication makes use of data products from the Spectro-Photometer for the History of the
         Universe, Epoch of Reionization and Ices Explorer (SPHEREx), which is a joint project of the Jet
         Propulsion Laboratory and the California Institute of Technology, and is funded by the National
@@ -81,6 +87,10 @@ export function AboutPage() {
       <ul>
         <li><a href="https://irsa.ipac.caltech.edu/Missions/spherex.html">NASA/IPAC IRSA</a>:
           SPHEREx images, archive search, DR1 cube and HiPS.
+          {' '}Data DOIs: DR1 spectral images{' '}
+          <a href="https://doi.org/10.26131/IRSA678">10.26131/IRSA678</a>; QR3 spectral images{' '}
+          <a href="https://doi.org/10.26131/IRSA662">10.26131/IRSA662</a>; DR1 spectral all-sky cube{' '}
+          <a href="https://doi.org/10.26131/IRSA679">10.26131/IRSA679</a>.
           {' '}<a href="https://caltech-ipac.github.io/irsa-tutorials/spherex/">IRSA tutorials</a> informed development.</li>
         <li><a href="https://aladin.cds.unistra.fr/AladinLite/">Aladin Lite 3.8.2</a> (CDS, GPL-3): sky viewer.
           AllWISE color HiPS (NASA/IPAC/CDS, ESA ESASky mirror): optional map context.</li>

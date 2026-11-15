@@ -65,7 +65,7 @@ tags = ["official-target", "brown-dwarf", "proper-motion"]
 [[field]]
 id = "rw-aurigae"
 name = "RW Aurigae"
-description = "Official test target. Young T Tauri star (A+B, 1.5\" apart, unresolved): it does not move, it changes brightness. Saturated in D2–D6; measured offline on unsaturated D1 exposures at matched wavelength, it brightened by about 1 mag (0.75–0.77 µm) from Sep 2025 to Sep 2026. The images here do not show that change. The light curve below plots those D1 measurements of the blended pair; saturation removes most exposures of the bright state."
+description = "Official test target. Young T Tauri star (A+B, 1.5\" apart, unresolved): it does not move, it changes brightness. Saturated in D2–D6; measured offline on unsaturated D1 exposures at matched wavelength, it brightened by about 1 mag (0.75–0.77 µm) from Sep 2025 to Sep 2026. In the B/W blink only the D1 frames can show it (a 2.6x display-level brightness ratio between 2025W36_1A_0233_3D1 and 2026W37_1A_0234_3D1, measured on the published images); the D2–D6 cores are saturated. Brightness for science comes from the FITS light curve below, which plots those D1 measurements of the blended pair; saturation removes most exposures of the bright state."
 # J2000 76.95652603 +30.40143817 | pm (+7.23, -20.33) mas/yr (Hipparcos) | plx 15.42 mas (Hipparcos);
 # Gaia DR3: RW Aur A = 156430817820015232 (plx 5.454 mas, RUWE 16.4, unreliable; pm (+4.906, -24.578));
 # RW Aur B = 156430822114424576 (plx 6.406 mas, pm (+2.641, -27.398)); WDS JOY 5 A,BC 1.50" PA 254 (2022),

@@ -7,6 +7,10 @@
   html, body, #map { margin: 0; width: 100%; height: 100%; background: #060b15; overflow: hidden; }
   /* Aladin 3.8.2's native cube selector picks incorrect IRSA planes. See RECON_SPHEREX §5.4. */
   .aladin-lite-spectra-displayer { display: none !important; }
+  /* ExplorerMap layout="fill" draws its own status (top left), Layers menu (top right) and credits (bottom right)
+     over these Aladin corners; Aladin Lite stays credited in that strip. The default panel layout keeps them. */
+  html[data-layout='fill'] .aladin-cooFrame, html[data-layout='fill'] .aladin-location,
+  html[data-layout='fill'] .aladin-projection-control, html[data-layout='fill'] .aladin-logo-container { display: none; }
 </style>
 <div id="map"></div>
 <script type="module">
@@ -50,16 +54,44 @@
     let allwise;
     let allwiseLoading = false;
     let allwiseVisible = false;
-    map.on('click', (p) => { if (p && Number.isFinite(p.ra) && Number.isFinite(p.dec))
+    // SPHEREx source colour (--src-spherex): the outline is the SPHEREx sequence grid; violet is for 3D models.
+    const footprint = A.graphicOverlay({ name: 'Sequence footprint', color: '#7cc4ff', lineWidth: 2 });
+    map.addOverlay(footprint);
+    const gaia = A.catalog({ name: 'Gaia DR3 predictions', color: '#6ff4f1', shape: 'circle', sourceSize: 4 });
+    map.addCatalog(gaia);
+    map.on('click', (p) => {
       // Aladin also emits click when a drag ends.
-      if (!p.isDragging) send({ type: 'select', ra: p.ra, dec: p.dec });
+      if (p && !p.isDragging && Number.isFinite(p.ra) && Number.isFinite(p.dec)) {
+        send({ type: 'select', ra: p.ra, dec: p.dec });
+      }
     });
     addEventListener('message', (event) => {
       if (event.source !== parent || event.origin !== location.origin || event.data?.source !== 'errante-ui') return;
       const p = event.data;
-      if (p.type === 'position' && Number.isFinite(p.ra) && p.ra >= 0 && p.ra < 360 &&
-        Number.isFinite(p.dec) && p.dec >= -90 && p.dec <= 90) map.gotoRaDec(p.ra, p.dec);
+      if ((p.type === 'position' || p.type === 'zoom-footprint') && Number.isFinite(p.ra) &&
+        p.ra >= 0 && p.ra < 360 && Number.isFinite(p.dec) && Math.abs(p.dec) <= 90) {
+        map.gotoRaDec(p.ra, p.dec);
+        if (p.type === 'zoom-footprint' && Number.isFinite(p.radius) && p.radius > 0) {
+          const aspect = Math.max(1, innerWidth / innerHeight);
+          map.setFov(Math.min(3, 2.8 * p.radius * aspect));
+        }
+      }
       if (p.type === 'plane') setPlane(p.plane);
+      if (p.type === 'layout') document.documentElement.dataset.layout = p.layout === 'fill' ? 'fill' : 'panel';
+      if (p.type === 'footprint' && Array.isArray(p.corners)) {
+        footprint.removeAll();
+        if (p.corners.length === 4 && p.corners.every((c) => c &&
+          Number.isFinite(c.ra) && c.ra >= 0 && c.ra < 360 && Number.isFinite(c.dec) && Math.abs(c.dec) <= 90)) {
+          footprint.addFootprints([A.polygon(p.corners.map(({ ra, dec }) => [ra, dec]))]);
+        }
+      }
+      if (p.type === 'gaia' && Array.isArray(p.markers)) {
+        gaia.removeAll();
+        gaia.addSources(p.markers.slice(0, 500).filter((m) => m && typeof m.sourceId === 'string' &&
+          /^\d+$/.test(m.sourceId) && Number.isFinite(m.ra) && m.ra >= 0 && m.ra < 360 &&
+          Number.isFinite(m.dec) && Math.abs(m.dec) <= 90)
+          .map(({ ra, dec, sourceId }) => A.source(ra, dec, { name: `Gaia DR3 ${sourceId}` })));
+      }
       if (p.type === 'allwise') {
         allwiseVisible = !!p.show;
         if (allwise) { allwise.setOpacity(allwiseVisible ? 0.45 : 0); return; }

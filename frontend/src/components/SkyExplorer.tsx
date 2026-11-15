@@ -5,7 +5,7 @@ import { isTerminal, parseCoordinate, positionUrl, readPosition, watchJob } from
 import { DETECTOR_BANDS } from '../api/format';
 import { coordinateLookup, nameLookup, positionLookup, type ObjectLookup } from '../api/objectCard';
 import { SHOWCASE_TARGETS } from '../api/showcase';
-import type { SearchSequence } from '../api/skySearch';
+import { localTargetSequences, searchSequences, type SearchSequence } from '../api/skySearch';
 import { ExplorerMap } from './ExplorerMap';
 import { ObjectCard } from './ObjectCard';
 import { PositionResults } from './PositionResults';
@@ -45,6 +45,10 @@ export function SkyExplorer({ sequences, systems }: { sequences: SearchSequence[
   const resultRef = useRef<HTMLDivElement>(null);
   const controller = useRef<AbortController | null>(null);
   const live = client.config.mode === 'api';
+  const matchedField = lookup ? localTargetSequences(searchSequences(sequences, '', center), center)[0]?.field.id : undefined;
+  const footprintFieldId = job?.status === 'ready' && job.result_field_id
+    ? job.result_field_id
+    : selectedFieldId ?? matchedField;
 
   const observe = async (first: JobStatusResponse, signal: AbortSignal) => {
     await watchJob(client, first, signal, setJob);
@@ -146,7 +150,7 @@ export function SkyExplorer({ sequences, systems }: { sequences: SearchSequence[
       setReveal((count) => count + 1);
     }} />
     <div className="explorer-layout">
-      <ExplorerMap center={center} onSelect={(p) => {
+      <ExplorerMap center={center} footprintFieldId={footprintFieldId} onSelect={(p) => {
         locate(p);
         setLookup(positionLookup(p.ra, p.dec));
         setReveal((count) => count + 1);

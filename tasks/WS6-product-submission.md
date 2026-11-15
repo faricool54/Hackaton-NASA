@@ -43,10 +43,24 @@ deploy público y formulario de Space Apps completo y a tiempo.
   portada/introducción. Guion actualizado en PITCH.md. Inglés; voz en otro idioma con subtítulos ingleses.
   Mostrar el estado real: si solo hay simulaciones, declararlo; nunca presentarlas como SPHEREx real.
   Incluir equipo/integrantes/reto, producto, experiencia y uso NASA. Medir archivo final y alojarlo externamente.
+- [x] **WS6-5a (S02/S04/S08) Herramienta reutilizable para producir la demo.** Skill aportada por el usuario,
+  adaptada e incorporada en `docs/submission/skills/video-tutorial/`; descarga/uso en
+  [VIDEO_SKILL.md](../docs/submission/VIDEO_SKILL.md). Perfil con narración inglesa sin subtítulos,
+  propuesta de valor en los primeros ~10 s, créditos y verificación estricta de 30 s sobre el MP4 final.
+  Revisión de #118: merge revertido; nueva propuesta sin preset corporativo ni fuentes empaquetadas,
+  con condiciones de publicación de la voz pendientes de confirmación y atribución final/formulario explícitas.
+  No equivale a video producido, revisión humana, publicación ni envío; WS6-5 sigue pendiente.
 - [ ] **WS6-6 (P0; herramientas opcionales C08) About/Créditos**: SPHEREx/IRSA y recursos realmente usados;
   Astropy/Aladin, Gaia/WISE, CSA/CADC/NEOSSat o JPL/IMCCE solo cuando corresponda. Revisar términos de uso,
   licencias del tutorial y cita requerida por IRSA; registrar acceso fallido sin inventar contenido.
   Equipo y declaración de IA según reglas verificadas. No atribuir datos WISE/NEOSSat a SPHEREx.
+- [x] **WS6-6a (S07/S08) Integración de citas y registro WS2:** reconocimiento IRSA y DOIs
+  DR1/QR3/cubo verificados, incorporados en About/README/PROJECT y en la plantilla de demo;
+  declaración WS2 integrada desde `imaging/ai-usage.json`, con límites de revisión humana explícitos.
+  Coordinación en #100. Esto no certifica el inventario completo, derechos de voz ni envío del formulario.
+- [x] **WS6-5b (S02/S04) Toma de Barnard revisada con WS2:** guion y plantilla usan D2 S2−escala×S0,
+  con dipolo naranja/cian, fechas y límites; inglés sin subtítulos y diferencial en los primeros ~10 s.
+  La duración se mide al generar la locución; el video final todavía no está producido.
 - [ ] **WS6-7 (P0, R01/R03/R04) Prueba con usuarios**: 3 personas ajenas ingresan RA/Dec, reproducen la
   secuencia y reconocen fecha/misión; al menos una prueba en celular. Anotar confusiones para WS5.
 - [ ] **WS6-8 (P0, R05) Evidencia y estado de cobertura.** Publicar resultado de los cinco ensayos,

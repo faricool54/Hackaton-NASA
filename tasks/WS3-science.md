@@ -29,7 +29,7 @@ V15 de RW Aur lo resolvio faricool54 en #101, ya mergeado. No se duplica su impl
   con posición en esa época (x/y con `imaging.grid.sky_to_png_xy`). *Acepta:* test `network` en un campo
   eclíptico real devuelve asteroides con magnitud.
 - [ ] **WS3-2 (P2) `crossmatch`**: separación mediana por frame ≤ ~15″ → `status='known'`, `known_match`.
-- [x] **WS3-3 (P0, R05) Cinco blancos obligatorios** ✅ Los cinco registros están en `docs/validation/` (#36, #46), todos `success` sobre los FITS reales; nota post-#41 en #62. Revisión humana pendiente. en `fields.toml` y evidencia según `docs/VALIDATION.md`:
+- [x] **WS3-3 (P0, R05) Cinco blancos obligatorios** ✅ Los cinco registros están en `docs/validation/` (#36, #46), todos `success` sobre los FITS reales; nota post-#41 en #62. Revisión humana: DankoLiv, 2026-11-15 (#126; guiada, los análisis no se volvieron a correr). en `fields.toml` y evidencia según `docs/VALIDATION.md`:
   **Barnard's Star, Epsilon Indi B, WISE 0855, RW Aurigae y R Draconis**. Resolver identidad/componentes,
   fuente/época de coordenadas y propagación; no confundir Epsilon Indi B con A ni exigir resolver Ba/Bb.
   Con WS1 seleccionar épocas y bandas útiles; documentar los cinco intentos incluso sin señal/cobertura.
