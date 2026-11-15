@@ -49,7 +49,7 @@ export function ExplorerMap({ center, onSelect }: { center: SkyCoord; onSelect: 
       {error || 'Loading Aladin sky map…'}</p>}
     <iframe ref={frame} src={`${import.meta.env.BASE_URL}sky-map.html`} title="Interactive SPHEREx sky map"
       className="sky-map-frame" onError={() => setError('Map unavailable. Use coordinate search.')} />
-    <p className="muted small map-credit">Click the sky to build a time sequence. Drag to pan; scroll to zoom.
+    <p className="muted small map-credit">Click the sky to open Time, Spectrum, and 3D views. Drag to pan; scroll to zoom.
       {' '}This map is a static coadd, not a video. Wavelength changes affect this context map only.
       {' '}<a href="https://irsa.ipac.caltech.edu/data/SPHEREx/" target="_blank" rel="noreferrer">NASA/SPHEREx · Caltech/IPAC</a>
       {' · '}<a href="https://aladin.cds.unistra.fr/AladinLite/" target="_blank" rel="noreferrer">Aladin Lite 3.8.2 (GPL-3)</a>

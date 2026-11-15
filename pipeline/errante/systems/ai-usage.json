@@ -1,0 +1,157 @@
+{
+  "updated_on": "2026-11-15",
+  "tool": "Anthropic Claude Code",
+  "scope": "WS7 3D systems, pipeline side (DankoLiv with Claude Code): the curated SystemModel catalog of the five challenge targets and the synthetic demo system (catalog.py), the NASA Exoplanet Archive, SIMBAD and Gaia DR3 fetchers that the network tests re-run (sources.py), hierarchy validation and writers (build.py), errante systems in cli.py, their tests in test_systems.py and the systems JSON in data/demo/systems and data/products/systems; plus, on branch ws7/measured-3d (V13, with V4 and V12; not merged when this record was written, so it has no pull request entry), the removal of hand-picked temperature, radius and mass values, the frozen WS3 object-context snapshots in systems/inputs/objects/, the targets.toml registry (with the 'seen by SPHEREx' facts copied verbatim from docs/SCIENCE.md, block A5), measured.py (including a generic system_from_snapshot builder, tested offline but not used by any published system), record.py and the errante systems --explain and --record flags. The frontend side of the same work is recorded in frontend/src/three/ai-usage.json",
+  "affected_paths": [
+    "pipeline/errante/systems/",
+    "pipeline/errante/cli.py",
+    "pipeline/pyproject.toml",
+    "pipeline/tests/test_systems.py",
+    "data/demo/systems/",
+    "data/products/systems/",
+    "data/demo/manifest.json",
+    "data/products/manifest.json",
+    "docs/VISION_3D.md",
+    "docs/RECON_SPHEREX.md",
+    "tasks/WS7-3d-systems.md",
+    "pipeline/errante/models.py",
+    "pipeline/errante/build.py",
+    "pipeline/errante/products.py",
+    "pipeline/errante/synthetic.py",
+    "pipeline/tests/test_build.py",
+    "pipeline/tests/test_contract.py",
+    "shared/schema/",
+    "backend/errante_api/routes/products.py",
+    "backend/errante_api/settings.py",
+    "backend/tests/test_api.py"
+  ],
+  "generated_media": [],
+  "real_target_validation": false,
+  "real_target_validation_basis": "A 3D model of a target is not an R05 validation (AGENTS.md rule 3). The formal per-target validation records are the coordinator's (docs/validation/) and their human review is pending (docs/VALIDATION.md); the 'seen by SPHEREx' facts in the systems are copied from those records, not re-measured by WS7",
+  "human_review": "DankoLiv directs the WS7 work done with Claude Code, chooses its design decisions and reviews the changes; that review is in progress and is not claimed complete, and a line-by-line human review of the code, tests or data is not claimed",
+  "repository_disclosure": "AI_USAGE.md",
+  "integration_validation": {
+    "source": "catalog and literature values (NASA Exoplanet Archive, SIMBAD, Gaia DR3, AAVSO VSX and the cited papers), with 'seen by SPHEREx' facts copied from docs/validation/; no SPHEREx pixel is drawn in 3D",
+    "arbitrary_coordinate_job": "not part of WS7: there is no 3D for an arbitrary click yet (V14, future work)",
+    "golden_fields": "errante systems --out data/products --real-only publishes the five challenge systems in data/products/systems, each with the field_id of its real SPHEREx field (#64); data/demo/systems holds the same five plus the synthetic demo-ecliptic-orbits system",
+    "checks_reported_in_pull_requests": [
+      "#9: every value of the five challenge-target systems was checked against the NASA Exoplanet Archive, SIMBAD (CfA mirror), Gaia DR3, VizieR and the cited papers, each by one researcher and one independent cross-checker; the fetchers are re-run by tests marked network",
+      "#47: pytest checks that Basant et al. 2025's t0 of Barnard b, propagated 33 cycles, reaches the conjunction of González Hernández et al. 2024, and that the VSX values of R Dra are equal in catalog.py and in the frontend table",
+      "#64: tests check that the committed real systems equal the catalog and point at real fields of data/products"
+    ],
+    "checks_basis": "Run with AI assistance and reported in the pull request bodies (squash commit messages); not independently verified by a human",
+    "scientific_R05_validation": false
+  },
+  "input_snapshots": {
+    "paths": "pipeline/errante/systems/inputs/objects/<slug>.json, listed in pipeline/errante/systems/targets.toml (branch ws7/measured-3d)",
+    "origin": "Recorded offline with Claude Code by replaying WS3's committed fixtures (pipeline/tests/fixtures/ws3/context/, live service answers WS3 recorded on 2026-11-15 between 03:44 and 04:22 UTC) through WS3's object_context(..., offline=True); each file keeps the contract Facts and numeric parameters WS3 derived, with WS3's source text",
+    "build_uses_network": false,
+    "values_typed_by_ai": false,
+    "labels": "Catalog values from the snapshots are labelled 'catalog, not measured by SPHEREx'; parameters no source gives stay unknown and the system notes say why"
+  },
+  "cache_revision": "No WS7 change to the processing cache: the systems build reads only committed files (catalog.py and, on ws7/measured-3d, targets.toml and inputs/objects/*.json) and makes no network call; WS4's processing fingerprint (backend/errante_api/processing.py) hashes the data, imaging and detect modules, not systems",
+  "workstream": "WS7",
+  "developer": "DankoLiv",
+  "provider": "Anthropic",
+  "model": "Claude Opus 5.5",
+  "model_basis": "Co-Authored-By trailers of the WS7 commits name Claude Opus 5.5 (the cloud-session squash commits also carry a generic 'Claude' trailer); subagents ran inside Claude Code and their individual models were not recorded",
+  "other_ai_tools": [
+    "OpenAI Codex: rpccp integrated the imported WS7 cloud-session branch with the challenge and submission guides in #1 (AI_USAGE.md, 'Imported 3D contribution'); that use is recorded by its author"
+  ],
+  "other_ai_tools_basis": "The commit trailers of the WS7 pull requests listed here name only Claude, except where the integration in #1 is described as done with Codex in AI_USAGE.md; no other AI model, provider or coding tool, and no PRC-origin one, is known to have been used for this work",
+  "ai_review": "The #8 and #9 commit messages report an independent review of the 3D skeleton (16 confirmed issues) and #47 reports stage-1 and stage-3 review checks; on ws7/measured-3d an AI critic pass checked the V13 plan before implementation. These ran as AI agents in Claude Code: they are AI reviews, not human reviews. WS3's scientific review of the merged 3D (#65, docs/SCIENCE.md) is WS3's record, not this one",
+  "line_by_line_human_review": false,
+  "idea_origin": "Not covered by this record: the product vision, including the rule that the 3D is built only from measurements, was stated by the team (docs/VISION.md; AI_USAGE.md, 'Origin of the product vision'). DankoLiv chose the WS7 design decisions recorded in docs/VISION_3D.md from options proposed in Claude Code sessions",
+  "nasa_branding_generated": false,
+  "rendered_products": {
+    "paths": "data/products/systems/<id>.json and data/demo/systems/<id>.json (SystemModel JSON written by errante systems); the 3D scenes are drawn from them in the browser by frontend/src/three/",
+    "fields": [
+      "barnards-star",
+      "eps-indi-b",
+      "r-draconis",
+      "rw-aurigae",
+      "wise-0855"
+    ],
+    "systems": [
+      "barnards-star",
+      "epsilon-indi",
+      "r-draconis",
+      "rw-aurigae",
+      "wise-0855"
+    ],
+    "origin": "The systems JSON is written by running the AI-assisted WS7 code on catalog, literature and recorded WS3 values; it holds numbers and text with their sources, not imagery. 'fields' lists the real SPHEREx fields the published systems link to through field_id",
+    "ai_generated_imagery": false,
+    "synthetic": false,
+    "labels": "Every view shows '3D MODEL · NOT AN IMAGE' and the representation_note; each Fact carries its source and verified flag; the synthetic demo-ecliptic-orbits system (data/demo only) is labelled SYNTHETIC DATA",
+    "nasa_branding": "No NASA logo, flag or mission identifier was generated, added or modified"
+  },
+  "pull_requests": [
+    {
+      "number": 1,
+      "title": "contract: integrate 3D systems with challenge and submission guides",
+      "merged_at": "2026-11-14T15:17:32Z",
+      "ai_generated": [
+        "Contract 0.2.0 (additive): SystemModel, Body, Orbit, Fact, Variability, Appearance, SpaceMotion, SystemSummary and Manifest.systems, with JSON Schema",
+        "Code: pipeline/errante/systems (curated systems of the five challenge targets, then hand-typed and flagged verified=False; synthetic system; hierarchy validation; source stubs), errante systems",
+        "Data: data/demo/systems/*.json",
+        "Docs: docs/VISION_3D.md, tasks/WS7-3d-systems.md"
+      ],
+      "humans": "DankoLiv directed the WS7 cloud session that wrote the imported branch; rpccp integrated it with the guides (with OpenAI Codex, per AI_USAGE.md); it was squash-merged into main"
+    },
+    {
+      "number": 7,
+      "title": "chore: add SPHEREx technical recon from the WS7 cloud session",
+      "merged_at": "2026-11-14T16:37:34Z",
+      "ai_generated": [
+        "Docs: docs/RECON_SPHEREX.md, a survey of the SPHEREx endpoints, collections, flags, cadence and the five test targets, noted in docs/DATA.md as input to re-verify"
+      ],
+      "humans": "DankoLiv directed the work; it was squash-merged into main"
+    },
+    {
+      "number": 8,
+      "title": "contract: WS7 3D review fixes (Orbit.quality/note, schema 0.2.1)",
+      "merged_at": "2026-11-14T16:39:41Z",
+      "ai_generated": [
+        "Contract: Orbit.quality and Orbit.note (schema 0.2.1)",
+        "Code: fixes from the review of the 3D skeleton in pipeline/errante/systems and the backend",
+        "Data: data/demo/systems/*.json"
+      ],
+      "humans": "DankoLiv directed the work; it was squash-merged into main"
+    },
+    {
+      "number": 9,
+      "title": "ws7: verify the 3D catalog of the five targets against archives + second 3D review round",
+      "merged_at": "2026-11-14T16:45:18Z",
+      "ai_generated": [
+        "Code: sources.py fetchers (NASA Exoplanet Archive, SIMBAD on the CfA mirror, Gaia DR3) and verified values with exact citations in catalog.py (WS7-2)",
+        "Tests: offline parsing tests and live tests marked network in test_systems.py",
+        "Data: data/demo/systems/*.json"
+      ],
+      "humans": "DankoLiv directed the work; it was squash-merged into main"
+    },
+    {
+      "number": 47,
+      "title": "ws7: procedural 3D from physics, SPHEREx dataset-time mode and sky track",
+      "merged_at": "2026-11-15T05:08:32Z",
+      "ai_generated": [
+        "Code: field_id links, the verified rotation of Barnard's Star, the RW Aur distance fact, model-dependent brown-dwarf temperatures, Barnard b-e epochs and the R Dra notes in catalog.py",
+        "Tests: test_systems.py",
+        "Data: data/demo/systems/*.json",
+        "Docs: docs/VISION_3D.md, tasks/WS7-3d-systems.md"
+      ],
+      "humans": "DankoLiv directed the work and opened the pull request; it was squash-merged into main"
+    },
+    {
+      "number": 64,
+      "title": "ws7: publish the five challenge systems in the real dataset",
+      "merged_at": "2026-11-15T05:53:00Z",
+      "ai_generated": [
+        "Code: errante systems --real-only in cli.py and the real-only writer in build.py",
+        "Tests: test_systems.py",
+        "Data: data/products/systems/*.json and the rebuilt data/products/manifest.json"
+      ],
+      "humans": "DankoLiv directed the work; it was squash-merged into main"
+    }
+  ],
+  "trailer_note": "Squash commits keep the Co-Authored-By trailers of every commit on the branch, so some list Claude more than once; the squash-commit author that git shows is not always the WS7 developer. Teammates' WS7-path pull requests #27 (playback speed slider) and #30 (system detail cards, OpenAI Codex co-author trailer) are frontend work and are noted in frontend/src/three/ai-usage.json"
+}

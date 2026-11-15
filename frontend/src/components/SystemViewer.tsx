@@ -55,7 +55,6 @@ const CHIPS: CSSProperties = {
 };
 const CHIP: CSSProperties = { background: 'rgba(3, 5, 10, 0.75)' };
 const FALSE_CHIP: CSSProperties = { ...CHIP, color: '#f9a8d4' };
-const ILLUSTRATIVE_CHIP: CSSProperties = { ...CHIP, color: 'var(--unconfirmed, #fbbf24)' };
 const DATE_CHIP: CSSProperties = { ...CHIP, color: 'var(--accent, #7cc4ff)' };
 const MODE_GROUP: CSSProperties = { display: 'inline-flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' };
 const P: CSSProperties = { margin: '0 0 4px' };
@@ -109,7 +108,6 @@ export function SystemViewer(props: Props) {
   const [showLabels, setShowLabels] = useState(true);
   // null = the default colour mode, known once the kit has loaded.
   const [colorChoice, setColorMode] = useState<ColorMode | null>(null);
-  const [classTypical, setClassTypical] = useState(false);
   const colorMode = colorChoice ?? kit?.DEFAULT_COLOR_MODE ?? null;
 
   // The controls and legends fill in as soon as the kit arrives, before three.js has downloaded.
@@ -215,8 +213,8 @@ export function SystemViewer(props: Props) {
     if (daysPerSec !== null) sceneRef.current?.setSpeed(daysPerSec);
   }, [daysPerSec, status]);
   useEffect(() => {
-    if (colorMode !== null) sceneRef.current?.setOptions({ distanceMode, showOrbits, showLabels, colorMode, classTypical });
-  }, [distanceMode, showOrbits, showLabels, colorMode, classTypical, status]);
+    if (colorMode !== null) sceneRef.current?.setOptions({ distanceMode, showOrbits, showLabels, colorMode });
+  }, [distanceMode, showOrbits, showLabels, colorMode, status]);
   useEffect(() => sceneRef.current?.focus(selectedId), [selectedId, status]);
 
   // Report the dataset date to the page (sky-track panel) only when the calendar day changes, not on
@@ -235,10 +233,7 @@ export function SystemViewer(props: Props) {
   // The legends are static per system, mode and speed: build them once, not on every onTick re-render.
   const notFitted = useMemo(() => (kit ? kit.nonFittedOrbits(system.bodies) : null), [kit, system]);
   const colourLines = useMemo(() => (kit && colorMode ? kit.colorLegend(colorMode, system) : []), [kit, colorMode, system]);
-  const surfaceLines = useMemo(
-    () => (kit && colorMode ? kit.surfaceLegend(system, colorMode, classTypical) : []),
-    [kit, system, colorMode, classTypical],
-  );
+  const surfaceLines = useMemo(() => (kit && colorMode ? kit.surfaceLegend(system, colorMode) : []), [kit, system, colorMode]);
   const spinLine = useMemo(() => (kit && daysPerSec !== null ? kit.spinLegend(system, daysPerSec) : ''), [kit, system, daysPerSec]);
   const modeChip = kit && colorMode ? kit.colourModeChip(colorMode) : null;
   const statusLine = useMemo(() => (kit ? kit.phaseStatusLine(system) : ''), [kit, system]);
@@ -281,11 +276,6 @@ export function SystemViewer(props: Props) {
           {modeChip && (
             <span className="badge" style={FALSE_CHIP}>
               {modeChip}
-            </span>
-          )}
-          {kit && classTypical && !system.provenance.synthetic && (
-            <span className="badge" style={ILLUSTRATIVE_CHIP}>
-              {kit.CLASS_TYPICAL_CHIP}
             </span>
           )}
           {kit && dataset && mjd !== null && (
@@ -396,12 +386,6 @@ export function SystemViewer(props: Props) {
         <label className="small">
           <input type="checkbox" checked={showLabels} onChange={(e) => setShowLabels(e.target.checked)} /> labels
         </label>
-        {!system.provenance.synthetic && (
-          <label className="small" title="Illustrative patterns typical of the object class; not observed on these bodies">
-            <input type="checkbox" checked={classTypical} onChange={(e) => setClassTypical(e.target.checked)} /> show
-            class-typical features (illustrative)
-          </label>
-        )}
         {selectedId && (
           <button type="button" onClick={() => onSelect(null)}>
             ⤢ Whole system

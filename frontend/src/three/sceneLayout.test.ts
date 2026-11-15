@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Appearance, AppearanceModel, Body, Orbit, SystemModel } from '../api/types';
-import { displayRadius } from './appearance';
+import { displayRadius, UNKNOWN_SIZE_DISPLAY_RADIUS } from './appearance';
 import { J2000_MJD, orbitalPosition, variabilityFactor } from './orbits';
 import {
   advanceModelTime,
@@ -12,14 +12,10 @@ import {
   focusDistance,
   linearScale,
   MAX_FRAME_SECONDS,
-  maxPulsationScale,
   MIN_VISIBLE_RADIUS,
   nonFittedOrbits,
   orbitalPhaseAngle,
   periapsisAu,
-  PULSATION_PHASE_NOTE,
-  PULSATION_RADIUS_AMPLITUDE,
-  pulsationRadiusScale,
   quotedPeriodText,
   referenceAu,
   rotationAngle,
@@ -84,15 +80,14 @@ function layout(bodies: Body[]) {
   };
 }
 
-/** Smallest surface-to-surface clearance (scene units) over all parent/child pairs, at max pulsation size. */
+/** Smallest surface-to-surface clearance (scene units) over all parent/child pairs (radii are constant). */
 function clearances(bodies: Body[], mode: DistanceMode) {
   const { radii, map } = layout(bodies);
-  const byId = new Map(bodies.map((b) => [b.id, b]));
   const out: { pair: string; clearance: number }[] = [];
   for (const [parentId, kids] of childrenByParent(bodies)) {
-    const rP = radii[mode].get(parentId)! * maxPulsationScale(byId.get(parentId)!);
+    const rP = radii[mode].get(parentId)!;
     for (const k of kids) {
-      const rC = radii[mode].get(k.id)! * maxPulsationScale(k);
+      const rC = radii[mode].get(k.id)!;
       out.push({ pair: `${parentId}/${k.id}`, clearance: map(mode)(periapsisAu(k.orbit!)) - rP - rC });
     }
   }
@@ -170,7 +165,7 @@ describe('radius caps: bodies never pass through each other', () => {
     }
   });
 
-  it('a pulsating parent keeps clear of its companion at its largest size', () => {
+  it('a pulsating parent keeps a constant radius and stays clear of its companion', () => {
     const bodies = [
       body({
         id: 'star',
@@ -181,41 +176,32 @@ describe('radius caps: bodies never pass through each other', () => {
       }),
       body({ id: 'c', orbit: orbit({ semi_major_axis_au: 0.5 }) }),
     ];
-    // Class-typical ±10 % Mira diameter change, whatever the V amplitude (not the old f^0.08: ±44 % for 8 mag).
-    expect(maxPulsationScale(bodies[0])).toBeCloseTo(1 + PULSATION_RADIUS_AMPLITUDE, 12);
     for (const mode of ['compressed', 'linear'] as const) {
       for (const { clearance } of clearances(bodies, mode)) expect(clearance).toBeGreaterThan(0);
     }
   });
 
-  it('only pulsates bodies the scene animates', () => {
-    expect(maxPulsationScale(body({}))).toBe(1);
-    const irregular = body({ variability: { kind: 'irregular', period_days: null, amplitude_mag: 2, band: 'V' } });
-    expect(maxPulsationScale(irregular)).toBe(1);
-    // A rotational modulation changes the brightness, not the size.
-    const spotted = body({ variability: { kind: 'rotation', period_days: 3, amplitude_mag: 0.05, band: 'V' } });
-    expect(maxPulsationScale(spotted)).toBe(1);
-    expect(pulsationRadiusScale(spotted, 60000)).toBe(1);
-  });
-
-  it('the pulsation radius stays within ±10 %, drawn in phase with the drawn light curve (display choice)', () => {
-    const mira = body({ kind: 'star', variability: { kind: 'pulsation', period_days: 245.6, amplitude_mag: 6.5, band: 'V' } });
-    let lo = Infinity;
-    let hi = -Infinity;
-    for (let i = 0; i < 1000; i++) {
-      const s = pulsationRadiusScale(mira, J2000_MJD + (i / 1000) * 245.6);
-      lo = Math.min(lo, s);
-      hi = Math.max(hi, s);
+  it('a body without a radius is a fixed marker, the same for every kind, never a default physical size', () => {
+    for (const kind of ['star', 'brown_dwarf', 'planet'] as const) {
+      expect(displayRadius(body({ kind, radius_km: null })), kind).toBe(UNKNOWN_SIZE_DISPLAY_RADIUS);
     }
-    expect(lo).toBeGreaterThanOrEqual(0.9 - 1e-12);
-    expect(hi).toBeLessThanOrEqual(maxPulsationScale(mira) + 1e-12);
-    expect(hi - lo).toBeCloseTo(0.2, 3);
-    // In phase with the drawn light curve: a display convention, not physics (PULSATION_PHASE_NOTE).
-    const brightest = J2000_MJD + 0.75 * 245.6; // sin = −1 in variabilityFactor
-    expect(pulsationRadiusScale(mira, brightest)).toBeCloseTo(1.1, 9);
-    expect(variabilityFactor(mira, brightest)).toBeGreaterThan(1);
-    expect(PULSATION_PHASE_NOTE).toMatch(/not modelled/);
-    expect(PULSATION_PHASE_NOTE).not.toMatch(/largest when brightest/);
+    expect(UNKNOWN_SIZE_DISPLAY_RADIUS).toBeGreaterThan(MIN_VISIBLE_RADIUS.compressed);
+    // A known radius still scales (Earth ≈ 0.35, the Sun ≈ 1.3), so the marker is not mistaken for either.
+    expect(displayRadius(body({ radius_km: 6371 }))).toBeCloseTo(0.12 * 6371 ** 0.18, 12);
+    expect(displayRadius(body({ kind: 'star', radius_km: 695700 }))).toBeGreaterThan(1);
+    // Two siblings with unknown sizes keep the same size after the caps (Eps Ind Ba/Bb today).
+    const bodies = [
+      body({ id: 'a', kind: 'star', radius_km: 493947, appearance: look('star') }),
+      body({ id: 'ba', kind: 'brown_dwarf', radius_km: null, appearance: look('brown_dwarf'), orbit: orbit({ parent: 'a', semi_major_axis_au: 1460 }) }),
+      body({ id: 'bb', kind: 'brown_dwarf', radius_km: null, appearance: look('brown_dwarf'), orbit: orbit({ parent: 'ba', semi_major_axis_au: 2.403, eccentricity: 0.54 }) }),
+    ];
+    const { radii } = layout(bodies);
+    for (const mode of ['compressed', 'linear'] as const) {
+      const ratio = radii[mode].get('ba')! / radii[mode].get('bb')!;
+      expect(ratio, mode).toBeGreaterThan(0.8);
+      expect(ratio, mode).toBeLessThan(1.25);
+      for (const { pair, clearance } of clearances(bodies, mode)) expect(clearance, `${mode} ${pair}`).toBeGreaterThan(0);
+    }
   });
 });
 

@@ -1,0 +1,284 @@
+{
+ "schema": 1,
+ "slug": "r-draconis",
+ "query": {
+  "name": "R Dra",
+  "epoch_mjd": 61000.0,
+  "radius_arcsec": 8.0
+ },
+ "recorded_utc": "2026-11-15T14:31:36Z",
+ "origin": {
+  "kind": "ws3-fixtures",
+  "how": "offline replay of the WS3 fixtures: errante.science.context.object_context(name='R Dra', offline=True)",
+  "cache_dir": "pipeline/tests/fixtures/ws3/context",
+  "retrieved_utc": [
+   "2026-11-15T03:44:49Z",
+   "2026-11-15T04:21:35Z"
+  ],
+  "files": {
+   "2mass-419782fa5ac47ed0.json": "a58dad54a9a0ee9bec5ac80eb5dca16d9078c070490becc4e84de5fe983539e4",
+   "allwise-e8c61161fb37c41a.json": "36724d0ad464d2e9910e2d8332a8457f52bd8a786597b8158ac5bc9968200421",
+   "exoplanets-c275005849b5ef52.json": "f8c0ae02c05d8f3e38f5668c0968e9b60da48990d4b6046bf0d138404c674834",
+   "gaia-esa-76412699bfb88833.json": "d7ca9a4e0f7635cbee6cb3886814ea4a975064ec9659d1388ce6ec8fe5d15f79",
+   "gaia-esa-e338db4c1150e005.json": "7bf5b17a4cc7f74b87528c14027c119a19d6d24625b270926c8f3b5353df5134",
+   "sesame-815afab8f8cbe9bc.json": "b1a241b8d2edd0b92dd0ecc249c9d0c60937e215eea8b5caffe02ef26c902342",
+   "vsx-6851f26e3ffae8c4.json": "577ce40d257e788a1b1dbbe9ce7248857e7c72734042a1f5d022325ab5c75953"
+  },
+  "services": [
+   {
+    "service": "sesame",
+    "catalog": "SIMBAD via Sesame (CfA mirror, vizier.cfa.harvard.edu)",
+    "status": "ok",
+    "retrieved_utc": "2026-11-15T03:44:49Z",
+    "cached": true,
+    "note": null
+   },
+   {
+    "service": "gaia-esa",
+    "catalog": "Gaia DR3 gaiadr3.gaia_source (ESA Gaia archive TAP)",
+    "status": "ok",
+    "retrieved_utc": "2026-11-15T03:44:53Z",
+    "cached": true,
+    "note": null
+   },
+   {
+    "service": "gaia-esa",
+    "catalog": "Gaia DR3 astrophysical_parameters + external.gaiaedr3_distance + vari_long_period_variable (ESA Gaia archive TAP)",
+    "status": "ok",
+    "retrieved_utc": "2026-11-15T04:21:35Z",
+    "cached": true,
+    "note": null
+   },
+   {
+    "service": "vsx",
+    "catalog": "AAVSO VSX B/vsx/vsx (VizieR CfA)",
+    "status": "ok",
+    "retrieved_utc": "2026-11-15T03:44:53Z",
+    "cached": true,
+    "note": null
+   },
+   {
+    "service": "2mass",
+    "catalog": "2MASS All-Sky PSC II/246/out (VizieR CfA)",
+    "status": "ok",
+    "retrieved_utc": "2026-11-15T03:44:54Z",
+    "cached": true,
+    "note": null
+   },
+   {
+    "service": "allwise",
+    "catalog": "AllWISE II/328/allwise (VizieR CfA)",
+    "status": "ok",
+    "retrieved_utc": "2026-11-15T03:44:54Z",
+    "cached": true,
+    "note": "AllWISE epoch is nominal (2010.56): see match radius"
+   },
+   {
+    "service": "exoplanets",
+    "catalog": "NASA Exoplanet Archive pscomppars (confirmed planets, TAP)",
+    "status": "no_match",
+    "retrieved_utc": "2026-11-15T03:44:55Z",
+    "cached": true,
+    "note": null
+   }
+  ],
+  "note": "Catalog values (Gaia DR3, SIMBAD, AAVSO VSX, NASA Exoplanet Archive): not measured by SPHEREx."
+ },
+ "identity": {
+  "display_name": "R Dra",
+  "main_id": "V* R Dra",
+  "object_type": "Mi*",
+  "object_type_label": "Mira variable",
+  "spectral_type": "M4.5-6+e",
+  "match": "name",
+  "identity_uncertain": false,
+  "gaia_source_id": "1648328016354496384",
+  "gaia_method": "simbad_crossid",
+  "gaia_ambiguous": false,
+  "gaia_loose": false
+ },
+ "gaia": {
+  "source_id": "1648328016354496384",
+  "ra": 248.1673783672889,
+  "dec": 66.75500674547219,
+  "ref_epoch": 2016.0,
+  "pmra": -20.642811719160797,
+  "pmra_error": 0.08512829,
+  "pmdec": 6.148818852711324,
+  "pmdec_error": 0.091321476,
+  "parallax": 1.2509180143740992,
+  "parallax_error": 0.0647879,
+  "radial_velocity": null,
+  "radial_velocity_error": null,
+  "ruwe": 1.297982,
+  "phot_g_mean_mag": 6.374379,
+  "details_from": "Gaia DR3 astrophysical_parameters + external.gaiaedr3_distance + vari_long_period_variable (ESA Gaia archive TAP)"
+ },
+ "variability": {
+  "name": "R Dra",
+  "oid": 13673,
+  "var_type": "M",
+  "mag_max": 6.7,
+  "mag_min": 13.2,
+  "min_is_amplitude": false,
+  "passband": "V",
+  "period_d": 246.12,
+  "epoch_hjd": 2457370.0,
+  "spectral_type": "M5e-M9eIII",
+  "sep_arcsec": 0.0363177763013889,
+  "url": "https://www.aavso.org/vsx/index.php?view=detail.top&oid=13673"
+ },
+ "planets": [],
+ "nearby_planet_hosts": [],
+ "warnings": [],
+ "facts": [
+  {
+   "label": "Effective temperature",
+   "value": "unknown",
+   "unit": null,
+   "source": "Gaia DR3 has no temperature for this source.",
+   "verified": false
+  },
+  {
+   "label": "Radius",
+   "value": "unknown",
+   "unit": null,
+   "source": "Gaia DR3 FLAME gives no radius for this source.",
+   "verified": false
+  },
+  {
+   "label": "Luminosity",
+   "value": "unknown",
+   "unit": null,
+   "source": "Gaia DR3 FLAME gives no luminosity for this source.",
+   "verified": false
+  },
+  {
+   "label": "Mass",
+   "value": "unknown",
+   "unit": null,
+   "source": "Gaia DR3 FLAME gives no mass for this source.",
+   "verified": false
+  },
+  {
+   "label": "Distance",
+   "value": "792 (750-832)",
+   "unit": "pc",
+   "source": "Gaia DR3 1648328016354496384, external.gaiaedr3_distance (ESA Gaia archive, retrieved 2026-11-15) | Bailer-Jones et al. (2021) geometric distance from the Gaia parallax, 16th-84th percentiles",
+   "verified": true
+  },
+  {
+   "label": "Spectral type",
+   "value": "M4.5-6+e",
+   "unit": null,
+   "source": "SIMBAD via Sesame (CfA mirror, vizier.cfa.harvard.edu), retrieved 2026-11-15",
+   "verified": true
+  },
+  {
+   "label": "Variability type",
+   "value": "M (V 6.7-13.2)",
+   "unit": null,
+   "source": "AAVSO VSX R Dra (B/vsx, VizieR CfA, retrieved 2026-11-15)",
+   "verified": true
+  },
+  {
+   "label": "Variability period",
+   "value": "246.1",
+   "unit": "days",
+   "source": "AAVSO VSX R Dra (B/vsx, VizieR CfA, retrieved 2026-11-15) | Caveat: Gaia DR3 long-period-variable period: 247.2 +/- 6.0 d.",
+   "verified": true
+  }
+ ],
+ "parameters": {
+  "teff": {
+   "label": "Effective temperature",
+   "value": null,
+   "unit": "K",
+   "lower": null,
+   "upper": null,
+   "method": "Gaia DR3 has no temperature for this source.",
+   "source": null,
+   "caveats": [],
+   "verified": false
+  },
+  "radius": {
+   "label": "Radius",
+   "value": null,
+   "unit": "R_sun",
+   "lower": null,
+   "upper": null,
+   "method": "Gaia DR3 FLAME gives no radius for this source.",
+   "source": null,
+   "caveats": [],
+   "verified": false
+  },
+  "luminosity": {
+   "label": "Luminosity",
+   "value": null,
+   "unit": "L_sun",
+   "lower": null,
+   "upper": null,
+   "method": "Gaia DR3 FLAME gives no luminosity for this source.",
+   "source": null,
+   "caveats": [],
+   "verified": false
+  },
+  "mass": {
+   "label": "Mass",
+   "value": null,
+   "unit": "M_sun",
+   "lower": null,
+   "upper": null,
+   "method": "Gaia DR3 FLAME gives no mass for this source.",
+   "source": null,
+   "caveats": [],
+   "verified": false
+  },
+  "distance": {
+   "label": "Distance",
+   "value": 791.55304,
+   "unit": "pc",
+   "lower": 750.2285,
+   "upper": 831.6732,
+   "method": "Bailer-Jones et al. (2021) geometric distance from the Gaia parallax, 16th-84th percentiles",
+   "source": "Gaia DR3 1648328016354496384, external.gaiaedr3_distance (ESA Gaia archive, retrieved 2026-11-15)",
+   "caveats": [],
+   "verified": true
+  },
+  "spectral_type": {
+   "label": "Spectral type",
+   "value": "M4.5-6+e",
+   "unit": null,
+   "lower": null,
+   "upper": null,
+   "method": null,
+   "source": "SIMBAD via Sesame (CfA mirror, vizier.cfa.harvard.edu), retrieved 2026-11-15",
+   "caveats": [],
+   "verified": true
+  },
+  "variability_type": {
+   "label": "Variability type",
+   "value": "M (V 6.7-13.2)",
+   "unit": null,
+   "lower": null,
+   "upper": null,
+   "method": null,
+   "source": "AAVSO VSX R Dra (B/vsx, VizieR CfA, retrieved 2026-11-15)",
+   "caveats": [],
+   "verified": true
+  },
+  "variability_period": {
+   "label": "Variability period",
+   "value": 246.12,
+   "unit": "days",
+   "lower": null,
+   "upper": null,
+   "method": null,
+   "source": "AAVSO VSX R Dra (B/vsx, VizieR CfA, retrieved 2026-11-15)",
+   "caveats": [
+    "Gaia DR3 long-period-variable period: 247.2 +/- 6.0 d."
+   ],
+   "verified": true
+  }
+ }
+}

@@ -1,7 +1,7 @@
 {
   "id": "epsilon-indi",
   "name": "Epsilon Indi system",
-  "description": "Challenge test target: a Sun-like star, a cold giant planet and a pair of brown dwarfs.",
+  "description": "Challenge test target: an orange dwarf star, a cold giant planet and a pair of brown dwarfs.",
   "tags": [
     "test-target",
     "brown-dwarf",
@@ -160,7 +160,7 @@
       "name": "Epsilon Indi Ba",
       "kind": "brown_dwarf",
       "description": "A brown dwarf: too heavy to be a planet, too light to shine like a star.",
-      "radius_km": 64342.8,
+      "radius_km": null,
       "mass_kg": 1.2701416000000002e+29,
       "teff_k": 1300.0,
       "spectral_type": "T1",
@@ -213,6 +213,13 @@
           "unit": "AU",
           "source": "Scholz et al. 2003, A&A 398, L29; Gaia DR3 positions",
           "verified": true
+        },
+        {
+          "label": "Motion seen by SPHEREx (Ba+Bb as one source)",
+          "value": "1.03 px (6.3″) between May 2025 and Sep 2026",
+          "unit": null,
+          "source": "SPHEREx DR1+QR3, offline FITS analysis; docs/validation/eps-indi-b.md",
+          "verified": true
         }
       ],
       "candidate_id": null
@@ -222,7 +229,7 @@
       "name": "Epsilon Indi Bb",
       "kind": "brown_dwarf",
       "description": "The colder twin of Ba; the two orbit each other every ~11 years.",
-      "radius_km": 64342.8,
+      "radius_km": null,
       "mass_kg": 1.010685e+29,
       "teff_k": 900.0,
       "spectral_type": "T6",
@@ -294,18 +301,21 @@
       "candidate_id": null
     }
   ],
-  "representation_note": "3D model drawn from published catalog and literature values (each fact shows its source) - not an image. Sizes and distances may be exaggerated for visibility.",
+  "representation_note": "3D model drawn from published catalog and literature values, not measured by SPHEREx unless a fact says 'seen by SPHEREx' (each fact shows its source) - not an image. What no source gives is not drawn: an unknown temperature is drawn grey and an unknown size at a fixed marker size, not to scale. Sizes and distances may be exaggerated for visibility.",
   "provenance": {
     "pipeline_version": "0.1.0",
-    "built_at": "2026-11-14T18:15:21.325334Z",
+    "built_at": "2026-11-15T14:38:48.633879Z",
     "synthetic": false,
     "data_releases": [],
     "notes": [
-      "Values checked on 2026-11-14 against the NASA Exoplanet Archive, SIMBAD (CfA mirror), Gaia DR3, VizieR and the cited papers (tasks/WS7-3d-systems.md, WS7-2). Facts still marked 'unverified' are estimates no source states.",
+      "Values checked on 2026-11-14 against the NASA Exoplanet Archive, SIMBAD (CfA mirror), Gaia DR3, VizieR and the cited papers (tasks/WS7-3d-systems.md, WS7-2). Facts still marked 'unverified' are estimates no source states. The 'seen by SPHEREx' facts were copied from the validation records (docs/validation/; AI analysis with an independent second analysis, human review pending), not from that catalog cross-check.",
       "Orbital and pulsation phases are arbitrary (no epoch): positions are not predictions for a real date.",
       "Simplified hierarchy: Ba orbits A and Bb orbits Ba (no barycenters).",
-      "Ba and Bb are drawn with an illustrative radius of 0.9 Jupiter radii (no published radius); the radius of Ab is the archive's estimate from its mass.",
-      "Gaia DR3 measures Ba+Bb as one unresolved source (RUWE 4.3): its parallax is not used for distance."
+      "Ba and Bb have no published radius: their size is unknown and they are drawn at a fixed marker size, not to scale. The radius of Ab is the archive's estimate from its mass.",
+      "Gaia DR3 measures Ba+Bb as one unresolved source (RUWE 4.3): its parallax is not used for distance. SPHEREx also sees Ba+Bb as one source: they are never more than about 1″ apart (orbit semi-major axis 2.4 AU, 0.66″ at 3.64 pc; eccentricity 0.54), and a SPHEREx pixel is 6.15″.",
+      "WS3 object context of 'eps Ind B' (eps Ind B, Gaia DR3 6412596012146801152, match 'name'; catalog, not measured by SPHEREx): Effective temperature 1417 (1319-1515) K; Distance 3.692 (3.681-3.701) pc; Spectral type T1V+T6V; Variability type VBD (Ic 15.6-15.67). Not attached to Ba or Bb: Gaia DR3 and SPHEREx see Ba+Bb as one unresolved source (RUWE 4.30).",
+      "Catalog values from the frozen WS3 object-context snapshot 'eps-indi-b' (query 'eps Ind B'; services answered 2026-11-15T03:44:26Z to 2026-11-15T04:21:26Z; replayed offline from the WS3 fixtures), pipeline/errante/systems/inputs/objects/: not measured by SPHEREx, and not queried when the site is built.",
+      "Not measured, so not drawn (shown as unknown): Epsilon Indi Ba: radius (no published radius for Ba; no radius from the SPHEREx flux and the distance yet, WS7-8); Epsilon Indi Bb: radius (no published radius for Bb; no radius from the SPHEREx flux and the distance yet, WS7-8)."
     ]
   }
 }

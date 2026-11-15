@@ -1,0 +1,352 @@
+{
+ "schema": 1,
+ "slug": "barnards-star",
+ "query": {
+  "name": "Barnard's Star",
+  "epoch_mjd": 61000.0,
+  "radius_arcsec": 8.0
+ },
+ "recorded_utc": "2026-11-15T14:31:36Z",
+ "origin": {
+  "kind": "ws3-fixtures",
+  "how": "offline replay of the WS3 fixtures: errante.science.context.object_context(name=\"Barnard's Star\", offline=True)",
+  "cache_dir": "pipeline/tests/fixtures/ws3/context",
+  "retrieved_utc": [
+   "2026-11-15T03:44:16Z",
+   "2026-11-15T04:21:22Z"
+  ],
+  "files": {
+   "2mass-99cc122ef6ab09d1.json": "be4d24552b8b136fad2ff10e4184e1bcb4549dd2097e0338f7df6979b538bbaa",
+   "allwise-05622ec7dec3e7a9.json": "90fc30e977e75f76b2c5e4c17f67c9ebe6815d129bdbcef96bb45c4e7ef1367f",
+   "exoplanets-5b9d385e7cac9268.json": "231ffad9b497d638859bed3a52c5e6fd46c19af96ee9cfdb934dc9cf0ef31de2",
+   "gaia-esa-2d3356df6e96794c.json": "9de640b7b1a1375e6b8461c2604a0eea7d86c868ae4b849d62ad5fd831c8c6bf",
+   "gaia-esa-4b9f88389936f9d4.json": "cc2363ed0c5342d315b1ff916fa25ee6258bf5d4f42bda383a379ffc10408d7d",
+   "sesame-40b973fd90cf99a2.json": "f7e01b0566c67d9ea29784103a03cd698e82f3865fadfc8ecb5777bd703292b7",
+   "vsx-e9767c3b3821dd7f.json": "0271525761c3cf00180adb526b8ab2abd0c67c9a2133cd57b3d10fb7383d0494"
+  },
+  "services": [
+   {
+    "service": "sesame",
+    "catalog": "SIMBAD via Sesame (CfA mirror, vizier.cfa.harvard.edu)",
+    "status": "ok",
+    "retrieved_utc": "2026-11-15T03:44:16Z",
+    "cached": true,
+    "note": null
+   },
+   {
+    "service": "gaia-esa",
+    "catalog": "Gaia DR3 gaiadr3.gaia_source (ESA Gaia archive TAP)",
+    "status": "ok",
+    "retrieved_utc": "2026-11-15T03:44:19Z",
+    "cached": true,
+    "note": null
+   },
+   {
+    "service": "gaia-esa",
+    "catalog": "Gaia DR3 astrophysical_parameters + external.gaiaedr3_distance + vari_long_period_variable (ESA Gaia archive TAP)",
+    "status": "ok",
+    "retrieved_utc": "2026-11-15T04:21:22Z",
+    "cached": true,
+    "note": null
+   },
+   {
+    "service": "vsx",
+    "catalog": "AAVSO VSX B/vsx/vsx (VizieR CfA)",
+    "status": "ok",
+    "retrieved_utc": "2026-11-15T03:44:20Z",
+    "cached": true,
+    "note": null
+   },
+   {
+    "service": "2mass",
+    "catalog": "2MASS All-Sky PSC II/246/out (VizieR CfA)",
+    "status": "ok",
+    "retrieved_utc": "2026-11-15T03:44:21Z",
+    "cached": true,
+    "note": null
+   },
+   {
+    "service": "allwise",
+    "catalog": "AllWISE II/328/allwise (VizieR CfA)",
+    "status": "ok",
+    "retrieved_utc": "2026-11-15T03:44:21Z",
+    "cached": true,
+    "note": "AllWISE epoch is nominal (2010.56): see match radius"
+   },
+   {
+    "service": "exoplanets",
+    "catalog": "NASA Exoplanet Archive pscomppars (confirmed planets, TAP)",
+    "status": "ok",
+    "retrieved_utc": "2026-11-15T03:44:21Z",
+    "cached": true,
+    "note": null
+   }
+  ],
+  "note": "Catalog values (Gaia DR3, SIMBAD, AAVSO VSX, NASA Exoplanet Archive): not measured by SPHEREx."
+ },
+ "identity": {
+  "display_name": "Barnard's star",
+  "main_id": "NAME Barnard's star",
+  "object_type": "BY*",
+  "object_type_label": "BY Dra variable",
+  "spectral_type": "M4V",
+  "match": "name",
+  "identity_uncertain": false,
+  "gaia_source_id": "4472832130942575872",
+  "gaia_method": "simbad_crossid",
+  "gaia_ambiguous": false,
+  "gaia_loose": false
+ },
+ "gaia": {
+  "source_id": "4472832130942575872",
+  "ra": 269.44850252543836,
+  "dec": 4.739420051112412,
+  "ref_epoch": 2016.0,
+  "pmra": -801.5509783684709,
+  "pmra_error": 0.031820867,
+  "pmdec": 10362.394206546573,
+  "pmdec_error": 0.036070455,
+  "parallax": 546.975939730948,
+  "parallax_error": 0.040116355,
+  "radial_velocity": -110.46822,
+  "radial_velocity_error": 0.13125522,
+  "ruwe": 1.0848505,
+  "phot_g_mean_mag": 8.1939745,
+  "details_from": "Gaia DR3 astrophysical_parameters + external.gaiaedr3_distance + vari_long_period_variable (ESA Gaia archive TAP)"
+ },
+ "variability": {
+  "name": "V2500 Oph",
+  "oid": 22986,
+  "var_type": "BY",
+  "mag_max": 9.55,
+  "mag_min": 0.02,
+  "min_is_amplitude": true,
+  "passband": "V",
+  "period_d": 130.0,
+  "epoch_hjd": null,
+  "spectral_type": "M4V",
+  "sep_arcsec": 0.05009123283223591,
+  "url": "https://www.aavso.org/vsx/index.php?view=detail.top&oid=22986"
+ },
+ "planets": [
+  {
+   "name": "Barnard d",
+   "letter": "d",
+   "match": "gaia_dr3_id",
+   "period_d": 2.3402,
+   "semi_major_axis_au": 0.0188,
+   "eccentricity": 0.04,
+   "inclination_deg": null,
+   "mass_earth": 0.263,
+   "mass_kind": "Msini",
+   "radius_earth": 0.694,
+   "radius_calculated": true,
+   "reference": "Basant et al. 2025",
+   "controversial": false
+  },
+  {
+   "name": "Barnard b",
+   "letter": "b",
+   "match": "gaia_dr3_id",
+   "period_d": 3.1542,
+   "semi_major_axis_au": 0.0229,
+   "eccentricity": 0.03,
+   "inclination_deg": null,
+   "mass_earth": 0.299,
+   "mass_kind": "Msini",
+   "radius_earth": 0.72,
+   "radius_calculated": true,
+   "reference": "González Hernández et al. 2024",
+   "controversial": false
+  },
+  {
+   "name": "Barnard c",
+   "letter": "c",
+   "match": "gaia_dr3_id",
+   "period_d": 4.1244,
+   "semi_major_axis_au": 0.0274,
+   "eccentricity": 0.08,
+   "inclination_deg": null,
+   "mass_earth": 0.335,
+   "mass_kind": "Msini",
+   "radius_earth": 0.743,
+   "radius_calculated": true,
+   "reference": "Basant et al. 2025",
+   "controversial": false
+  },
+  {
+   "name": "Barnard e",
+   "letter": "e",
+   "match": "gaia_dr3_id",
+   "period_d": 6.7392,
+   "semi_major_axis_au": 0.0381,
+   "eccentricity": 0.04,
+   "inclination_deg": null,
+   "mass_earth": 0.193,
+   "mass_kind": "Msini",
+   "radius_earth": 0.637,
+   "radius_calculated": true,
+   "reference": "Basant et al. 2025",
+   "controversial": false
+  }
+ ],
+ "nearby_planet_hosts": [],
+ "warnings": [],
+ "facts": [
+  {
+   "label": "Effective temperature",
+   "value": "3100 (3099-3102)",
+   "unit": "K",
+   "source": "Gaia DR3 4472832130942575872, gaiadr3.astrophysical_parameters (ESA Gaia archive, retrieved 2026-11-15) | GSP-Phot (BP/RP spectra + parallax), 16th-84th percentiles | Caveat: GSP-Phot temperatures of M dwarfs and cooler objects are unreliable (see the Gaia DR3 astrophysical-parameters documentation): indicative only. Gaia GSP-Spec gives 4250 K: the two Gaia estimates disagree.",
+   "verified": true
+  },
+  {
+   "label": "Radius",
+   "value": "0.202 (0.198-0.206)",
+   "unit": "R_sun",
+   "source": "Gaia DR3 4472832130942575872, gaiadr3.astrophysical_parameters (ESA Gaia archive, retrieved 2026-11-15) | Gaia DR3 FLAME (from GSP-Phot parameters, G photometry and the Gaia distance), 16th-84th pct | Caveat: FLAME assumes a single star and inherits the GSP-Phot temperature. For M dwarfs the GSP-Phot input is unreliable: indicative only.",
+   "verified": true
+  },
+  {
+   "label": "Luminosity",
+   "value": "0.0034 (0.0033977-0.0033984)",
+   "unit": "L_sun",
+   "source": "Gaia DR3 4472832130942575872, gaiadr3.astrophysical_parameters (ESA Gaia archive, retrieved 2026-11-15) | Gaia DR3 FLAME (from GSP-Phot parameters, G photometry and the Gaia distance), 16th-84th pct | Caveat: FLAME assumes a single star and inherits the GSP-Phot temperature. For M dwarfs the GSP-Phot input is unreliable: indicative only.",
+   "verified": true
+  },
+  {
+   "label": "Mass",
+   "value": "unknown",
+   "unit": null,
+   "source": "Gaia DR3 FLAME gives no mass for this source.",
+   "verified": false
+  },
+  {
+   "label": "Distance",
+   "value": "1.828 (1.828-1.8282)",
+   "unit": "pc",
+   "source": "Gaia DR3 4472832130942575872, external.gaiaedr3_distance (ESA Gaia archive, retrieved 2026-11-15) | Bailer-Jones et al. (2021) geometric distance from the Gaia parallax, 16th-84th percentiles",
+   "verified": true
+  },
+  {
+   "label": "Spectral type",
+   "value": "M4V",
+   "unit": null,
+   "source": "SIMBAD via Sesame (CfA mirror, vizier.cfa.harvard.edu), retrieved 2026-11-15",
+   "verified": true
+  },
+  {
+   "label": "Variability type",
+   "value": "BY (V amplitude 0.02)",
+   "unit": null,
+   "source": "AAVSO VSX V2500 Oph (B/vsx, VizieR CfA, retrieved 2026-11-15)",
+   "verified": true
+  },
+  {
+   "label": "Variability period",
+   "value": "130.0",
+   "unit": "days",
+   "source": "AAVSO VSX V2500 Oph (B/vsx, VizieR CfA, retrieved 2026-11-15)",
+   "verified": true
+  }
+ ],
+ "parameters": {
+  "teff": {
+   "label": "Effective temperature",
+   "value": 3099.6335,
+   "unit": "K",
+   "lower": 3098.7573,
+   "upper": 3101.6318,
+   "method": "GSP-Phot (BP/RP spectra + parallax), 16th-84th percentiles",
+   "source": "Gaia DR3 4472832130942575872, gaiadr3.astrophysical_parameters (ESA Gaia archive, retrieved 2026-11-15)",
+   "caveats": [
+    "GSP-Phot temperatures of M dwarfs and cooler objects are unreliable (see the Gaia DR3 astrophysical-parameters documentation): indicative only.",
+    "Gaia GSP-Spec gives 4250 K: the two Gaia estimates disagree."
+   ],
+   "verified": true
+  },
+  "radius": {
+   "label": "Radius",
+   "value": 0.20216417,
+   "unit": "R_sun",
+   "lower": 0.19812088,
+   "upper": 0.20620747,
+   "method": "Gaia DR3 FLAME (from GSP-Phot parameters, G photometry and the Gaia distance), 16th-84th pct",
+   "source": "Gaia DR3 4472832130942575872, gaiadr3.astrophysical_parameters (ESA Gaia archive, retrieved 2026-11-15)",
+   "caveats": [
+    "FLAME assumes a single star and inherits the GSP-Phot temperature.",
+    "For M dwarfs the GSP-Phot input is unreliable: indicative only."
+   ],
+   "verified": true
+  },
+  "luminosity": {
+   "label": "Luminosity",
+   "value": 0.0033980533,
+   "unit": "L_sun",
+   "lower": 0.0033977134,
+   "upper": 0.0033983933,
+   "method": "Gaia DR3 FLAME (from GSP-Phot parameters, G photometry and the Gaia distance), 16th-84th pct",
+   "source": "Gaia DR3 4472832130942575872, gaiadr3.astrophysical_parameters (ESA Gaia archive, retrieved 2026-11-15)",
+   "caveats": [
+    "FLAME assumes a single star and inherits the GSP-Phot temperature.",
+    "For M dwarfs the GSP-Phot input is unreliable: indicative only."
+   ],
+   "verified": true
+  },
+  "mass": {
+   "label": "Mass",
+   "value": null,
+   "unit": "M_sun",
+   "lower": null,
+   "upper": null,
+   "method": "Gaia DR3 FLAME gives no mass for this source.",
+   "source": null,
+   "caveats": [],
+   "verified": false
+  },
+  "distance": {
+   "label": "Distance",
+   "value": 1.8281064,
+   "unit": "pc",
+   "lower": 1.8279749,
+   "upper": 1.8282253,
+   "method": "Bailer-Jones et al. (2021) geometric distance from the Gaia parallax, 16th-84th percentiles",
+   "source": "Gaia DR3 4472832130942575872, external.gaiaedr3_distance (ESA Gaia archive, retrieved 2026-11-15)",
+   "caveats": [],
+   "verified": true
+  },
+  "spectral_type": {
+   "label": "Spectral type",
+   "value": "M4V",
+   "unit": null,
+   "lower": null,
+   "upper": null,
+   "method": null,
+   "source": "SIMBAD via Sesame (CfA mirror, vizier.cfa.harvard.edu), retrieved 2026-11-15",
+   "caveats": [],
+   "verified": true
+  },
+  "variability_type": {
+   "label": "Variability type",
+   "value": "BY (V amplitude 0.02)",
+   "unit": null,
+   "lower": null,
+   "upper": null,
+   "method": null,
+   "source": "AAVSO VSX V2500 Oph (B/vsx, VizieR CfA, retrieved 2026-11-15)",
+   "caveats": [],
+   "verified": true
+  },
+  "variability_period": {
+   "label": "Variability period",
+   "value": 130.0,
+   "unit": "days",
+   "lower": null,
+   "upper": null,
+   "method": null,
+   "source": "AAVSO VSX V2500 Oph (B/vsx, VizieR CfA, retrieved 2026-11-15)",
+   "caveats": [],
+   "verified": true
+  }
+ }
+}

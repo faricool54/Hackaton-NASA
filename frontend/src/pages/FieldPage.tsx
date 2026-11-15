@@ -12,6 +12,7 @@ import { SyntheticBadge } from '../components/SyntheticBadge';
 import { FieldComparisons } from '../components/FieldComparisons';
 import { PositionSpectrum } from '../components/PositionSpectrum';
 import { LightCurvePanel } from '../components/LightCurvePanel';
+import { SystemPreview } from '../components/SystemPreview';
 import { trackAstrometry, type TrackAstrometry } from '../three/skyTrack';
 
 export function FieldPage({ fieldId, embedded = false }: { fieldId: string; embedded?: boolean }) {
@@ -26,20 +27,23 @@ export function FieldPage({ fieldId, embedded = false }: { fieldId: string; embe
   const [prediction, setPrediction] = useState<TrackAstrometry | null>(null);
 
   useEffect(() => {
+    let current = true;
     setField(null);
     setError(null);
+    setSystemId(null);
     Promise.all([client.getField(fieldId), client.getCandidates(fieldId), client.getKnown(fieldId)])
       .then(([f, c, k]) => {
+        if (!current) return;
         setField(f);
         setCandidates(c.candidates);
         setKnown(k.objects);
       })
-      .catch((e: Error) => setError(e.message));
-    // WS7: is there a 3D model of the objects in this field?
-    client
-      .getManifest()
-      .then((m) => setSystemId((m.systems ?? []).find((s) => s.field_id === fieldId)?.id ?? null))
-      .catch(() => setSystemId(null));
+      .catch((e: Error) => { if (current) setError(e.message); });
+    // Both display modes can use the associated system for the blink prediction.
+    client.getManifest().then((m) => {
+      if (current) setSystemId((m.systems ?? []).find((s) => s.field_id === fieldId)?.id ?? null);
+    }).catch(() => { /* The field and science panels remain available. */ });
+    return () => { current = false; };
   }, [fieldId]);
 
   // Every field with a 3D system gets the catalog prediction (WS7: the five targets, e.g. eps Ind B's own
@@ -83,7 +87,7 @@ export function FieldPage({ fieldId, embedded = false }: { fieldId: string; embe
         {' '}<SyntheticBadge synthetic={field.provenance.synthetic} />
       </h2>
       <p className="muted">{field.description}</p>
-      {systemId && (
+      {systemId && !embedded && (
         <p>
           <a href={`#/system/${systemId}`}>Explore these objects in 3D →</a>
         </p>
@@ -145,7 +149,7 @@ export function FieldPage({ fieldId, embedded = false }: { fieldId: string; embe
           {candidates.length > 0 ? <CandidateList candidates={candidates} selectedId={selectedId} onSelect={setSelectedId} /> :
             <p className="muted">No candidate measurements provided. This is not a negative detection result.</p>}
           {field.provenance.notes.map((note, index) => <p className="small muted" key={index}>{note}</p>)}
-          <p className="small muted">Spectra below are extracted independently from FITS; a physical 3D model still requires measured constraints.</p>
+          {!embedded && <p className="small muted">Spectra below are extracted independently from FITS; a physical 3D model still requires measured constraints.</p>}
           {selected && <CandidatePanel candidate={selected} />}
           <p className="legend small">
             <span className="dot known" /> known object <span className="dot unconfirmed" /> unconfirmed{' '}
@@ -156,7 +160,16 @@ export function FieldPage({ fieldId, embedded = false }: { fieldId: string; embe
       {!field.provenance.synthetic && !embedded && <PositionSpectrum position={field.center} fieldId={field.id} />}
       {!field.provenance.synthetic && !field.id.startsWith('job-') &&
         <LightCurvePanel key={field.id} targetId={field.id} />}
+      {!embedded && systemId && <FieldModelPanel key={systemId} systemId={systemId} />}
       <FieldComparisons field={field} />
     </Container>
   );
+}
+
+function FieldModelPanel({ systemId }: { systemId: string }) {
+  const [open, setOpen] = useState(false);
+  return <details className="panel system-preview-panel" onToggle={(event) => setOpen(event.currentTarget.open)}>
+    <summary>3D model</summary>
+    {open && <SystemPreview systemId={systemId} allowSynthetic />}
+  </details>;
 }

@@ -1,6 +1,7 @@
 // Pure layout math for the 3D system scene: distance mapping, body radius caps, camera
-// framing, model-time stepping, the Mira pulsation radius and the spin rules (M2: a body turns
-// only from a rotation period or the tidal-lock rule). No three.js here, so it is unit-testable
+// framing, model-time stepping and the spin rules (M2: a body turns only from a rotation period or
+// the tidal-lock rule). A pulsating star keeps a constant radius: its size change is not measured
+// (docs/VISION.md, SCIENCE.md 3D review V12b), so only its glow follows the catalog light curve. No three.js here, so it is unit-testable
 // without WebGL and SystemViewer can import it from the main chunk.
 // Everything is a MODEL REPRESENTATION: sizes are exaggerated, distances optionally compressed.
 import type { Body, Orbit, OrbitQuality, SystemModel } from '../api/types';
@@ -15,25 +16,6 @@ export const AU_PER_KM = 1 / 1.495978707e8;
 
 /** Smallest radius (scene units) a body is drawn with, unless that would make it overlap a neighbour. */
 export const MIN_VISIBLE_RADIUS: Record<DistanceMode, number> = { compressed: 0.12, linear: 0.03 };
-
-/**
- * Radius modulation of a pulsating (Mira) star: ±10 %, i.e. the class-typical ~20 % peak-to-peak
- * change of the continuum diameter (CLASS-TYPICAL, PULSATION_CITATION). It replaces the old ad-hoc
- * f^0.08 size factor (±27 % for R Dra's 6.5 mag). The V swing itself is TiO-driven (Reid & Goldston
- * 2002, ApJ 568, 931), not a Planck effect, so it is carried by the glow only.
- */
-export const PULSATION_RADIUS_AMPLITUDE = 0.1;
-
-export const PULSATION_CITATION =
-  'Ireland et al. 2004, MNRAS 350, 365; Woodruff et al. 2004, A&A 421, 703 (Mira continuum diameters change by ~20 % peak-to-peak)';
-
-/**
- * How the size is phased against the light curve: arbitrarily. No published phase offset between
- * the continuum diameter and the V light curve is applied, so the size is drawn in phase with the
- * drawn light curve for display only. This is not a claim about when the real star is largest.
- */
-export const PULSATION_PHASE_NOTE =
-  'the phase relation between size and light curve is not modelled: drawn in phase for display, not a claim about when the real star is largest';
 
 /** Orbit line colors (also used by the legend under the canvas, so both always agree). */
 export const ORBIT_COLOR: Record<OrbitQuality, string> = {
@@ -92,26 +74,13 @@ export function distanceMapper(mode: DistanceMode, refAu: number, scale: number)
   return mode === 'compressed' ? (au) => compressDistance(au, refAu) : (au) => au * scale;
 }
 
-/** True when the scene animates the body's size: a periodic pulsation with an amplitude. */
+/**
+ * True when the scene animates the body's light curve (its glow): a periodic pulsation with an
+ * amplitude. The radius stays constant: the size change of a pulsating star is not measured.
+ */
 export function drawsPulsation(body: Body): boolean {
   const v = body.variability;
   return !!v && v.kind === 'pulsation' && !!v.amplitude_mag && !!v.period_days;
-}
-
-/**
- * Radius factor of a pulsating star at `mjd`: 1 − A·sin(phase), on the same sinusoid and phase as
- * variabilityFactor. That phase choice is a display convention (PULSATION_PHASE_NOTE): the real
- * phase relation between size and light is not modelled. 1 for every body not drawn as pulsating.
- */
-export function pulsationRadiusScale(body: Body, mjd: number): number {
-  if (!drawsPulsation(body)) return 1;
-  const phase = (2 * Math.PI * (mjd - J2000_MJD)) / body.variability!.period_days!;
-  return 1 - PULSATION_RADIUS_AMPLITUDE * Math.sin(phase);
-}
-
-/** Largest size factor a body reaches while pulsating (1 if it is not drawn as pulsating). */
-export function maxPulsationScale(body: Body): number {
-  return drawsPulsation(body) ? 1 + PULSATION_RADIUS_AMPLITUDE : 1;
 }
 
 /** Non-disk bodies that orbit an existing body, grouped by parent id. */
@@ -131,7 +100,7 @@ export function childrenByParent(bodies: Body[]): Map<string, Body[]> {
  *  - parentRadius + childRadius < child periapsis for EVERY parent/child pair (bodies never
  *    pass through each other), with siblings kept apart where their orbits do not cross.
  * The visibility floor (MIN_VISIBLE_RADIUS) only applies where it does not break these rules.
- * Radii returned are nominal; the guarantee holds at the largest pulsation size too.
+ * Radii are constant: no body changes size while the scene runs.
  */
 export function capRadii(
   bodies: Body[],
@@ -140,11 +109,6 @@ export function capRadii(
   map: (au: number) => number,
 ): Map<string, number> {
   const floor = MIN_VISIBLE_RADIUS[mode];
-  const byId = new Map(bodies.map((b) => [b.id, b]));
-  const grow = (id: string) => {
-    const b = byId.get(id);
-    return b ? maxPulsationScale(b) : 1;
-  };
   const radius = new Map(base);
   const byParent = childrenByParent(bodies);
 
@@ -154,13 +118,11 @@ export function capRadii(
   for (const body of topoOrder(bodies)) {
     const kids = byParent.get(body.id);
     if (!kids) continue;
-    const kP = grow(body.id);
     let rP = radius.get(body.id) ?? 0;
     for (const kid of kids) {
       const peri = map(periapsisAu(kid.orbit!));
-      const kC = grow(kid.id);
       const rC = radius.get(kid.id) ?? 0;
-      const sum = rP * kP + rC * kC;
+      const sum = rP + rC;
       if (sum > 0.8 * peri && sum > 0) {
         const s = (0.8 * peri) / sum;
         rP *= s;
@@ -169,14 +131,14 @@ export function capRadii(
     }
     // Visibility floor for the parent only where it fits (its equal share of the 80% budget).
     const nearest = Math.min(...kids.map((k) => map(periapsisAu(k.orbit!))));
-    radius.set(body.id, Math.max(rP * kP, Math.min(floor, 0.4 * nearest)) / kP);
+    radius.set(body.id, Math.max(rP, Math.min(floor, 0.4 * nearest)));
   }
 
   // 2. Children: stay off the parent's surface and away from the siblings whose orbits they share.
   for (const body of topoOrder(bodies)) {
     const kids = byParent.get(body.id);
     if (!kids) continue;
-    const parentR = (radius.get(body.id) ?? 0) * grow(body.id);
+    const parentR = radius.get(body.id) ?? 0;
     const spans = kids
       .map((k) => ({ id: k.id, peri: map(periapsisAu(k.orbit!)), apo: map(apoapsisAu(k.orbit!)) }))
       .sort((x, y) => x.peri - y.peri);
@@ -188,8 +150,7 @@ export function capRadii(
       const room = Math.max(0, s.peri - parentR); // distance from the parent's surface at periapsis
       const childFloor = Math.min(floor, 0.4 * room);
       const cap = Math.max(childFloor, Math.min(0.9 * room, siblingCap));
-      const k = grow(s.id);
-      radius.set(s.id, Math.min((radius.get(s.id) ?? cap / k) * k, cap) / k);
+      radius.set(s.id, Math.min(radius.get(s.id) ?? cap, cap));
     }
   }
   return radius;

@@ -7,8 +7,9 @@
 // reproduce each pixel decision and each derived number:
 //   drawn    every visual property of the 3D view: colour in every colour mode (SPHEREx false
 //            colour, the six single-detector greys D1–D6, visible), on-screen brightness, glow,
-//            limb darkening, surface pattern, the class-typical toggle, size, pulsation (both
-//            clocks: free-running and Dataset time), rotation and lighting
+//            limb darkening, surface pattern, size, pulsation (both clocks: free-running and
+//            Dataset time; the radius is constant), rotation and lighting. A value that is not
+//            measured is said to be unknown (grey colour, fixed marker size), never guessed
 //   derived  the physical quantities behind the drawing (L, log g, H_p, Teq, S, band fractions ...)
 //   spherex  the body as SPHEREx sees it: angular size and separation against the 6.15″ pixel and
 //            the PSF, and the predicted AB per detector when the reliability rule allows it
@@ -16,23 +17,15 @@
 // the same pure modules the scene uses, so the panel cannot drift from the picture:
 //   colorModes.ts   bodyLook (IR false colour is the DEFAULT mode, visible CIE 1931 the other),
 //                   glow factors, the IR and visible limb-darkening tables
-//   appearance.ts   surfacePattern (no pattern on a real body unless the class-typical toggle,
-//                   OFF by default, is on), displayRadius
+//   appearance.ts   surfacePattern (no pattern on any real body; synthetic demo textures only),
+//                   displayRadius (fixed marker size when the radius is unknown)
 //   sceneLayout.ts  spinModel (spin only from a verified period, or the tidal-lock rule),
-//                   pulsation amplitude, capRadii (display radii)
-//   astro.ts        granulationParams (convection cells drawn only when resolvable)
+//                   drawsPulsation, capRadii (display radii)
+//   astro.ts        granulationParams (convection cells drawn only on the synthetic demo)
 //   ephemerides.ts  the Mira ephemeris Dataset time draws R Dra with (this module is a lazy chunk,
 //                   so importing it here adds nothing to the main chunk)
 import type { Body, Fact, SystemModel } from '../api/types';
-import {
-  CLASS_TYPICAL_CONTRAST,
-  LT_TRANSITION,
-  NEUTRAL_ALBEDO,
-  classTypicalFeature,
-  compressDistance,
-  displayRadius,
-  surfacePattern,
-} from './appearance';
+import { NEUTRAL_ALBEDO, compressDistance, displayRadius, surfacePattern } from './appearance';
 import {
   BLACKBODY_MIN_TEFF_K,
   GRANULATION_MAX_CELLS,
@@ -55,7 +48,6 @@ import {
   type SpectralType,
   type Tier,
 } from './astro';
-import { formatPeriod } from './bodyFormat';
 import {
   COLOR_MODES,
   COLOR_MODE_LABEL,
@@ -65,6 +57,7 @@ import {
   IR_DYNAMIC_RANGE_MAG,
   IR_MAPPING_TEXT,
   LUPTON_CITATION,
+  SPHEREX_LIGHT_CURVE_POINTER,
   bodyLook,
   glowLuminosity,
   irChannelIntensity,
@@ -75,11 +68,9 @@ import {
   type BodyLook,
   type DetectorMode,
 } from './colorModes';
+import { UNKNOWN_COLOUR_REASON, UNKNOWN_COLOUR_TEXT, UNKNOWN_SIZE_REASON, UNKNOWN_SIZE_TEXT, isSizeKnown } from './factOrigin';
 import {
   AU_PER_KM,
-  PULSATION_CITATION,
-  PULSATION_PHASE_NOTE,
-  PULSATION_RADIUS_AMPLITUDE,
   SPIN_ALIAS_MAX_DEG_PER_FRAME,
   capRadii,
   distanceMapper,
@@ -88,7 +79,7 @@ import {
   referenceAu,
   spinModel,
 } from './sceneLayout';
-import { MIRA_PREDICTION_CAVEAT, jdToMjd, minimumPhase, miraEphemerisFor } from './ephemerides';
+import { MIRA_PREDICTION_CAVEAT, miraEphemerisFor } from './ephemerides';
 import { SPHEREX_BANDS_CITATION, SPHEREX_DETECTORS, SPHEREX_PIXEL_ARCSEC } from './spherexBands';
 
 // --- row shape -----------------------------------------------------------------------------------
@@ -155,6 +146,9 @@ export const FLAG_TEXT: Readonly<Record<string, string>> = {
   'blackbody-unreliable': `Teff < ${BLACKBODY_MIN_TEFF_K} K: blackbody unreliable, qualitative only`,
   'brighter-than-nonlinearity':
     'brighter than the pre-launch non-linearity onset: check the OVERFLOW and NONLINEAR pixel flags',
+  // A9: the five targets were checked offline (astro.SPHEREX_SATURATION_RESULTS); the method quotes the result.
+  'overflow-measured':
+    'brighter than the pre-launch non-linearity onset; OVERFLOW measured in its SPHEREx exposures (offline FITS analysis; counts in the note below)',
   'assumed-orbit': 'orbit assumed, not fitted',
 };
 
@@ -162,7 +156,6 @@ export const FLAG_TEXT: Readonly<Record<string, string>> = {
 export const SCENE_DRAWING_DEFAULTS = {
   colourMode: COLOR_MODE_LABEL[DEFAULT_COLOR_MODE],
   otherColourModes: COLOR_MODES.filter((m) => m !== DEFAULT_COLOR_MODE).map((m) => COLOR_MODE_LABEL[m]),
-  classTypicalFeatures: false,
 } as const;
 
 // --- SPHEREx instrument constants used here (RECON §2.2) -------------------------------------------
@@ -214,7 +207,6 @@ export function pixelText(arcsec: number): string {
 const isStellar = (b: Body) => b.kind === 'star' || b.kind === 'brown_dwarf';
 const IRRADIATED: ReadonlySet<Body['kind']> = new Set<Body['kind']>(['planet', 'dwarf_planet', 'moon', 'asteroid', 'comet', 'tno', 'unknown']);
 const M_SUN = PHYS.GMSun / PHYS.G;
-const R_SUN_KM = PHYS.RSun / 1e3;
 const YEAR_S = 365.25 * 86400;
 const CHANNEL_NAME = { r: 'red', g: 'green', b: 'blue' } as const;
 
@@ -375,7 +367,7 @@ export const ROTATION_NOT_DRAWN_NOTES: Readonly<Record<string, { readonly note: 
     citation: 'Esplin et al. 2016, ApJ 832, 58 (Sect. 3); Wilson et al. 2025, arXiv:2510.24575; Miles et al. 2026, arXiv:2609.20664 (Sect. 5.2)',
   },
   'rw-aur-a': {
-    note: 'no secure period: a candidate of about 5.5–5.7 d without a formal uncertainty',
+    note: 'no secure period: a candidate of about 5.5–5.7 d without a formal uncertainty; AAVSO VSX lists 2.64 d for RW Aur (type CTTS/ROT, A+B unresolved, component not stated): not adopted',
     citation: 'Petrov et al. 2001, A&A 369, 993; Dodin, Lamzin & Chountonov 2012, arXiv:1111.2309 (Sect. 4)',
   },
 };
@@ -405,29 +397,6 @@ export const SURFACE_NOT_DRAWN_NOTES: Readonly<Record<string, { readonly note: s
   },
 };
 
-/**
- * Sensitivity ranges for illustrative inputs of the granulation count: they test whether the
- * drawn / not-drawn verdict depends on the guessed values. Its 250 R☉ is a drawing value (published
- * sizes depend on the distance and phase). R Dra has no dynamical mass. Mass range, from Feast 2009
- * (arXiv:0812.0250, read 2026-11-14): Sect. 3 says initial mass increases with period, O-Miras of
- * log P ~2.3 have initial masses < 1 M☉ and C-Miras at mean log P = 2.717 have ~1.8 M☉, so
- *   upper end 1.8 M☉  R Dra (log P = 2.39) has a shorter period, so its initial mass is below that;
- *   lower end 1 M☉    the catalog's class-typical value for its period (between the log P ~2.3 group,
- *                     < 1 M☉, and longer periods). Feast gives no number for the present-day mass,
- *                     which is lower after mass loss: any mass below 1 M☉ only lowers the count
- *                     (N ∝ M), so the drawn verdict holds there too (said on the row).
- */
-export const GRANULATION_SENSITIVITY: Readonly<
-  Record<string, { readonly radiusRsun: readonly [number, number]; readonly massMsun: readonly [number, number]; readonly massBasis: string }>
-> = {
-  'r-draconis': {
-    radiusRsun: [200, 300],
-    massMsun: [1, 1.8],
-    massBasis:
-      "M from the catalog's class-typical 1 M☉ up to 1.8 M☉, the initial mass Feast 2009 gives for C-Miras at log P = 2.72 (initial mass increases with period, and R Dra's log P is 2.39, so its initial mass is lower); its present-day mass is lower still after mass loss",
-  },
-};
-
 // --- the 'drawn' rows ----------------------------------------------------------------------------------
 
 interface Ctx {
@@ -447,6 +416,7 @@ function irColourRow({ body, system }: Ctx): AppearanceNote {
   const mapping = `${IR_MAPPING_TEXT}; each channel is the frequency-averaged blackbody ⟨I_ν⟩ = Σ∫B_λ dλ / ΣΔν over its two detectors (surface brightness, MJy/sr-like units); all three channels share one stretch, so the colour is preserved (Lupton et al. 2004), and the stretch is logarithmic over the ${IR_DYNAMIC_RANGE_MAG} mag below the brightest body × channel of the system. This body: ${look.note}${miraCaveat}`;
   const citation = `${LUPTON_CITATION}; ${SPHEREX_BANDS_CITATION}; ${COLOR_MODES_CITE}${mira ? `; ${MIRA_CITE}` : ''}`;
   if (look.drawnAs === 'synthetic') return syntheticColourRow(prop, look);
+  if (look.drawnAs === 'unknown-colour') return unknownColourRow(prop);
   if (look.drawnAs === 'outline') {
     return row('drawn', prop, 'emission not modelled: drawn as an outline', 'not-drawn', look.note, WS7_RULE, ['not-modelled']);
   }
@@ -478,6 +448,11 @@ function irColourRow({ body, system }: Ctx): AppearanceNote {
 
 const SYNTHETIC_CITE = 'synthetic demo (provenance.synthetic); frontend/src/three/appearance.ts';
 
+/** A star or brown dwarf without a measured Teff: neutral grey in every colour mode. */
+function unknownColourRow(prop: string): AppearanceNote {
+  return row('drawn', prop, `${UNKNOWN_COLOUR_TEXT}: neutral grey`, 'not-drawn', `${UNKNOWN_COLOUR_REASON}, in every colour mode`, WS7_RULE, ['missing-input']);
+}
+
 /** A synthetic demo body drawn with its hand palette (decoration). */
 function syntheticColourRow(prop: string, look: BodyLook): AppearanceNote {
   return row('drawn', prop, `${look.hex} (demo palette)`, look.tier, `${look.note}; not from measurements`, SYNTHETIC_CITE);
@@ -494,6 +469,7 @@ function detectorColourRow({ body, system, d }: Ctx): AppearanceNote | null {
   const first = looks[0].look;
   const citation = `${SPHEREX_BANDS_CITATION}; ${COLOR_MODES_CITE}`;
   if (first.drawnAs === 'synthetic') return syntheticColourRow(prop, first);
+  if (first.drawnAs === 'unknown-colour') return unknownColourRow(prop);
   if (first.drawnAs === 'outline') {
     return row('drawn', prop, 'emission not modelled: drawn as an outline', 'not-drawn', first.note, WS7_RULE, ['not-modelled']);
   }
@@ -529,6 +505,8 @@ function visibleColourRow({ body, system, d }: Ctx): AppearanceNote {
   switch (look.drawnAs) {
     case 'synthetic':
       return syntheticColourRow(prop, look);
+    case 'unknown-colour':
+      return unknownColourRow(prop);
     case 'blackbody': {
       const c = d.color;
       const xy = c.value ? ` (x ${c.value.x.toFixed(4)}, y ${c.value.y.toFixed(4)})` : '';
@@ -577,6 +555,17 @@ function brightnessRow({ body, system, d }: Ctx): AppearanceNote | null {
   if (!isStellar(body)) return null;
   const b = d.displayBrightness;
   const ir = bodyLook(body, system, 'ir');
+  if (ir.drawnAs === 'unknown-colour') {
+    return row(
+      'drawn',
+      'On-screen brightness',
+      `neutral grey, level ${fmt(ir.level, 2)} in every colour mode`,
+      'display',
+      `${UNKNOWN_COLOUR_REASON}: the ${fmt(NEUTRAL_ALBEDO * 100, 2)} % grey reference level, not a brightness computed from a temperature`,
+      WS7_RULE,
+      ['missing-input'],
+    );
+  }
   const irText = ir.drawnAs === 'qualitative' ? 'qualitative' : fmt(ir.level, 2);
   return row(
     'drawn',
@@ -600,9 +589,12 @@ function glowRow({ body, system }: Ctx): AppearanceNote | null {
   const eph = drawsPulsation(body) ? miraEphemerisFor(system.id, body.id) : null;
   let variable = '';
   if (v && v.amplitude_mag && v.period_days) {
-    const curve = `the ${fmt(v.amplitude_mag, 2)} mag${v.band ? ` ${v.band}-band` : ''} light curve modulates the glow in visible mode only (opacity × f^0.25, size × f^0.3, f = flux / mean flux; no SPHEREx light curve is modelled)`;
+    const curve = `the ${fmt(v.amplitude_mag, 2)} mag${v.band ? ` ${v.band}-band` : ''} light curve (catalog, not measured by SPHEREx) modulates the glow in visible mode only (opacity × f^0.25, size × f^0.3, f = flux / mean flux; the radius stays constant; ${SPHEREX_LIGHT_CURVE_POINTER})`;
+    const dating = eph?.observedMaximaMjd
+      ? `the ${eph.band} phase dated as in the pulsation row (measured maxima inside the SPHEREx window, the ephemeris outside it), on the asymmetric curve of the ephemeris`
+      : `the predicted ${eph?.band ?? 'V'} phase on the asymmetric curve of the ephemeris in the pulsation row`;
     const clocks = eph
-      ? `free-running clock, a sine at the catalog period with an arbitrary phase; Dataset time, the predicted ${eph.band} phase on the asymmetric curve of the ephemeris in the pulsation row (${MIRA_PREDICTION_CAVEAT})`
+      ? `free-running clock, a sine at the catalog period with an arbitrary phase; Dataset time, ${dating} (${MIRA_PREDICTION_CAVEAT})`
       : 'free-running clock, a sine at the catalog period with an arbitrary phase; Dataset time, held at the mean (no catalogue ephemeris: phase unknown)';
     const tio = miraReason(body) ? `; that swing is driven by TiO absorption, not by the Planck function (${MIRA_TIO_CITATION})` : '';
     variable = `; ${curve}: ${clocks}${tio}`;
@@ -642,41 +634,33 @@ function limbRow({ body, d }: Ctx): AppearanceNote | null {
   );
 }
 
-function granulationSensitivity(body: Body, cells: number): string {
-  const s = GRANULATION_SENSITIVITY[body.id];
-  if (!s || body.radius_km === null || body.mass_kg === null) return '';
-  const r0 = body.radius_km / R_SUN_KM;
-  const m0 = body.mass_kg / M_SUN;
-  // N = 2R / (10 H_p) ∝ M / (Teff R): Teff fixed, corners of the ranges.
-  const at = (r: number, m: number) => cells * (m / m0) * (r0 / r);
-  const lo = at(s.radiusRsun[1], s.massMsun[0]);
-  const hi = at(s.radiusRsun[0], s.massMsun[1]);
-  const same = lo < GRANULATION_MAX_CELLS === hi < GRANULATION_MAX_CELLS && lo < GRANULATION_MAX_CELLS === cells < GRANULATION_MAX_CELLS;
-  // Below the range the count only drops (N ∝ M), so a 'drawn' verdict also holds for any lower mass.
-  const lower = same && lo < GRANULATION_MAX_CELLS ? ', also for any lower mass (N ∝ M)' : '';
-  return `; for R ${s.radiusRsun[0]}–${s.radiusRsun[1]} R☉ and M ${s.massMsun[0]}–${s.massMsun[1]} M☉ (illustrative ranges) the count is ${fmt(lo, 2)}–${fmt(hi, 2)}, so the verdict ${same ? 'holds' : 'does NOT hold'}${lower}; ${s.massBasis}`;
-}
-
-/** Suffix of a real star's 'Surface pattern' value when its cells are resolvable: they are class-typical. */
-export const CELLS_TOGGLE_ONLY = " (only with 'Show class-typical features', off by default)";
-
 function surfaceRow({ body, system, d, synthetic }: Ctx): AppearanceNote {
   const prop = 'Surface pattern';
   if (body.kind === 'star') {
     const g = d.granulation;
-    if (g.value === null) return row('drawn', prop, 'none (convection cells not computed)', 'not-drawn', g.method, g.citation, g.flags);
+    if (g.value === null) {
+      return row('drawn', prop, 'none: smooth sphere (convection cells not computed)', 'not-drawn', g.method, g.citation, g.flags);
+    }
     const cells = g.value;
-    const margin = g.draw
-      ? `the verdict holds unless M/(Teff·R) is ≥ ${fmt(GRANULATION_MAX_CELLS / cells, 2)}× larger than drawn (N ∝ M/(Teff·R))`
-      : `the verdict holds unless M/(Teff·R) is ≥ ${fmt(cells / GRANULATION_MAX_CELLS, 2)}× smaller than drawn (N ∝ M/(Teff·R))`;
+    if (g.draw && synthetic) {
+      return row(
+        'drawn',
+        prop,
+        `≈${fmt(cells, 2)} convection cells across, ±${fmt(g.contrast.value * 100, 2)} % contrast, turnover ≈ ${fmt(g.turnoverDays.value ?? 0, 2)} d (synthetic demo)`,
+        'illustrative',
+        `synthetic demo star: ${g.method}; drawn as 3D cellular noise in object space seeded by the body id, evolving with model time (τ: ${g.turnoverDays.method}); contrast ${g.contrast.tier}: ${g.contrast.method}`,
+        `${g.citation}; synthetic demo (provenance.synthetic)`,
+        g.flags,
+      );
+    }
     if (g.draw) {
       return row(
         'drawn',
         prop,
-        `≈${fmt(cells, 2)} convection cells across, ±${fmt(g.contrast.value * 100, 2)} % contrast, turnover ≈ ${fmt(g.turnoverDays.value ?? 0, 2)} d${synthetic ? '' : CELLS_TOGGLE_ONLY}`,
-        g.tier,
-        `${synthetic ? '' : 'convection cells are expected for this class but none is observed on this star, so the default view is a smooth sphere (docs/VISION.md) and the cells appear only with the class-typical toggle; '}${g.method}; drawn as 3D cellular noise in object space seeded by the body id, evolving with model time (τ: ${g.turnoverDays.method}); contrast ${g.contrast.tier}: ${g.contrast.method}; ${margin}${granulationSensitivity(body, cells)}`,
-        `${g.citation}; giant cells observed on π¹ Gru: Paladini et al. 2018, Nature 553, 310`,
+        'none: smooth sphere with limb darkening',
+        'not-drawn',
+        `no surface of this star is resolved or mapped, so no convection cells are drawn (docs/VISION.md: no invented spots, cells or bands), although ≈${fmt(cells, 2)} cells across would be large enough to draw (${g.method})`,
+        `${g.citation}; ${WS7_RULE}`,
         g.flags,
       );
     }
@@ -685,12 +669,12 @@ function surfaceRow({ body, system, d, synthetic }: Ctx): AppearanceNote {
       prop,
       `none: ≈${fmt(cells, 2)} cells across, too small to draw`,
       g.tier,
-      `${g.method}; cells are drawn only when fewer than ${GRANULATION_MAX_CELLS} fit across the disc; ${margin}`,
+      `${g.method}; cells are drawn only on the synthetic demo, and only when fewer than ${GRANULATION_MAX_CELLS} fit across the disc; the verdict holds unless M/(Teff·R) is ≥ ${fmt(cells / GRANULATION_MAX_CELLS, 2)}× smaller than drawn (N ∝ M/(Teff·R))`,
       g.citation,
       g.flags,
     );
   }
-  const pattern = surfacePattern(body, system, false);
+  const pattern = surfacePattern(body, system);
   if (pattern === 'procedural') {
     return row(
       'drawn',
@@ -700,10 +684,6 @@ function surfaceRow({ body, system, d, synthetic }: Ctx): AppearanceNote {
       'synthetic demo system: random bands (gas giants, brown dwarfs) or blotches and craters (rocky and icy bodies), seeded by the body id',
       'synthetic demo (provenance.synthetic); frontend/src/three/appearance.ts surfacePattern',
     );
-  }
-  if (pattern !== 'none') {
-    // Not reached today (a real body has no pattern with the toggle off); kept honest if the gate changes.
-    return row('drawn', prop, pattern, 'illustrative', `${pattern}: a drawing pattern, not this body's measured map`, WS7_RULE);
   }
   if (body.kind === 'disk') {
     const r = paramTier(body, 'radius');
@@ -740,69 +720,28 @@ function modulationText(body: Body): string {
   return 'no surface map of this body is measured, and the catalog has no verified rotational-modulation amplitude for it, so no craters, bands or spots are drawn';
 }
 
-/** 'L9–T3.5': the L/T-transition window of appearance.classTypicalFeature. */
-const LT_TEXT = `${LT_TRANSITION.from.letter}${LT_TRANSITION.from.subtype}–${LT_TRANSITION.to.letter}${LT_TRANSITION.to.subtype}`;
-
-function classTypicalRow({ body, system, d, synthetic }: Ctx): AppearanceNote | null {
-  if (synthetic) return null;
-  const prop = "Toggle 'Show class-typical features'";
-  const g = d.granulation;
-  if (body.kind === 'star' && g.draw && g.value !== null) {
-    // Resolvable convection cells (R Dra): expected for the class, never observed on this star.
-    return row(
-      'drawn',
-      prop,
-      `off by default; when on: ≈${fmt(g.value, 2)} convection cells across, ±${fmt(g.contrast.value * 100, 2)} % contrast (ILLUSTRATIVE)`,
-      'class-typical',
-      'giant convection cells are expected in the atmospheres of cool giants and AGB stars (models) and have been imaged on another AGB star, but none is observed on this one: the drawn cells are random (seeded by the body id) and their contrast is a drawing choice, never this star’s map; shown in every colour mode',
-      `${g.citation}; giant cells observed on π¹ Gru: Paladini et al. 2018, Nature 553, 310`,
-    );
-  }
-  const feature = classTypicalFeature(body, system);
-  if (feature.pattern !== 'none' && surfacePattern(body, system, true) === feature.pattern) {
-    const shownIn = isStellar(body) ? 'in every colour mode' : 'in the visible mode (SPHEREx modes draw the planet as an outline)';
-    return row(
-      'drawn',
-      prop,
-      `off by default; when on: ${feature.what}, ±${fmt(CLASS_TYPICAL_CONTRAST.bands * 100, 2)} % about the mean brightness (ILLUSTRATIVE)`,
-      'class-typical',
-      `typical of ${feature.basis}, not observed on this body: the drawn pattern is random (seeded by the body id) and its contrast is a drawing choice, never this body's map; shown ${shownIn}`,
-      feature.citation,
-    );
-  }
-  if (body.kind === 'star' || body.kind === 'disk') {
-    return row(
-      'drawn',
-      prop,
-      'off by default; nothing to add for this kind of body',
-      'not-drawn',
-      body.kind === 'star'
-        ? 'the toggle adds nothing to this star: its convection cells are too small to draw (granulation rule above)'
-        : 'the toggle adds nothing to a disk',
-      WS7_RULE,
-    );
-  }
-  return row(
-    'drawn',
-    prop,
-    'off by default; nothing to add for this body',
-    'not-drawn',
-    `the toggle draws only the class-typical features of the S5 list: patchy cloud bands on L/T-transition brown dwarfs (${LT_TEXT}) and zonal bands on gas giants; no class-level source for a drawn pattern has been checked for this body, so it stays uniform`,
-    WS7_RULE,
-  );
-}
-
 function sizeRow({ body, system }: Ctx): AppearanceNote {
   const prop = 'Size on screen';
   const bodies = system.bodies;
   const refAu = referenceAu(bodies);
   const scale = linearScale(bodies);
   if (body.kind === 'disk') {
-    const outerAu = (body.radius_km ?? 0) * AU_PER_KM;
+    if (!isSizeKnown(body)) {
+      return row(
+        'drawn',
+        prop,
+        `fixed marker ring (${UNKNOWN_SIZE_TEXT})`,
+        'not-drawn',
+        "no disk radius is measured, so the ring is drawn at a fixed 2.5 × the host's display radius, not scaled from any radius",
+        WS7_RULE,
+        ['missing-input'],
+      );
+    }
+    const outerAu = (body.radius_km as number) * AU_PER_KM;
     return row(
       'drawn',
       prop,
-      body.radius_km === null ? 'default ring' : `ring to ${fmt(outerAu, 3)} AU`,
+      `ring to ${fmt(outerAu, 3)} AU`,
       'display',
       `flat ring from 1.4 × the host's display radius out to the disk radius, mapped like the orbits (compressed: ${fmt(compressDistance(outerAu, refAu), 3)} units; true proportions: ${fmt(outerAu * scale, 3)} units)`,
       DISPLAY_CITE,
@@ -814,10 +753,18 @@ function sizeRow({ body, system }: Ctx): AppearanceNote {
   const rc = compressed.get(body.id) ?? displayRadius(body);
   const rl = linear.get(body.id) ?? rc;
   const method = `display radius ÷ physical radius, in scene units. Display radius = clamp(0.12 · R_km^0.18, 0.12, 2.2), then capped so no body reaches its parent or a sibling (capRadii). True proportions: ${fmt(scale, 3)} units per AU; compressed: 3 units per ${fmt(refAu, 3)} AU in its linear core, logarithmic beyond`;
-  if (body.radius_km === null || !(body.radius_km > 0)) {
-    return row('drawn', prop, 'default size (radius unknown)', 'display', method, DISPLAY_CITE, ['missing-input']);
+  if (!isSizeKnown(body)) {
+    return row(
+      'drawn',
+      prop,
+      `fixed marker, ${fmt(rc, 2)} scene units (${UNKNOWN_SIZE_TEXT})`,
+      'not-drawn',
+      `${UNKNOWN_SIZE_REASON} (the same marker for every body without a radius, then capped like the others: capRadii); the scene label says '${UNKNOWN_SIZE_TEXT}'`,
+      WS7_RULE,
+      ['missing-input'],
+    );
   }
-  const rAu = body.radius_km * AU_PER_KM;
+  const rAu = (body.radius_km as number) * AU_PER_KM;
   const exLinear = rl / (rAu * scale);
   const exCompressed = rc / ((rAu * 3) / refAu);
   return row(
@@ -830,26 +777,27 @@ function sizeRow({ body, system }: Ctx): AppearanceNote {
   );
 }
 
-/**
- * The size of a pulsating star in both clocks of the viewer: free-running (sceneLayout
- * pulsationRadiusScale, a sine with an arbitrary phase) and Dataset time (ephemerides
- * predictedPulsation, the catalogue ephemeris of maximum light, or the mean size without one).
- */
+/** The radius of a pulsating star: constant in both clocks, because its size change is not measured. */
 function pulsationRow({ body, system }: Ctx): AppearanceNote | null {
   if (!drawsPulsation(body)) return null;
-  const a = PULSATION_RADIUS_AMPLITUDE;
   const eph = miraEphemerisFor(system.id, body.id);
-  const free = `Free-running clock: radius factor 1 − ${a}·sin(2π·(MJD − 51544.5)/P) at the catalog period P = ${formatPeriod(body.variability!.period_days!)}; the phase is arbitrary (zero at J2000), so the drawn size is not a prediction for any date`;
-  const dataset = eph
-    ? `Dataset time: radius factor 1 + ${a}·s(φ), where s is the asymmetric ${eph.band}-band light-curve shape (+1 at maximum, −1 at minimum; the rise from minimum to maximum takes ${fmt(eph.riseFraction * 100, 2)} % of the cycle, so minimum is at φ = ${fmt(minimumPhase(eph), 2)}) and φ the phase predicted from the epoch of maximum HJD ${eph.epochHjd.toFixed(2)} (MJD ${jdToMjd(eph.epochHjd).toFixed(1)}) and P = ${eph.periodDays} d, with a ±${fmt(eph.timingSigmaDays, 2)} d timing band (1σ). ${eph.note} ${MIRA_PREDICTION_CAVEAT}`
-    : 'Dataset time: no catalogue ephemeris of maximum light is tabulated for this star, so it is drawn at its mean size (phase unknown)';
+  const ephemeris = eph ? `the ephemeris ${eph.source} (±${fmt(eph.timingSigmaDays, 2)} d timing band, 1σ)` : '';
+  // V12a: inside the SPHEREx window the measured maxima date the phase; the ephemeris only outside it.
+  const dating = !eph
+    ? ''
+    : eph.observedMaximaMjd && eph.observedTimingDays !== null
+      ? `, which Dataset time dates with the ${eph.band} maxima measured by AAVSO inside the SPHEREx window (MJD ${eph.observedMaximaMjd.join(', ')}; linear phase between them, ±${fmt(eph.observedTimingDays, 2)} d band) and with ${ephemeris} outside it`
+      : `, which Dataset time dates with ${ephemeris}`;
+  const measuredCite = eph?.observedMaximaSource ? `; measured maxima: ${eph.observedMaximaSource}; their band: ${eph.observedTimingSource ?? 'not stated'}` : '';
   return row(
     'drawn',
     'Pulsation (radius)',
-    `±${fmt(a * 100, 2)} %`,
-    'class-typical',
-    `${free}. ${dataset}. In both clocks the amplitude is the class-typical ~20 % peak-to-peak continuum diameter change of Mira variables, not measured on this star, and ${PULSATION_PHASE_NOTE}`,
-    eph ? `${PULSATION_CITATION}; ephemeris: ${eph.source}; timing band: ${eph.timingSource}` : PULSATION_CITATION,
+    'radius drawn constant',
+    'not-drawn',
+    `the size change of this pulsating star is not measured, so its radius is drawn constant in both clocks (docs/VISION.md: a pulsation is drawn from a measured light curve, otherwise a static model); only the glow follows the ${body.variability?.band ?? 'visual'}-band light curve (catalog, not measured by SPHEREx; see the glow row)${dating}; ${SPHEREX_LIGHT_CURVE_POINTER}`,
+    eph
+      ? `${WS7_RULE}; SCIENCE.md 3D review (V12b, V12a); ephemeris: ${eph.source}; timing band: ${eph.timingSource}${measuredCite}`
+      : `${WS7_RULE}; SCIENCE.md 3D review (V12b)`,
   );
 }
 
@@ -954,7 +902,6 @@ function drawnRows(ctx: Ctx): AppearanceNote[] {
     glowRow(ctx),
     limbRow(ctx),
     surfaceRow(ctx),
-    classTypicalRow(ctx),
     sizeRow(ctx),
     pulsationRow(ctx),
     rotationRow(ctx),

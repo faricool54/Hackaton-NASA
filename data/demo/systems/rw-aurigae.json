@@ -89,11 +89,18 @@
           "verified": true
         },
         {
-          "label": "Radius (estimate)",
+          "label": "Radius (derived from the catalog luminosity)",
           "value": "~1.3",
           "unit": "solar radii",
-          "source": "Herczeg & Hillenbrand 2014 (1.20 at 140 pc) rescaled to the Gaia distance; uncertain",
+          "source": "derived by WS7: Herczeg & Hillenbrand 2014, ApJ 786, 97 list 1.20 solar radii at their assumed 140 pc; a radius from the luminosity at a fixed temperature scales with the distance (L scales as d², and by Stefan–Boltzmann R as the square root of L), so at the Gaia DR3 distance of 156.1 pc it is 1.20 × 156.1 / 140 = 1.34. Catalog, not measured by SPHEREx; uncertain",
           "verified": false
+        },
+        {
+          "label": "Brightness change seen by SPHEREx (A+B)",
+          "value": "about 1.0 mag brighter at 0.75–0.77 µm, Sep 2025 → Sep 2026",
+          "unit": null,
+          "source": "SPHEREx DR1+QR3, unsaturated D1 exposures, offline FITS analysis; docs/validation/rw-aurigae.md",
+          "verified": true
         }
       ],
       "candidate_id": null
@@ -237,18 +244,20 @@
       "candidate_id": null
     }
   ],
-  "representation_note": "3D model drawn from published catalog and literature values (each fact shows its source) - not an image. Sizes and distances may be exaggerated for visibility.",
+  "representation_note": "3D model drawn from published catalog and literature values, not measured by SPHEREx unless a fact says 'seen by SPHEREx' (each fact shows its source) - not an image. What no source gives is not drawn: an unknown temperature is drawn grey and an unknown size at a fixed marker size, not to scale. Sizes and distances may be exaggerated for visibility.",
   "provenance": {
     "pipeline_version": "0.1.0",
-    "built_at": "2026-11-14T18:15:21.326328Z",
+    "built_at": "2026-11-15T14:38:48.633879Z",
     "synthetic": false,
     "data_releases": [],
     "notes": [
-      "Values checked on 2026-11-14 against the NASA Exoplanet Archive, SIMBAD (CfA mirror), Gaia DR3, VizieR and the cited papers (tasks/WS7-3d-systems.md, WS7-2). Facts still marked 'unverified' are estimates no source states.",
+      "Values checked on 2026-11-14 against the NASA Exoplanet Archive, SIMBAD (CfA mirror), Gaia DR3, VizieR and the cited papers (tasks/WS7-3d-systems.md, WS7-2). Facts still marked 'unverified' are estimates no source states. The 'seen by SPHEREx' facts were copied from the validation records (docs/validation/; AI analysis with an independent second analysis, human review pending), not from that catalog cross-check.",
       "Orbital and pulsation phases are arbitrary (no epoch): positions are not predictions for a real date.",
       "The disk body has no orbit: the UI draws it centred on its host (rw-aur-a).",
       "SIMBAD swaps the Gaia DR3 identifiers of the two stars: A is Gaia DR3 156430817820015232 and B is 156430822114424576 (WDS position angle; Kurtovic et al. 2024).",
-      "Parallax and proper motion come from B's Gaia DR3 solution (A's is unreliable, RUWE 16), as adopted by Kurtovic et al. 2024. Radial velocity 15 km/s from SIMBAD (Nguyen et al. 2012)."
+      "Parallax and proper motion come from B's Gaia DR3 solution (A's is unreliable, RUWE 16), as adopted by Kurtovic et al. 2024. Radial velocity 15 km/s from SIMBAD (Nguyen et al. 2012).",
+      "WS3 object context of 'RW Aur' (RW Aur, Gaia DR3 156430817820015232, match 'ambiguous'; catalog, not measured by SPHEREx): Spectral type K1/5e+K5e; Variability type CTTS/ROT+CTTS (V 9.2-13.6); Variability period 2.64 days. Not used (unknown or not verified in WS3): Distance. Not attached to A or B: the context describes the unresolved A+B pair, and SIMBAD's A/B names are swapped against the WDS (V15, open).",
+      "Catalog values from the frozen WS3 object-context snapshot 'rw-aurigae' (query 'RW Aur'; services answered 2026-11-15T03:44:42Z to 2026-11-15T04:21:31Z; replayed offline from the WS3 fixtures), pipeline/errante/systems/inputs/objects/: not measured by SPHEREx, and not queried when the site is built."
     ]
   }
 }

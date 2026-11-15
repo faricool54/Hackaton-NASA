@@ -27,7 +27,7 @@
       "kind": "brown_dwarf",
       "description": "A free-floating brown dwarf so cold that water could condense in its atmosphere.",
       "radius_km": 71492.0,
-      "mass_kg": 9.49e+27,
+      "mass_kg": null,
       "teff_k": 285.0,
       "spectral_type": "Y4 (approx.)",
       "rotation_period_hours": null,
@@ -42,7 +42,7 @@
       "facts": [
         {
           "label": "Spectral type",
-          "value": "~Y4",
+          "value": "~Y4 (Kirkpatrick et al. 2021); SIMBAD lists Y2",
           "unit": null,
           "source": "Kirkpatrick et al. 2021, ApJS 253, 7; Luhman et al. 2024, AJ 167, 5 (JWST)",
           "verified": true
@@ -81,21 +81,43 @@
           "unit": "Jupiter radii",
           "source": "Luhman et al. 2024, AJ 167, 5 (JWST) (0.10–0.11 solar radii)",
           "verified": true
+        },
+        {
+          "label": "Seen by SPHEREx",
+          "value": "only at 3.8–5.0 µm: ~0.3 mJy at 3.8–4.4 µm, ~0.5 mJy at 4.4–5.0 µm",
+          "unit": null,
+          "source": "SPHEREx DR1, 258 frames, offline FITS analysis; docs/validation/wise-0855.md (fluxes depend on the PSF model, ~11 %)",
+          "verified": true
+        },
+        {
+          "label": "Distance",
+          "value": "2.278 (2.266-2.29)",
+          "unit": "pc",
+          "source": "SIMBAD via Sesame (CfA mirror, vizier.cfa.harvard.edu), retrieved 2026-11-15 | 1/parallax (SIMBAD parallax 439.0 +/- 2.4 mas, ref 2021ApJS..253....7K) (via WS3 object context; catalog, not measured by SPHEREx)",
+          "verified": true
+        },
+        {
+          "label": "Spectral type",
+          "value": "Y2",
+          "unit": null,
+          "source": "SIMBAD via Sesame (CfA mirror, vizier.cfa.harvard.edu), retrieved 2026-11-15 (via WS3 object context; catalog, not measured by SPHEREx)",
+          "verified": true
         }
       ],
       "candidate_id": null
     }
   ],
-  "representation_note": "3D model drawn from published catalog and literature values (each fact shows its source) - not an image. Sizes and distances may be exaggerated for visibility.",
+  "representation_note": "3D model drawn from published catalog and literature values, not measured by SPHEREx unless a fact says 'seen by SPHEREx' (each fact shows its source) - not an image. What no source gives is not drawn: an unknown temperature is drawn grey and an unknown size at a fixed marker size, not to scale. Sizes and distances may be exaggerated for visibility.",
   "provenance": {
     "pipeline_version": "0.1.0",
-    "built_at": "2026-11-15T05:12:09.454672Z",
+    "built_at": "2026-11-15T14:38:50.162416Z",
     "synthetic": false,
     "data_releases": [],
     "notes": [
-      "Values checked on 2026-11-14 against the NASA Exoplanet Archive, SIMBAD (CfA mirror), Gaia DR3, VizieR and the cited papers (tasks/WS7-3d-systems.md, WS7-2). Facts still marked 'unverified' are estimates no source states.",
+      "Values checked on 2026-11-14 against the NASA Exoplanet Archive, SIMBAD (CfA mirror), Gaia DR3, VizieR and the cited papers (tasks/WS7-3d-systems.md, WS7-2). Facts still marked 'unverified' are estimates no source states. The 'seen by SPHEREx' facts were copied from the validation records (docs/validation/; AI analysis with an independent second analysis, human review pending), not from that catalog cross-check.",
       "The challenge gives 133.79513, −7.24515: the WISE All-Sky position at epoch 2010.34 (MJD 55320.4). The object moves ~8.2 arcsec per year, so positions must be propagated to the date of each image.",
-      "The model is drawn with 5 Jupiter masses, an illustrative value inside the published 3–10 range."
+      "Catalog values from the frozen WS3 object-context snapshot 'wise-0855' (query 'WISE J085510.83-071442.5'; services answered 2026-11-15T03:44:36Z to 2026-11-15T03:44:41Z; replayed offline from the WS3 fixtures), pipeline/errante/systems/inputs/objects/: not measured by SPHEREx, and not queried when the site is built.",
+      "Not measured, so not drawn (shown as unknown): WISE 0855−0714: mass (only a 3–10 Jupiter-mass range from evolutionary models for ages of 1–10 Gyr is published (Luhman et al. 2024); a single value would be a pick inside it; WS3 object context: No Gaia DR3 counterpart)."
     ]
   }
 }
