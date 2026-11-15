@@ -77,7 +77,7 @@ pendientes. Ver PARALLEL_PLAN.md y tasks/WS4-backend.md.
 
 - #52: revisión `display-mask-v4` + huella de código/dependencias; cambio de máscara/render WS2 invalida
   jobs previos. Pedidos conservan contexto; un pendiente de otra revisión no publica bajo clave vieja.
-- #53: contrato **0.4.0**, basado en composites **0.3.1** #39. Es draft para revisión coordinada con WS3;
+- #53: contrato **0.4.0**, preservando composites **0.3.1** #39 (ya mergeado). Requiere revisión coordinada con WS3;
   no se modificó la rama del compañero. Schema, Pydantic, tipos TS y tests de validación juntos.
 - #54: POST `/api/spectra` y `/api/fields/{id}/comparisons`; WS1 cube/point + WS2 photometry/compare.
   Un proceso científico supervisado por instancia, 140 s/512 MiB/log 1 MiB, trabajo idéntico compartido,
@@ -97,5 +97,5 @@ procedencia cruzada, PNG corrupto regenerado, singleflight/cancelación, errores
 deadline/disco. `scripts/dev.py check` verifica ownership, schema/lint, tests Python/TS y build.
 Las pruebas no sustituyen los ensayos científicos R05 ni mediciones físicas para WS7.
 
-Revisión/integración: #52 por separado; luego #39 → #53 → #54 → #55 (WS5 ciencia) → este registro. Tras cada
+Revisión/integración: #52 por separado; luego #53 → #54 → #55 (WS5 ciencia) → #56 este registro. #39 ya está en main. Tras cada
 squash, merge de main/check/push/retarget del siguiente PR. Uso local no requiere hosting contratado.

@@ -46,7 +46,8 @@ puede usar fixtures del modelo **acordado**, pero no inventar otro formato compa
    para mostrarlos; coordenadas arbitrarias requieren servicio activo. Uso local no requiere contratar hosting.
 
 Contrato de jobs ya acordado e implementado: [CONTRACT.md](CONTRACT.md). No crear otra API de jobs.
-Orden nuevo: #52 independiente; #39 → #53 → #54 → #55 (WS5 ciencia) → docs. Mantener los PRs separados por
+Orden nuevo: #52 independiente; #53 → #54 → #55 (WS5 ciencia) → #56 docs. #39 ya está mergeado y se incorporó
+a estas ramas, preservando composites y resolviendo la versión del contrato en el PR correspondiente. Mantener los PRs separados por
 ownership; después de cada squash traer main y retargetear el siguiente. Los PRs de color #40/#41 y 3D #47
 siguen a cargo de sus autores. Esta integración no modifica sus ramas.
 

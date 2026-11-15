@@ -3,7 +3,7 @@
 Fuente de verdad: [`pipeline/errante/models.py`](../pipeline/errante/models.py).
 Generado: [`shared/schema/*.schema.json`](../shared/schema/) (`python scripts/dev.py schema`). Espejo TS:
 [`frontend/src/api/types.ts`](../frontend/src/api/types.ts). Versión de esta integración: **0.4.0** (#53),
-después de **0.3.1** composites (#39). **0.3.0** (#32) agregó `JobSubmitRequest`, `JobStatusResponse` y `ResolvedRegion`.
+después de **0.3.1** composites (#39, ya mergeado). **0.3.0** (#32) agregó `JobSubmitRequest`, `JobStatusResponse` y `ResolvedRegion`.
 0.2.0 agregó sistemas 3D y 0.2.1 `Orbit.quality`/`note`. Los productos anteriores siguen siendo compatibles.
 Ejemplos sintéticos: [`data/demo/`](../data/demo/). Los cinco campos reales de WS2 están en
 [`data/products/`](../data/products/); sus imágenes no equivalen a cinco validaciones científicas R05.
@@ -120,13 +120,13 @@ Las respuestas científicas exigen `synthetic: false`; un campo sintético se re
 422 = selección/posición inválida, 413 = exceso, 503 = cupo/disco, 502/504 = fallo/deadline.
 Sin cobertura o cero puntos utilizables sigue siendo un resultado explícito, nunca una detección inventada.
 
-Contrato, backend y UI son PRs dependientes: #39 → #53 → #54 → #55 (WS5 ciencia). El #53 queda draft hasta
-revisión del contrato; no modificar el PR de composites de otro compañero. Tras cada squash traer main,
+Contrato, backend y UI son PRs dependientes: #53 → #54 → #55 (WS5 ciencia); #39 ya está en main.
+El contrato requiere revisión afectada; se incorporó el merge de composites sin modificar su rama. Tras cada squash traer main,
 check/push y retargetear el siguiente PR. `compare.json` interno de WS2 no se consume directamente en UI.
 
 ## Extensiones aún sin contrato publicado
 
-- #39 propone `Field.composites` (falso color por temporada), actualizado a 0.3.1; conservarlo al revisar 0.4.0.
+- `Field.composites` (falso color por temporada) está integrado desde #39 en 0.3.1; 0.4.0 lo conserva.
 - C01/C07: metadatos ampliados de selección, cobertura y flags con significado.
 - C02/C03: revisión de interpretación científica y futuras medidas adicionales con WS3; no duplicar la API 0.4.0.
 - C05: ficha Gaia y mediciones para modelos físicos 3D; no usar el esquema ilustrativo como mediciones nuevas.
