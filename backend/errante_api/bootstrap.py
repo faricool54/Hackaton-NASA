@@ -6,7 +6,29 @@ from pathlib import Path
 
 from errante.products import ProductStore
 
-from .publication import publication_lock
+from .publication import AtomicProductStore, publication_lock
+
+
+def _seed_frame_flags(source: ProductStore, destination: AtomicProductStore) -> None:
+    """Fill missing flags on matching curated snapshots in an existing volume."""
+    for summary in source.read_manifest().fields:
+        if summary.synthetic or not destination.has_field(summary.id):
+            continue
+        seed = source.read_field(summary.id)
+        if not seed.frame_flags:
+            continue
+        live = destination.read_field(summary.id)
+        if live.provenance.synthetic or live.provenance.built_at != seed.provenance.built_at or live.grid != seed.grid:
+            continue
+        seed_frames = {frame.id: frame for frame in seed.frames}
+        missing = {
+            frame.id: seed.frame_flags[frame.id]
+            for frame in live.frames
+            if frame.id in seed.frame_flags and frame.id not in live.frame_flags and frame == seed_frames[frame.id]
+        }
+        if missing:
+            live.frame_flags.update(missing)
+            destination.write_field(live)
 
 
 def seed_products(source: Path, destination: Path) -> None:
@@ -17,7 +39,11 @@ def seed_products(source: Path, destination: Path) -> None:
     with publication_lock(destination):
         manifest = destination / "manifest.json"
         if manifest.exists():
-            ProductStore(destination).read_manifest()  # A corrupt existing tree needs operator attention.
+            runtime = AtomicProductStore(destination)
+            runtime.read_manifest()  # A corrupt existing tree needs operator attention.
+            seed = ProductStore(source)
+            if seed.manifest_path.is_file():
+                _seed_frame_flags(seed, runtime)
             return
         store = ProductStore(source)
         doc = store.read_manifest()
