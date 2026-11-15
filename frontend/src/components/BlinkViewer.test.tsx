@@ -20,10 +20,12 @@ function renderFrame(quality: Partial<Frame>, flags?: FrameFlagSummary) {
 describe('frame quality in the blink viewer', () => {
   it('shows valid coverage and the FITS source for an exposure', () => {
     const html = renderFrame({ valid_fraction: 0.875 });
-    expect(html).toContain('87.5% valid pixels');
+    expect(html).toContain('Valid-pixel coverage · 87.5%');
     expect(frame.source_uri).toMatch(/^ibe\/data\/spherex\//);
     expect(html).toContain(`href="https://irsa.ipac.caltech.edu/${frame.source_uri}"`);
-    expect(html).toContain('across the whole image');
+    expect(html).toContain('Download FITS from IRSA');
+    expect(html).toContain(`Frame ${frame.id}`);
+    expect(html).toContain('The target can be saturated even when coverage is high');
     expect(html).toContain('Archive saturation and contamination flags are unavailable');
   });
 
@@ -39,15 +41,15 @@ describe('frame quality in the blink viewer', () => {
   });
 
   it('keeps near-total and near-zero coverage distinct from the endpoints', () => {
-    expect(renderFrame({ valid_fraction: 0.9999 })).toContain('&gt;99.9% valid pixels');
-    expect(renderFrame({ valid_fraction: 0.0001 })).toContain('&lt;0.1% valid pixels');
-    expect(renderFrame({ valid_fraction: 1 })).toContain('100.0% valid pixels');
+    expect(renderFrame({ valid_fraction: 0.9999 })).toContain('Valid-pixel coverage · &gt;99.9%');
+    expect(renderFrame({ valid_fraction: 0.0001 })).toContain('Valid-pixel coverage · &lt;0.1%');
+    expect(renderFrame({ valid_fraction: 1 })).toContain('Valid-pixel coverage · 100.0%');
   });
 
   it('distinguishes zero valid pixels from missing metadata', () => {
-    expect(renderFrame({ valid_fraction: 0 })).toContain('0.0% valid pixels');
+    expect(renderFrame({ valid_fraction: 0 })).toContain('Valid-pixel coverage · 0.0%');
     const html = renderFrame({ valid_fraction: null, source_uri: null });
-    expect(html).toContain('valid coverage unknown');
+    expect(html).toContain('Valid-pixel coverage · unknown');
     expect(html).toContain('Original FITS: unavailable');
   });
 
@@ -57,6 +59,6 @@ describe('frame quality in the blink viewer', () => {
         imageUrl={(image) => image} candidates={[]} known={[]} selectedId={null} onSelect={() => {}} />,
     );
     expect(html).toContain('False color (infrared)');
-    expect(html).not.toContain('Frame quality');
+    expect(html).not.toContain('Valid-pixel coverage');
   });
 });

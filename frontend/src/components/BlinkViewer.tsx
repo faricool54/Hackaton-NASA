@@ -36,6 +36,7 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 const ZOOM_LEVELS = [1, 2, 4] as const;
+const IRSA_ORIGIN = 'https://irsa.ipac.caltech.edu';
 
 const FRAME_FLAGS = [
   ['OVERFLOW', 'Saturation'],
@@ -141,7 +142,7 @@ export function BlinkViewer({ field, frames, composites, imageUrl, candidates, k
   const frameFlags = current && field.frame_flags?.[current.id];
   const sourceUri = current?.source_uri;
   const sourceUrl = sourceUri?.startsWith('ibe/data/spherex/')
-    ? `https://irsa.ipac.caltech.edu/${sourceUri}`
+    ? `${IRSA_ORIGIN}/${sourceUri}`
     : sourceUri;
 
   return (
@@ -384,12 +385,14 @@ export function BlinkViewer({ field, frames, composites, imageUrl, candidates, k
         <details className="object-details small" onKeyDown={(e) => e.stopPropagation()}
           onToggle={(e) => { if (e.currentTarget.open) setPlaying(false); }}>
           <summary>
-            Frame quality · {current.valid_fraction == null
-              ? 'valid coverage unknown'
-              : `${formatPixelFraction(current.valid_fraction)} valid pixels`}
+            Valid-pixel coverage · {current.valid_fraction == null
+              ? 'unknown'
+              : formatPixelFraction(current.valid_fraction)}
           </summary>
           <p className="small muted">
-            Valid coverage counts usable pixels across the whole image after masking.
+            Coverage describes the whole image. Off-detector pixels, missing values and pixels rejected by the
+            quality mask, including saturation (OVERFLOW), count as invalid.
+            The target can be saturated even when coverage is high.
           </p>
           {frameFlags ? (
             <details>
@@ -409,12 +412,14 @@ export function BlinkViewer({ field, frames, composites, imageUrl, candidates, k
             <p className="small muted">Archive saturation and contamination flags are unavailable for this frame.</p>
           )}
           <p className="provenance-row small">
-            MJD {current.mjd.toFixed(5)} · Observation {current.obs_id}
+            MJD (mid-exposure) {current.mjd.toFixed(5)} · Frame {current.id}
             {current.bandwidth_um != null && ` · Bandwidth ${current.bandwidth_um.toFixed(3)} µm`}
           </p>
           <p className="provenance-row small">
             Original FITS: {sourceUrl && /^https?:\/\//.test(sourceUrl)
-              ? <a href={sourceUrl} target="_blank" rel="noreferrer">Open source</a>
+              ? <a href={sourceUrl} target="_blank" rel="noreferrer">
+                {sourceUrl.startsWith(`${IRSA_ORIGIN}/`) ? 'Download FITS from IRSA' : 'Download FITS'}
+              </a>
               : sourceUri || 'unavailable'}
           </p>
         </details>
