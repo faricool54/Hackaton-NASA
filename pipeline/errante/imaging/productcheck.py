@@ -34,6 +34,7 @@ import numpy as np
 from .. import __version__
 from ..build import FIELDS_TOML
 from . import register
+from .productcheck_caveats import field_caveats
 from .productcheck_data import Astrometry, LoadedField, catalog_astrometry, discover_fields, groups, load_field
 from .productcheck_json import astrometry_json, motion_json, rounded, variable_json
 from .productcheck_motion import analyse_motion
@@ -90,6 +91,7 @@ def png_registration(loaded: LoadedField) -> tuple[dict[str, tuple[float, float]
         "over_threshold": sorted(fid for fid, s in sizes.items() if s > register.MAX_OFFSET_PX),
         "threshold_px": register.MAX_OFFSET_PX,
         "inconsistent": report.inconsistent,
+        "per_frame_px": {f.frame_id: rounded(sizes.get(f.frame_id)) for f in frames},  # None: not checkable
     }
     return offsets, summary
 
@@ -200,6 +202,7 @@ def check_field(directory: Path, out: Path, astrometry: Mapping[str, Astrometry]
         vresult = analyse_variable(loaded, astro)
         section["variable"] = variable_json(vresult)
         section["figures"].append(brightness_figure(loaded, vresult, out / f"{fid}_brightness.png"))
+    section["caveats"] = field_caveats(section)
     return section
 
 

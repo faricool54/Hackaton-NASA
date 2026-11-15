@@ -69,7 +69,12 @@
   movimiento propio de los comentarios de `fields.toml`; nivel de display, no fotometría/astrometría científica.
   Movimiento: centroides por temporada × detector, desplazamiento por detector promediado (incertidumbre =
   dispersión entre detectores), registro re-medido en los PNG, paralaje ignorado. Variables: núcleo por frame,
-  núcleos blancos, pares a λ emparejada (≤ 1 %) con estrellas de control. Falta: que WS3/coordinación lleve
+  núcleos blancos, pares a λ emparejada (≤ 1 %) con estrellas de control. Cada blanco abre con sus advertencias
+  (`caveats` en `report.json`, `productcheck_caveats.py`), generadas con los mismos números de las tablas: incertidumbre
+  de pocos frames (WISE 0855 S1→S2), temporadas sin posición y blink que no puede mostrar el movimiento (WISE 0855 S0),
+  largo frente a PA (ε Ind B S0→S3), pares por orientación del parche, offset de S1 de Barnard sin afirmar dirección
+  (el registro FITS da ambos signos), frames de la misma secuencia que uno rechazado por registro (RW Aur
+  2026W38_1A_0162) y las cifras FITS de todos los frames de cada registro. Falta: que WS3/coordinación lleve
   los números a `docs/validation/*.md` (los registros son del build de #17).
 - [ ] **WS2-9 (P2) Shift-and-stack** a lo largo de velocidades hipotéticas para objetos lentos y débiles
   (demo educativa del método de búsqueda del Planeta X).

@@ -59,6 +59,12 @@ LIMITS = [
     "catalog proper motion as written in `config/fields.toml` comments; nothing was queried.",
     f"The {100 * HYPOTHESIS_TOLERANCE:g} % tolerance used to confirm a stated ratio covers grey-level quantisation "
     "and the pixel aperture on reprojected PNGs; it is not a photometric error bar.",
+    "The validation records in `docs/validation/` analysed the fields as built by #17 on 2026-11-14 (their "
+    "'Vigencia' notes). The fields checked here were rebuilt afterwards (build date in each section) with a partly "
+    "different frame selection, so the records' per-frame and 'build frames only' numbers are not numbers for these "
+    "PNGs; the caveats quote only their all-frames FITS numbers.",
+    "Each target section starts with its caveats (`caveats` in `report.json`): sentences generated from the same "
+    "numbers as the tables, plus the FITS numbers of its validation record that change how a PNG number reads.",
 ]
 
 
@@ -167,14 +173,25 @@ def _summary_section(fields: list[dict]) -> list[str]:
                 str(s["n_frames"]),
                 str(len(s["seasons"])),
                 key_result(f),
+                str(len(f.get("caveats") or [])),
             ]
         )
+    header = ["Target", "Check", "Built (UTC)", "Frames", "Seasons", "Key result (display level)", "Caveats"]
     return [
         "## Summary",
         "",
-        *_table(["Target", "Check", "Built (UTC)", "Frames", "Seasons", "Key result (display level)"], rows),
+        *_table(header, rows),
+        "",
+        "Read each key result with the caveats listed at the start of its target section.",
         "",
     ]
+
+
+def _caveats_block(f: dict) -> list[str]:
+    caveats = f.get("caveats") or []
+    if not caveats:
+        return ["**Caveats:** none beyond the general limits.", ""]
+    return ["**Caveats (read the key result with these):**", "", *[f"- {c}" for c in caveats], ""]
 
 
 def _field_block(f: dict) -> list[str]:
@@ -375,6 +392,7 @@ def render_markdown(report: dict) -> str:
     for f in fields:
         title = f"## {f['name']} (`{f['id']}`)" + (" - SYNTHETIC DATA" if f["synthetic"] else "")
         out += [title, "", f"**Key result (display level):** {key_result(f)}.", ""]
+        out += _caveats_block(f)
         out += _field_block(f)
         if f["motion"] is not None:
             out += _motion_block(f)
