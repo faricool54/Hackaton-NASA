@@ -98,14 +98,15 @@ COMPLEMENT = {"red": "cyan", "green": "magenta", "blue": "yellow"}  # what a sta
 # CURATED caveats, checked by eye (NOT an automatic test): exposure id -> note for every composite that uses it.
 # eps Indi B, 2026-11-15: both S1 D6 exposures show a band from the target that runs along the detector rows in
 # the original cutouts (~35 px toward the lower right on the grid); S0, S2 and S3 (S3 has S1's patch orientation)
-# show none, and no FLAGS bit (GHOST*, STREAK) marks it. A generic check (extended residual present in every
-# frame of one season, absent in the others) also flagged real glows and star residuals on the other golden
-# fields, so no automatic test is used.
+# show none, and no FLAGS bit (GHOST*, STREAK) marks it. Cause unknown: an artifact of the target's own light
+# (ghost, charge trailing, persistence) is not ruled out, so the note does not claim one. A generic check
+# (extended residual present in every frame of one season, absent in the others) also flagged real glows and
+# star residuals on the other golden fields, so no automatic test is used.
 _EPS_INDI_B_D6_BAND = (
     "Curated caveat (checked by eye on 2026-11-15, not an automatic test): both D6 exposures of this season "
     "(2025W40_1A_0559_1D6, 2025W44_2B_0494_1D6) show a red band about 35 px long from the target toward the lower "
     "right that no other season shows. In the original detector images it runs along the detector rows, and no "
-    "SPHEREx flag marks it: an instrumental artifact, not motion of the target or light from it."
+    "SPHEREx flag marks it: an instrumental artifact of unknown cause, not motion of the target."
 )
 CURATED_FRAME_CAVEATS: dict[str, str] = {
     "2025W40_1A_0559_1D6": _EPS_INDI_B_D6_BAND,
