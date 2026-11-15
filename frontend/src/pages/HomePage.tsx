@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ApiError, client, createClient } from '../api/client';
 import type { FieldSummary, Manifest } from '../api/types';
 import { formatMjd, formatRaDec } from '../api/format';
@@ -10,6 +10,7 @@ export function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [empty, setEmpty] = useState(false);
   const [realFields, setRealFields] = useState<FieldSummary[]>([]);
+  const sequencesHeading = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
     client.getManifest().then(setManifest).catch((e: Error) => {
@@ -30,6 +31,7 @@ export function HomePage() {
   }, [realBase]);
 
   const realLink = `${import.meta.env.BASE_URL}?mode=static&dataset=real#/`;
+  const hasCuratedFields = manifest?.fields.some((field) => !field.synthetic && !field.id.startsWith('job-'));
   const sequences = [
     ...(manifest?.fields ?? []).map((field) => ({ field, href: `#/field/${field.id}` })),
     ...realFields.map((field) => ({ field, href: `${realLink}field/${field.id}` })),
@@ -45,8 +47,20 @@ export function HomePage() {
           sky map, choose a position, and build a sequence of real observations. Curated fields are also available below.
         </p>
         <p>
-          <a href={realLink}>Browse the five real challenge fields →</a>
-          {' · '}
+          {hasCuratedFields ? (
+            <>
+              <button type="button" className="link-button" onClick={() => {
+                sequencesHeading.current?.focus({ preventScroll: true });
+                sequencesHeading.current?.scrollIntoView({ block: 'start' });
+              }}>Browse the five real challenge fields →</button>
+              {' · '}
+            </>
+          ) : realFields.length > 0 && (
+            <>
+              <a href={realLink}>Browse the five real challenge fields →</a>
+              {' · '}
+            </>
+          )}
           <a href="#/systems">Explore illustrative 3D models of the challenge targets →</a>
         </p>
         {/* TODO(WS6): final copy, project name, call to action. */}
@@ -58,7 +72,7 @@ export function HomePage() {
       {!manifest && !error && !empty && <p className="muted">Loading…</p>}
       {manifest && (
         <section>
-          <h2>
+          <h2 ref={sequencesHeading} tabIndex={-1}>
             Available sequences <SyntheticBadge synthetic={manifest.synthetic} />
           </h2>
           <div className="cards">
