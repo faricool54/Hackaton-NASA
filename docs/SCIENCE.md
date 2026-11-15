@@ -1025,7 +1025,7 @@ reproduce: probablemente se construyó desde la rama previa al squash o con otra
 confirmar.
 
 
-## V18, V15 y LC24 restante — implementación WS3 (15/11/2026)
+## V18 y LC24 restante — implementación WS3 (15/11/2026)
 
 Se parte del trabajo de **faricool54**: #93 (algoritmos LC7/LC23–29), #94/#95 (productos republicados)
 y #97 (notas, floors y selección en UI). Las tablas anteriores son revisiones fechadas de las versiones
@@ -1071,16 +1071,15 @@ calidad/cobertura/censura o ajuste malo (chi² reducido ~131 y ~78 en dos de los
 El espectro molecular de Ba+Bb sin resolver no se convierte en una Teff de cuerpo negro. Fixture reproducible
 sin red: `pipeline/tests/fixtures/ws3/continuum/eps-indi-b.json`. No es nueva aprobación humana de R05.
 
-### RW Aur: etiquetas de componentes
+### Identidad de RW Aur: trabajo de faricool54, PR #101
 
-Se mantiene el `main_id` crudo de SIMBAD para procedencia, pero la ficha muestra
-**RW Aur (component identity uncertain)** y una advertencia explícita para ambos IDs Gaia. La correspondencia
-WDS/literatura de §0.3 difiere del cross-id de SIMBAD: no se adopta la etiqueta B como identificación segura.
+Farid publicó #101 mientras se preparaba esta implementación. Se retiraron de esta rama los cambios
+propios de identidad y sus tests para evitar duplicarlo: `context.py` permanece igual a main de base.
+#101 conserva el nombre crudo de SIMBAD, cambia el nombre visible según WDS y avisa que SPHEREx mide
+el sistema sin resolver. Su estado de merge/deploy se verifica por separado; no se presenta como incluido aquí.
 [Dodin et al. 2020, p. 2](https://arxiv.org/pdf/2007.12559) identifica B con Gaia DR2 156430822114424576;
-[Kurtovic et al. 2024](https://arxiv.org/html/2407.18828v1) da RUWE ~16 para A y ~1,5 para B, en acuerdo con
-la geometría previamente comprobada. Una etiqueta de catálogo no resuelve por sí sola el conflicto.
-`identity.match=ambiguous`, `identity_uncertain=true`, facts de identidad sin verificar y magnitudes marcadas.
-No se transfiere la distancia de B a A como medida propia, ni se atribuye la fotometría SPHEREx A+BC a un componente.
+[Kurtovic et al. 2024](https://arxiv.org/html/2407.18828v1) da RUWE ~16 para A y ~1,5 para B. Estas fuentes
+respaldan la revisión ya escrita en §0.3; no justifican atribuir la fotometría mezclada a un componente.
 
 ### LC24: dos puntos no son dos muestras de dispersión independientes
 

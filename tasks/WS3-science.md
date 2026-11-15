@@ -17,7 +17,7 @@ y registros de validación; luego espectros/contexto. `Candidate`/cruce/distanci
 - ✅ `motion.py`: movimiento lineal desde detecciones; distancia aproximada por velocidad en oposición (solo
   orden de magnitud — SPHEREx mira a ~90° del Sol, ver SCIENCE §1).
 - ✅ Espectros/contexto/curvas implementados; #93 de faricool54 ya contiene los arreglos LC7/LC23–29 y #94/#95 republicaron los productos; #97 muestra sus límites.
-- Esta tarea (usuario, 15/11): rpccp con Codex completa V18 (temperatura de color), V15 (identidad RW Aur) y el remanente LC24, sobre esos cambios; no los reimplementa.
+- Esta tarea (usuario, 15/11): rpccp con Codex completa V18 (temperatura de color) y el remanente LC24; la identidad RW Aur está en el PR #101 de faricool54, sobre esos cambios; no los reimplementa.
 - ⛔ `known_objects.objects_in_frame/ephemeris/crossmatch` y `planet_x.*`: extensiones P2, conservadas fuera del cierre previo al envío.
 
 ## Tareas
@@ -58,7 +58,6 @@ y registros de validación; luego espectros/contexto. `Candidate`/cruce/distanci
   cualquier adaptador futuro conserva misión y procedencia separadas y no bloquea SPHEREx.
 
 - [x] **WS3-12 (P1, V18/C02) Temperatura de color y clasificación descriptiva IR.** `science.continuum` ajusta F_nu con escala libre, rango condicional y controles de calidad/cobertura; `spectra` interpreta cada temporada por separado y la CLI lo entrega en JSON/texto. No es Teff ni RGB. Rechazos explícitos; fixture real de ε Ind B y tests contra Astropy. Adaptador listo para que WS4 lo muestre en `SpectrumResponse.notes`, sin cambiar contrato.
-- [x] **WS3-13 (P1, V15/C05) Identidad RW Aur.** Nombre visible neutral, advertencia WDS/literatura/SIMBAD, cross-id crudo conservado. Identidad/facts/fotometría quedan sin verificar; no se renombra A/B silenciosamente ni se asigna el espectro mezclado a una estrella.
 - [x] **WS3-14 (LC24 restante) Resumen de dispersión.** No cuenta como medidas independientes los dos extremos de un único par. Bins de dos exposiciones conservados para pares, excluidos solo del resumen de dispersión; `scatter_over_control=null` si no hay muestra adecuada. Nuevos productos requieren republish WS4; los JSON empaquetados no se editan a mano.
 
 ## Gotchas

@@ -1,15 +1,13 @@
 {
   "updated_on": "2026-11-15",
   "tool": "OpenAI Codex",
-  "scope": "User-directed WS3 V18 conditional blackbody colour-temperature/descriptive IR-colour diagnostics, V15 RW Aur component cross-id warning, remaining LC24 two-exposure-bin scatter correction, CLI integration, tests and scientific documentation. Builds on faricool54/Claude Code PRs #93/#94/#97; does not claim authorship of those changes.",
+  "scope": "User-directed WS3 V18 conditional blackbody colour-temperature/descriptive IR-colour diagnostics, remaining LC24 two-exposure-bin scatter correction, CLI integration, tests and scientific documentation. Builds on faricool54/Claude Code PRs #93/#94/#97. RW Aur identity changes were removed after Farid published #101; no authorship claimed for that work.",
   "affected_paths": [
     "pipeline/errante/science/continuum.py",
     "pipeline/errante/science/spectra.py",
-    "pipeline/errante/science/context.py",
     "pipeline/errante/science/variability.py",
     "pipeline/errante/cli.py",
     "pipeline/tests/test_science_continuum.py",
-    "pipeline/tests/test_science_context.py",
     "pipeline/tests/test_science_spectra.py",
     "pipeline/tests/test_science_variability.py",
     "pipeline/tests/fixtures/ws3/continuum/eps-indi-b.json",

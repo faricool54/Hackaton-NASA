@@ -180,17 +180,14 @@ def test_rw_aur_by_name_is_ambiguous_between_a_and_b():
     no_replay_gaps(ctx)
     assert ctx.object_type == "TT*" and ctx.spectral_type == "K1/5e+K5e"
     assert ctx.gaia.method == "nearest_after_propagation" and ctx.gaia.ambiguous
-    assert (
-        ctx.gaia.source.source_id == 156430817820015232
-    )  # Gaia id preserved; component label conflicts with WDS geometry
+    assert ctx.gaia.source.source_id == 156430817820015232  # nearest to SIMBAD's system position = RW Aur B
     assert any("156430822114424576" in w and "BRIGHTER" in w for w in ctx.warnings)
     f = facts(ctx)
     assert not f["Distance"].verified and "Ambiguous" in f["Distance"].source
     assert f["Effective temperature"].value == "unknown"
     assert f["Variability type"].value.startswith("CTTS/ROT+CTTS")
-    # RW Aur has a known component cross-id conflict even for name lookups.
-    assert not f["Variability type"].verified and not f["Spectral type"].verified
-    assert any("component identity conflict" in w for w in ctx.warnings)
+    # by name: SIMBAD is the named object and VSX's entry carries its name, so both stay verified
+    assert f["Variability type"].verified and f["Spectral type"].verified
     assert ctx.identity_uncertain and all(m.identity_uncertain for m in ctx.photometry)
     assert f["Variability period"].value == "2.64" and "rotation" in f["Variability period"].source
 
@@ -238,12 +235,7 @@ def test_barnard_click_propagates_and_gets_simbad_identity():
 def test_rw_aur_click_names_the_component():
     ctx = at("rw-aurigae")
     no_replay_gaps(ctx)
-    assert ctx.main_id == "V* RW Aur B" and ctx.gaia.ambiguous  # raw SIMBAD provenance is retained
-    assert ctx.display_name == "RW Aur (component identity uncertain)"
-    assert any("component identity conflict" in w and "WDS" in w for w in ctx.warnings)
-    response = C.to_response(ctx)
-    assert response.identity.identity_uncertain and response.identity.match == "ambiguous"
-    assert response.identity.gaia_source_id == "156430817820015232"
+    assert ctx.main_id == "V* RW Aur B" and ctx.gaia.ambiguous  # SIMBAD cross-id of Gaia DR3 156430817820015232
     # review 2026-11-15: values reached through the ambiguous match (SIMBAD by Gaia id, VSX by position) are not
     # verified and say why
     f = facts(ctx)
@@ -251,17 +243,6 @@ def test_rw_aur_click_names_the_component():
         assert f[label].value != "unknown" and not f[label].verified, label
         assert "ambiguous or distant Gaia match" in f[label].source, label
     assert ctx.identity_uncertain and ctx.photometry and all(m.identity_uncertain for m in ctx.photometry)
-
-
-def test_rw_aur_crossid_conflict_is_not_hidden_by_an_otherwise_precise_gaia_match():
-    ctx = at("rw-aurigae")
-    ctx.gaia.ambiguous = ctx.gaia.loose = False
-    assert C.identity_match(ctx) == "ambiguous"
-    assert not facts(ctx)["Distance"].verified
-    assert not facts(ctx)["Spectral type"].verified
-    ctx.gaia.source.source_id = 156430822114424576  # the other component has the same naming conflict
-    assert C._rw_aur_conflict(ctx)
-    assert not facts(ctx)["Spectral type"].verified
 
 
 def test_wise_0855_click_warns_that_the_nearest_gaia_star_may_be_another_object():
