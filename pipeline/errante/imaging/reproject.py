@@ -30,6 +30,9 @@ MIN_FINITE_WEIGHT = 0.5
 # from bad input pixels (nearest-neighbour alone can skip an isolated bad pixel
 # on a rotated detector, although its value still leaks into the image).
 BAD_WEIGHT = 0.2
+# A SUR_ERROR pixel whose neighbours stand more than this many robust sigmas above the image median sits on a
+# star: it is displayed as recorded instead of being repaired (see display_defects).
+STAR_NEIGHBOUR_SNR = 5.0
 
 
 def _input_pixel_coords(image: SpherexImage, grid: Grid) -> tuple[np.ndarray, np.ndarray]:
@@ -106,18 +109,45 @@ def _neighbours(img: np.ndarray) -> np.ndarray:
     )
 
 
-def display_defects(flags: np.ndarray) -> np.ndarray:
+def _on_star(pixels: np.ndarray, candidates: np.ndarray) -> np.ndarray:
+    """``candidates`` whose 8 neighbours (other candidates left out) stand above the sky: they sit on a star.
+
+    "Above" = neighbour median more than ``STAR_NEIGHBOUR_SNR`` robust sigmas above the image median.
+    """
+    values = np.where(candidates, np.nan, np.asarray(pixels, dtype=np.float64))
+    finite = values[np.isfinite(values)]
+    if finite.size == 0:
+        return np.zeros(candidates.shape, bool)
+    sky = float(np.median(finite))
+    sigma = float(1.4826 * np.median(np.abs(finite - sky)))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)  # no finite neighbour -> NaN -> not on a star
+        around = np.nanmedian(_neighbours(values), axis=0)
+    with np.errstate(invalid="ignore"):
+        return candidates & (around - sky > STAR_NEIGHBOUR_SNR * sigma)
+
+
+def display_defects(flags: np.ndarray, pixels: np.ndarray | None = None) -> np.ndarray:
     """Detector defects that are never sky signal: repaired for display, kept in the bad mask.
 
     On real DR1/QR3 Barnard cutouts (2026-11-14) single pixels flagged NONFUNC,
     PERSIST or SUR_ERROR reach hundreds to thousands of MJy/sr with sky-level
     neighbours (no PSF wings), change position between epochs, and in the
-    blink look like 1-2 px movers. TRANSIENT/OUTLIER are NOT included: they can
-    mark a real moving object (tasks/WS2). SUR_ERROR next to a saturated core
-    (with OVERFLOW) is left alone: it belongs to the star.
+    blink look like 1-2 px movers. SNOWBALL marks cosmic-ray "snowball" blobs
+    (24 of the 400 golden pool cutouts). TRANSIENT/OUTLIER are NOT included:
+    they can mark a real moving object (tasks/WS2).
+
+    SUR_ERROR is left alone where it belongs to a star: next to a saturated core
+    (with OVERFLOW) and, given ``pixels``, wherever its neighbours stand above
+    the sky. In the five golden fields 14,592 of 52,200 SUR_ERROR pixels sit on
+    a star (99 % also flagged SOURCE); repairing them flattened real cores, e.g.
+    RW Aurigae 2025W38_1A_0538_1D3 published 19.6 instead of 74.2 MJy/sr
+    (docs/validation/rw-aurigae.md). They stay in the bad mask either way.
     """
-    defects = bad_pixel_mask(flags, ("NONFUNC", "HOT", "COLD", "PERSIST"))
+    defects = bad_pixel_mask(flags, ("NONFUNC", "HOT", "COLD", "PERSIST", "SNOWBALL"))
     ramp = bad_pixel_mask(flags, ("SUR_ERROR",)) & ~bad_pixel_mask(flags, ("OVERFLOW",))
+    if pixels is not None and ramp.any():
+        ramp &= ~_on_star(pixels, ramp)
     return defects | ramp
 
 
@@ -187,7 +217,7 @@ def reproject_to_grid(
     repaired = None
     if repair_display and flags is not None:
         saturated = bad_pixel_mask(flags, ("OVERFLOW",)) & np.isnan(pixels)
-        defects = display_defects(flags)
+        defects = display_defects(flags, pixels)
         repaired = saturated | defects
         pixels = repair_for_display(pixels, saturated, defects)
     data = bilinear_sample(pixels, xi, yi).reshape(shape)
