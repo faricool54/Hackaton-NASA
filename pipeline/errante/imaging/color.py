@@ -58,7 +58,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import numpy as np
@@ -119,6 +119,21 @@ RELATIVE_NOTE = (
     "Colours are relative to the field: typical bright field stars look roughly white and an object redder than "
     "they are looks red."
 )
+
+
+def _noisy_relative_note(noisy: Sequence[str]) -> str:
+    """RELATIVE_NOTE for a composite whose ``noisy`` channels have a raised black point: measured on WISE 0855
+    and eps Indi B, only ~30 % of the 10 brightest field stars still look white and most fainter ones take the
+    complementary colour, so the plain note would claim more than the picture shows."""
+    channels = " and ".join(noisy)
+    looks = " or ".join(COMPLEMENT[c] for c in noisy)
+    return (
+        f"Colours are relative to the field, but with the {channels} black point raised only the brightest field "
+        f"stars look roughly white (most look {looks}); an object redder than the field stars looks red only if it "
+        "is bright enough in the red channel."
+    )
+
+
 JHK_NOTE = (
     "2MASS-like: each channel holds narrow SPHEREx samples near J, H or Ks, not the 2MASS filters or 2MASS photometry."
 )
@@ -355,6 +370,7 @@ class Balance:
     notes: dict[str, list[str]]  # composite id -> plain-language colour-balance notes
     # (composite id, colour) of a NOISY channel -> target aperture S/N at the field centre (None: not measurable)
     target_snr: dict[tuple[str, str], float | None]
+    noisy: dict[str, list[str]] = field(default_factory=dict)  # composite id -> colours of its NOISY channels
 
 
 def _config(comp: SeasonComposite) -> tuple:
@@ -517,7 +533,8 @@ def color_balance(composites: Sequence[SeasonComposite]) -> Balance:
                 stretches[key] = _speckle_black_point(stretches[key], _sky_level(ch.stack.data, skips[key]), sigma)
                 target_snr[key] = _target_snr(ch, discs[comp.id])
     notes = {c.id: _balance_notes(c, ratios, noise, n_fits, target_snr) for c in composites}
-    return Balance(stretches, ratios, noise, notes, target_snr)
+    noisy = {c.id: [ch.color for ch in c.channels if _is_noisy(noise[(c.id, ch.color)])] for c in composites}
+    return Balance(stretches, ratios, noise, notes, target_snr, noisy)
 
 
 def _balance_notes(
@@ -538,8 +555,9 @@ def _balance_notes(
         seasons = max(n_fits.get((_config(comp), c), 0) for c in done)
         noisy = [ch.color for ch in comp.channels if _is_noisy(noise[(comp.id, ch.color)])]
         looks = (
-            f"so bright field stars look white; fainter ones look {COMPLEMENT[noisy[0]]} because the {noisy[0]} "
-            "black point is raised (see below)."
+            "so only the brightest field stars look roughly white; most look "
+            f"{' or '.join(COMPLEMENT[c] for c in noisy)} because the {' and '.join(noisy)} black point is raised "
+            "(see below)."
             if noisy
             else "so typical field stars look white."
         )
@@ -608,7 +626,8 @@ def composite_rgb(
     return np.dstack([out, np.where(nodata, 0, 255).astype(np.uint8)])
 
 
-def _to_contract(comp: SeasonComposite, balance_notes: list[str]) -> Composite:
+def _to_contract(comp: SeasonComposite, balance_notes: list[str], noisy: Sequence[str] = ()) -> Composite:
+    closing = _noisy_relative_note(noisy) if noisy and comp.notes[-1] == RELATIVE_NOTE else comp.notes[-1]
     return Composite(
         id=comp.id,
         mode=comp.mode,
@@ -627,7 +646,7 @@ def _to_contract(comp: SeasonComposite, balance_notes: list[str]) -> Composite:
             )
             for ch in comp.channels
         ],
-        notes=[*comp.notes[:-1], *balance_notes, comp.notes[-1]],
+        notes=[*comp.notes[:-1], *balance_notes, closing],
     )
 
 
@@ -670,4 +689,6 @@ def write_composites(
     balance = color_balance(plan.composites)
     for comp in plan.composites:
         Image.fromarray(composite_rgb(comp, balance.stretches)).save(out / f"{comp.id}.png", optimize=True)
-    return [_to_contract(c, balance.notes[c.id]) for c in plan.composites], provenance_note(plan)
+    return [
+        _to_contract(c, balance.notes[c.id], balance.noisy.get(c.id, [])) for c in plan.composites
+    ], provenance_note(plan)

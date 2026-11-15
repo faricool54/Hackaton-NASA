@@ -5,6 +5,7 @@ import type { Manifest } from '../api/types';
 import { formatRaDec } from '../api/format';
 import { SyntheticBadge } from '../components/SyntheticBadge';
 import { KIND_LABEL } from '../three/kindLabels'; // astro-free: appearance.ts would pull astro.ts into the main chunk
+import '../three/system.css';
 
 export function SystemsPage() {
   const [manifest, setManifest] = useState<Manifest | null>(null);
@@ -19,7 +20,7 @@ export function SystemsPage() {
   const hasSynthetic = systems.some((s) => s.synthetic);
   return (
     <main>
-      <section className="hero">
+      <section className="hero s3d-hero">
         <h1>Explore the objects in 3D</h1>
         <p>
           Explore models of the challenge targets{hasSynthetic ? ' and a synthetic example' : ''}. Their parameters were checked against
@@ -32,7 +33,7 @@ export function SystemsPage() {
           measured by SPHEREx. What is not measured is not invented: a body without a measured temperature is drawn grey
           (colour unknown), and one without a measured radius at a fixed marker size (size unknown, not to scale).
         </p>
-        <p className="muted small">
+        <p className="s3d-hero-note">
           These are model representations, not images: sizes are exaggerated and distances can be compressed so
           everything fits on screen. A model of a target does not establish that it has been observed or validated
           in SPHEREx images.
@@ -41,19 +42,29 @@ export function SystemsPage() {
       {error && <p className="error">Could not load data: {error}</p>}
       {!manifest && !error && <p className="muted">Loading…</p>}
       {manifest && systems.length === 0 && <p className="muted">No 3D systems in this dataset yet.</p>}
-      <div className="cards">
+      <div className="s3d-cards">
         {systems.map((s) => (
-          <a key={s.id} className="card" href={`#/system/${s.id}`}>
-            <div className="card-body">
-              <h3>{s.name}</h3>
-              <p className="muted">{s.description}</p>
-              <p className="muted small">
-                {formatRaDec(s.center.ra, s.center.dec)} · {s.n_bodies} {s.n_bodies === 1 ? 'body' : 'bodies'}
-                <br />
-                {s.kinds.map((k) => KIND_LABEL[k] ?? k).join(' · ')}
-              </p>
+          <a key={s.id} className="s3d-card" href={`#/system/${s.id}`}>
+            <h3>{s.name}</h3>
+            <p className="s3d-card-badges">
+              <span className="badge u-badge u-badge--model">3D MODEL · NOT AN IMAGE</span>
               <SyntheticBadge synthetic={s.synthetic} />
-            </div>
+            </p>
+            <p className="s3d-card-desc">{s.description}</p>
+            <p className="s3d-card-meta">
+              <span className="u-mono">{formatRaDec(s.center.ra, s.center.dec)}</span> · {s.n_bodies}{' '}
+              {s.n_bodies === 1 ? 'body' : 'bodies'}
+            </p>
+            <p className="s3d-kinds">
+              {s.kinds.map((k, i) => (
+                <span key={`${k}-${i}`} className="s3d-kind">
+                  {KIND_LABEL[k] ?? k}
+                </span>
+              ))}
+            </p>
+            <span className="s3d-card-open" aria-hidden="true">
+              Open the 3D model →
+            </span>
           </a>
         ))}
       </div>

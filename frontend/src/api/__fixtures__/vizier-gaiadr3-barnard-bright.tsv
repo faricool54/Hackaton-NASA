@@ -1,0 +1,53 @@
+#
+#   VizieR Astronomical Server vizier.cfa.harvard.edu
+#    Date: 2026-11-15T20:14:30 [V7.6.1]
+#   In case of problem, please report to:	cds-question@unistra.fr
+#
+#
+#Coosys	J2000:	eq_FK5 J2000
+#INFO	service_protocol=ASU	  IVOID of the protocol through which the data was retrieved
+#INFO	request_date=2026-11-15T20:14:30	  Query execution date
+#INFO	request=https://vizier.cfa.harvard.edu/viz-bin/asu-tsv?-source=I%2f355%2fgaiadr3&-c=269.4485025+4.7394200&-c.rs=90&-out=Source%2cRA_ICRS%2cDE_ICRS%2cPlx%2ce_Plx%2cpmRA%2cpmDE%2cGmag%2cBP-RP%2cRV&-sort=Gmag&-out.max=6	  Full request URL
+#INFO	contact=cds-question@unistra.fr	  Email or URL to contact publisher
+#INFO	server_software=VizieR/7.6.1	  Software version
+#INFO	publisher=CDS	  Data centre that produced the VOTable
+#INFO	-c=269.448503+04.739420,rs=90.	
+#Constraint -out.max=6
+
+#RESOURCE=yCat_1355
+#Name: I/355
+#Title: Gaia DR3 Part 1. Main source (Gaia Collaboration, 2022)
+#INFO	ivoid=ivo://cds.vizier/i/355	    IVOID of underlying data collection
+#INFO	data_ivoid=ivo://cds.vizier/i/355	    IVOID of underlying data collection
+#INFO	creator=Gaia collaboration	    First author or institution
+#INFO	cites=bibcode:2022yCat.1355....0G	    Bibcode of the dataset
+#INFO	journal=yCat	    Journal name
+#INFO	original_date=2022	    Year of the article publication
+#INFO	reference_url=https://cdsarc.cds.unistra.fr/viz-bin/cat/I/355	    Dataset landing page
+#INFO	citation=doi:10.26093/cds/vizier.1355	    Dataset identifier that can be used for citation
+#INFO	publication_date=2024-12-12	    Date of first publication in the data centre
+#INFO	rights_uri=https://cds.unistra.fr/vizier-org/licences_vizier.html	    Licence URI
+#Coosys	H_2016.000:	ICRS
+#Table	I_355_gaiadr3:
+#Name: I/355/gaiadr3
+#Title: Gaia DR3 source catalog (1811709771 sources)
+#Column	Source	(I19)	Unique source identifier (unique within a particular Data Release) (source_id)	[ucd=meta.id;meta.main]
+#Column	RA_ICRS	(F15.11)	Right ascension (ICRS) at Ep=2016.0 (ra)	[ucd=pos.eq.ra;meta.main]
+#Column	DE_ICRS	(F15.11)	Declination (ICRS) at Ep=2016.0 (dec)	[ucd=pos.eq.dec;meta.main]
+#Column	Plx	(F9.4)	? Parallax (parallax)	[ucd=pos.parallax.trig]
+#Column	e_Plx	(F7.4)	? Standard error of parallax (parallax_error)	[ucd=stat.error;pos.parallax.trig]
+#Column	pmRA	(F9.3)	? Proper motion in right ascension direction, pmRA*cosDE (pmra)	[ucd=pos.pm;pos.eq.ra]
+#Column	pmDE	(F9.3)	? Proper motion in declination direction (pmdec)	[ucd=pos.pm;pos.eq.dec]
+#Column	Gmag	(F9.6)	? G-band mean magnitude (phot_g_mean_mag)	[ucd=phot.mag;em.opt]
+#Column	BP-RP	(F9.6)	? BP-RP colour (bp_rp)	[ucd=phot.color;em.opt.B;em.opt.R]
+#Column	RV	(F7.2)	? Radial velocity (radial_velocity)	[ucd=spect.dopplerVeloc.opt;em.opt.I]
+Source	RA_ICRS	DE_ICRS	Plx	e_Plx	pmRA	pmDE	Gmag	BP-RP	RV
+ 	deg	deg	mas	mas	mas/yr	mas/yr	mag	mag	km/s
+-------------------	---------------	---------------	---------	-------	---------	---------	---------	---------	-------
+4472832130942575872	269.44850252544	+04.73942005111	 546.9759	 0.0401	 -801.551	10362.394	 8.193974	 2.833697	-110.47
+4472832513187484544	269.43339369557	+04.73818877056	   0.3292	 0.0228	   -4.200	   -2.287	14.487946	 1.383525	  91.13
+4472832822422325632	269.44173363136	+04.73412550303	   1.4144	 0.0448	   -5.543	    1.335	15.559026	 1.299694	
+4472835876142910336	269.44852449166	+04.76290250243	   0.4920	 0.0631	   -3.157	   -0.535	16.695990	 1.107069	
+4472832852485802752	269.46168683646	+04.73903962397	   0.5195	 0.0669	   -1.821	   -1.434	16.709831	 1.033461	
+4472832440168859904	269.44396122958	+04.72349917015	   0.1818	 0.0712	   -3.351	   -4.908	16.908861	 1.070145	
+

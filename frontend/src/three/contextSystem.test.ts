@@ -20,7 +20,7 @@ import {
 } from './contextSystem';
 import { hasDatasetWindow } from './datasetGate';
 import { UNKNOWN_NOTE_PREFIX, unknownReasons } from './factOrigin';
-import { CATALOG_BADGE, ObjectSystemPreview, STATIC_HINT, STATIC_MESSAGE } from './ObjectSystemPreview';
+import { CATALOG_BADGE, ObjectModelView, ObjectSystemPreview, STATIC_HINT, STATIC_MESSAGE } from './ObjectSystemPreview';
 import * as kit from './viewerKit';
 
 // The frozen WS3 object-context snapshots of the five targets (pipeline/errante/systems/inputs/objects/*.json),
@@ -451,5 +451,68 @@ describe('ObjectSystemPreview', () => {
     expect(html).not.toContain(CATALOG_BADGE);
     const named = renderToStaticMarkup(createElement(ObjectSystemPreview, { position: POS, lookup: { name: "Barnard's Star" } }));
     expect(named).toContain(STATIC_MESSAGE);
+  });
+});
+
+describe('ObjectSystemPreview compact (FE-12)', () => {
+  const view = (slug: string, compact: boolean) => {
+    const ctx = fromSnapshot(snapshot(slug));
+    const result = systemFromObjectContext(ctx, POS);
+    return renderToStaticMarkup(createElement(ObjectModelView, { ctx, result, selectedId: null, onSelect: () => {}, compact }));
+  };
+
+  it('keeps the catalog badge, the 3D MODEL chip and the representation note with a compact stage', () => {
+    const html = view('barnards-star', true);
+    expect(html).toContain(CATALOG_BADGE);
+    expect(html).toContain('3D MODEL · NOT AN IMAGE');
+    expect(html).toContain(systemOf('barnards-star').representation_note);
+    expect(html).toContain('s3d-viewer--compact');
+    expect(html).toMatch(/class="s3d-stage s3d-stage--compact"/);
+    // The badge, the note and the stage come before the body panel and the notes, in that order.
+    const at = (t: string) => html.indexOf(t);
+    expect(at(CATALOG_BADGE)).toBeLessThan(at('s3d-stage--compact'));
+    expect(at(systemOf('barnards-star').representation_note)).toBeLessThan(at('s3d-stage--compact'));
+    expect(at('s3d-stage--compact')).toBeLessThan(at('s3d-body--compact'));
+  });
+
+  it('reduces the body panel to its key data and folds the full panel and the notes', () => {
+    const html = view('barnards-star', true);
+    expect(html).toContain('s3d-body--compact');
+    // The star's values under the labels of the card facts that give them, each with its origin chip.
+    expect(html).toMatch(/<dt>Effective temperature<\/dt><dd>~\d+ K <span class="s3d-origin s3d-origin--catalog"/);
+    expect(html).toMatch(/<dt>Radius<\/dt><dd>~[\d,]+ km \([\d.]+ R☉\) <span class="s3d-origin s3d-origin--catalog"/);
+    expect(html).toContain('catalog, not measured by SPHEREx'); // the origin chip
+    expect(html).toContain('<summary>All facts, sources and drawing notes</summary>');
+    expect(html).toMatch(/<summary>Model notes \(\d+\)<\/summary>/);
+    // The notes list sits inside its disclosure.
+    expect(html.indexOf('Model notes (')).toBeLessThan(html.indexOf('aria-label="Model notes"'));
+  });
+
+  it('never shows a calculated planet radius as a plain "Radius" while its qualifier is folded', () => {
+    const ctx = fromSnapshot(snapshot('barnards-star'));
+    const result = systemFromObjectContext(ctx, POS);
+    const planets = result.system!.bodies.filter((b) => b.kind === 'planet');
+    expect(planets.length).toBeGreaterThan(0);
+    for (const p of planets) {
+      expect(p.facts.find((f) => /^Radius/.test(f.label))?.label, p.name).toBe('Radius (model estimate)');
+      const html = renderToStaticMarkup(createElement(ObjectModelView, { ctx, result, selectedId: p.id, onSelect: () => {}, compact: true }));
+      const panel = html.slice(html.indexOf('s3d-body--compact'));
+      const visible = panel.slice(0, panel.indexOf('<details'));
+      expect(visible, p.name).toMatch(/<dt>Radius \(model estimate\)<\/dt><dd>~[\d,]+ km <span class="s3d-origin s3d-origin--catalog"/);
+      expect(visible, p.name).not.toContain('<dt>Radius</dt>');
+    }
+  });
+
+  it('the full view keeps the badges, the full body panel and the open notes list', () => {
+    const html = view('barnards-star', false);
+    expect(html).toContain(CATALOG_BADGE);
+    expect(html).toContain('3D MODEL · NOT AN IMAGE');
+    expect(html).not.toContain('s3d-stage--compact');
+    expect(html).not.toContain('s3d-body--compact');
+    expect(html).toContain('How this body is drawn');
+    expect(html).not.toContain('All facts, sources and drawing notes');
+    expect(html).not.toContain('View options');
+    expect(html).toContain('aria-label="Model notes"');
+    expect(html).not.toContain('Model notes (');
   });
 });
