@@ -26,10 +26,25 @@
       showReticle: true, showLayersControl: false, showShareControl: false,
       showSimbadPointerControl: false, showFullscreenControl: false });
     const layer = await map.setBaseImageLayer(hips);
+    // Aladin 3.8.2 silently ignores setFrequency until the layer is attached to the view (layer.added), and the
+    // promise above can resolve before that. The map then stays on the default plane 50, which is blank: a black map.
+    // Keep the requested plane and re-apply it until Aladin reports that frequency.
+    const c = 299792458, minFreq = c / 5.009e-6, maxFreq = c / 7.43e-7;
+    let wanted = 90, retry = 0, deadline = 0;
+    const applyPlane = () => {
+      clearTimeout(retry);
+      const freq = minFreq + (wanted + 0.5) / 102 * (maxFreq - minFreq);
+      if (layer.added) layer.setFrequency({ value: freq, unit: 'Hz' });
+      const current = layer.getFrequency();
+      if (Number.isFinite(current) && Math.abs(current - freq) <= 1e-4 * freq) return;
+      if (performance.now() < deadline) retry = setTimeout(applyPlane, 100);
+      else send({ type: 'error', message: 'SPHEREx wavelength plane could not be selected' });
+    };
     const setPlane = (k) => {
       if (!Number.isInteger(k) || k < 1 || k > 101 || k === 50 || k === 51) return;
-      const c = 299792458, min = c / 5.009e-6, max = c / 7.43e-7;
-      layer.setFrequency({ value: min + (k + 0.5) / 102 * (max - min), unit: 'Hz' });
+      wanted = k;
+      deadline = performance.now() + 20000;
+      applyPlane();
     };
     setPlane(90);
     let allwise;
