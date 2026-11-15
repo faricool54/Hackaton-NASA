@@ -322,3 +322,17 @@ Además, `errante compare r-draconis --dir review/products` sobre una copia del 
    - El período de Gaia DR3 ya está verificado por el archivo de ESA: 247,2 ± 6,0 d. Conviene citarlo con su error.
    - GCVS sigue sin verificar.
    - Para la fase, usar la curva AAVSO contemporánea y no la efeméride VSX extrapolada, que se desvía hasta 15 d.
+
+## Addendum 2026-11-15 (WS3): curva de luz publicada en la app
+
+- **Qué hay.** El producto precalculado `GET /api/lightcurves/r-draconis` (#79), con su panel en la página del campo
+  (#83), usa los métodos de WS3 de este registro (ala de la PSF, bins de 1 %, permutación de visitas), pero **solo el
+  sondeo ancho**: 539 de 2493 exposiciones (dr1 + qr3), en 426 d (~1,6 ciclos).
+- **Qué da.** Período de 259,1 d con bootstrap 95 % de 240–276 d. 0 de 1000 permutaciones alcanzan el pico. Amplitudes
+  por detector compatibles con este registro en D1, D2, D3 y D5.
+- **Qué no da.** El intervalo contiene los valores de catálogo (GCVS 245,6 d, VSX 246,12 d, Gaia 247,2 d): **ese
+  producto no distingue ~260 d de 247 d**. El «~260 d (255–265 d)» de este registro sigue saliendo de las 2493
+  exposiciones.
+- **Corrige el punto 3 de arriba:** ya existe un producto de curva de luz.
+- **Revisión completa:** `docs/SCIENCE.md` § «Revisión científica de las curvas de luz» (#85). No es una validación
+  nueva ni reemplaza este registro.

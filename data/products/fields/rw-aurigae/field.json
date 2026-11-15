@@ -1,7 +1,7 @@
 {
   "id": "rw-aurigae",
   "name": "RW Aurigae",
-  "description": "Official test target. T Tauri variable star: it does not move, it changes brightness. Compare season coadds or per-season spectra, not single exposures.",
+  "description": "Official test target. Young T Tauri star (A+B, 1.5\" apart, unresolved): it does not move, it changes brightness. Saturated in D2–D6; measured offline on unsaturated D1 exposures at matched wavelength, it brightened by about 1 mag (0.75–0.77 µm) from Sep 2025 to Sep 2026. The images here do not show that change. The light curve below plots those D1 measurements of the blended pair; saturation removes most exposures of the bright state.",
   "tags": [
     "official-target",
     "variable"

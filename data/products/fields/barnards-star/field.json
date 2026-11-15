@@ -1,7 +1,7 @@
 {
   "id": "barnards-star",
   "name": "Barnard's Star",
-  "description": "Official test target. Highest proper-motion star in the sky (~10.4\"/yr): ~1.9 SPHEREx pixels over the DR1+QR3 baseline.",
+  "description": "Official test target. Highest proper-motion star in the sky (~10.4\"/yr): ~1.9 SPHEREx pixels over the DR1+QR3 baseline (1.66 px measured offline on the FITS files between the Aug 2025 and Aug 2026 seasons). Saturated core: image brightness is not a measurement.",
   "tags": [
     "official-target",
     "proper-motion",

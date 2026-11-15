@@ -80,7 +80,7 @@ no retirar ese directorio hasta recuperarlo. Un proceso muerto requiere revisió
 objetivos con el pipeline oficial. Un stub futuro se informa como `pipeline_not_ready`, nunca éxito.
 La validación científica de señal/variabilidad sigue separada de esta validación técnica.
 
-## Despliegue preparado; URL pública pendiente (WS4-4/6)
+## Despliegue público y operación compartida (WS4-4/6)
 
 Desde la raíz del repo:
 
@@ -93,9 +93,10 @@ El contenedor instala ambos paquetes y el extra científico, corre sin root y us
 Ahora incluye web + API, los cinco campos reales, snapshots WS1 y jobs activos. Inicializa una copia en
 `/app/runtime/products` y conserva `/app/runtime/cache` como estado privado; persistir `/app/runtime` con
 un volumen. Los productos fuente no se modifican. El arranque no reemplaza un manifest existente.
-Guía completa, Compose/HTTPS, prueba real y parámetros para una VM de Google Cloud:
-[deploy/README.md](deploy/README.md). Cuenta/proyecto, créditos, dominio y URL pública pendientes;
-no se creó infraestructura ni se activó facturación. Pages ahora usa `real` por defecto.
+Guía completa, Compose/HTTPS, prueba real y redeploy del equipo: [deploy/README.md](deploy/README.md).
+Publicación Google Cloud verificada: **https://errante.34-148-242-13.sslip.io**, con los cinco campos reales,
+jobs, comparaciones y curvas de luz. El usuario confirmó la prueba USD 300/90 días; no se actualizó a cuenta
+de pago. La URL temporal puede cambiarse por el dominio propio. Pages usa `real` por defecto como alternativa.
 
 Producción sin Docker: instalar `pipeline[science]` y `backend` juntos, configurar rutas persistentes y correr
 `python -m errante_api.serve`. No usar `--reload`. CI construye el contenedor y prueba health/manifest.
@@ -313,9 +314,9 @@ not track proper motion/parallax, and wavelength and time vary together. These p
 acceptance of the WS4 adapter; independent scientific R05 validation remains with WS3. A significant grid
 sinusoid still needs comparison with independent observations/catalog periods.
 
-WS5 can consume the index and typed product to add the light-curve panel, coordinating interpretation with WS3;
-no frontend panel or static-site publication is included here. Static deployments may copy these JSON
-snapshots explicitly. Recalculation never runs in a public request.
+WS5's light-curve panel is integrated in #83 and included in the public deployment; scientific interpretation
+still requires coordination with WS3. Static deployments may copy these JSON snapshots explicitly.
+Recalculation never runs in a public request.
 
 Offline regression tests in `backend/tests/test_lightcurves.py` cover real snapshot integrity, API/ETags,
 invalid overrides, content-cache invalidation, atomic publication, real child termination, result identity,

@@ -45,7 +45,7 @@ y registros de validación; luego espectros/contexto. `Candidate`/cruce/distanci
   simulaciones o confianza de candidatos en nota 1–5 del proyecto.
 - [ ] **WS3-8 (P2) Ephemeris overlay**: posiciones predichas de objetos conocidos en todos los frames (ya
   soportado por `KnownObject.positions`) para que la UI muestre "dónde debería estar" vs "dónde lo vimos".
-- [x] **WS3-9 (P0, R05) Variables RW Aurigae y R Draconis.** ✅ Validadas en `docs/validation/` (#36) y producto `science.variability.light_curve` (#59; CLI `errante lightcurve`). Construir comparación de brillo a λ
+- [x] **WS3-9 (P0, R05) Variables RW Aurigae y R Draconis.** ✅ Validadas en `docs/validation/` (#36) y producto `science.variability.light_curve` (#59; CLI `errante lightcurve`). Revisión científica de los productos precalculados de #78/#79/#83 en `docs/SCIENCE.md` § Revisión científica de las curvas de luz (2026-11-15): sin bloqueantes; LC1–LC7 importantes, y LC23–LC30 son de WS3. Construir comparación de brillo a λ
   compatible, con incertidumbre, fondo/PSF, saturación y mezcla de componentes controlados. Conservar flujo
   real y fechas; mismo detector no garantiza misma λ. Reportar resultado positivo, negativo o inconcluso.
 - [x] **WS3-10 (P1, C05) Contexto Gaia DR3/WISE.** ✅ `science.context.object_context` + `physical_parameters` (Facts con fuente; 'unknown' si no se midió) y CLI `errante object` (#58). Falta que WS4/WS5 lo conecten al panel y WS7 al 3D. Verificar catálogo, versión y condiciones de uso;

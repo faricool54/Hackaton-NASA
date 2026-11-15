@@ -25,7 +25,24 @@ def tree_bytes(root: Path) -> int:
 def kill_tree(proc, grace: float = 2) -> None:
     try:
         parent = psutil.Process(proc.pid)
-        children = parent.children(recursive=True)
+        if sys.platform == "win32" and parent.pid != os.getpid():
+            # A Windows venv launcher can spawn Python AFTER a children() snapshot,
+            # leaving an orphan holding stdout/log files open. Freeze each parent
+            # before discovering its children so no late launch escapes termination.
+            children = []
+            pending = [parent]
+            while pending:
+                member = pending.pop()
+                try:
+                    member.suspend()
+                    born = member.children()
+                    children.extend(born)
+                    pending.extend(born)
+                except psutil.NoSuchProcess:
+                    pass
+        else:
+            # The watchdog cannot suspend itself; POSIX also kills the launch session below.
+            children = parent.children(recursive=True)
         for child in reversed(children):
             try:
                 child.terminate()
