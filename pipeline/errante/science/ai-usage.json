@@ -1,0 +1,174 @@
+{
+  "updated_on": "2026-11-15",
+  "tool": "Anthropic Claude Code",
+  "scope": "WS3 science (pull requests by faricool54 with Claude Code): the object context of a click or a name (SIMBAD identifiers via Sesame at CfA, Gaia DR3 on the ESA archive with a VizieR CfA fallback, AAVSO VSX, confirmed planets of the NASA Exoplanet Archive, 2MASS/AllWISE as other-mission photometry) returned as contract Facts with their sources and 'unknown' when not measured, and its adapter for the 0.5.0 contract; spectra at a position by season and light curves of the variables with comparison stars and visit-permutation period tests; the light-curve fixes of the WS3 review; the RW Aur A/B naming fix in the object card; the scientific reviews of the user-facing texts, the 3D and the light curves in docs/SCIENCE.md; the reviewed field texts in fields.toml; their tests and live catalog fixtures; also the WS3 reservation (#51). Not covered: rpccp's #102 (OpenAI Codex), recorded in pipeline/errante/science/continuum-ai-usage.json, and the earlier scaffold modules motion.py, known_objects.py and planet_x.py. No generated imagery and no independent human R05 certification",
+  "affected_paths": [
+    "pipeline/errante/science/context.py",
+    "pipeline/errante/science/spectra.py",
+    "pipeline/errante/science/variability.py",
+    "pipeline/errante/science/ai-usage.json",
+    "pipeline/errante/config/fields.toml",
+    "pipeline/errante/cli.py",
+    "pipeline/tests/test_science_context.py",
+    "pipeline/tests/test_science_spectra.py",
+    "pipeline/tests/test_science_variability.py",
+    "pipeline/tests/test_science_validation_network.py",
+    "pipeline/tests/test_science_review_texts.py",
+    "pipeline/tests/test_science_ai_usage.py",
+    "pipeline/tests/fixtures/ws3/context/",
+    "docs/SCIENCE.md",
+    "tasks/WS3-science.md",
+    "docs/TEAM.md"
+  ],
+  "generated_media": [],
+  "real_target_validation": false,
+  "real_target_validation_basis": "The formal R05 per-target validation records belong to coordination (docs/validation/, chore pull requests #36, #46, #62, #66, #89 and #104) and their human review is pending (docs/VALIDATION.md); WS3 reproducing some of their numbers with the pipeline code (#59, #85, #93) is not that validation",
+  "human_review": "faricool54 directed the work and merged each WS3 pull request (#51 included); no GitHub review or comment was recorded on them, and a line-by-line human review of the code, tests, fixtures, review tables or field texts is not claimed. rpccp's #102 (OpenAI Codex) later changed spectra.py, variability.py, cli.py, their tests, docs/SCIENCE.md and tasks/WS3-science.md on top of this work; it has its own record, pipeline/errante/science/continuum-ai-usage.json",
+  "repository_disclosure": "AI_USAGE.md",
+  "integration_validation": {
+    "source": "real SPHEREx (spectra and light curves) and external catalogs (object context)",
+    "arbitrary_coordinate_job": "not part of the WS3 checks (coordinate jobs are WS4's); object_context takes any position or name, and its fixtures cover the five targets, an empty-sky point and three edge cases; the network tests ran position_spectrum and light_curve on RW Aur, R Dra, eps Ind B and WISE 0855 (#59)",
+    "checks_reported_in_pull_requests": [
+      "#58: 77 service answers recorded live on 2026-11-15 (the five R05 targets by name and at their fields.toml positions, an empty-sky point, GJ 699, 3C 273, the M87 core and a click 5.5 arcsec from R Dra) are replayed offline by the tests; the object-context network tests passed 5 of 5 in two runs",
+      "#59 (network tests on cached data): RW Aur D1 matched pairs -1.008 and -1.034 mag; R Dra period 259.1 d (formal +-6.2 d, visit bootstrap 240-276 d), significant with a false alarm of 1/101; eps Ind B ratios to the catalogs J 1.02, H 0.99, Ks 1.13, W1 1.16, W2 1.05, correlation with the DR1 cube shape r = 0.86, not variable; WISE 0855 W2 ratio 0.95 without aperture correction",
+      "#85: both packaged light-curve products were reproduced bit-for-bit from the real FITS with the exact presets; live IRSA SIA returned the same frames (56 and 539); the 8 RW Aur pairs agree with the R05 record within 0.003 mag; the R Dra period 259.1 d (bootstrap 240-276 d) contains GCVS 245.6 d, VSX 246.12 d and Gaia 247.2 d",
+      "#93: the rebuilt products validate as LightCurveProduct; R Dra 259.09 -> 261.88 d from LC27 (delta chi2 0.3, within the error), bootstrap 242.0-274.4 d, still significant (1/101); the RW Aur curve is unchanged and the ensemble changed for 4 of its 8 pairs",
+      "#101: the two Gaia DR3 sources of RW Aur lie 1.493 arcsec apart at PA 254.4 deg, matching WDS 05078+3024 JOY 5 (A to BC 1.50 arcsec at PA 254 deg, 2022), so 156430817820015232 is A and 156430822114424576 is B, the reverse of SIMBAD's cross-identification"
+    ],
+    "checks_basis": "Run with AI assistance and reported in the pull request bodies, docs/SCIENCE.md and the docstring of test_science_validation_network.py; not independently verified by a human. The network tests are skipped unless ERRANTE_NETWORK_TESTS=1, so CI does not run them",
+    "scientific_R05_validation": false
+  },
+  "cache_revision": "WS3 keeps no versioned product cache of its own: context.py keeps the raw catalog answers on disk with a TTL (ERRANTE_CONTEXT_CACHE_TTL_S, 7 days by default) and serves expired entries marked stale when a service fails. WS4's light-curve processing identity (backend/errante_api/lightcurve_build.py processing_identity) hashes every pipeline/errante/science/*.py module, so WS3 code changes change that fingerprint; WS4's general source_fingerprint (backend/errante_api/processing.py) does not include science/. This JSON record is not a .py file and changes neither",
+  "workstream": "WS3",
+  "developer": "faricool54",
+  "provider": "Anthropic",
+  "model": "Claude Opus 5.5",
+  "model_basis": "The Co-Authored-By trailers of the 11 WS3 squash commits (#51, #58-#60, #63, #65, #74, #85, #87, #93, #101) name Claude Opus 5.5 and no other model; the models of the review passes in the pull request bodies were not recorded",
+  "other_ai_tools": [],
+  "other_ai_tools_basis": "The commits of these pull requests carry only Claude co-author trailers; no other AI model, provider or coding tool, and no PRC-origin one, is recorded for this work. The OpenAI Codex trailers on WS3 files belong to rpccp's #102, which this record does not cover",
+  "ai_review": "Several pull request bodies record review passes: a review of #58 whose findings (4 must-fix, 3 should-fix) were each reproduced first and given a regression test; review fixes in #59 (1 must-fix, 2 should-fix and an extra finding; the verdict and candidate_spectrum regression tests fail on the old code); corrections after a review in #60 and after an internal review in #65; a review finding in #74 (backing off the whole CfA host made every name fail with 502 for 2 minutes) fixed with a regression test; five independent reviews in #85 (contract, adapter, numbers, presentation and reproduction from FITS) with one verifier per review that tried to refute each finding and a completeness critic; an adversarial review on two axes in #93 (6 findings, all verified, 5 fixed, the sixth kept with its justification). #51, #63, #87 and #101 record no review. These review passes were run by AI agents in Claude Code (review and adversarial-verification subagents/workflows directed by faricool54), as confirmed by the developer's Claude Code session; none is a human review",
+  "line_by_line_human_review": false,
+  "idea_origin": "Not covered by this record: the product vision is recorded in docs/VISION.md and AI_USAGE.md; this record covers WS3 implementation and review work only",
+  "nasa_branding_generated": false,
+  "committed_data": {
+    "paths": [
+      "pipeline/tests/fixtures/ws3/context/"
+    ],
+    "origin": "77 raw answers of Sesame and VizieR at CfA (SIMBAD identifiers, the Gaia DR3 fallback I/355/gaiadr3, VSX, 2MASS, AllWISE), the ESA Gaia archive TAP and the NASA Exoplanet Archive, recorded live on 2026-11-15 between 03:44:16 and 04:21:48 UTC (retrieved_utc in each file) by running the AI-assisted WS3 code (#58); the values are not AI-generated",
+    "exception": "None recorded for these fixtures; the offline light-curve tests in test_science_variability.py use synthetic SPHEREx-like stamps built in the test, as its docstring states, and pipeline/tests/fixtures/ws3/continuum/ is #102's",
+    "ai_generated_values": false,
+    "synthetic": false
+  },
+  "pull_requests": [
+    {
+      "number": 51,
+      "title": "chore: reserve WS3 (faricool54 + Claude)",
+      "merged_at": "2026-11-15T03:26:56Z",
+      "ai_generated": [
+        "Docs: the WS3 reservation in docs/TEAM.md"
+      ],
+      "humans": "faricool54 directed the change and merged it"
+    },
+    {
+      "number": 58,
+      "title": "ws3: object context for a click or a name (SIMBAD, Gaia DR3, VSX, planets, 2MASS/AllWISE) + errante object",
+      "merged_at": "2026-11-15T04:50:51Z",
+      "ai_generated": [
+        "Code: science/context.py (object_context for a position or a name: SIMBAD via Sesame at CfA; Gaia DR3 gaia_source, astrophysical_parameters, external.gaiaedr3_distance and vari_long_period_variable on the ESA TAP with VizieR CfA I/355/gaiadr3 as fallback, candidates propagated from 2016.0 to the SPHEREx epoch; AAVSO VSX; confirmed planets from the NASA Exoplanet Archive pscomppars; 2MASS and AllWISE photometry; physical_parameters as contract Facts with source, method and warnings, 'unknown' when not measured; an extragalactic guard, uncertain-identity flags and outages reported as unreachable, not as negative results; a raw-answer disk cache with a TTL and a stale fallback), errante object in cli.py",
+        "Tests: test_science_context.py, with 77 live service answers as fixtures in pipeline/tests/fixtures/ws3/context/",
+        "Docs: docs/SCIENCE.md 3.1 (what was verified and the limits)"
+      ],
+      "humans": "faricool54 directed the work and merged it"
+    },
+    {
+      "number": 59,
+      "title": "ws3: spectrum at a position by season and light curves of the variables (WS3-5, WS3-9)",
+      "merged_at": "2026-11-15T04:54:40Z",
+      "ai_generated": [
+        "Code: science/spectra.py (position_spectrum over WS2's forced photometry by exposure and season with saturation, a variability check per season pair and per detector at matched wavelength, 2MASS/WISE zero points, comparison with the catalogs and with the DR1 cube shape; candidate_spectrum), science/variability.py (new: light_curve from WS1 point_series stamps with aperture and PSF-wing methods, 1 % wavelength bins per detector, saturated exposures excluded and counted, comparison stars measured in the same exposures, a sinusoid period grid with aliases, formal error, visit bootstrap and a visit-permutation test), errante position-spectrum and errante lightcurve in cli.py",
+        "Tests: test_science_spectra.py, test_science_variability.py (synthetic SPHEREx-like stamps, offline), test_science_validation_network.py (network reproductions on RW Aur, R Dra, eps Ind B and WISE 0855)"
+      ],
+      "humans": "faricool54 directed the work and merged it"
+    },
+    {
+      "number": 60,
+      "title": "ws3: scientific review of user-facing texts and SCIENCE.md update from the five validation records",
+      "merged_at": "2026-11-15T04:50:19Z",
+      "ai_generated": [
+        "Docs: docs/SCIENCE.md (what each of the five validation records established, refreshed sections 0.1-0.4, the offline and human-review-pending wording rule in 4, and the WS3-7 review of user-facing texts: 47 findings with file:line, current text, problem, suggested text, severity and owner, and seven paste-ready blocks)",
+        "Tests: test_science_review_texts.py (offline wording, severity counts, fact values)"
+      ],
+      "humans": "faricool54 directed the work and merged it"
+    },
+    {
+      "number": 63,
+      "title": "ws3: mark WS3-3/5/7/9/10 done with their PRs",
+      "merged_at": "2026-11-15T04:57:11Z",
+      "ai_generated": [
+        "Docs: tasks/WS3-science.md marks WS3-3/5/7/9/10 done with their pull requests"
+      ],
+      "humans": "faricool54 directed the change and merged it"
+    },
+    {
+      "number": 65,
+      "title": "ws3: scientific review of the merged 3D (#47) in SCIENCE.md",
+      "merged_at": "2026-11-15T05:53:14Z",
+      "ai_generated": [
+        "Docs: docs/SCIENCE.md, the scientific review of WS7's merged 3D (#47): 17 rows (1 blocking, 5 important, 11 minor) with paste-ready corrected texts, WS3 decisions left to the team where stated, and the checks made with their UTC times",
+        "Tests: test_science_review_texts.py also guards the 3D review table"
+      ],
+      "humans": "faricool54 directed the work and merged it"
+    },
+    {
+      "number": 74,
+      "title": "ws3: object context adapter for the 0.5.0 contract (to_response) + ESA Gaia back-off",
+      "merged_at": "2026-11-15T07:27:27Z",
+      "ai_generated": [
+        "Code: science/context.py (to_response to the 0.5.0 ObjectContextResponse, identity_match so an unreachable Gaia is never reported as no source, replay_deadline_s for offline replays after the API deadline, ContextError.not_found for an unknown name versus Sesame down, a 120 s back-off for the ESA Gaia host only)",
+        "Tests: test_science_context.py (responses validated against shared/schema, the CfA back-off regression)"
+      ],
+      "humans": "faricool54 directed the work and merged it"
+    },
+    {
+      "number": 85,
+      "title": "ws3: scientific review of the precomputed light curves (#78/#79/#83)",
+      "merged_at": "2026-11-15T14:56:11Z",
+      "ai_generated": [
+        "Docs: docs/SCIENCE.md, the scientific review of the precomputed light curves requested by rpccp in #78 (verdict, the important points LC1-LC7 with owners, the minor LC8-LC30 grouped by owner, the checks made) and tasks/WS3-science.md (WS3-9)"
+      ],
+      "humans": "faricool54 directed the work and merged it"
+    },
+    {
+      "number": 87,
+      "title": "ws3: apply the reviewed showcase field texts (LC6)",
+      "merged_at": "2026-11-15T15:23:25Z",
+      "ai_generated": [
+        "Config: the description texts and comments of Barnard's Star, WISE 0855, RW Aur and R Dra in pipeline/errante/config/fields.toml (LC6 and the pending rows of the text review)"
+      ],
+      "humans": "faricool54 directed the change and merged it"
+    },
+    {
+      "number": 93,
+      "title": "ws3: light-curve fixes from the review (LC7, LC23-LC29)",
+      "merged_at": "2026-11-15T16:04:28Z",
+      "ai_generated": [
+        "Code: science/variability.py (LC7: a best period at the grid edge or covering < 1.5 cycles is not tested, 'significant' described as time-correlated variability and not as a confirmed period, the false alarm written as a count; LC23 in part and LC24-LC29: floors recomputed at the final period, scatter_over_control null with the wing method, comparison exclusions counted, the comparison pair-scatter note, wavelength-matched ensembles, amplitude errors; a per-season saturation note), the false-alarm count in cli.py",
+        "Tests: test_science_variability.py (including a product built like lightcurve_build.calculate() and validated against the contract)",
+        "Docs: docs/SCIENCE.md, the WS3 fixes applied"
+      ],
+      "humans": "faricool54 directed the work and merged it"
+    },
+    {
+      "number": 101,
+      "title": "ws3: name RW Aur's Gaia components per the WDS in the object card (V15)",
+      "merged_at": "2026-11-15T17:47:19Z",
+      "ai_generated": [
+        "Code: COMPONENT_NAME_FIXES in science/context.py (the two RW Aur Gaia DR3 sources named A and B per the WDS and the Gaia DR3 positions, with a warning; main_id keeps SIMBAD's)",
+        "Tests: test_science_context.py",
+        "Docs: the V15 note in docs/SCIENCE.md and the status in tasks/WS3-science.md"
+      ],
+      "humans": "faricool54 directed the work and merged it"
+    }
+  ],
+  "related_work_note": "Work by the same developer with Claude Code outside WS3's paths, which implements or carries WS3 outputs, is not claimed here as WS3 files: the 0.5.0 ObjectContextResponse contract (#73), the WS5 object card (#75) and light-curve panel (#97), both recorded in frontend/ai-usage.json, the WS4 GET /api/object endpoint (#76) and the republished light curves with the WS3 fixes (#94), which backend/ai-usage.json (OpenAI Codex) does not list, and the WS2 sync of the reviewed field descriptions into data/products (#88), which pipeline/errante/imaging/ai-usage.json does not list; the chore (coordination) pull requests #36, #46, #62, #66, #89 and #104 (validation records in docs/validation/ and the plan status) and #77 (status guide and the 0.5.0 object card in CONTRACT.md) also carry Claude co-author trailers, and #67 is a WS1 pull request covered by WS1's record (pipeline/errante/data/ai-usage.json, proposed in #105). rpccp's #102 (OpenAI Codex: V18 conditional spectral temperatures and IR colours, the remaining LC24 fix) changed WS3 files after this work and is recorded in pipeline/errante/science/continuum-ai-usage.json"
+}
