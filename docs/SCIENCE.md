@@ -5,7 +5,8 @@ Lectura obligatoria para WS2 y WS3; recomendada para todos (sirve para el pitch)
 > **Actualizado el 2026-11-15 (WS3-7).** El §0 incorpora lo que establecieron los cinco registros de
 > [`validation/`](validation/); 🆕 marca lo que cambió respecto de la versión del 14/11. Al final está la
 > [revisión científica de textos](#revisión-científica-de-textos-ws3-7-2026-11-15), con cambios listos para pegar
-> por cada dueño.
+> por cada dueño, y después la [revisión científica del 3D de WS7](#revisión-científica-del-3d-ws7-47---2026-11-15)
+> (#47).
 
 **Alcance prioritario:** R05 exige ensayar Barnard's Star, Epsilon Indi B, WISE 0855, RW Aurigae y R Draconis.
 Ver `VALIDATION.md`: movimiento propio y variabilidad se validan sin requerir detección automática.
@@ -563,3 +564,174 @@ the astrometric reference.
 con 404); el tipo espectral ~Y4 de WISE 0855 en Kirkpatrick+2021 y Luhman+2024; los números del Planeta Nueve del §2;
 la VR de RW Aur (Gaia DR3 da −20,9 km/s para B y `catalog.py` usa +15 km/s de SIMBAD, Nguyen et al. 2012: no se ve en
 la UI). Los registros de validación son análisis de IA con revisión independiente; la revisión humana sigue pendiente.
+
+## Revisión científica del 3D (WS7, #47) - 2026-11-15
+
+Revisión de WS3 del 3D procedural que entró con #47 (`main` `8a3f82f`): `pipeline/errante/systems/catalog.py`,
+`frontend/src/three/` (`appearance`, `starMaterial`, `astro`, `colorModes`, `ephemerides`, `skyTrack`, `spherexBands`,
+`spherexCoverage`, `datasetGate`, `appearanceNotes`, `sceneLayout`, `SystemScene`), [`VISION_3D.md`](VISION_3D.md),
+[`tasks/WS7-3d-systems.md`](../tasks/WS7-3d-systems.md) y las «Notas de otros WS» de [`DATA.md`](DATA.md). Cada valor y
+cada afirmación se contrastó con los cinco registros de [`validation/`](validation/), con §0 y §3.1 de este documento,
+con [`DATA.md`](DATA.md) §3.0 y §3.2, con el contexto de catálogo de WS3 (`errante.science.context.object_context` y
+`physical_parameters`, reproducidos offline desde `pipeline/tests/fixtures/ws3/context/`, grabados el 2026-11-15) y, cuando
+hizo falta, con consultas en vivo (lista al final). La regla es la de [`VISION.md`](VISION.md) («El 3D: realista y sin
+inventar nada»). WS3 no edita archivos de WS7: cada dueño aplica su fila. El texto sugerido está en inglés para la UI y el
+código, y en español para los documentos internos; si cita un número de validación, dice «offline» (§4).
+
+**Resumen.** El 3D cumple lo esencial: nada se presenta como imagen, las superficies son lisas por defecto, los colores
+están rotulados y los valores de catálogo que WS3 pudo comprobar coinciden con Gaia DR3, SIMBAD, VSX y el NASA Exoplanet
+Archive. Los problemas son de otro tipo:
+
+- una cita de la ficha de RW Aur presenta como **medición SPHEREx** magnitudes D5/D6 de núcleos saturados, que el registro
+  de RW Aur invalidó;
+- varias notas del panel del cielo repiten afirmaciones de `RECON_SPHEREX.md` que los registros corrigieron (saturación de
+  Barnard por detector, S/N de WISE 0855, NaN en R Dra);
+- en *Dataset time*, la banda de ±6,6 d de R Dra no cubre el máximo de enero de 2026 que midió el registro (−14,8 d), y el
+  radio de R Dra pulsa por defecto aunque ese cambio no está medido en esta estrella;
+- para RW Aur el visor manda a «mirar los frames», donde el cambio no se puede ver (la estrella satura en D2–D6).
+
+Severidad, como en la revisión de textos: **bloquea** = corregir antes de enviar; **importante** = antes del freeze si se
+puede; **menor** = mejora. La tabla tiene 17 filas: 1 bloquea, 5 importantes y 11 menores.
+
+| archivo:línea | valor o texto | problema | corrección sugerida (lista para pegar) | severidad | dueño |
+|---|---|---|---|---|---|
+| `frontend/src/three/astro.ts:1150-1151` (`IR_EXCESS_CITE`, en la ficha de RW Aur A, «At SPHEREx scale») | «SPHEREx measured D5 7.92–8.65 and D6 7.63–8.38 AB in 2025-09 to 2026-09 (docs/RECON_SPHEREX.md §4.4) … i.e. 1.3–3.8 mag brighter than the A+B photosphere blackbody» | RW Aur satura en **todos** los frames D2–D6 (0 de 56 frames limpios en D5 y en D6; `OVERFLOW` en 304 de 335). El [registro](validation/rw-aurigae.md) llama a esas magnitudes «indicio no válido»: con saturación el recorte crece con el brillo. Además RECON §4.4 concluía que la estrella se apagó en D5/D6, mientras que lo medido sin saturar (D1) es que se abrillantó ~1 mag. La regla (una T Tauri tiene exceso IR) es correcta; la evidencia citada como «SPHEREx measured» no lo es. 🧮 Con la fotosfera A+B del propio catálogo (4900 K y 1,3 R☉ + 4150 K y 1,5 R☉, a 156,1 pc) y las magnitudes de 2MASS y AllWISE del contexto WS3, el exceso es 1,35 mag en Ks, 1,89 en W1 y 2,80 en W2 | `'evidence for the rule (RW Aur A+B, classical T Tauri stars with disks): 2MASS Ks = 7.020 Vega = 8.87 AB (Cutri et al. 2003, VizieR II/246; K_AB − K_Vega = 1.85, Blanton & Roweis 2007, AJ 133, 734) and AllWISE W1 = 6.246 and W2 = 5.228 Vega = 8.95 and 8.57 AB (Cutri et al. 2013, VizieR II/328; AB − Vega = 2.699 and 3.339, WISE Explanatory Supplement) are 1.4, 1.9 and 2.8 mag brighter than the A+B photosphere blackbody (catalog Teff and radii, 156.1 pc); the epochs differ and the star varies by magnitudes. SPHEREx saturates on RW Aur in every D2–D6 exposure, so no SPHEREx flux is quoted here (docs/validation/rw-aurigae.md)'`. En el comentario de `astro.ts:1177`: «(RW Aur: 1.4–2.8 mag at 2.2–4.6 µm, 2MASS/AllWISE)» | bloquea | WS7 |
+| `frontend/src/three/ephemerides.ts:263-280` (`MIRA_EPHEMERIDES`, R Dra), `docs/VISION_3D.md:257-263` y `tasks/WS7-3d-systems.md:105` | Banda de 1σ de ±6,6 d (RMS del O−C 2015–2024) alrededor de las fechas VSX: máximos predichos 2025-05-20, 2026-01-21 y 2026-09-24. VISION_3D: la estimación del máximo de 2026-01 «no publicada y no usada» | El [registro de R Dra](validation/r-draconis.md) (§3, 818 observaciones AAVSO) midió los máximos V de esos mismos ciclos: MJD 60811,4, 61046,5 y 61304,3 (2025-05-16, 2026-01-06 y 2026-09-21). 🧮 O−C respecto de VSX: −3,8, −14,8 y −3,1 d (RMS 9,0 d). El de enero de 2026 queda a 2,2σ de la banda, y la fase que el 3D dibuja ese mes está corrida ~0,06 ciclos. [`VISION.md`](VISION.md) pide la curva medida cuando existe, y esta ya está publicada en el registro (lo que VISION_3D llama «no publicada») | Dentro de la ventana SPHEREx, fechar la fase con los máximos medidos y dejar VSX solo fuera de ella. En la entrada de R Dra: `observedMaximaMjd: [60811.4, 61046.5, 61304.3]`, `observedMaximaSource: 'AAVSO International Database, 818 visual and V observations, JD 2460700–2461360; maxima from ±40 d parabolas (offline WS3 analysis, docs/validation/r-draconis.md)'`; fase lineal entre máximos consecutivos y banda de ±3 d (error formal 0,5–0,8 d; el real, «unos pocos días», es INFERIDO en el registro). Si no da el tiempo: `timingSigmaDays: 9.0` con `timingSource: 'RMS of the O−C of the 2025–2026 AAVSO maxima about VSX: −3.8, −14.8 and −3.1 d (offline WS3 analysis, docs/validation/r-draconis.md)'`. En `tasks/WS7-3d-systems.md:105`, el contraste con los máximos AAVSO ya está hecho (en el registro); queda el término de Eddington–Plakidis | importante | WS7 |
+| `frontend/src/three/sceneLayout.ts:25`, `SystemScene.ts:973-975` y `:1000-1008`; leyenda en `colorModes.ts:613-617` | R Dra: radio ±10 % (`PULSATION_RADIUS_AMPLITUDE`), dibujado **por defecto** en los dos relojes y en todos los modos de color, «in phase with the light for display only» | El cambio de tamaño no está medido en R Dra: es `class-typical`, de otras Miras, y su relación de fase con la luz no se conoce. En *Dataset time* se dibuja en una fecha real, así que parece una predicción. [`VISION.md`](VISION.md) dice «lo que no se midió no se dibuja» (pulsación: «si falta, modelo estático»), y es el mismo criterio que WS7 ya aplicó a las celdas de convección. Además, en el modo IR por defecto el radio sigue la fase V, y los máximos SPHEREx llegan entre 1 d antes y 47 d después (registro) | Radio constante salvo con el toggle class-typical: pasar `classTypical` a `pulsationAt` y devolver `radiusScale: 1` cuando está apagado. Leyenda: "R Draconis: radius drawn constant, because its size change is not measured. With class-typical features on: ±10 % (CLASS-TYPICAL Mira diameter change), drawn in phase with the light for display only." | importante | WS7 |
+| `frontend/src/three/ephemerides.ts:423` (`IRREGULAR_TEXT`: línea de tiempo y «On this date») | «irregular: cannot be predicted - look at the frames» | En RW Aur los frames no sirven para ver el cambio: la estrella satura en todo D2–D6 y valía 255 en los 40 PNG del build que revisó el registro (#48 cambió después el render de núcleos brillantes, sin re-medir). El registro solo pudo medir la variación en exposiciones D1 sin saturar, emparejadas en λ. Mandar a «mirar los frames» sugiere que ahí se ve | Genérico: "irregular: cannot be predicted". Para RW Aur, agregar: "Measured offline on unsaturated SPHEREx D1 exposures at matched wavelength, RW Aur (A+B) was about 1 mag brighter at 0.75–0.77 µm in Sep 2026 than in Sep 2025 (docs/validation/rw-aurigae.md). It saturates every D2–D6 frame: image brightness here is not a measurement." | importante | WS7 |
+| `frontend/src/three/skyTrack.ts:270` (panel «Where SPHEREx should see it», Barnard) | «Saturated in D1–D4 (NaN core of 1–5 px), rarely in D5, never in D6 (RECON 4.3).» | Contradicho por el [registro de Barnard](validation/barnards-star.md) y por DATA.md §3.2: `OVERFLOW` en 357 de 358 exposiciones, en los seis detectores (D5 61 de 61, D6 57 de 58). Lo raro en D5/D6 es el NaN (4 de 119), no la saturación: RECON confundió NaN con saturación | "Saturated (OVERFLOW) in 357 of 358 exposures, in all six detectors; the core is NaN in 240 of them, almost all in D1–D4 (docs/validation/barnards-star.md)." | importante | WS7 |
+| `frontend/src/three/skyTrack.ts:300` (WISE 0855) | «Visible only at local wavelengths ≥ 3.9 µm (D5/D6), S/N ≈ 5 per image (RECON 4.3).» | El [registro](validation/wise-0855.md) midió los 258 frames: S/N mediana por exposición 3,4–3,8 (≥ 5 en 22 de 93 frames D5/D6) y 21–25 sumando por detector; se ve en todo D5/D6 (3,8–5,0 µm), con el máximo en 4,25–4,70 µm. «≈ 5» sobreestima lo que se ve en un frame; en los 12 frames D5/D6 del build que revisó el registro la S/N mediana era 2,1 | "Seen only in D5/D6 (3.8–5.0 µm), brightest at 4.25–4.70 µm: median S/N 3.4–3.8 per exposure (5 or more in 22 of 93) and 21–25 per detector with all exposures combined (offline FITS analysis, docs/validation/wise-0855.md)." | importante | WS7 |
+| `frontend/src/three/skyTrack.ts:315` (R Dra) | «Saturated core (NaN) in every image (RECON 4.3).» | Satura en todas (2488 de 2488), pero los píxeles `OVERFLOW` son finitos, no NaN ([registro](validation/r-draconis.md); DATA.md §3.2; NaN ≤ 0,28 % por patch) | "Saturated (OVERFLOW) in all 2,488 exposures with the star on the detector; the flagged core pixels are finite, not NaN (docs/validation/r-draconis.md)." | menor | WS7 |
+| `frontend/src/three/skyTrack.ts:307` (estrella de campo junto a WISE 0855) | «in D1–D3 the blob at the target position is this star» | El registro no detecta a WISE 0855 en D1–D4 (flujo compatible con 0) y mide la estrella en los cuatro | "in D1–D4 the blob at the target position is this star (docs/validation/wise-0855.md)" | menor | WS7 |
+| `frontend/src/three/astro.ts:1216`, `:1226` y `appearanceNotes.ts:156-157` | «check the OVERFLOW/NONLINEAR pixel flags» | Para los cinco blancos ya están revisados en los registros: Barnard 357 de 358, RW Aur 304 de 335 (todo D2–D6 y 37 de 56 en D1) y R Dra 2488 de 2488 con `OVERFLOW`; `NONLINEAR` nunca; ε Ind B y WISE 0855 no saturan | Para los cinco blancos, el resultado en lugar de «check»: R Dra "saturated (OVERFLOW) in all 2,488 SPHEREx exposures, NONLINEAR never (docs/validation/r-draconis.md)"; RW Aur "saturated in every D2–D6 exposure and in 37 of 56 D1 exposures (docs/validation/rw-aurigae.md)"; Barnard "saturated in 357 of 358 exposures (docs/validation/barnards-star.md)". Para cualquier otro objeto, dejar «check» | menor | WS7 |
+| `pipeline/errante/systems/catalog.py:188-190` (nota de órbita de Barnard b–e) | «Drawn circular: the fitted eccentricities are consistent with zero (Basant et al. 2025 favour e < 0.02).» | El NASA Exoplanet Archive (`ps`, `default_flag = 1`, Basant et al. 2025; en vivo, 2026-11-15) da e = 0,04 (+0,05/−0,03) para d, 0,03 (+0,03/−0,02) para b, 0,08 (+0,06/−0,05) para c y 0,04 (+0,03/−0,04) para e. «e < 0.02» no se pudo verificar. 🧮 Dibujar la órbita circular corre la posición hasta 2e rad (3,4° en b, 9,2° en c), un término que el arco de ±2σ no incluye; en c es del orden de su 1σ (11–16°) | "Drawn circular: the fitted eccentricities (d 0.04, b 0.03, c 0.08, e 0.04; Basant et al. 2025 via the NASA Exoplanet Archive) are consistent with zero within 2σ. A circular drawing can misplace the planet along its orbit by up to 2e rad (3–9°); the phase arc does not include that." | menor | WS7 |
+| `frontend/src/three/spherexCoverage.ts:134-153` (ε Ind) | `spherex_dr1: 340`; pasadas de 120, 147, 73 y 120 imágenes (460, de DATA.md) | El [registro de ε Ind B](validation/eps-indi-b.md) y la nota de DATA.md §3.0 dan 458 en SIA2 en vivo (338/120; 118, 146, 74 y 120), y la causa del 460 no está verificada. La UI suma las imágenes con el conteo que no se reprodujo | Conteo principal 458 (`spherex_dr1: 338`; 118, 146, 74 y 120), y en la nota: 'DATA.md §3.0 first counted 460 (340/120); live SIA2 on 2026-11-14 19:24 UTC gives 458 at this centre and at the field centre (docs/validation/eps-indi-b.md); the cause of the difference is not verified.' | menor | WS7 |
+| `frontend/src/three/spherexCoverage.ts:223` | «R Dra lies in the NEP deep field.» | R Dra está a 8,6° del polo eclíptico norte. Tiene 1954 frames de las colecciones deep, contra ~29 400 en el NEP (DATA.md §3.0): cae en la huella de las colecciones deep, no en el centro del campo profundo | "R Dra is 8.6° from the north ecliptic pole, inside the footprint of the SPHEREx deep collections (1,954 of its 2,493 frames)." | menor | WS7 |
+| `frontend/src/three/ephemerides.ts:260-261` (`MIRA_PREDICTION_CAVEAT`) | «IR amplitude is smaller and IR maxima lag the visual ones» | Correcto en lo cualitativo, y el registro ya lo cuantifica: 0,5–1,3 mag pico a pico según el detector (en V, 6,5 mag) y máximos entre 1 d antes (D1) y 47 d después (D4) de los visuales. En D1 no hay retraso | "V-band prediction from a catalogue ephemeris, not a SPHEREx light curve. Measured offline on the SPHEREx FITS files, the infrared cycle is 0.5–1.3 mag peak-to-peak (6.5 mag in V), with maxima from 1 day before (0.74–1.1 µm) to 47 days after (2.4–3.8 µm) the visual ones (docs/validation/r-draconis.md)." | menor | WS7 |
+| `frontend/src/three/appearanceNotes.ts:377-380` (RW Aur A, por qué no gira) | «no secure period: a candidate of about 5.5–5.7 d without a formal uncertainty» | AAVSO VSX da P = 2,64 d para RW Aur (tipo CTTS/ROT+CTTS, A+B sin resolver; contexto WS3, 2026-11-15) y la ficha no lo menciona. La decisión no cambia (no hay un período seguro de A), pero falta decir por qué no se usa | Agregar al final: "; AAVSO VSX lists 2.64 d for RW Aur (type CTTS/ROT, A+B unresolved, component not stated): not adopted" | menor | WS7 |
+| `frontend/src/three/colorModes.ts:650-652` (`colourModeChip`) | Modo visible sin chip (`return null`) | IR y D1–D6 llevan el chip «BLACKBODY MODEL»; el visible no, aunque también es el color de un cuerpo negro a la Teff de catálogo y no el color real (bandas de TiO en R Dra; enanas M). Lo dice la leyenda, pero no el chip | `if (mode === 'visible') return 'VISIBLE · BLACKBODY COLOUR MODEL';` | menor | WS7 |
+| `frontend/src/three/skyTrack.ts:299` (WISE 0855) | «RECON 4.1 predicts 133.757926, −7.241980 … from the team's own WISE + NEOWISE fit …; this track, from Kirkpatrick et al. 2021, is 0.31″ (0.05 px) away» | Correcto. Falta decir que Kirkpatrick et al. 2021 es la solución elegida (decisión de WS3, abajo) | "Adopted solution: Kirkpatrick et al. 2021, also used by fields.toml and docs/validation/wise-0855.md. Cross-check: the team's own unpublished WISE + NEOWISE fit (docs/RECON_SPHEREX.md 4.1, μ ≈ −8095, +696 mas/yr) is 0.31″ (0.05 px) away on 2026-11-14." | menor | WS7 |
+| `docs/DATA.md:439-440` (Notas de otros WS, WS7) | ε Ind B: «❓ … WS7 no lo re-consultó en Gaia». WISE 0855: «Falta que WS3 elija uno para los recortes» | Se pueden cerrar. La solución de ε Ind B coincide cifra por cifra con Gaia DR3 en el TAP de ESA (fixture de WS3 del 2026-11-15). WS3 eligió Kirkpatrick et al. 2021 para WISE 0855 | ε Ind B: «📄 Coincide con Gaia DR3 6412596012146801152 en el TAP de ESA (fixture de WS3, `pipeline/tests/fixtures/ws3/context/`, 2026-11-15): RA 331.0764526, Dec −56.7938121, µ 3981.977 / −2466.832 mas/a, plx 270.658 ± 0.690 mas.» WISE 0855: «📄 WS3 eligió Kirkpatrick et al. 2021 ([SCIENCE.md](SCIENCE.md#revisión-científica-del-3d-ws7-47---2026-11-15)): es la solución publicada, con errores, y la que usan `fields.toml`, el registro y el contexto de WS3; el ajuste de RECON §4.1 queda como control.» | menor | WS7 |
+
+### Decisiones de WS3
+
+**WISE 0855: se usa Kirkpatrick et al. 2021** (la predicción que el panel ya dibuja), no el ajuste WISE + NEOWISE de
+`RECON_SPHEREX.md` §4.1. Razones:
+
+1. Es una solución publicada y con errores (µ ± 1,3 mas/año, paralaje 439,0 ± 2,4 mas). El ajuste de RECON es nuestro, no
+   está publicado y no documenta errores ni método (da una paralaje de «≈ 430–475»).
+2. Es la que usa el resto del proyecto. SIMBAD (vía Sesame CfA) da justamente esa solución (referencia
+   `2021ApJS..253....7K`); de ahí salen el centro de `fields.toml`, las predicciones del
+   [registro](validation/wise-0855.md) y el contexto de WS3. 🧮 El centro de `catalog.py` a MJD 57633,39 es la posición
+   J2000 de SIMBAD propagada a esa época, con 0,011″ de diferencia. Con una sola solución, el panel 3D y los recortes no
+   difieren en 0,05 px.
+3. SPHEREx no distingue entre las dos: 0,31″ = 0,05 px es mucho menos que el error por temporada del registro
+   (0,17–0,36″) y que el sistemático de la mezcla con Gaia DR3 5756956644387831296 (hasta +0,5–1,1″ al norte en S2). El
+   movimiento propio medido, (−8,24 ± 0,34, +1,21 ± 0,34)″/año en la revisión, es igual de compatible con Kirkpatrick
+   (−8,12, +0,67) y con RECON (≈ −8,10, +0,70).
+
+En los dos casos hay que incluir la paralaje: alterna ±0,43″ en E entre temporadas (§0.2).
+
+**Barnard b–e, t0 de Basant et al. 2025 (M5): WS3 recomienda aceptar la lectura como conjunción inferior**, con la
+advertencia visible que ya tiene. La decisión es del equipo; esta es la opinión de WS3 y sus razones:
+
+1. **Argumento físico, independiente del código.** Los t0 tienen errores de ±0,08–0,37 d (2–5 % del período). Según WS7,
+   ω queda sin restringir (±120°), y e es compatible con 0 (archivo: 0,03–0,08, a ≤ 1,6σ). El tiempo de periastro de una
+   órbita casi circular con ω libre está mal definido: su posterior se extendería sobre buena parte del período. Un tiempo
+   de conjunción, en cambio, queda bien fijado por la fase de la curva de velocidad radial. Un t0 tan acotado es una
+   conjunción.
+2. **Control externo.** 🧮 t0(b) − 33 P = BJD 2460139,291, a +0,087 d (0,028 ciclos, 0,50σ) del Tc de González Hernández
+   et al. 2024 (2460139,204 ± 0,149 d), un ajuste independiente con otro instrumento. Si t0 fuera un periastro con ω
+   arbitrario, la conjunción caería en cualquier punto del ciclo. La chance de quedar a ≤ 0,087 d del Tc publicado sería de
+   ~6 % (0,17 d sobre 3,15 d).
+3. **Convención del código.** Según WS7, juliet pasa t0 a RadVel como `tc` (conjunción) y no tiene un parámetro de
+   periastro. WS3 no leyó ese código.
+
+En contra: el texto del paper dice «time of periastron passage», y el Exoplanet Archive guarda el valor en `pl_orbtper`,
+con `pl_tranmid` vacío (consultado en vivo por WS3). Sigue al paper, así que no confirma ni refuta. Condiciones para
+aceptarla:
+
+- mantener «read as the time of inferior conjunction; the paper text says periastron» en la nota de la órbita, la ficha y
+  «On this date»;
+- sumar el término de excentricidad (fila de `catalog.py:188-190`);
+- recordar en la leyenda que la inclinación, la orientación del plano y el sentido de giro no se conocen: la flecha
+  «toward Earth» es una convención de dibujo;
+- si se puede, consultar a los autores.
+
+Si el equipo no la acepta, se revierte como indica WS7 (`epoch_mjd = null`, tarea WS7-9).
+
+### Lo que está sólido
+
+- **Nada se presenta como imagen.** El badge «3D MODEL · NOT AN IMAGE» está en el visor (`SystemViewer.tsx:279`), en la
+  página (`SystemPage.tsx:89`, con `representation_note`) y en la ficha (`BodyPanel.tsx:270`).
+- **Superficies.** Esferas lisas por defecto. Las celdas de R Dra y las bandas de ε Ind Ab y Ba aparecen solo con el toggle
+  class-typical, que está apagado (`SystemViewer.tsx:112`) y marcado ILLUSTRATIVE. El giro sale solo de un período
+  verificado (Barnard 145 ± 15 d; VSX da 130 d para V2500 Oph, compatible) y no se ve sobre una esfera uniforme.
+- **Colores.** El modo IR por defecto lleva el chip «FALSE COLOUR · BLACKBODY MODEL» y la leyenda de canales en orden de λ
+  (azul = D1+D2, verde = D3+D4, rojo = D5+D6); D1–D6 tienen su propio chip. No hay colores mal rotulados como visibles (solo
+  falta el chip del modo visible, fila de `colorModes.ts:650-652`). Por debajo de 2500 K el color es cualitativo y con
+  contorno punteado.
+- **Valores de catálogo comprobados por WS3.**
+  - Barnard: posición, µ, paralaje y VR de Gaia DR3 (fixture); P, masa mínima, a y t0 con sus errores de los cuatro
+    planetas (Exoplanet Archive, en vivo).
+  - ε Ind A: µ, paralaje 274,8431 ± 0,0956 mas y VR −40,43 km/s (Gaia DR3 vía VizieR CfA, en vivo); K5V (SIMBAD).
+  - ε Ind A b: P, a, e, 6,5 MJ, radio calculado 12,7 R⊕ = 1,13 RJ e i = 102° (fixture del Exoplanet Archive).
+  - ε Ind B: astrometría del panel del cielo (Gaia DR3, fixture).
+  - WISE 0855: centro, µ y paralaje (SIMBAD/Kirkpatrick+2021).
+  - R Dra: Gaia DR3; Bailer-Jones 792 (750–832) pc; VSX P = 246,12 d, época HJD 2457370, V 6,7–13,2; Gaia LPV 247,2 ± 6,0
+    d; GCVS 245,6 d (§3.1 y revisión de textos).
+  - RW Aur: la identidad A/B de `catalog.py` coincide con el WDS (§0.3; SIMBAD tiene los ids de Gaia invertidos); la
+    distancia de 156,1 pc sale de la paralaje de B.
+  - 🧮 Kepler cierra en todas las órbitas: ε Ind Bb, a³/P² = 0,1147 M☉ = Ba + Bb de Chen et al. 2022; ε Ind Ab, 0,806 M☉;
+    RW Aur B, a = q/(1 − e) = 258 UA y P = 2773 años; Barnard b, a = 0,0229 UA.
+- **Ventanas de pasadas SPHEREx** (`spherexCoverage.ts`). Coinciden con DATA.md §3.0 y con las temporadas de los registros
+  dentro del redondeo de ±0,5 d: Barnard 60902,87–61305,63; ε Ind B 60789,86–61315,48; WISE 0855 60800,70–61174,29; RW Aur
+  60919,42–61299,90; R Dra 60789,9–61310,3, con deep. También coinciden los conteos por detector (salvo el 460 de ε Ind), la
+  2.ª pasada de WISE 0855 partida en dos visitas y la última de ε Ind B solo con D2, D3, D5 y D6.
+- **Fases desconocidas.** ε Ind Ab, Ba y Bb y RW Aur B se dibujan como anillos «phase unknown», con la razón y la fuente.
+  RW Aur A y B nunca se animan. Barnard b–e llevan la dispersión de fase de 1σ (11–31°) con la fórmula correcta (🧮 b: 13,0°
+  al inicio de DR1 y 18,6° en el último frame QR3).
+- **Panel del cielo** (`skyTrack.ts`). El modelo es correcto: movimiento espacial con VR más paralaje; Tierra heliocéntrica,
+  con un error ≤ 0,75 % de la paralaje. Para ε Ind usa la astrometría de B, que es lo que mira el campo (A está a ~402″ al
+  oeste). La estrella de campo junto a WISE 0855 coincide con Gaia DR3 5756956644387831296 (fixture: 133.7581825,
+  −7.2411559).
+
+### Sigue abierto (ya declarado por WS7 o por la revisión de textos)
+
+- Lo que [`VISION_3D.md`](VISION_3D.md) («Diferencias con `VISION.md` que siguen abiertas») ya declara: el color sale de la
+  Teff de catálogo y no del espectro SPHEREx; el radio es de catálogo (R Dra 250 R☉ ilustrativo, RW Aur A estimado); la
+  pulsación es una curva V y no la curva SPHEREx. Las medidas ya existen offline en los registros, y WS3 publicó las curvas
+  de luz de las variables (#59): es el insumo de WS7-8.
+- Filas de la revisión de textos sobre `catalog.py` que siguen abiertas tras #47, con su línea nueva: «a Sun-like star»
+  (`:264`), «Y4 (approx.)» y «~Y4» frente a Y2 de SIMBAD (`:441` y `:444`), la nota de R Dra sin las medidas SPHEREx
+  (`:476-486`), Ba+Bb sin resolver también en SPHEREx (`:405`) y los facts del bloque **A5**. Resuelta: `field_id` de
+  `eps-indi-b`, `r-draconis` y `rw-aurigae` (`:275`, `:515` y `:586`). Sigue pendiente publicar los sistemas en el dataset
+  real: `data/products/manifest.json` tiene `systems: []` (WS7 + WS4).
+- La VR de RW Aur (+15 km/s de SIMBAD, Nguyen et al. 2012) no coincide con la de Gaia DR3 para B (−20,9 ± 4,0 km/s). 🧮 En
+  el panel del cielo el efecto es < 0,001″.
+
+**Para WS3 (pendiente propio).** `science/context.py` nombra el click de RW Aur con el cross-id de SIMBAD, que llama «RW Aur
+B» a Gaia DR3 156430817820015232. Según el WDS (§0.3) y WS7 es A. Hace falta una corrección o una advertencia en el contexto
+y en `test_rw_aur_click_names_the_component`.
+
+### Comprobaciones hechas para esta revisión (2026-11-15, UTC)
+
+- **Offline:** `object_context` por nombre de los cinco blancos, reproducido desde los fixtures de WS3 (grabados entre las
+  03:44 y las 04:22 UTC): Gaia DR3 (posiciones, µ, paralaje, FLAME, Bailer-Jones, LPV), SIMBAD, VSX, 2MASS, AllWISE y el Exoplanet
+  Archive.
+- **05:14, TAP de Gaia en ESA:** no respondió (HTTP 000). Se usó el espejo de CfA.
+- **05:15, VizieR CfA `I/355/gaiadr3`:** ε Ind A = 6412595290592307840: RA 330.8724079, Dec −56.7972547, plx 274.8431 ±
+  0.0956 mas, µ (3966.661, −2536.192) mas/año, VR −40.43 ± 0.13 km/s, RUWE 1.148. Coincide con `catalog.py`.
+- **05:18, Sesame CfA** (`eps Ind`): K5V, plx 274.8431 mas.
+- **05:19, NASA Exoplanet Archive** (`ps`, `default_flag = 1`, Barnard): `pl_orbtper` 2460243.38 / 2460242.92 /
+  2460243.70 / 2460245.30 para b / c / d / e, con los errores de `catalog.py`; `pl_tranmid` vacío; e 0.03 / 0.08 / 0.04 /
+  0.04.
+- 🧮 Los cálculos (exceso IR de RW Aur, O−C de R Dra, t0 de Barnard contra González Hernández+2024, término 2e y
+  propagación de WISE 0855) están en un script del scratch local, sin versionar.
+
+**No re-verificado por WS3** (no inventar): la masa class-typical de R Dra (Feast 2009); el ±10 % de diámetro de las Miras
+(Ireland+2004, Woodruff+2004); las Teff de R Dra (van Belle+2002, McDonald+2012), de RW Aur A (Testi+2022) y de RW Aur B
+(Dodin+2020); los valores de Kurtovic+2024; el radio de ε Ind A (Sanghi+2026); Matthews+2024; Luhman+2024; Hitchcock+2020;
+Esplin+2016, Wilson+2025 y Miles+2026; el «e < 0.02» y el ω de Basant+2025; la convención de juliet/RadVel; la lista O−C de
+Karlsson; la subida del 45 % de VSX; los desplazamientos AB − Vega de WISE (2,699 y 3,339). Los registros de validación son
+análisis de IA con revisión independiente; la revisión humana sigue pendiente.
