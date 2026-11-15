@@ -1,0 +1,17 @@
+{
+  "updated_on": "2026-11-15",
+  "tool": "Anthropic Claude Code",
+  "package": "FE-7 (docs/FRONTEND_PLAN.md): compact blink player (BlinkViewer)",
+  "scope": "BlinkViewer is now a CSS size container (.pl-root, new src/styles/player.css with the .pl- prefix): under 520 px of width (the home dock) it switches by itself to a compact layout, and a new optional `compact` prop forces it (default false, markup otherwise identical). Layout in both widths: the zoom 1x/2x/4x floats over the top right of the image, the loading status ('Loading sequence images... n/N', same text) shows over the stage with a progress bar, the transport is one card with two rows (previous / play-pause / next next to the scrubber with date and frame count; then playback speed, Markers, the Gaia or Catalog prediction toggle and a new (i) keyboard-help popover), and the crosshair note and the WS7 legend with 'Source and method' stay fully visible under the transport with their texts unchanged. The stage stays square and centred: in the dock it is min(width, 100dvh - 310 px), on the wide field page min(width, 100dvh - topbar - 150 px, at least 360 px) so the image and the transport fit in the viewport together. Space and the arrow keys, the .blink-frame images, the frame label (date, detector, wavelength, release) on the image, the WS7 call into three/blinkTarget.ts, the shared .transport-btn/.segmented/.overlay-toggle classes and the FieldPage toolbar (detector select, mode buttons) are unchanged. Checked with tsc, vitest (new server-rendered BlinkViewer.test.tsx for the compact variant plus the existing WS7 markup test), the production build, and in headless Chrome against the local API: home dock at 1366x650 with Barnard's Star (stage 340x340, transport rows 40 and 35 px, image and transport both inside the 450 px dock body, no horizontal overflow, Space paused and ArrowRight stepped one frame, help popover opens over the image), field page at 1366x650 (stage 452x452 and the transport end at y=640 of 650) and RW Aurigae at 375x812 (rows 40 and 35 px, no overflow). Not checked on a touch device or in the static modes.",
+  "affected_paths": [
+    "frontend/src/components/BlinkViewer.tsx",
+    "frontend/src/components/BlinkViewer.test.tsx",
+    "frontend/src/styles/player.css",
+    "frontend/ai-usage/fe-7.json"
+  ],
+  "external_assets": [],
+  "generated_media": [],
+  "scientific_R05_validation": false,
+  "human_review": "pending",
+  "repository_disclosure": "AI_USAGE.md"
+}
