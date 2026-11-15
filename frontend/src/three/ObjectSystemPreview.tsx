@@ -1,6 +1,6 @@
 // 3D tab of the selected sky position when no curated system covers it (V14, WS7-11): a catalog model of the object
 // the object card (GET /api/object) identifies there, built in the browser by contextSystem.ts. Live API only.
-import { useEffect, useState, type CSSProperties, type MouseEvent } from 'react';
+import { useEffect, useState, type MouseEvent } from 'react';
 import { client } from '../api/client';
 import { describeObjectError, lookupKey, matchSummary, positionLookup, type ObjectLookup } from '../api/objectCard';
 import type { ObjectContextResponse, SkyCoord } from '../api/types';
@@ -8,6 +8,7 @@ import { BodyPanel } from '../components/BodyPanel';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { SystemViewer } from '../components/SystemViewer';
 import type { ContextSystemResult } from './contextSystem';
+import './system.css';
 
 // The model builder loads on demand (only when the 3D tab opens in live mode), so the main chunk stays light;
 // a failed download is retried on the next lookup.
@@ -29,25 +30,29 @@ export const CATALOG_BADGE = 'CATALOG MODEL · built from the object card';
 // Same guard as the object card: the backend answers within its own deadline (< 30 s), this only catches a hung network.
 const CLIENT_TIMEOUT_MS = 45_000;
 
-// Inline styles: styles.css belongs to WS5.
-const BADGE: CSSProperties = { background: 'rgba(124, 196, 255, 0.1)', color: '#a9d9ff', border: '1px solid rgba(124, 196, 255, 0.35)' };
-const NOTES: CSSProperties = { display: 'grid', gap: 4, paddingLeft: 18, margin: '8px 0 0' };
+// Styles: three/system.css (.s3d-).
 
 interface Props {
   position: SkyCoord;
   /** The object card's own lookup (a name search stays a NAME lookup, so the 3D and the card describe the same
    *  object). Without it the 3D looks up `position`. SkyExplorer passes it through PositionResults. */
   lookup?: ObjectLookup | null;
+  /**
+   * Dock / tab size (FE-12): compact viewer (<= 320 px stage), the body panel reduced to its key data with the
+   * full panel behind a disclosure, and the model notes collapsed. The catalog badge, the 3D MODEL chip and the
+   * representation note stay visible. Default false.
+   */
+  compact?: boolean;
 }
 
-export function ObjectSystemPreview({ position, lookup }: Props) {
+export function ObjectSystemPreview({ position, lookup, compact = false }: Props) {
   if (client.config.mode !== 'api') {
     return <>
       <p className="muted">{STATIC_MESSAGE}</p>
       <p className="muted small">{STATIC_HINT}</p>
     </>;
   }
-  return <LiveObjectSystem position={position} lookup={lookup ?? null} />;
+  return <LiveObjectSystem position={position} lookup={lookup ?? null} compact={compact} />;
 }
 
 type Load =
@@ -55,7 +60,7 @@ type Load =
   | { state: 'error'; message: string }
   | { state: 'ready'; ctx: ObjectContextResponse; result: ContextSystemResult };
 
-function LiveObjectSystem({ position, lookup: given }: { position: SkyCoord; lookup: ObjectLookup | null }) {
+function LiveObjectSystem({ position, lookup: given, compact }: { position: SkyCoord; lookup: ObjectLookup | null; compact: boolean }) {
   const lookup = given ?? positionLookup(position.ra, position.dec);
   const key = lookupKey(lookup);
   const [load, setLoad] = useState<Load>({ state: 'loading' });
@@ -109,8 +114,19 @@ function LiveObjectSystem({ position, lookup: given }: { position: SkyCoord; loo
       <button className="link-button" type="button" onClick={() => setAttempt((n) => n + 1)}>Retry</button>
     </p>;
   }
-  const { ctx, result } = load;
+  return <ObjectModelView ctx={load.ctx} result={load.result} selectedId={selectedId} onSelect={setSelectedId} compact={compact} />;
+}
 
+export interface ObjectModelViewProps {
+  ctx: ObjectContextResponse;
+  result: ContextSystemResult;
+  selectedId: string | null;
+  onSelect: (bodyId: string | null) => void;
+  compact?: boolean;
+}
+
+/** The catalog model once the object card has answered (exported for the SSR tests). */
+export function ObjectModelView({ ctx, result, selectedId, onSelect, compact = false }: ObjectModelViewProps) {
   const id = ctx.identity;
   const match = matchSummary(ctx);
   const identity = <p className="muted small">
@@ -127,6 +143,7 @@ function LiveObjectSystem({ position, lookup: given }: { position: SkyCoord; loo
   }
   const system = result.system;
   const body = system.bodies.find((b) => b.id === selectedId) ?? system.bodies[0];
+  const unverified = system.bodies.some((b) => b.facts.some((f) => !f.verified));
   // BodyPanel links other bodies to #/system/<id>/<body>, a page that does not exist for a model built here:
   // select the body in this view instead.
   const prefix = `#/system/${system.id}/`;
@@ -134,26 +151,36 @@ function LiveObjectSystem({ position, lookup: given }: { position: SkyCoord; loo
     const href = (e.target as Element | null)?.closest?.('a')?.getAttribute('href') ?? '';
     if (href.startsWith(prefix)) {
       e.preventDefault();
-      setSelectedId(href.slice(prefix.length));
+      onSelect(href.slice(prefix.length));
     }
   };
+  const notes = <ul className="notes muted small s3d-model-notes" aria-label="Model notes">
+    {system.provenance.notes.map((n, i) => <li key={i}>{n}</li>)}
+  </ul>;
 
-  return <>
-    <h3>{system.name}{' '}<span className="badge" style={BADGE}>{CATALOG_BADGE}</span></h3>
+  return <div className={`s3d-preview${compact ? ' s3d-preview--compact' : ''}`}>
+    <h3 className="s3d-preview-title">{system.name}{' '}
+      <span className="badge u-badge u-badge--catalog">{CATALOG_BADGE}</span>
+      {/* Compact: the stage chip already says it, and the dock has no room for a second line of badges. */}
+      {!compact && <>{' '}<span className="badge u-badge u-badge--model">3D MODEL · NOT AN IMAGE</span></>}
+      {unverified && <>{' '}<span className="badge u-badge u-badge--warn" title="Some values are estimates that no catalog or paper states">UNVERIFIED VALUES</span></>}
+    </h3>
     {identity}
-    <p className="muted small">{system.representation_note}</p>
+    <p className="muted small s3d-note">{system.representation_note}</p>
     <ErrorBoundary what="The 3D view">
-      <SystemViewer key={system.id} system={system} selectedId={selectedId} onSelect={setSelectedId} fieldExists={false} />
+      <SystemViewer key={system.id} system={system} selectedId={selectedId} onSelect={onSelect} fieldExists={false} compact={compact} />
     </ErrorBoundary>
-    {system.bodies.length > 1 && <p className="small" role="group" aria-label="Bodies in this model">
-      {system.bodies.map((b) => <button key={b.id} type="button" aria-pressed={b.id === body.id}
-        onClick={() => setSelectedId(b.id)} style={{ marginRight: 6, marginBottom: 4 }}>{b.name}</button>)}
+    {system.bodies.length > 1 && <p className="small s3d-bodies" role="group" aria-label="Bodies in this model">
+      {system.bodies.map((b) => <button key={b.id} type="button" className="u-chip" aria-pressed={b.id === body.id}
+        onClick={() => onSelect(b.id)}>{b.name}</button>)}
     </p>}
     <div onClickCapture={onPanelClick}>
-      <BodyPanel system={system} body={body} fieldExists={false} />
+      <BodyPanel system={system} body={body} fieldExists={false} compact={compact} />
     </div>
-    <ul className="notes muted small" style={NOTES} aria-label="Model notes">
-      {system.provenance.notes.map((n, i) => <li key={i}>{n}</li>)}
-    </ul>
-  </>;
+    {compact
+      ? system.provenance.notes.length > 0 && <details className="s3d-disclosure">
+        <summary>Model notes ({system.provenance.notes.length})</summary>{notes}
+      </details>
+      : notes}
+  </div>;
 }

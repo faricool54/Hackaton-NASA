@@ -8,6 +8,7 @@ import {
   factOrigin,
   isColourKnown,
   isSizeKnown,
+  keyFact,
   UNKNOWN_COLOUR_TEXT,
   UNKNOWN_NOTE_PREFIX,
   UNKNOWN_SIZE_TEXT,
@@ -168,5 +169,41 @@ describe('unknown colour and size (docs/VISION.md: what is not measured is not d
   it('is astro-free and three-free, so BodyPanel can import it from the main chunk', () => {
     const imports = [...factOriginSource.matchAll(/^\s*import\b[^;]*?\bfrom\s+['"]([^'"]+)['"]/gm)].map((m) => m[0]);
     for (const i of imports) expect(i).toMatch(/^import type .* from '\.\.\/api\/types'$/);
+  });
+});
+
+describe('the fact behind a drawn value (compact body panel, FE-12)', () => {
+  const f = (label: string, value: string, unit: string | null): Fact => ({ label, value, unit, source: 'x', verified: true });
+
+  it('is null without a fact naming the quantity, and the only candidate otherwise', () => {
+    expect(keyFact([f('Orbit size', '1', 'AU')], 'radius', 6371)).toBeNull();
+    const est = f('Radius (model estimate)', '~0.69', 'Earth radii');
+    expect(keyFact([f('Orbit size', '0.0188', 'AU'), est], 'radius', 4421)).toBe(est);
+    const t = f('Temperature (model-dependent)', '~1300', 'K');
+    expect(keyFact([t], 'temperature', 1300)).toBe(t);
+    expect(keyFact([f('Teff', '3000', 'K')], 'temperature', 3000)?.label).toBe('Teff');
+  });
+
+  it('with several candidates, picks the one whose value is nearest the drawn value', () => {
+    const catalog = f('Radius', '0.185 ± 0.006', 'solar radii');
+    const gaia = f('Radius', '0.202 (0.198-0.206)', 'R_sun');
+    expect(keyFact([gaia, catalog], 'radius', 0.185 * 695_700)).toBe(catalog);
+    expect(keyFact([catalog, gaia], 'radius', 0.202 * 695_700)).toBe(gaia);
+    const dust = f('Dust disk radius', '~19', 'AU');
+    const gas = f('Gas (CO) disk radius', '~58', 'AU');
+    expect(keyFact([gas, dust], 'radius', 19 * 149_597_870.7)).toBe(dust);
+    // An unreadable unit ranks last; when none can be read, the first candidate.
+    const odd = f('Radius', '5', 'furlongs');
+    expect(keyFact([odd, catalog], 'radius', 0.185 * 695_700)).toBe(catalog);
+    expect(keyFact([odd, f('Radius', 'n/a', 'km')], 'radius', 1000)).toBe(odd);
+  });
+
+  it('finds the fact of every drawn Teff and radius of the real systems', () => {
+    for (const s of REAL) {
+      for (const b of s.bodies) {
+        if (b.teff_k) expect(keyFact(b.facts, 'temperature', b.teff_k), `${b.id} teff`).not.toBeNull();
+        if (b.radius_km && b.kind !== 'disk') expect(keyFact(b.facts, 'radius', b.radius_km), `${b.id} radius`).not.toBeNull();
+      }
+    }
   });
 });

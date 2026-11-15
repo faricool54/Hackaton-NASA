@@ -383,7 +383,7 @@ export class SystemScene {
     container.appendChild(canvas);
 
     this.labelRenderer = new CSS2DRenderer();
-    this.labelRenderer.domElement.className = 'scene-labels';
+    this.labelRenderer.domElement.className = 'scene-labels s3d-labels';
     container.appendChild(this.labelRenderer.domElement);
 
     this.camera = new THREE.PerspectiveCamera(50, 1, 0.01, 5000);
@@ -660,7 +660,7 @@ export class SystemScene {
       if (typeof document !== 'undefined') {
         const div = document.createElement('button');
         div.type = 'button';
-        div.className = 'body-label';
+        div.className = 'body-label s3d-body-label';
         div.textContent = bodyLabelText(body);
         if (!isSizeKnown(body)) div.title = `${UNKNOWN_SIZE_TEXT}: no single radius is adopted, so it is drawn at a fixed marker size`;
         div.addEventListener('click', () => this.callbacks.onSelect(body.id));

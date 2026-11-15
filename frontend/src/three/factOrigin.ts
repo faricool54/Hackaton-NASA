@@ -147,3 +147,61 @@ export function isSizeKnown(body: Pick<Body, 'radius_km'>): boolean {
 export function bodyLabelText(body: Pick<Body, 'name' | 'radius_km'>): string {
   return isSizeKnown(body) ? body.name : `${body.name} · ${UNKNOWN_SIZE_TEXT}`;
 }
+
+// --- The fact behind a drawn value (compact body panel, FE-12) --------------------------------------------
+
+/** The drawn values the compact body panel shows with the label of the fact that gives them. */
+export type KeyQuantity = 'temperature' | 'radius';
+
+const KEY_LABEL: Readonly<Record<KeyQuantity, RegExp>> = {
+  temperature: /\b(temperature|t\s*_?eff)\b/i,
+  radius: /\bradius\b/i,
+};
+
+/** Unit (lower-case, spaces collapsed) -> factor to K or km (IAU 2015 nominal radii, as the pipeline uses). */
+const KEY_UNIT: Readonly<Record<KeyQuantity, Readonly<Record<string, number>>>> = {
+  temperature: { k: 1, kelvin: 1 },
+  radius: {
+    km: 1,
+    'solar radii': 695_700, 'solar radius': 695_700, r_sun: 695_700, rsun: 695_700,
+    'jupiter radii': 71_492, r_jup: 71_492,
+    'earth radii': 6_371, r_earth: 6_371,
+    au: 149_597_870.7,
+  },
+};
+
+/** The first number of a fact value ("3195 ± 28", "~0.69", "15.8 (+1.7/−1.4)"); null when there is none. */
+function firstNumber(value: string): number | null {
+  const m = /\d+(?:\.\d+)?(?:e[+-]?\d+)?/i.exec(value);
+  const v = m ? Number(m[0]) : NaN;
+  return Number.isFinite(v) ? v : null;
+}
+
+/**
+ * The fact that gives a drawn value (Teff in K, radius in km), so a short view can show that value under the
+ * fact's own label ("Radius (model estimate)"), origin and verified flag instead of a bare "Radius". The
+ * candidates are the facts whose label names the quantity; with more than one (Barnard's Star lists a catalog
+ * and a Gaia radius), the one whose value (first number x unit) is nearest the drawn value wins, and a value that
+ * cannot be read ranks last. Null when no fact names the quantity.
+ */
+export function keyFact<F extends Pick<Fact, 'label' | 'value' | 'unit'>>(
+  facts: readonly F[],
+  quantity: KeyQuantity,
+  drawn: number,
+): F | null {
+  const candidates = facts.filter((f) => KEY_LABEL[quantity].test(f.label));
+  if (candidates.length <= 1 || !(drawn > 0)) return candidates[0] ?? null;
+  let best = candidates[0];
+  let bestDistance = Infinity;
+  for (const f of candidates) {
+    const factor = KEY_UNIT[quantity][(f.unit ?? '').trim().toLowerCase().replace(/\s+/g, ' ')];
+    const v = firstNumber(f.value);
+    if (factor === undefined || v === null || !(v > 0)) continue;
+    const distance = Math.abs(Math.log((v * factor) / drawn));
+    if (distance < bestDistance) {
+      best = f;
+      bestDistance = distance;
+    }
+  }
+  return best;
+}
