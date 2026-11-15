@@ -320,3 +320,91 @@ def test_comparison_images_are_contained(path):
 def test_comparison_request_rejects_duplicate_frames():
     with pytest.raises(ValueError):
         ComparisonRequest(frame_ids=["a", "a"])
+
+
+# --- Object card (contract 0.5.0, C05) ---------------------------------------
+
+
+def _object_response(**changes) -> dict:
+    doc = {
+        "query": {"ra": None, "dec": None, "name": "Barnard's Star", "epoch_mjd": 61000.0, "radius_arcsec": 8.0},
+        "position": {"ra": 269.4462933, "dec": 4.7678814, "epoch_mjd": 61000.0, "source": "Gaia DR3 propagated"},
+        "identity": {
+            "display_name": "Barnard's star",
+            "main_id": "NAME Barnard's star",
+            "gaia_source_id": "4472832130942575872",
+            "gaia_method": "simbad_crossid",
+            "match": "name",
+        },
+        "facts": [{"label": "Mass", "value": "unknown", "unit": None, "source": "Gaia DR3 FLAME", "verified": False}],
+        "photometry": [
+            {
+                "mission": "2MASS",
+                "catalog": "2MASS All-Sky PSC II/246/out (VizieR CfA)",
+                "designation": "2MASS J17574849+0441405",
+                "band": "J",
+                "wavelength_um": 1.235,
+                "mag": 5.244,
+            }
+        ],
+        "provenance": [
+            {"service": "vsx", "catalog": "AAVSO VSX", "status": "error", "note": "ReadTimeout"},
+            {"service": "sesame", "catalog": "SIMBAD", "status": "ok", "retrieved_utc": "2026-11-15T03:44:16Z"},
+        ],
+        "partial": True,
+        "built_at": "2026-11-15T12:00:00Z",
+        "note": "Catalog context from other missions/surveys: not SPHEREx measurements.",
+    }
+    doc.update(changes)
+    return doc
+
+
+def test_object_context_round_trip_matches_published_schema():
+    from errante.models import ObjectContextResponse
+
+    model = ObjectContextResponse.model_validate(_object_response())
+    data = model.model_dump(mode="json")
+    jsonschema.validate(data, json.loads((SCHEMA_DIR / "ObjectContextResponse.schema.json").read_text()))
+    assert data["photometry"][0]["other_mission"] is True and data["synthetic"] is False
+    assert data["schema_version"] == SCHEMA_VERSION and data["identity"]["gaia_source_id"] == "4472832130942575872"
+    assert data["facts"][0]["value"] == "unknown" and data["provenance"][0]["status"] == "error"
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        {"ra": 10.0, "dec": 20.0, "name": "x"},  # both
+        {"ra": None, "dec": None, "name": None},  # neither
+        {"ra": 10.0, "dec": None, "name": None},  # half a position
+        {"ra": 360.0, "dec": 0.0, "name": None},
+        {"ra": float("nan"), "dec": 0.0, "name": None},
+    ],
+)
+def test_object_query_needs_a_name_or_a_full_position(query):
+    from errante.models import ObjectQuery
+
+    with pytest.raises(ValueError):
+        ObjectQuery.model_validate({**query, "epoch_mjd": 61000.0, "radius_arcsec": 8.0})
+
+
+@pytest.mark.parametrize(
+    "path, value",
+    [
+        (("identity", "gaia_source_id"), 4472832130942575872),  # a JS number would lose the last digits
+        (("identity", "match"), "probable"),
+        (("photometry", 0, "other_mission"), False),  # context photometry is never SPHEREx
+        (("photometry", 0, "mission"), "SPHEREx"),
+        (("provenance", 0, "status"), "timeout"),
+        (("synthetic",), True),
+    ],
+)
+def test_object_context_rejects_values_that_would_mislead_the_card(path, value):
+    from errante.models import ObjectContextResponse
+
+    doc = _object_response()
+    target = doc
+    for key in path[:-1]:
+        target = target[key]
+    target[path[-1]] = value
+    with pytest.raises(ValueError):
+        ObjectContextResponse.model_validate(doc)
