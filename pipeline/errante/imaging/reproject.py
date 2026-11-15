@@ -14,12 +14,14 @@ available everywhere, with identical results in the backend container.
 from __future__ import annotations
 
 import warnings
+from pathlib import Path
 
 import numpy as np
+from astropy.io import fits
 
 from ..data.fits_io import SpherexImage
-from ..models import Grid
-from .flags import DEFAULT_BAD, bad_pixel_mask
+from ..models import FrameFlagSummary, Grid
+from .flags import DEFAULT_BAD, FLAG_BITS, bad_pixel_mask, bits_from_header
 from .grid import grid_wcs
 from .render import fits_to_png_orientation
 
@@ -102,6 +104,34 @@ def nearest_sample(img: np.ndarray, x: np.ndarray, y: np.ndarray, fill) -> np.nd
     yi = np.clip(np.floor(y[ok] + 0.5).astype(np.intp), 0, ny - 1)
     out[ok] = img[yi, xi]
     return out
+
+
+def summarize_flags(image: SpherexImage, grid: Grid, path: Path) -> FrameFlagSummary | None:
+    """Count individually documented archive bits over the covered field grid.
+
+    Snap to the closest detector pixel because the bits are categorical. Keep
+    coverage and the science mask separate: the latter uses interpolation and
+    excludes invalid or repaired values.
+    """
+    flags = getattr(image, "flags", None)
+    if flags is None or flags.shape != image.data.shape or flags.dtype.kind not in "iu":
+        return None
+    try:
+        header = fits.getheader(path, "FLAGS")
+    except (OSError, KeyError, ValueError):
+        return None
+    bits = {name: bit for name, bit in bits_from_header(header).items() if name in FLAG_BITS}
+    if not bits:
+        return None
+    xi, yi = _input_pixel_coords(image, grid)
+    covered = _inside(xi, yi, flags.shape)
+    if not covered.any():
+        return None
+    samples = nearest_sample(flags, xi[covered], yi[covered], fill=0).astype(np.int64)
+    return FrameFlagSummary(
+        coverage_fraction=float(covered.mean()),
+        fractions={name: float(((samples & (1 << bit)) != 0).mean()) for name, bit in bits.items()},
+    )
 
 
 def _neighbours(img: np.ndarray) -> np.ndarray:
