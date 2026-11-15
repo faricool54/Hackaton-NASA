@@ -481,6 +481,84 @@ def cmd_spectrum(args: argparse.Namespace) -> int:
     return 0
 
 
+def _say(text: str) -> None:
+    """print() that never dies on a console code page without the character (Windows cp1252)."""
+    enc = getattr(sys.stdout, "encoding", None) or "utf-8"
+    print(text.encode(enc, errors="replace").decode(enc, errors="replace"))
+
+
+def cmd_object(args: argparse.Namespace) -> int:
+    """Catalog context of a position or a name: identity, Gaia DR3, VSX, planets, 2MASS/AllWISE (WS3-10)."""
+    from .science.context import ContextError, object_context, physical_parameters
+
+    if args.name is None and (args.ra is None or args.dec is None):
+        print("give --ra and --dec, or --name", file=sys.stderr)
+        return 2
+    if args.name is not None and (args.ra is not None or args.dec is not None):
+        print("give either --ra/--dec or --name, not both", file=sys.stderr)
+        return 2
+    try:
+        ctx = object_context(
+            args.ra,
+            args.dec,
+            name=args.name,
+            epoch_mjd=args.epoch_mjd,
+            radius_arcsec=args.radius,
+            use_cache=not args.no_cache,
+            offline=args.offline,
+        )
+    except (ContextError, ValueError) as e:
+        print(f"Object context failed: {e}", file=sys.stderr)
+        return 2
+    if args.json:
+        print(json.dumps(ctx.to_dict(), indent=2, allow_nan=False))
+        return 0
+    head = ctx.display_name or "(no catalogued object)"
+    kind = ", ".join(x for x in (ctx.main_id, ctx.object_type_label or ctx.object_type, ctx.spectral_type) if x)
+    _say(f"{head}" + (f"  [{kind}]" if kind else ""))
+    if ctx.ra is not None:
+        _say(f"Position at MJD {ctx.epoch_mjd:.1f}: {ctx.ra:.6f} {ctx.dec:+.6f}  ({ctx.position_source})")
+    g = ctx.gaia.source if ctx.gaia else None
+    if g is not None:
+        _say(
+            f'Gaia DR3 {g.source_id}: {g.sep_arcsec:.2f}" from the query at the epoch, G = {g.phot_g_mean_mag}, '
+            f"plx = {g.parallax} mas, pm = ({g.pmra}, {g.pmdec}) mas/yr, RUWE = {g.ruwe} "
+            f"[{ctx.gaia.method}{', AMBIGUOUS' if ctx.gaia.ambiguous else ''}"
+            f"{', FAR FROM THE CLICK' if ctx.gaia.loose else ''}]"
+        )
+    else:
+        _say("Gaia DR3: no counterpart")
+    _say("Physical parameters (catalog values; 'unknown' = not measured):")
+    for f in physical_parameters(ctx):
+        mark = "verified" if f.verified else "not verified"
+        _say(f"  {f.label:<22} {f.value} {f.unit or ''}  [{mark}]")
+        if f.source:
+            _say(f"      {f.source}")
+    if ctx.planets:
+        _say("Confirmed planets (NASA Exoplanet Archive pscomppars):")
+        for pl in ctx.planets:
+            _say(
+                f"  {pl.name}: P = {pl.period_d} d, a = {pl.semi_major_axis_au} AU, "
+                f"{pl.mass_kind or 'mass'} = {pl.mass_earth} M_earth ({pl.discovery_method}, {pl.discovery_year})"
+            )
+    if ctx.photometry:
+        _say("Context photometry from OTHER missions (Vega mag; not SPHEREx):")
+        for m in ctx.photometry:
+            lim = " (upper limit)" if m.upper_limit else ""
+            who = ", IDENTITY UNCERTAIN" if m.identity_uncertain else ""
+            _say(
+                f"  {m.mission:<6} {m.band:<3} {m.wavelength_um:>6.3f} um  {m.mag}{lim}  "
+                f"[{m.designation}, q={m.quality}{who}]"
+            )
+    for w in ctx.warnings:
+        _say(f"WARNING: {w}")
+    _say("Sources:")
+    for p in ctx.provenance:
+        flag = " (cached)" if p.cached else ""
+        _say(f"  {p.service:<11} {p.status:<8} {p.retrieved_utc or '-'}{flag}  {p.note or ''}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="errante", description="SPHEREx temporal sky explorer pipeline")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -629,6 +707,23 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--max-frames", type=int, default=None)
     s.add_argument("--out", default=None, help="write the full result (all points, flags) as JSON")
     s.set_defaults(func=cmd_spectrum)
+
+    s = sub.add_parser(
+        "object",
+        help="catalog context of a position or a name: SIMBAD, Gaia DR3, VSX, planets, 2MASS/AllWISE (WS3)",
+        description="Who is at this position (or this name) and what other catalogs measured: identity, Gaia DR3 "
+        "match after proper-motion propagation, physical parameters as contract Facts ('unknown' when not "
+        "measured), confirmed planets and context photometry. Exit 2 = name not resolved or invalid input.",
+    )
+    s.add_argument("--ra", type=float, default=None, help="ICRS degrees, at --epoch-mjd")
+    s.add_argument("--dec", type=float, default=None)
+    s.add_argument("--name", default=None, help='any name Sesame (CfA) resolves, e.g. "Barnard\'s Star"')
+    s.add_argument("--epoch-mjd", type=float, default=None, help="epoch of the position (default 61000, SPHEREx era)")
+    s.add_argument("--radius", type=float, default=8.0, help="match radius [arcsec] (default 8)")
+    s.add_argument("--no-cache", action="store_true", help="ignore and do not write the response cache")
+    s.add_argument("--offline", action="store_true", help="only replay cached responses (no network)")
+    s.add_argument("--json", action="store_true", help="print the full context, parameters and Facts as JSON")
+    s.set_defaults(func=cmd_object)
 
     args = p.parse_args(argv)
     return args.func(args)

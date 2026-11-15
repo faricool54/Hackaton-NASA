@@ -1,0 +1,7 @@
+{
+ "service": "sesame",
+ "url": "https://vizier.cfa.harvard.edu/viz-bin/nph-sesame/-oxpI/SNV?GJ%20699",
+ "params": null,
+ "retrieved_utc": "2026-11-15T03:44:57Z",
+ "text": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Sesame xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n xsi:noNamespaceSchemaLocation=\"https://vizier.cds.unistra.fr/xml/sesame_4x.xsd\">\n<Target option=\"SNV\">\n  <name>GJ 699</name>\n  <!-- Q312401 #1 -->\n  <Resolver name=\"Vl=VizieR (local)\"><!--delay: 0ms [0] -->\n    <INFO>from cache</INFO>\n    <jpos>17:57:51.47 +04:33:03.2</jpos>\n    <jradeg>269.46446</jradeg>\n    <jdedeg>+04.5509</jdedeg>\n    <oname>{Name} Gl 699</oname>\n  </Resolver>\n</Target>\n</Sesame>\n<!--- ====Done (2026-Nov-15,03:44:57z)==== -->\n"
+}

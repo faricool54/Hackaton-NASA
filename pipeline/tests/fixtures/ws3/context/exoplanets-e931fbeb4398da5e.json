@@ -1,0 +1,10 @@
+{
+ "service": "exoplanets",
+ "url": "https://exoplanetarchive.ipac.caltech.edu/TAP/sync",
+ "params": {
+  "query": "select pl_name,pl_letter,hostname,ra,dec,gaia_dr3_id,pl_orbper,pl_orbsmax,pl_rade,pl_rade_reflink,pl_bmasse,pl_bmassprov,pl_orbeccen,pl_orbincl,disc_year,discoverymethod,disc_facility,disc_refname,pl_controv_flag from pscomppars where ra BETWEEN 187.111142 AND 187.444690 and dec between 1.885721 and 2.219056",
+  "format": "csv"
+ },
+ "retrieved_utc": "2026-11-15T04:01:18Z",
+ "text": "pl_name,pl_letter,hostname,ra,dec,gaia_dr3_id,pl_orbper,pl_orbsmax,pl_rade,pl_rade_reflink,pl_bmasse,pl_bmassprov,pl_orbeccen,pl_orbincl,disc_year,discoverymethod,disc_facility,disc_refname,pl_controv_flag\n"
+}
