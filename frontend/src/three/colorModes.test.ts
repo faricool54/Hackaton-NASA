@@ -1,16 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Body, SystemModel } from '../api/types';
-import {
-  bodyColor,
-  CLASS_TYPICAL_CITATION,
-  classTypicalFeature,
-  GAS_GIANT_BANDS_CITATION,
-  hasSurfacePattern,
-  isLTTransition,
-  NEUTRAL_GREY_HEX,
-  surfacePattern,
-} from './appearance';
-import { limbDarkeningLut, MIRA_LAYERS_CITATION, MIRA_TIO_CITATION } from './astro';
+import { bodyColor, hasSurfacePattern, NEUTRAL_GREY_HEX, surfacePattern } from './appearance';
+import { limbDarkeningLut, MIRA_LAYERS_CITATION, MIRA_TIO_CITATION, PHYS } from './astro';
+import { UNKNOWN_COLOUR_TEXT, UNKNOWN_SIZE_TEXT } from './factOrigin';
 import {
   bodyLook,
   COLOR_MODE_LABEL,
@@ -23,6 +15,7 @@ import {
   detectorLimbDarkeningLut,
   detectorMeanIntensity,
   FALSE_COLOUR_CHIP,
+  glowLuminosity,
   isDetectorMode,
   systemDetectorPeak,
   glowOpacity,
@@ -30,14 +23,17 @@ import {
   IR_CHANNELS,
   IR_DYNAMIC_RANGE_MAG,
   irChannelIntensity,
+  isInfraredMode,
   irLevel,
   irLimbDarkeningLut,
   srgbDecode,
   srgbEncode,
+  SPHEREX_LIGHT_CURVE_POINTER,
   starLimbDarkening,
   surfaceLegend,
   systemGlowFactors,
   systemIrPeak,
+  VISIBLE_CHIP,
   type ColorMode,
 } from './colorModes';
 import { SPHEREX_DETECTORS } from './spherexBands';
@@ -54,7 +50,8 @@ describe('colour modes (M3)', () => {
     expect(DEFAULT_COLOR_MODE).toBe('ir');
     expect(FALSE_COLOUR_CHIP).toBe('FALSE COLOUR · BLACKBODY MODEL · SPHEREx 0.75–5 µm bands');
     expect(colourModeChip('ir')).toBe(FALSE_COLOUR_CHIP);
-    expect(colourModeChip('visible')).toBeNull();
+    expect(colourModeChip('visible')).toBe(VISIBLE_CHIP);
+    expect(VISIBLE_CHIP).toBe('VISIBLE · BLACKBODY COLOUR MODEL'); // SCIENCE.md 3D review A15
     expect(colourModeChip('D3')).toBe('SPHEREx D3 ONLY · GREY · BLACKBODY MODEL · 1.63–2.44 µm');
     expect(COLOR_MODES).toEqual(['ir', 'visible', 'D1', 'D2', 'D3', 'D4', 'D5', 'D6']);
     for (const m of COLOR_MODES) expect(COLOR_MODE_LABEL[m], m).toBeTruthy();
@@ -217,7 +214,7 @@ describe('colour modes (M3)', () => {
       const text = colorLegend(mode, demo).join(' ');
       expect(text, mode).toMatch(/synthetic demo bodies, drawn with their hand palette and procedural textures in every colour mode/);
       expect(text, mode).not.toMatch(/drawn as an outline/);
-      expect(surfaceLegend(demo, mode, false).join(' '), mode).toMatch(/procedural decoration, in every colour mode/);
+      expect(surfaceLegend(demo, mode).join(' '), mode).toMatch(/procedural decoration, in every colour mode/);
     }
   });
 
@@ -226,8 +223,13 @@ describe('colour modes (M3)', () => {
       for (const mode of ['ir', 'D2'] as const) {
         const text = colorLegend(mode, system).join(' ');
         expect(text, `${system.id} ${mode}`).not.toMatch(/F_ν/);
-        if (system.bodies.some((b) => b.kind === 'star' || b.kind === 'brown_dwarf')) {
+        const withTeff = system.bodies.some((b) => (b.kind === 'star' || b.kind === 'brown_dwarf') && !!b.teff_k && b.teff_k > 0);
+        if (withTeff) {
           expect(text, `${system.id} ${mode}`).toMatch(/surface brightness ⟨I_ν⟩ \(MJy\/sr-like units\)/);
+        } else if (system.bodies.some((b) => b.kind === 'star' || b.kind === 'brown_dwarf')) {
+          // R Dra: no body has a Teff, so no blackbody sentence describes a drawing nobody gets.
+          expect(text, `${system.id} ${mode}`).not.toMatch(/blackbody at the catalog Teff/);
+          expect(text, `${system.id} ${mode}`).toMatch(/No body of this system has a catalog Teff, so none is drawn as a blackbody/);
         }
       }
     }
@@ -247,7 +249,7 @@ describe('single-detector modes (D1..D6, grey)', () => {
         const levels: number[] = [];
         for (const b of system.bodies) {
           const l = bodyLook(b, system, mode);
-          if (l.drawnAs === 'outline') continue;
+          if (l.drawnAs === 'outline' || l.drawnAs === 'unknown-colour') continue;
           expect(l.hue, `${system.id}/${b.id} ${mode}`).toEqual([1, 1, 1]);
           const i = detectorIntensity(b.teff_k!, mode)!;
           expect(l.level, `${b.id} ${mode}`).toBeCloseTo(irLevel(i, peak!), 12);
@@ -317,7 +319,9 @@ describe('limb darkening tables for the star shader', () => {
           const lut = starLimbDarkening(b, mode);
           expect(lut.length, b.id).toBe(48);
           monotonic(lut);
-          expect(lut[0], `${b.id} ${mode}`).toBeLessThan(1);
+          // R Dra: no Teff measured, so a flat disc (no limb darkening is invented).
+          if (b.teff_k === null) expect([...lut].every((v) => v === 1), `${b.id} ${mode}`).toBe(true);
+          else expect(lut[0], `${b.id} ${mode}`).toBeLessThan(1);
         }
       }
     }
@@ -333,7 +337,9 @@ describe('glow (DISPLAY)', () => {
         const f = systemGlowFactors(system, mode);
         const values = [...f.values()];
         if (!values.length) continue;
-        expect(Math.max(...values), `${system.id} ${mode}`).toBeCloseTo(5, 12);
+        // A system whose stars all have an unknown luminosity (R Dra: no Teff, no radius) stays at 2.
+        const known = system.bodies.some((b) => (glowLuminosity(b, mode) ?? 0) > 0);
+        expect(Math.max(...values), `${system.id} ${mode}`).toBeCloseTo(known ? 5 : 2, 12);
         for (const v of values) {
           expect(v).toBeGreaterThanOrEqual(2);
           expect(v).toBeLessThanOrEqual(5);
@@ -354,7 +360,7 @@ describe('glow (DISPLAY)', () => {
 });
 
 describe('surfaces: real targets show only what is measured (M3, S5)', () => {
-  it('no pattern on any real body unless the class-typical toggle is on; the synthetic demo keeps its textures', () => {
+  it('no pattern on any real body (the class-typical toggle is gone); the synthetic demo keeps its textures', () => {
     for (const system of SYSTEMS) {
       for (const b of system.bodies) {
         if (system.provenance.synthetic) {
@@ -367,35 +373,7 @@ describe('surfaces: real targets show only what is measured (M3, S5)', () => {
     }
   });
 
-  it('with the toggle on: only the S5 list (Ba cloud bands, Ab zonal bands), each with its class source', () => {
-    const on = (s: string, b: string) => surfacePattern(bod(s, b), sys(s), true);
-    expect(on('epsilon-indi', 'eps-indi-ab')).toBe('bands');
-    expect(on('epsilon-indi', 'eps-indi-ba')).toBe('bands');
-    // No checked class-level source for a drawn pattern: later T (Bb, T6), Y (WISE 0855), rocky planets.
-    expect(on('epsilon-indi', 'eps-indi-bb')).toBe('none');
-    expect(on('wise-0855', 'wise-0855')).toBe('none');
-    for (const id of ['barnard-b', 'barnard-c', 'barnard-d', 'barnard-e']) expect(on('barnards-star', id), id).toBe('none');
-    expect(on('barnards-star', 'barnards-star')).toBe('none');
-    expect(on('rw-aurigae', 'rw-aur-a-disk')).toBe('none');
-    expect(on('r-draconis', 'r-draconis')).toBe('none');
-    // Nothing anywhere ever gets the uncited 'mottling'.
-    for (const system of SYSTEMS) for (const b of system.bodies) expect(surfacePattern(b, system, true), b.id).not.toBe('mottling');
-
-    const ba = classTypicalFeature(bod('epsilon-indi', 'eps-indi-ba'), sys('epsilon-indi'));
-    expect(ba.citation).toBe(CLASS_TYPICAL_CITATION);
-    expect(ba.citation).toMatch(/Radigan et al\. 2014.*Metchev et al\. 2015.*Apai et al\. 2017/);
-    const ab = classTypicalFeature(bod('epsilon-indi', 'eps-indi-ab'), sys('epsilon-indi'));
-    expect(ab.citation).toBe(GAS_GIANT_BANDS_CITATION);
-    expect(ab.citation).not.toMatch(/Radigan/);
-    expect(classTypicalFeature(bod('wise-0855', 'wise-0855'), sys('wise-0855')).citation).toBe('none');
-    // The L/T window is L9–T3.5 (Radigan et al. 2014).
-    const bd = (spectral_type: string) => ({ ...bod('epsilon-indi', 'eps-indi-ba'), spectral_type, facts: [] });
-    expect(['L8', 'L9', 'T0', 'T3.5', 'T4', 'Y0'].map((t) => isLTTransition(bd(t)))).toEqual([false, true, true, true, false, false]);
-    // The synthetic demo keeps its procedural textures and never uses the class-typical list.
-    for (const b of sys('demo-ecliptic-orbits').bodies) expect(classTypicalFeature(b, sys('demo-ecliptic-orbits')).pattern).toBe('none');
-  });
-
-  it('legends say what is drawn and label the illustrative parts', () => {
+  it('legends say what is drawn, and what is unknown', () => {
     const eps = sys('epsilon-indi');
     const ir = colorLegend('ir', eps).join(' ');
     expect(ir).toMatch(/blue = D1\+D2/);
@@ -410,11 +388,22 @@ describe('surfaces: real targets show only what is measured (M3, S5)', () => {
     expect(colorLegend('ir', sys('rw-aurigae')).join(' ')).toMatch(/photosphere only/);
     expect(bodyLook(bod('rw-aurigae', 'rw-aur-a'), sys('rw-aurigae'), 'ir').note).toMatch(/IR excess/);
     expect(colorLegend('ir', sys('barnards-star')).join(' ')).not.toMatch(/photosphere only/);
-    // Mira (R Dra): the legend under the canvas carries the same caveat as the panel rows and the AB rule.
+    // R Dra: no Teff is measured, so it is grey and the legend says so (no photosphere blackbody is drawn).
+    const rdraSys = sys('r-draconis');
+    for (const m of MODES) {
+      const lines = colorLegend(m, rdraSys).join(' ');
+      expect(lines, m).toContain(`R Draconis: ${UNKNOWN_COLOUR_TEXT}. No single effective temperature is adopted for this body`);
+      expect(lines, m).not.toMatch(/blackbody at the catalog Teff/);
+      expect(lines, m).not.toMatch(/photosphere blackbody only|TiO/);
+      expect(bodyLook(rdraSys.bodies[0], rdraSys, m).drawnAs, m).toBe('unknown-colour');
+      expect(bodyLook(rdraSys.bodies[0], rdraSys, m).hex, m).toBe(NEUTRAL_GREY_HEX);
+    }
+    // Mira (R Dra with a test Teff): the legend under the canvas carries the same caveat as the panel rows and the AB rule.
+    const rdraT: SystemModel = { ...rdraSys, bodies: [{ ...rdraSys.bodies[0], teff_k: 3000, radius_km: 250 * (PHYS.RSun / 1e3) }] };
     const miraIr = `R Draconis: photosphere blackbody only. The H₂O and CO bands of the extended pulsating atmosphere and the circumstellar dust, which shape the 0.75–5 µm spectrum of a Mira, are not modelled (${MIRA_LAYERS_CITATION}).`;
-    expect(colorLegend('ir', sys('r-draconis'))).toContain(miraIr);
-    expect(colorLegend('D5', sys('r-draconis'))).toContain(miraIr);
-    expect(colorLegend('visible', sys('r-draconis'))).toContain(
+    expect(colorLegend('ir', rdraT)).toContain(miraIr);
+    expect(colorLegend('D5', rdraT)).toContain(miraIr);
+    expect(colorLegend('visible', rdraT)).toContain(
       `R Draconis: colour of the photosphere blackbody only. The visible light of a Mira is dominated by TiO absorption bands, which are not modelled (${MIRA_TIO_CITATION}).`,
     );
     expect(MIRA_LAYERS_CITATION).toBe('Höfner & Olofsson 2018, A&ARv 26, 1');
@@ -422,27 +411,36 @@ describe('surfaces: real targets show only what is measured (M3, S5)', () => {
     for (const id of ['barnards-star', 'epsilon-indi', 'rw-aurigae', 'wise-0855', 'demo-ecliptic-orbits']) {
       for (const m of MODES) expect(colorLegend(m, sys(id)).join(' '), `${id} ${m}`).not.toMatch(/Mira|TiO/);
     }
-    expect(surfaceLegend(eps, 'ir', false).join(' ')).toMatch(/No surface features/);
-    expect(surfaceLegend(eps, 'ir', false).join(' ')).toMatch(/no verified rotational-modulation amplitude/);
-    const on = surfaceLegend(eps, 'visible', true).join(' ');
-    expect(on).toMatch(/ILLUSTRATIVE/);
-    expect(on).toMatch(/patchy cloud bands on Epsilon Indi Ba/);
-    expect(on).toMatch(/zonal bands on Epsilon Indi Ab, typical of giant planets \(zonal bands of Jupiter/);
-    expect(on).toMatch(/±15 % about the mean/);
-    expect(on).toMatch(/Nothing class-typical is drawn on Epsilon Indi Bb/);
-    expect(surfaceLegend(sys('wise-0855'), 'ir', true).join(' ')).toMatch(/Nothing class-typical is drawn on WISE/);
-    expect(surfaceLegend(eps, 'ir', true).join(' ')).toMatch(/planets show them in the visible mode only/);
-    const rdra = surfaceLegend(sys('r-draconis'), 'ir', false).join(' ');
-    expect(rdra).toMatch(/CLASS-TYPICAL Mira/);
-    // The size/light phase is a display choice, never stated as physics.
-    expect(rdra).toMatch(/phase relation between size and light curve is not modelled: drawn in phase for display/);
-    expect(rdra).not.toMatch(/largest when brightest/);
-    // Convection cells are not observed on R Dra: smooth by default, drawn only with the class-typical toggle.
-    expect(rdra).toMatch(/R Draconis: smooth \(≈8(\.\d)? convection cells across would be resolvable, .* shown only with class-typical features\)/);
-    expect(surfaceLegend(sys('r-draconis'), 'ir', true).join(' ')).toMatch(
-      /R Draconis: ≈8(\.\d)? convection cells across \(.*CLASS-TYPICAL, not observed on this star\)/,
+    // Surfaces and sizes: no class-typical feature anywhere; unknown sizes are named.
+    for (const m of MODES) {
+      expect(surfaceLegend(eps, m).join(' ')).toMatch(/No surface features/);
+      expect(surfaceLegend(eps, m).join(' ')).toMatch(/no verified rotational-modulation amplitude/);
+      for (const s of SYSTEMS.filter((x) => !x.provenance.synthetic)) {
+        expect(surfaceLegend(s, m).join(' '), `${s.id} ${m}`).not.toMatch(/class-typical|ILLUSTRATIVE|±10 %/i);
+      }
+    }
+    expect(surfaceLegend(eps, 'ir')).toContain(
+      `Epsilon Indi Ba, Epsilon Indi Bb: ${UNKNOWN_SIZE_TEXT}. No single radius is adopted for this body (none is published, or the published ones depend on assumptions: see its facts and the system notes), so it is drawn at a fixed marker size, not scaled.`,
     );
-    expect(surfaceLegend(sys('barnards-star'), 'visible', false).join(' ')).toMatch(/too small to draw/);
+    const rdra = surfaceLegend(rdraSys, 'ir').join(' ');
+    // R Dra is its system's only star and has no Teff: no limb-darkening sentence for a drawing it does not get.
+    expect(rdra).not.toMatch(/grey Eddington atmosphere/);
+    expect(rdra).toMatch(/^Stars: Flat disc, no limb darkening, for R Draconis/);
+    expect(surfaceLegend(sys('barnards-star'), 'ir').join(' ')).toMatch(/limb darkening and reddening from a grey Eddington atmosphere/);
+    expect(rdra).toContain('R Draconis: radius drawn constant, because its size change is not measured.');
+    expect(rdra).toContain('V-band light curve (catalog, not measured by SPHEREx) drives the glow in the visible mode only, so the glow is steady in this mode');
+    expect(rdra).toContain(SPHEREX_LIGHT_CURVE_POINTER);
+    expect(rdra).toMatch(/Flat disc, no limb darkening, for R Draconis \(no single temperature adopted/);
+    expect(rdra).toMatch(new RegExp(`R Draconis: ${UNKNOWN_SIZE_TEXT}`));
+    expect(rdra).not.toMatch(/largest when brightest|in phase/);
+    expect(surfaceLegend(rdraSys, 'visible').join(' ')).not.toMatch(/glow is steady/);
+    expect(isInfraredMode('visible')).toBe(false);
+    // A real star whose cells would be resolvable is still smooth; the synthetic demo keeps its cells.
+    const giant: SystemModel = { ...rdraT, bodies: [{ ...rdraT.bodies[0], mass_kg: PHYS.GMSun / PHYS.G }] };
+    expect(surfaceLegend(giant, 'ir').join(' ')).toMatch(/R Draconis: smooth sphere \(no convection cell is observed on this star, so none is drawn\)/);
+    const demoGiant: SystemModel = { ...giant, provenance: { ...giant.provenance, synthetic: true } };
+    expect(surfaceLegend(demoGiant, 'ir').join(' ')).toMatch(/R Draconis: ≈\d+(\.\d)? convection cells across \(.*ILLUSTRATIVE; synthetic demo\)/);
+    expect(surfaceLegend(sys('barnards-star'), 'visible').join(' ')).toMatch(/too small to draw/);
   });
 });
 

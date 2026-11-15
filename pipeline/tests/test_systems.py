@@ -1,5 +1,7 @@
 """3D system models (WS7): physics helpers, catalog integrity and catalog sources."""
 
+import dataclasses
+import json
 import os
 import re
 
@@ -36,6 +38,49 @@ def test_verified_facts_cite_a_source_and_estimates_stay_unverified():
                     assert not fact.verified, f"{where}: an illustrative value cannot be verified"
 
 
+# --- V13: what no source gives is not drawn (docs/VISION.md, WS7) ----------------
+
+# Body fields that held a hand-picked, illustrative or class-typical value before V13.
+REMOVED_VALUES = {
+    "r-draconis": ("teff_k", "radius_km", "mass_kg"),  # 3000 K range pick, 250 R_sun illustrative, 1 M_sun class
+    "eps-indi-ba": ("radius_km",),  # 0.9 R_Jup illustrative (no published radius)
+    "eps-indi-bb": ("radius_km",),
+    "wise-0855": ("mass_kg",),  # 5 M_Jup picked inside the 3-10 M_Jup model range
+}
+
+
+def _real_bodies():
+    return {b.id: b for s in curated_systems() for b in s.bodies}
+
+
+def test_no_hand_picked_values_remain():
+    bodies = _real_bodies()
+    for bid, fields in REMOVED_VALUES.items():
+        for name in fields:
+            assert getattr(bodies[bid], name) is None, f"{bid}.{name} must stay unknown"
+    for system in curated_systems():
+        texts = [system.representation_note, *system.provenance.notes]
+        texts += [f"{f.label} {f.source or ''}" for b in system.bodies for f in b.facts]
+        for text in texts:
+            low = text.lower()
+            assert not any(w in low for w in ("illustrative", "class-typical", "drawing value")), (system.id, text)
+        unverified = [(b.id, f.label) for b in system.bodies for f in b.facts if not f.verified]
+        # The one estimate kept is RW Aur A's radius, labelled as derived (VISION: luminosity + distance).
+        assert all("(derived" in label for _, label in unverified), (system.id, unverified)
+    rw_a = bodies["rw-aur-a"]
+    radius = next(f for f in rw_a.facts if f.label.lower().startswith("radius"))
+    assert radius.label.startswith("Radius (derived") and not radius.verified
+    assert "Herczeg & Hillenbrand 2014" in radius.source and "156.1" in radius.source
+    from errante.systems.catalog import R_SUN_KM
+
+    assert rw_a.radius_km == pytest.approx(1.3 * R_SUN_KM)  # drawn value unchanged
+    # The published ranges stay as Facts: the value is unknown, not the literature.
+    rdra_teff = next(f for f in bodies["r-draconis"].facts if f.label.startswith("Temperature"))
+    assert rdra_teff.value == "~2000–3300" and rdra_teff.verified
+    wise_mass = next(f for f in bodies["wise-0855"].facts if f.label.startswith("Mass"))
+    assert wise_mass.value == "3–10" and wise_mass.verified
+
+
 def test_real_systems_do_not_claim_to_be_hand_typed_or_synthetic():
     for system in curated_systems():
         assert "synthetic" not in system.representation_note.lower()
@@ -58,6 +103,329 @@ def test_committed_demo_systems_match_the_catalog():
     for system in demo_systems():
         committed = store.read_system(system.id)
         assert committed.model_dump(exclude={"provenance"}) == system.model_dump(exclude={"provenance"}), system.id
+        assert committed.provenance.notes == system.provenance.notes, f"{system.id}: regenerate data/demo"
+
+
+# --- V13 measurement layer: targets.toml + frozen WS3 snapshots (systems.measured) ----------------------------
+
+
+def _registry():
+    from errante.systems.measured import load_registry
+
+    return load_registry()
+
+
+def test_registry_matches_the_catalog_and_every_snapshot_is_recorded():
+    from errante.systems.measured import OBJECTS_DIR, load_snapshot
+
+    registry = _registry()
+    systems = {s.id: s for s in curated_systems()}
+    for spec in registry.systems:
+        assert spec.id in systems, f"targets.toml lists unknown system {spec.id}"
+        ids = {b.id for b in systems[spec.id].bodies}
+        assert {b.id for b in spec.bodies} <= ids, spec.id
+    assert {p.stem for p in OBJECTS_DIR.glob("*.json")} == set(registry.snapshots)
+    for slug, query in registry.snapshots.items():
+        snap = load_snapshot(slug)
+        assert snap["slug"] == slug and snap["query"]["name"] == query
+        # Replayed from the WS3 fixtures, or recorded live (`errante systems --record <slug> --live`): either way
+        # with the cache files it read, no service error, and Gaia parameters from the ESA archive (not a fallback).
+        assert snap["origin"]["kind"] in {"ws3-fixtures", "live"}, slug
+        assert snap["origin"]["files"], slug
+        assert not [s for s in snap["origin"]["services"] if s["status"] == "error"], slug
+        if snap["origin"]["kind"] == "live" and snap["gaia"] is not None:
+            assert "ESA" in (snap["gaia"].get("details_from") or ""), slug
+        assert set(snap["parameters"]) == {
+            "teff",
+            "radius",
+            "luminosity",
+            "mass",
+            "distance",
+            "spectral_type",
+            "variability_type",
+            "variability_period",
+        }
+        assert {p["label"] for p in snap["parameters"].values()} == {f["label"] for f in snap["facts"]}
+
+
+def test_build_reads_json_only_no_network_and_no_ws3_code():
+    """The 3D build must not query an archive or run WS3 code (a WS3 change cannot alter the published 3D)."""
+    import subprocess
+    import sys
+
+    code = (
+        "import socket, sys\n"
+        "def boom(*a, **k): raise OSError('network used during the systems build')\n"
+        "socket.socket = boom; socket.create_connection = boom\n"
+        "from errante.systems.catalog import curated_systems\n"
+        "systems = curated_systems()\n"
+        "assert 'errante.science.context' not in sys.modules, 'WS3 code imported at build time'\n"
+        "print(len(systems))\n"
+    )
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=120)
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.strip() == "5"
+
+
+def _science_md_a5_facts():
+    import ast
+
+    from errante import settings
+
+    path = settings.REPO_ROOT / "docs" / "SCIENCE.md"
+    if not path.exists():
+        pytest.skip("docs/SCIENCE.md not present")
+    text = path.read_text(encoding="utf-8")
+    heading = "**A5. Facts SPHEREx para el 3D**"
+    if heading not in text:
+        pytest.skip("the A5 block of the 3D review is no longer in docs/SCIENCE.md")
+    start = text.index("```python", text.index(heading)) + len("```python")
+    block = text[start : text.index("```", start)]
+    facts = []
+    for node in ast.walk(ast.parse(block)):
+        if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "_vfact":
+            facts.append(tuple(ast.literal_eval(a) for a in node.args))
+    return facts
+
+
+# Body that docs/SCIENCE.md (block A5) assigns each "seen by SPHEREx" fact to.
+A5_BODIES = {
+    "Motion seen by SPHEREx": "barnards-star",
+    "Motion seen by SPHEREx (Ba+Bb as one source)": "eps-indi-ba",
+    "Seen by SPHEREx": "wise-0855",
+    "Brightness change seen by SPHEREx (A+B)": "rw-aur-a",
+    "Cycle seen by SPHEREx": "r-draconis",
+    "Brightness range seen by SPHEREx (0.74–5.0 µm, by detector)": "r-draconis",
+}
+
+
+def test_spherex_facts_are_the_a5_block_verbatim_on_their_bodies():
+    expected = _science_md_a5_facts()
+    assert len(expected) == len(A5_BODIES)
+    shipped = {}
+    for system in curated_systems():
+        for body in system.bodies:
+            for f in body.facts:
+                if (f.source or "").startswith("SPHEREx"):
+                    assert f.verified and "offline" in f.source, f.label
+                    shipped[(f.label, f.value, f.unit, f.source)] = body.id
+    assert set(shipped) == set(expected)
+    for key, body_id in shipped.items():
+        assert A5_BODIES[key[0]] == body_id, key[0]
+    # Appended after the literature facts: BodyPanel order and the frontend tier tie-breaks do not change.
+    rdra = _real_bodies()["r-draconis"]
+    assert rdra.facts[0].label == "Variable type"
+
+
+def test_measured_layer_changes_no_drawn_value():
+    """Only facts and notes are added: every drawn number is the literature layer's."""
+    from errante.systems.catalog import literature_systems
+
+    for before, after in zip(literature_systems(), curated_systems(), strict=True):
+        assert before.model_dump(exclude={"bodies", "provenance"}) == after.model_dump(exclude={"bodies", "provenance"})
+        for b0, b1 in zip(before.bodies, after.bodies, strict=True):
+            assert b0.model_dump(exclude={"facts"}) == b1.model_dump(exclude={"facts"}), b0.id
+            assert b1.facts[: len(b0.facts)] == b0.facts, b0.id  # literature facts first, unchanged
+
+
+def test_cross_checks_are_verified_catalog_facts_never_on_blended_or_swapped_components():
+    from errante.systems.measured import CATALOG_SUFFIX
+
+    bodies = _real_bodies()
+    for body in bodies.values():
+        for f in body.facts:
+            if CATALOG_SUFFIX in (f.source or ""):
+                assert f.verified and f.value != "unknown", (body.id, f.label)
+                assert f.source.endswith(CATALOG_SUFFIX)
+    # eps Ind B is one unresolved Gaia source; RW Aur's context is the A+B pair with swapped names (V15).
+    for bid in ("eps-indi-ba", "eps-indi-bb", "rw-aur-a", "rw-aur-b", "rw-aur-a-disk"):
+        assert not [f.label for f in bodies[bid].facts if CATALOG_SUFFIX in (f.source or "")], bid
+    eps = _system_by_id("epsilon-indi").provenance.notes
+    assert any(n.startswith("WS3 object context of 'eps Ind B'") and "Not attached to Ba or Bb" in n for n in eps)
+    rw = _system_by_id("rw-aurigae").provenance.notes
+    note = next(n for n in rw if n.startswith("WS3 object context of 'RW Aur'"))
+    assert "match 'ambiguous'" in note and "Not used (unknown or not verified in WS3): Distance" in note
+    assert "V15" in note
+    # Barnard: Gaia's own values sit next to the published ones, without replacing them.
+    barnard = bodies["barnards-star"]
+    teffs = [f.value for f in barnard.facts if "temperature" in f.label.lower()]
+    assert teffs == ["3195 ± 28", "3100 (3099-3102)"] and barnard.teff_k == 3195
+
+
+def test_unknowns_are_explained_in_notes_and_never_become_facts():
+    from errante.systems.measured import BODY_FIELDS, PARAM_NAMES, UNKNOWN_NOTE_PREFIX, drawn_params
+
+    for system in curated_systems():
+        note = next((n for n in system.provenance.notes if n.startswith(UNKNOWN_NOTE_PREFIX)), "")
+        for body in system.bodies:
+            assert not [f.label for f in body.facts if f.value.strip().lower() == "unknown"], body.id
+            missing = [k for k in drawn_params(body) if getattr(body, BODY_FIELDS[k]) is None]
+            for key in missing:
+                assert f"{body.name}: " in note and f"{PARAM_NAMES[key]} (" in note, (system.id, body.id, key)
+    rdra = next(n for n in _system_by_id("r-draconis").provenance.notes if n.startswith(UNKNOWN_NOTE_PREFIX))
+    for text in ("temperature (it changes with the pulsation", "WS3 V18", "radius (", "mass (no dynamical mass"):
+        assert text in rdra, text
+    assert "Gaia DR3 has no temperature for this source" in rdra  # WS3's own reason, from the snapshot
+    # Systems where everything drawn is known carry no such note.
+    assert not any(n.startswith(UNKNOWN_NOTE_PREFIX) for n in _system_by_id("barnards-star").provenance.notes)
+
+
+def test_registry_refuses_an_unexplained_unknown_and_an_unverified_cross_check(tmp_path):
+    from errante.systems.catalog import literature_systems
+    from errante.systems.measured import REGISTRY_PATH, RegistryError, apply_registry, load_registry
+
+    text = REGISTRY_PATH.read_text(encoding="utf-8")
+    no_reason = tmp_path / "no-reason.toml"
+    no_reason.write_text(text.replace('unknown = { radius = "no published radius for Ba" }', ""), encoding="utf-8")
+    with pytest.raises(RegistryError, match="eps-indi-ba: radius is unknown"):
+        apply_registry(literature_systems(), load_registry(no_reason))
+    unverified = tmp_path / "unverified.toml"
+    # RW Aur's WS3 distance is not verified (ambiguous match): asking for it on a body must fail.
+    unverified.write_text(
+        text.replace(
+            '[[system.body]]\nid = "rw-aur-a"',
+            '[[system.body]]\nid = "rw-aur-a"\nsnapshot = "rw-aurigae"\ncross_check = ["distance"]',
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(RegistryError, match="no verified value"):
+        apply_registry(literature_systems(), load_registry(unverified))
+
+
+def test_astrometry_and_planets_agree_with_the_gaia_and_archive_snapshots():
+    from errante.systems.measured import load_snapshot
+
+    for system_id, slug in (("barnards-star", "barnards-star"), ("r-draconis", "r-draconis")):
+        system, gaia = _system_by_id(system_id), load_snapshot(slug)["gaia"]
+        assert system.center.ra == pytest.approx(gaia["ra"], abs=1e-7)
+        assert system.center.dec == pytest.approx(gaia["dec"], abs=1e-7)
+        assert system.motion.parallax_mas == pytest.approx(gaia["parallax"], abs=1e-3)
+        assert system.motion.pm_ra_cosdec_mas_yr == pytest.approx(gaia["pmra"], abs=1e-3)
+        assert system.motion.pm_dec_mas_yr == pytest.approx(gaia["pmdec"], abs=1e-3)
+    # RW Aur is centred on A = Gaia DR3 156430817820015232 (WDS), the source WS3 adopted for "RW Aur".
+    rw, snap = _system_by_id("rw-aurigae"), load_snapshot("rw-aurigae")
+    assert snap["identity"]["gaia_source_id"] == "156430817820015232"
+    assert rw.center.ra == pytest.approx(snap["gaia"]["ra"], abs=1e-7)
+    from errante.systems.catalog import M_EARTH_KG
+
+    archive = {p["name"]: p for p in load_snapshot("barnards-star")["planets"]}
+    for body in _system_by_id("barnards-star").bodies[1:]:
+        row = archive[body.name]
+        assert body.orbit.period_days == pytest.approx(row["period_d"], rel=1e-4)
+        assert body.orbit.semi_major_axis_au == pytest.approx(row["semi_major_axis_au"], rel=1e-3)
+        assert body.mass_kg / M_EARTH_KG == pytest.approx(row["mass_earth"], rel=1e-3)
+        assert row["mass_kind"] == "Msini" and row["radius_calculated"]
+
+
+def test_explain_gives_origin_and_reason_for_every_drawn_value(capsys):
+    from errante.cli import main
+    from errante.systems.measured import explain
+
+    rows = explain(curated_systems())
+    unknown = [(r.body, r.parameter) for r in rows if r.value == "unknown"]
+    assert sorted(unknown) == sorted(
+        [
+            ("r-draconis", "temperature"),
+            ("r-draconis", "radius"),
+            ("r-draconis", "mass"),
+            ("eps-indi-ba", "radius"),
+            ("eps-indi-bb", "radius"),
+            ("wise-0855", "mass"),
+        ]
+    )
+    assert all(r.reason for r in rows)
+    origins = {(r.body, r.parameter): r.origin for r in rows}
+    assert origins[("rw-aur-a", "radius")] == "derived"
+    assert origins[("r-draconis", "Cycle seen by SPHEREx")].startswith("SPHEREx-measured")
+    assert origins[("barnards-star", "Effective temperature")] == "catalog cross-check (WS3 snapshot)"
+    assert origins[("barnards-star", "temperature")] == "catalog, not measured by SPHEREx"
+    assert main(["systems", "--explain", "--json"]) == 0
+    printed = capsys.readouterr().out
+    assert '"parameter": "temperature"' in printed and "not drawn" in printed
+
+
+def test_cli_record_replays_the_ws3_fixtures(tmp_path):
+    """Dev tool only. Skips (not fails) when the WS3 fixtures or queries changed: the build never depends on it."""
+    from errante.cli import main
+    from errante.systems.measured import load_snapshot
+    from errante.systems.record import FIXTURES_DIR
+
+    if not FIXTURES_DIR.is_dir():
+        pytest.skip("WS3 fixtures not present")
+    if main(["systems", "--record", "r-draconis", "--inputs", str(tmp_path)]) != 0:
+        pytest.skip("the WS3 fixtures no longer replay this query: re-record and review the diff")
+    fresh, committed = load_snapshot("r-draconis", tmp_path), load_snapshot("r-draconis")
+    assert fresh["identity"] == committed["identity"]
+    assert main(["systems", "--record", "no-such-target", "--inputs", str(tmp_path)]) == 1
+
+
+def test_record_skips_live_snapshots_offline_and_refuses_naming_one(tmp_path, monkeypatch):
+    """A live-recorded target has no fixtures: `--record all` offline skips it; naming it without --live fails."""
+    import errante.systems.measured as M
+    import errante.systems.record as R
+
+    committed = tmp_path / "committed"
+    committed.mkdir()
+    for slug in ("r-draconis", "wise-0855"):
+        doc = M.load_snapshot(slug)
+        if slug == "wise-0855":
+            doc = {**doc, "origin": {**doc["origin"], "kind": "live"}}
+        (committed / f"{slug}.json").write_text(json.dumps(doc), encoding="utf-8")
+    registry = M.load_registry()
+    monkeypatch.setattr(M, "OBJECTS_DIR", committed)
+    monkeypatch.setattr(
+        M,
+        "load_registry",
+        lambda *a, **k: dataclasses.replace(
+            registry, snapshots={k: v for k, v in registry.snapshots.items() if k in ("r-draconis", "wise-0855")}
+        ),
+    )
+    replayed = []
+    monkeypatch.setattr(R, "snapshot_document", lambda slug, query, live=False: replayed.append(slug) or {"slug": slug})
+    out = tmp_path / "out"
+    R.record(None, objects_dir=out)
+    assert replayed == ["r-draconis"]
+    with pytest.raises(R.RecordError, match="recorded live"):
+        R.record(["wise-0855"], objects_dir=out)
+    replayed.clear()
+    R.record(["wise-0855"], live=True, objects_dir=out)
+    assert replayed == ["wise-0855"]
+
+
+def test_context_only_target_builds_from_its_snapshot_without_inventing():
+    """Scalable path (V13 stretch): a target with no catalog function, here Barnard's Star as if it were new."""
+    from errante.systems.catalog import M_SUN_KG, R_SUN_KM
+    from errante.systems.measured import (
+        CATALOG_SUFFIX,
+        UNKNOWN_NOTE_PREFIX,
+        RegistryError,
+        SystemSpec,
+        load_snapshot,
+        system_from_snapshot,
+    )
+
+    spec = SystemSpec(id="new-barnard", new={"name": "Barnard's Star (context only)", "field_id": None})
+    system = system_from_snapshot(spec, load_snapshot("barnards-star"))
+    validate_hierarchy(system)
+    star, planets = system.bodies[0], system.bodies[1:]
+    assert star.kind == "star" and star.teff_k == pytest.approx(3099.6, abs=0.1)
+    assert star.radius_km == pytest.approx(0.2022 * R_SUN_KM, rel=1e-3)
+    assert star.mass_kg is None and M_SUN_KG  # FLAME gives no mass: unknown, not invented
+    assert system.motion.distance_pc == pytest.approx(1.828, abs=1e-3)
+    assert system.field_id is None and "context-only" in system.tags
+    assert [p.name for p in planets] == ["Barnard d", "Barnard b", "Barnard c", "Barnard e"]
+    for p in planets:
+        assert p.orbit.parent == star.id and p.orbit.period_days > 0 and p.orbit.semi_major_axis_au > 0
+        labels = {f.label for f in p.facts}
+        assert "Minimum mass" in labels and "Radius (model estimate)" in labels
+    facts = [f for b in system.bodies for f in b.facts]
+    assert facts and all(f.verified and f.value != "unknown" and CATALOG_SUFFIX in f.source for f in facts)
+    note = next(n for n in system.provenance.notes if n.startswith(UNKNOWN_NOTE_PREFIX))
+    assert "mass (WS3 object context: Gaia DR3 FLAME gives no mass for this source)" in note
+    assert "SPHEREx" in system.representation_note and not system.provenance.synthetic
+    # An ambiguous identity (RW Aur: two Gaia sources in the radius) gets no 3D model.
+    with pytest.raises(RegistryError, match="ambiguous"):
+        system_from_snapshot(SystemSpec(id="rw", new={"name": "RW Aur"}), load_snapshot("rw-aurigae"))
 
 
 # --- M5: Barnard b-e at their published phase (Basant et al. 2025, Table 3) ----
@@ -132,7 +500,7 @@ def test_barnard_phase_spread_matches_the_orbit_notes():
     )
 
 
-# --- R Dra: two clocks (free-running sine, Dataset time on the VSX ephemeris) ----
+# --- R Dra: two clocks (free-running sine; Dataset time on the measured maxima, VSX outside) ----
 
 
 def test_r_draconis_notes_describe_both_clocks():
@@ -151,11 +519,20 @@ def test_r_draconis_notes_describe_both_clocks():
         "Dataset time",
         "HJD 2457370.00, P = 246.12 d",
         "rises in 45 % of the cycle",
+        # V12a (full variant): measured AAVSO maxima inside the SPHEREx window, VSX outside it
+        "dated by the V maxima measured by AAVSO in 2025–2026 (MJD 60811.4, 61046.5 and 61304.3",
+        "±3 d band",
+        "±9.0 d band",
         "frontend/src/three/ephemerides.ts",
-        "not a measured or SPHEREx light curve",
-        "in phase with the light for display only",
+        # V12 (D3, docs/SCIENCE.md 3D review): constant radius, and the SPHEREx measurement quoted (B5, verbatim)
+        "the radius is drawn constant, because its size change is not measured",
+        "catalog V-band drawings, not measured by SPHEREx",
+        "much smaller in the infrared: offline measurements on the SPHEREx FITS files give 0.5–1.3 mag peak-to-peak "
+        "at 0.74–5.0 µm and a ~260-day cycle in 2025–2026 (docs/validation/r-draconis.md). The animation is not that "
+        "light curve, and the SPHEREx images in this app do not show it.",
     ):
         assert text in RDRA_PULSATION_NOTE, text
+    assert "in phase with the light" not in RDRA_PULSATION_NOTE  # the size no longer changes
     # The shipped JSON carries the new note (regenerate data/demo after editing catalog.py).
     committed = ProductStore(settings.DEMO_DIR).read_system("r-draconis")
     assert RDRA_PULSATION_NOTE in committed.provenance.notes
@@ -266,7 +643,10 @@ def test_committed_real_systems_match_the_catalog_and_link_their_fields():
     for system in curated_systems():
         committed = store.read_system(system.id)
         assert committed.model_dump(exclude={"provenance"}) == system.model_dump(exclude={"provenance"}), system.id
-        assert committed.field_id in real_fields, f"{system.id}: field {committed.field_id} not in data/products"
+        # A context-only target (measured.system_from_snapshot) may have no SPHEREx field yet; the five must link.
+        if "context-only" not in committed.tags:
+            assert committed.field_id in real_fields, f"{system.id}: field {committed.field_id} not in data/products"
+        assert committed.provenance.notes == system.provenance.notes, f"{system.id}: regenerate data/products"
 
 
 # --- sources: offline parsing ---------------------------------------------------

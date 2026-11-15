@@ -350,11 +350,52 @@ def cmd_cube_spectrum(args: argparse.Namespace) -> int:
     return 0
 
 
+def _systems_record(args: argparse.Namespace) -> int:
+    """Dev only: re-record the WS3 object-context snapshots of targets.toml (WS7 V13)."""
+    from .systems.record import record
+
+    slugs = None if args.record == ["all"] else args.record
+    try:
+        paths = record(slugs, live=args.live, objects_dir=Path(args.inputs) if args.inputs else None)
+    except (RuntimeError, ValueError) as e:  # RecordError, RegistryError, WS3 ContextError (unresolvable name)
+        print(f"error: {type(e).__name__}: {e}", file=sys.stderr)
+        return 1
+    for path in paths:
+        print(f"recorded {path}")
+    print(
+        "Review the diff, then rebuild the systems: errante systems --out data/demo; "
+        "errante systems --out data/products --real-only"
+    )
+    return 0
+
+
+def _systems_explain(args: argparse.Namespace) -> int:
+    """Where each drawn value comes from: body, parameter, value, origin, reason (WS7 V13)."""
+    from dataclasses import asdict
+
+    from .systems.catalog import curated_systems
+    from .systems.measured import explain
+
+    rows = explain(curated_systems())
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="replace")  # Windows consoles: µ, ″ and dashes
+    if args.json:
+        print(json.dumps([asdict(r) for r in rows], indent=1, ensure_ascii=False))
+        return 0
+    for r in rows:
+        print(f"{r.system:<14} {r.body:<15} {r.parameter:<12} {r.value:<28} [{r.origin}] {r.reason}")
+    return 0
+
+
 def cmd_systems(args: argparse.Namespace) -> int:
     from .products import ProductStore
     from .systems.build import write_real_systems, write_systems
     from .systems.catalog import curated_systems
 
+    if args.record:
+        return _systems_record(args)
+    if args.explain:
+        return _systems_explain(args)
     store = ProductStore(Path(args.out))
     if args.real_only:
         try:
@@ -802,6 +843,26 @@ def main(argv: list[str] | None = None) -> int:
         help="real dataset (e.g. data/products): write only non-synthetic systems and refuse if "
         "<out>/systems already holds a synthetic one",
     )
+    s.add_argument(
+        "--explain",
+        action="store_true",
+        help="print where each drawn value comes from (body, parameter, value, origin, reason); writes nothing",
+    )
+    s.add_argument("--json", action="store_true", help="with --explain: print the rows as JSON")
+    s.add_argument(
+        "--record",
+        nargs="+",
+        metavar="SLUG",
+        help="dev only: re-record WS3 object-context snapshots of targets.toml ('all' for every slug) by "
+        "replaying the WS3 fixtures offline; then review the diff and rebuild",
+    )
+    s.add_argument(
+        "--live",
+        action="store_true",
+        help="with --record: query the live archives instead of the fixtures (refused on a service error or "
+        "when Gaia answers from the VizieR fallback)",
+    )
+    s.add_argument("--inputs", help="with --record: write the snapshots here instead of systems/inputs/objects")
     s.set_defaults(func=cmd_systems)
 
     s = sub.add_parser("build", help="build real products for a field in config/fields.toml")

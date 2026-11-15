@@ -27,6 +27,11 @@ export function SystemsPage() {
           marked as such. Watch model orbits and pulsations, or select a body to inspect its facts, sources and
           verification status.
         </p>
+        <p>
+          What SPHEREx measured for each target is listed as “Seen by SPHEREx”. Every other value is a catalog value, not
+          measured by SPHEREx. What is not measured is not invented: a body without a measured temperature is drawn grey
+          (colour unknown), and one without a measured radius at a fixed marker size (size unknown, not to scale).
+        </p>
         <p className="muted small">
           These are model representations, not images: sizes are exaggerated and distances can be compressed so
           everything fits on screen. A model of a target does not establish that it has been observed or validated

@@ -267,7 +267,7 @@ export const TRACK_SOURCES: Readonly<Record<string, TrackSourceEntry>> = {
     target: "Barnard's Star",
     source: 'Gaia DR3 4472832130942575872: position, proper motion, parallax and radial velocity at J2016.0',
     notes: [
-      `Saturated in D1–D4 (NaN core of 1–5 px), rarely in D5, never in D6 (${RECON_43}).`,
+      'Saturated (OVERFLOW) in 357 of 358 exposures, in all six detectors; the core is NaN in 240 of them, almost all in D1–D4 (offline FITS analysis, docs/validation/barnards-star.md).',
     ],
   },
   'epsilon-indi': {
@@ -296,15 +296,15 @@ export const TRACK_SOURCES: Readonly<Record<string, TrackSourceEntry>> = {
     epochMjd: 57633.39,
     notes: [
       'No radial velocity is measured: the radial motion (perspective acceleration) is not included.',
-      `${RECON_41} predicts 133.757926, −7.241980 for 2026-11-14 from the team's own WISE + NEOWISE fit (μ ≈ −8095, +696 mas/yr); this track, from Kirkpatrick et al. 2021, is 0.31″ (0.05 px) away on that date.`,
-      `Visible only at local wavelengths ≥ 3.9 µm (D5/D6), S/N ≈ 5 per image (${RECON_43}).`,
+      "Adopted solution: Kirkpatrick et al. 2021, also used by fields.toml and docs/validation/wise-0855.md. Cross-check: the team's own unpublished WISE + NEOWISE fit (docs/RECON_SPHEREX.md 4.1, μ ≈ −8095, +696 mas/yr) is 0.31″ (0.05 px) away on 2026-11-14.",
+      'Seen only in D5/D6 (3.8–5.0 µm), brightest at 4.25–4.70 µm: median S/N 3.4–3.8 per exposure (5 or more in 22 of 93) and 21–25 per detector with all exposures combined (offline FITS analysis, docs/validation/wise-0855.md).',
     ],
     staticSources: [
       {
         name: 'Gaia DR3 5756956644387831296',
         raDeg: 133.7581825,
         decDeg: -7.2411559,
-        note: 'static field star (CatWISE J085501.95−071428.2, G 16.31): in D1–D3 the blob at the target position is this star',
+        note: 'static field star (CatWISE J085501.95−071428.2, G 16.31): in D1–D4 the blob at the target position is this star (docs/validation/wise-0855.md)',
         source: RECON_43,
       },
     ],
@@ -312,7 +312,7 @@ export const TRACK_SOURCES: Readonly<Record<string, TrackSourceEntry>> = {
   'r-draconis': {
     target: 'R Draconis',
     source: 'Gaia DR3 1648328016354496384 (flagged VARIABLE) at J2016.0; radial velocity −132.8 km/s from SIMBAD (Wilson 1953)',
-    notes: [`Saturated core (NaN) in every image (${RECON_43}).`],
+    notes: ['Saturated (OVERFLOW) in all 2,488 exposures with the star on the detector; the flagged core pixels are finite, not NaN (offline FITS analysis, docs/validation/r-draconis.md).'],
   },
   'rw-aurigae': {
     target: 'RW Aurigae A+B',
