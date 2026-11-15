@@ -33,8 +33,8 @@ original y (R) la revisión independiente. «px» = píxel SPHEREx de 6,15″.
 | Barnard's Star | [barnards-star.md](validation/barnards-star.md) (#46) | Gaia DR3 4472832130942575872 (G = 8,19). Fuente dominante: todas las fuentes Gaia a ≤ 30″ son ≥ 6,8 mag más débiles | 358 exposiciones (dr1 239 + qr3 119), 2025-08-15 → 2026-09-22. S0→S2 (misma orientación, 0,98 años entre medias): **10,24 ± 0,11″ = 1,665 ± 0,018 px a PA 354,1 ± 2,1°** (A) y **10,18 ± 0,09″ = 1,655 ± 0,014 px a PA 355,4 ± 0,6°** (R); esperado 10,24″ = 1,665 px a PA 355,7°. «Sin movimiento» descartado a 93σ (A) y 119σ (R). µ (R): (−858 ± 117, +10311 ± 87) mas/año; catálogo (−803, +10375) | `OVERFLOW` en el núcleo en **357 de 358**; `NONLINEAR` nunca; NaN en 240 (en D5/D6 solo 4 de 119). Astrometría desde el ala de la PSF | La **paralaje** (el giro de 180° de S1 es degenerado con su fase). El brillo del núcleo. En los 40 PNG el movimiento está (la meseta se corre 1,60 px; se esperaban 1,68), pero no se ve a simple vista: disco blanco de ~7 px y sin marcador |
 | ε Indi B | [eps-indi-b.md](validation/eps-indi-b.md) (#36) | Gaia DR3 6412596012146801152 (G = 18,03, RUWE 4,30). Ba+Bb = **una sola fuente** | 458 frames en SIA en vivo (dr1 338 + qr3 120; 2026-11-14 19:24 UTC), 2025-04-24 → 2026-10-02, 4 temporadas. Detectada en ~440 de 458; **no en D1 por debajo de ~0,83 µm** (espectro de enana T, INFERIDO). S0→S3 (1,385 años entre medias): **1,031 ± 0,006 px** (A) y **1,026 ± 0,007 px** (R), ± ~0,016 px de sistemático, a PA 126,5–126,7 ± 0,4°; esperado 1,028–1,030 px a PA 125,8–125,9°; > 50σ con el sistemático | No satura | Separar Ba de Bb; la órbita Ba–Bb. Hay un offset constante de ~0,6″ entre fotocentro y catálogo, de causa INFERIDA. ε Ind A (402,6″ al oeste) queda **fuera** de la grilla publicada de 9′: solo se ve su halo en el borde oeste |
 | WISE 0855−0714 | [wise-0855.md](validation/wise-0855.md) (#36) | Sin contraparte Gaia DR3. SIMBAD: Y2. **Mezclada** con Gaia DR3 5756956644387831296 (G = 16,3), a 1,85 / 1,32 / 0,70 px en S0/S1/S2 | 258 frames, **solo DR1**, 2025-05-05 → 2026-05-14. **Solo se ve en D5/D6 (3,8–5,0 µm)**: SNR mediana por exposición 3,4–3,8 (≥ 5σ en 22 de 93 frames D5/D6) y **SNR 21–25** sumando por detector; en D1–D4 el flujo es compatible con 0. S0→S2 (360 d): **8,51 ± 0,39″ = 1,38 ± 0,06 px a PA 278,5 ± 2,6°** (A) y **8,41 ± 0,35″ a PA 277,5 ± 2,4°** (R); esperado 8,03″ = 1,31 px a PA 274,6°. Modelo estático rechazado (Δχ² 258–412) | No satura | Que se vea en el blink publicado (12 frames D5/D6, SNR mediana 2,1). µδ sale 1,6–3,1σ por encima del catálogo por la mezcla (INFERIDO). Los flujos absolutos dependen del modelo de PSF (~11 %) |
-| RW Aurigae | [rw-aurigae.md](validation/rw-aurigae.md) (#36) | A+B sin resolver (1,49″). 🆕 **A = Gaia DR3 156430817820015232, B = 156430822114424576** (verificado en esta revisión, §0.3) | 335 frames (dr1 226 + qr3 109), 2025-09-01 → 2026-09-16. Variabilidad **solo en D1 (0,74–0,88 µm)**, en pares del mismo detector con \|Δλ\|/λ < 1 % y sin flags: **se abrillanta ~1 mag a 0,75–0,77 µm entre el 2025-09-02 y el 2026-09-08** (−1,005 y −1,031 mag; −0,99 y −0,97 con punto cero). Estrellas de comparación: σ robusta 0,046–0,049 mag, máximo 0,27 | `OVERFLOW` en **304 de 335**; ningún frame D2–D6 limpio (0 de 279). Quedan 17 frames limpios, todos en D1, y 8 pares. El desglose del registro («todo D2–D6 y 37 de 56 en D1») no cierra con 304: ver «Conteo de saturación de RW Aur» en la revisión del 3D | La causa física. Un «brillo medio de temporada» (dentro de S0 también parece cambiar, INFERIDO). Variabilidad en D2–D6. Los 40 PNG no muestran el cambio: la estrella vale 255 en todos |
-| R Draconis | [r-draconis.md](validation/r-draconis.md) (#36) | Gaia DR3 1648328016354496384 (G = 6,37, VARIABLE). Sin mezcla: dentro de 45″ solo hay dos fuentes de G ≈ 19 | 2493 frames (dr1 413, qr3 126, dr1_deep 1225, qr3_deep 729), MJD 60790–61310 (520 d). Fotometría **relativa del ala de la PSF**, mismo detector y λ en bins de 1–1,5 %: **0,5–1,3 mag pico a pico** según el detector; permutación p ≤ 0,003 (D2 marginal); sigue la curva V contemporánea de AAVSO con retrasos de −1 a +47 d. **Período efectivo ~260 d** (bootstrap 95 %: 255–265 d), igual al último ciclo AAVSO (258 d; el anterior duró 235 d) y compatible con Gaia DR3 (247,2 ± 6,0 d) | `OVERFLOW` en **2488 de 2488** frames con la estrella en el detector; `NONLINEAR` nunca | Fotometría del núcleo o flujo absoluto. Decir que SPHEREx «midió 247 d». El campo publicado (40 PNG, ninguno deep) no muestra la variabilidad, y no hay producto de curva de luz |
+| RW Aurigae | [rw-aurigae.md](validation/rw-aurigae.md) (#36) | A+B sin resolver (1,49″). 🆕 **A = Gaia DR3 156430817820015232, B = 156430822114424576** (verificado en esta revisión, §0.3) | 335 frames (dr1 226 + qr3 109), 2025-09-01 → 2026-09-16. Variabilidad **solo en D1 (0,74–0,88 µm)**, en pares del mismo detector con \|Δλ\|/λ < 1 % y sin flags: **se abrillanta ~1 mag a 0,75–0,77 µm entre el 2025-09-02 y el 2026-09-08** (−1,005 y −1,031 mag; −0,99 y −0,97 con punto cero). Estrellas de comparación: σ robusta 0,046–0,049 mag, máximo 0,27 | `OVERFLOW` en **304 de 335**; ningún frame D2–D6 limpio (0 de 279). Quedan 17 frames limpios, todos en D1, y 8 pares. El desglose del registro («todo D2–D6 y 37 de 56 en D1») no cierra con 304: ver «Conteo de saturación de RW Aur» en la revisión del 3D | La causa física. Un «brillo medio de temporada» (dentro de S0 también parece cambiar, INFERIDO). Variabilidad en D2–D6. Los 40 PNG no muestran el cambio: la estrella vale 255 en todos. La curva de luz precalculada de la app (#79, #83) reproduce los 8 pares con ≤ 0,003 mag de diferencia |
+| R Draconis | [r-draconis.md](validation/r-draconis.md) (#36) | Gaia DR3 1648328016354496384 (G = 6,37, VARIABLE). Sin mezcla: dentro de 45″ solo hay dos fuentes de G ≈ 19 | 2493 frames (dr1 413, qr3 126, dr1_deep 1225, qr3_deep 729), MJD 60790–61310 (520 d). Fotometría **relativa del ala de la PSF**, mismo detector y λ en bins de 1–1,5 %: **0,5–1,3 mag pico a pico** según el detector; permutación p ≤ 0,003 (D2 marginal); sigue la curva V contemporánea de AAVSO con retrasos de −1 a +47 d. **Período efectivo ~260 d** (bootstrap 95 %: 255–265 d), igual al último ciclo AAVSO (258 d; el anterior duró 235 d) y compatible con Gaia DR3 (247,2 ± 6,0 d) | `OVERFLOW` en **2488 de 2488** frames con la estrella en el detector; `NONLINEAR` nunca | Fotometría del núcleo o flujo absoluto. Decir que SPHEREx «midió 247 d». El campo publicado (40 PNG, ninguno deep) no muestra la variabilidad. La curva de luz precalculada de la app (#79, #83) usa solo el sondeo ancho: 539 de 2493 exposiciones (ver «Revisión científica de las curvas de luz») |
 
 Comunes a los cinco: scripts en el scratch local (no versionados), figuras en [`validation/figures/`](validation/figures/),
 revisión humana pendiente, paso 6 pendiente. Los registros no usan detección automática.
@@ -153,7 +153,8 @@ Cómo leer esto:
     AAVSO (258 d; el anterior fue de 235 d): las Miras cambian de ciclo a ciclo. Citar 247 d solo como valor de
     catálogo. Para la fase, usar la curva AAVSO contemporánea, no la efeméride VSX extrapolada (se desvía hasta 15 d).
   - 🆕 La búsqueda por defecto (`spherex_dr1,spherex_qr3`) excluye las colecciones deep, que aportan casi todo el
-    muestreo: el campo publicado (40 frames) no tiene ninguno.
+    muestreo: el campo publicado (40 frames) no tiene ninguno. Lo mismo pasa con la curva de luz precalculada de la app
+    (#79): 539 de 2493 exposiciones, que no distinguen 259 d de 247 d (ver «Revisión científica de las curvas de luz»).
 
 ### 0.4 Variabilidad con un filtro lineal variable
 
@@ -747,3 +748,236 @@ registro, `DATA.md` §3.2 y §0.
 Esplin+2016, Wilson+2025 y Miles+2026; el «e < 0.02» y el ω de Basant+2025; la convención de juliet/RadVel; la lista O−C de
 Karlsson; la subida del 45 % de VSX; los desplazamientos AB − Vega de WISE (2,699 y 3,339). Los registros de validación son
 análisis de IA con revisión independiente; la revisión humana sigue pendiente.
+
+## Revisión científica de las curvas de luz (#78, #79, #83) - 2026-11-15
+
+rpccp pidió en #78 la revisión de WS3 de los campos científicos y unidades, las magnitudes relativas por bin, los puntos
+cero de comparación no aplicados, la significancia del período y la procedencia/completitud. Esta sección responde ese
+pedido. Abarca:
+- el contrato 0.6.0 (`LightCurve*` en `models.py`);
+- el adaptador `backend/errante_api/lightcurve_build.py`;
+- los dos productos publicados (`backend/errante_api/curated/lightcurves/{rw-aurigae,r-draconis}.json`);
+- el panel `frontend/src/components/LightCurvePanel.tsx`.
+
+**Método.** Cinco revisiones independientes: contrato, adaptador, números, presentación y una reproducción desde los
+FITS. Un verificador por revisión intentó refutar cada hallazgo, y al final un crítico buscó lo que faltaba revisar.
+Salieron 71 hallazgos. Ninguno quedó refutado del todo, y varios bajaron de severidad. Todos los números de esta sección
+se recalcularon desde los JSON publicados, desde los FITS o desde los catálogos. Los scripts están en el scratch local,
+sin versionar.
+
+### Veredicto
+
+- **La ciencia de los dos productos se sostiene.**
+  - Los dos se reproducen bit a bit desde los FITS reales con los presets exactos. Solo cambian `built_at`, `id`, la
+    huella y `schema_version`.
+  - La selección de frames está completa según IRSA en vivo.
+  - Los números concuerdan con los registros R05 y con los catálogos.
+  - **No hay bloqueantes.**
+- **Lo que falla es la comunicación.** Los productos traen sus advertencias en `notes`, pero el panel no las muestra.
+  Las barras de error son solo estadísticas, y faltan tres avisos:
+  - que R Dra usa solo el sondeo ancho;
+  - que RW Aur es una binaria sin resolver;
+  - que la saturación de RW Aur se come los estados brillantes.
+
+  Son siete puntos importantes (LC1–LC7), que conviene arreglar antes de la demo.
+- `ready` y `significant: true` no equivalen a una validación R05, y los productos lo dicen. Los registros de
+  `docs/validation/` siguen siendo la evidencia de R05.
+
+### Respuestas a las preguntas de #78
+
+1. **Campos y unidades: correctos.**
+   - `rel_mag` = −2,5 log10(flux) − `mean_mag` del bin, y positivo = más débil. Error máximo recalculado: 9e−16.
+   - `mean_mag` es la magnitud instrumental media del bin en la unidad del producto: mJy (apertura) o MJy/sr (ala).
+     Sin punto cero absoluto.
+   - `rel_mag_err` = 1,0857 · `flux_err`/`flux`, solo estadístico. En el ala excluye el ruido de fotones del propio
+     ala (no hay plano `VARIANCE`), así que es una cota inferior.
+   - El validador apertura → mJy / ala → MJy/sr relativo es correcto. El `Literal` de exclusiones coincide con los
+     motivos de WS3, y `types.ts` coincide con los modelos.
+   - **Falta:** ninguno de estos campos tiene `description` en el contrato ni en el esquema (LC15).
+2. **Magnitudes relativas por bin.**
+   - Cada punto se compara con la media geométrica de su detector y su bin de λ (1 %). El 0 % del panel es esa media,
+     no un nivel base ni de reposo: se comparan los puntos entre sí, no con el 0.
+   - En RW Aur los cinco bins tienen exactamente dos puntos, y cada `rel_mag` vale ± la mitad de la diferencia
+     (±0,264, ±0,198, ±0,517, ±0,188, ±0,049). Por eso la mediana es 0 y el `summary` (σ 0,294,
+     `scatter_over_control` 16,3) descansa en solo cinco diferencias: es descriptivo, no una significancia.
+   - Normalizar por bin no sesga el período ni las amplitudes de R Dra (inyección y recuperación, 200 simulaciones).
+     Sí comprime un poco los `rel_mag` mostrados en D1/D2.
+3. **Puntos cero no aplicados.**
+   - `zero_point_mag` es la mediana de los `rel_mag` de ≥ 2 estrellas de comparación en esa exposición. Se recalculó
+     sin diferencias: 55 frames de RW Aur y 490 de R Dra.
+   - Signo: positivo = las comparaciones se ven más débiles, así que para corregir se **resta**.
+   - **No aplicarlo es correcto.** En R Dra, aplicarlo deja igual la dispersión en D1–D3 y la empeora en D4–D6
+     (0,113 → 0,129, 0,081 → 0,097, 0,071 → 0,110), porque en esos detectores las comparaciones son débiles y su
+     ruido se suma. En RW Aur cambiaría los pares en ≤ 0,03 mag.
+   - **Falta** documentar el signo y el número de estrellas (LC15).
+4. **Significancia del período de R Dra: real, pero mal expresada.**
+   - 0 de 1000 permutaciones de visitas alcanzan el pico observado (Δχ² 1826 contra un máximo nulo de 975).
+   - El `false_alarm` publicado, 0,0099 = 1/101, es solo el **piso** de 100 permutaciones: una cota, no una medida
+     (LC8).
+   - «Significativo» quiere decir *variabilidad correlacionada en el tiempo*, no *periodicidad*. Sobre el muestreo de
+     R Dra, una tendencia lineal de 0,6 mag da el mejor período en el borde de la grilla (800 d) y sale
+     «significativa» (LC7).
+   - El período de 259,1 d (bootstrap 95 %: 240,2–276,3 d) contiene los valores de catálogo, todos consultados en el
+     espejo de VizieR en CfA:
+     - GCVS: 245,6 d;
+     - VSX: 246,12 d;
+     - Gaia DR3: 247,2 ± 6,0 d.
+   - A 247 d, Δχ² queda solo ~5 por debajo del pico. **Este producto no distingue 259 d de 247 d.** El «~260 d» de §0.3
+     sale del registro, que usa las 2493 exposiciones.
+   - Los picos secundarios (104,3, 150,4 y 79,9 d) son alias de la cadencia (ventana espectral con picos en 183 d y
+     350 d).
+5. **Procedencia y completitud.**
+   - La selección está completa: IRSA SIA en vivo (2026-11-15, 14:18–14:20 UTC) devolvió exactamente los mismos frames
+     (56 para RW Aur D1 y 539 para R Dra).
+   - `stale_search: true` no quiere decir que falten datos. Cuando se armó el producto, IRSA falló (502 y timeouts), y
+     respondió el snapshot comprometido del 2026-11-14 19:33/19:34 UTC. El producto no guarda esa fecha (LC9).
+   - `partial: true` sale de ese snapshot y, en R Dra, de un `no_overlap` que WS1 no cuenta como pérdida (LC10).
+   - **La pérdida real no está declarada:** R Dra usa solo DR1+QR3, que son 539 de 2493 exposiciones (21,6 %) en
+     426 d, unos 1,64 ciclos. Quedan afuera las colecciones deep (LC5).
+   - La huella `57d42f…` publicada no se reproduce con el código mergeado: HEAD da `bc4a19…` y el árbol de #79,
+     `0c372c…` (LC11).
+
+### Lo que está sólido (comprobado)
+
+- **Reproducción**, en el scratch local y con los mismos comandos del README:
+  - `python -m errante_api.lightcurve_build --preset rw-aurigae` (27,6 s) y `--preset r-draconis` (105,2 s) generan
+    curvas idénticas;
+  - en R Dra, 7 floats difieren en ≤ 1,5e−15 relativo;
+  - los RNG de bootstrap y permutaciones tienen semilla fija (seed 1).
+- **RW Aur coincide con el registro:**
+  - 17 frames D1 limpios: 10 usados más 7 `lone_bin`;
+  - 8 pares emparejados en λ, iguales al registro con ≤ 0,003 mag de diferencia (−1,008 y −1,034 mag entre
+    2025-09-02 y 2026-09-08);
+  - ensemble ≤ 0,021 mag.
+  - **El abrillantamiento de ~0,4–1,0 mag es robusto:** queda 11–31σ por encima de la dispersión de pares de las
+    propias comparaciones (0,033 mag, 180 pares).
+  - El par de 0,879 µm (−0,098 mag) no es significativo por sí solo, como dice el registro.
+- **Elección de detectores de RW Aur.** Usar solo D1 es correcto (0 frames limpios en D2–D6). No fijar período también
+  lo es: hay 10 puntos, y el período de rotación de 2,64 d (VSX) cae fuera de la grilla.
+- **Amplitudes de R Dra** (pico a pico del seno, con error de la covarianza): D1 1,21 ± 0,39, D2 1,05 ± 0,28,
+  D3 1,28 ± 0,15, D4 0,61 ± 0,06, D5 0,62 ± 0,03 y D6 0,94 ± 0,04 mag.
+  - Coinciden con el registro en D1, D2, D3 y D5. D4 y D6 difieren un poco a 247 d (0,63 / 0,91 contra 0,51 / 0,80).
+  - Que el ala sature en los 538 frames justifica el método.
+- **Estrellas de comparación.**
+  - Las 11 son estrellas reales de catálogo: todas tienen contraparte 2MASS y Gaia a ≤ 2,3″, y ninguna figura en VSX
+    a 30″.
+  - En D5/D6 su dispersión es igual a su error estadístico (cociente 0,5–1,5): ruido de estrellas débiles, no
+    estrellas variables.
+  - No hay contaminación medible por el halo del blanco (p = 0,81 entre frames con el blanco saturado y sin saturar).
+- **Movimiento propio despreciable** (Gaia DR3): 0,025–0,028″ en la línea de base, unos 0,004 px. La nota «fixed sky
+  position» es correcta.
+- **Pureza de la apertura de RW Aur** (r = 3 px = 18,5″): el resto de las fuentes aporta < 0,1 %. La única mezcla que
+  importa es la de A+BC (LC4).
+- **Fuentes accesibles:** las 594 URI de `provenance.sources` responden HTTP 200 sin login.
+- **Panel:**
+  - la conversión a % (100 · (10^(−0,4 `rel_mag`) − 1)) y las barras asimétricas están bien;
+  - brillo hacia arriba;
+  - nunca mezcla bins ni detectores en un mismo gráfico;
+  - el ala se rotula como relativa;
+  - «Candidate cycle» aparece solo si es significativo;
+  - el caveat del período está a la vista;
+  - los conteos coinciden con el JSON;
+  - el panel se oculta en datos sintéticos.
+- **Tests:** pasan los 55 de curvas de luz, de contrato y de backend.
+
+### Hallazgos importantes (antes de la demo)
+
+| ID | Dueño | Qué | Arreglo propuesto |
+|---|---|---|---|
+| LC1 | WS5 | El panel no muestra `curve.notes` ni `provenance.notes`. Quedan invisibles «not a new R05 validation», el aviso de filtro lineal variable, «saturated = lower limits» y «zero point not applied». Tampoco muestra la selección (colecciones, rango de fechas, n_found, fecha del build) | Bloque visible «Limits of this product» con las notas, y otro «Data selection» con colecciones, MJD usados, n_found/n_selected y fecha del snapshot |
+| LC2 | WS5 (+ WS3) | Las barras son solo estadísticas: en R Dra, mediana 0,001–0,004 mag contra pisos empíricos de 0,09–0,39 mag. Dentro de un mismo bin, puntos separados por < 5 d ya difieren hasta 0,5–0,9 mag (D1/D3) | Decir en el pie que las barras no incluyen sistemáticos, y mostrar el control del detector (y `floor_mag` en el ala) como banda o como número. WS3 puede publicar un piso por detector (LC23) |
+| LC3 | WS5 | En modo estático (Pages, la única URL pública prevista) el panel no carga: `export_static_science.py` copia los JSON a `lightcurves/`, pero `client.getLightCurve` falla fuera del modo API (`client.ts:135`) | Leer `${staticBase}lightcurves/{id}.json` en modo estático y tratar un 404 como «missing» |
+| LC4 | WS4 + WS5 | RW Aur, dos avisos que faltan. (a) Es **A+BC sin resolver**: WDS JOY 5, 1,50″ a PA 254° (2022); par Gaia a 1,493″; las dos componentes caen dentro de la apertura de 18,5″. (b) **La saturación depende del brillo**: satura 7/19 (S0, la temporada débil), 14/19 (S1) y 16/18 (S2), así que los estados brillantes quedan afuera y en S2 solo sobreviven 2 puntos. Además, el panel lista los flujos saturados como «Measured signal» cuando son cotas inferiores | Nota por preset en `PRESETS` (WS4) y texto del panel (WS5): «Uncorrected aperture flux (r = 3 px); RW Aur A+BC unresolved; N saturated exposures (lower limits, mostly in the bright seasons) are excluded». Saturados como «≥ valor» |
+| LC5 | WS4 + WS5 | R Dra usa solo el sondeo ancho (539 de 2493 exposiciones, 426 d) y no lo dice. La página muestra arriba «~2,500 frames… the best light-curve case» (field.json) y el panel, «450 of 538» | Nota del preset: «Wide survey only (DR1+QR3): 539 of 2493 exposures; deep collections excluded; data end 2026-07-16». Opcional: reconstruir con las colecciones deep y `max_frames` ≤ 2500, revisando el tope de 8 MiB (LC16) |
+| LC6 | WS3 (+ rebuild del campo) | Los textos de `fields.toml` que se ven arriba del panel lo contradicen: RW Aur dice «not single exposures», y R Dra, «period ~247 d… ~2,500 frames». Ya estaban como pendientes en la revisión de textos | Aplicar los textos listos de esa tabla. A R Dra, agregarle que la curva de la app usa solo el sondeo ancho. `field.json` se regenera al publicar los campos |
+| LC7 | WS3 + contrato + WS5 | «Significant» se presenta como si confirmara un período, pero solo prueba variabilidad ordenada en el tiempo: una tendencia o un escalón pasan el test en el borde de la grilla. El docstring de `LightCurvePeriod` dice que un período significativo deja de ser candidato, y eso contradice el caveat de WS3. El contrato acepta `period_days` = 5000 con la grilla [20, 800] | WS3: no marcar significativo un mejor período en el borde de la grilla o que cubra < 2 ciclos, y reescribir el caveat. Contrato: `period_range_days[0] ≤ period_days ≤ [1]` y docstring corregido. WS5: «Variability significant; best period 259.1 d», con los alias y los períodos de catálogo |
+
+### Hallazgos menores y observaciones, por dueño
+
+**WS4 (rpccp), `lightcurve_build.py` y documentos:**
+- **LC8.** Publicar con `--permutations 999` y `--bootstrap 1000`: 1000 permutaciones tardan ~9 s. Con 100 resamples,
+  el límite inferior del bootstrap salta entre 231 y 245 d según la semilla, y una sola excedencia cambiaría el
+  veredicto. WS5 debería mostrar «≤ 1/101 (0 of 100 permutations reached the peak)» en lugar de «0.99%».
+- **LC9.** Guardar qué respondió la búsqueda (`service`) y la fecha del snapshot en `provenance.notes`; no hace falta
+  tocar el contrato. El constructor offline hereda el tope de 20 s del fallback de la API (`irsa.search_budget`), así
+  que con el snapshot comprometido casi siempre gana el snapshot. Hay que darle al hijo
+  `ERRANTE_SEARCH_DEADLINE_S` = archive deadline y `ERRANTE_SEARCH_FALLBACK_DEADLINE_S`.
+- **LC10.** `partial` no debería encenderse por `no_overlap` (`point.py` lo trata como completo). El mapeo de fallas
+  rotula todo como `download_failed`, timeouts y FITS truncados incluidos. El test que exige `partial and
+  stale_search` en los productos reales va a fallar cuando haya un rebuild fresco.
+- **LC11.** La huella y el `id` no se pueden reproducir ni verificar desde el JSON. Registrar el commit y las versiones
+  efectivas, o documentar el `id` como opaco. Los productos dicen `schema_version` 0.6.0 y el contrato está en 0.7.0:
+  inofensivo, porque los modelos de curva de luz no cambiaron.
+- **LC12.** El adaptador reimplementa `variability.light_curve()`. Hoy da lo mismo que la CLI: la verificación lo
+  confirmó (`errante lightcurve` con los parámetros del preset da la misma curva). Pero se pierden la nota de timeout,
+  el calificador de unidad («no aperture correction»), `box_px`/`planes` y el modo automático del período, y ningún
+  test lo ata a la CLI. Llamar a `light_curve()`; si hace falta `max_workers`, WS3 lo agrega como parámetro.
+- **LC13.** Documentar por qué RW Aur usa solo D1 y no fija período: satura en todo D2–D6 y tiene 10 puntos.
+- **LC14.** Documentación vieja después de #83: `backend/README.md:316-318` dice que no hay panel ni publicación estática;
+  WS4-11 sigue listando el panel como pendiente; `ai-usage.json` llama «draft» a #78, y el docstring de la ruta dice
+  «validated».
+
+**Contrato (PR `contract:`):**
+- **LC15.** Agregar `description` a `rel_mag` (signo), `rel_mag_err` (estadístico; en el ala, cota inferior), `mean_mag`
+  (unidad), `zero_point_mag` (definición, signo «restar», número de estrellas), `relative_only`, `unit`, `control`,
+  `summary` y `scatter_over_control`. El fixture de `test_contract.py` es científicamente imposible: un bin de un punto
+  con `rel_mag` −0,1.
+- **LC16.** `matched_pairs` admite 100 000 pares y `max_frames` 2500, pero el tope de publicación es 8 MiB. Los pares
+  crecen de forma cuadrática y no son independientes: cada frame aparece en hasta 14.
+- **LC17.** `period: bool = False` no puede expresar el modo automático de WS3 (`None`). Hoy no afecta, porque los presets lo
+  fijan.
+- **LC18.** Validador de `false_alarm`: `n_permutations` = 0 o ≥ 99, y `false_alarm` · (n + 1) entero. Opcional: `n_exceed`.
+
+**WS5 (mateoa007), además de LC1–LC5:**
+- **LC19.** Se grafica un solo bin de 1 % por vez: como mucho 10 de los 450 puntos de R Dra y 2 de los 10 de RW Aur. Así no se ve
+  el ciclo de 259 d. Agregar una vista por detector con todos los puntos usados (son comparables tras la normalización
+  por bin) o plegada en fase.
+- **LC20.** Mostrar los `matched_pairs` de RW Aur, que son el método del registro R05. Tres de los 8 pares cruzan bins y no
+  aparecen, entre ellos uno de los dos cambios de ~1 mag entre S0 y S2.
+- **LC21.** «First to last» sin incertidumbre: en una Mira se lee como tendencia, cuando es una diferencia de fase.
+- **LC22.** Explicar que el 0 % es la media del bin, agregar columnas de % y error a la tabla, y agregar tests de la
+  conversión y de los tres textos del período.
+
+**WS3 (nosotros):**
+- **LC23.** Publicar un piso de incertidumbre por detector que el panel pueda dibujar. En R Dra, los pisos de D1–D3 son
+  dispersión de medición por exposición (los residuos no se correlacionan dentro de una visita), no la forma intrínseca
+  de la Mira.
+- **LC24.** `scatter_over_control` divide la dispersión del ala por la de comparaciones medidas con apertura. Para
+  `wing` no significa nada: pasarlo a `null` o documentarlo. En RW Aur cuenta 5 diferencias como 10 puntos.
+- **LC25.** `control[det].excluded` siempre sale `{}`, aunque en R Dra se excluyen 1178 de las 3228 mediciones de
+  comparación.
+- **LC26.** Falta un control a nivel de pares: la dispersión de pares de las comparaciones es 1,4–1,9 veces el control
+  por punto, y en RW Aur da 0,033 contra 0,018.
+- **LC27.** Los pisos del período se calculan en el mejor período estadístico (239 d), no en el final (259 d). No
+  cambia el período; D6 pasaría de 0,091 a 0,075.
+- **LC28.** Bins de 1 %:
+  - en R Dra D1 son anchos: el corrimiento de λ dentro del bin explica ~0,14 de los 0,29 mag de residuo;
+  - en D5/D6, un bin de 1 % es más ancho que el canal del filtro lineal variable (hoy sin efecto medible);
+  - el ensemble de cada par no se empareja en λ (mediana 0,5–0,9 %).
+- **LC29.** `amplitude_mag` sin error (ver arriba) y comentario de `PERIOD_FALSE_ALARM` inexacto: dice «no más del 1 %
+  de las permutaciones», pero con 100, una sola excedencia ya da 2/101.
+- **LC30.** En esta PR: actualizar §0.0 y §0.3, que decían que no había producto de curva de luz. Pendiente: un
+  addendum fechado en los dos registros de `docs/validation/` (archivos de coordinación) que apunte a
+  `/api/lightcurves/{id}`, y la fila de curvas de luz en `docs/PARALLEL_PLAN.md`.
+
+### Comprobaciones hechas para esta revisión (2026-11-15, UTC)
+
+- **Rebuild de los dos presets** en el scratch, con caché vacío (comandos de arriba). IRSA respondió 502 en SIA
+  y TAP, y usó el snapshot.
+- **14:18–14:20, IRSA SIA en vivo** (`use_cache=False`, `use_snapshot=False`, deadline de 120 s): RW Aur D1, 56 frames
+  con y sin `mjd_max`; R Dra, 539 (dr1 413 + qr3 126, máximo MJD 61237,87). Mismos conjuntos de frames que los
+  productos.
+- **Listado del bucket S3** (`qr3/level2/`): las semanas más nuevas, 2026W38–W40, se subieron entre el 2026-10-25 y el
+  2026-10-30. Para estas posiciones no hay frames posteriores a los publicados.
+- **VizieR CfA:**
+  - `B/gcvs`: R Dra M, P 245,6 d; RW Aur IT, V 9,2–12,5.
+  - `B/vsx`: R Dra 246,12 d; RW Aur CTTS/ROT+CTTS, P 2,64 d.
+  - `B/wds`: 05078+3024 JOY 5 A,BC 1,50″, PA 254° (2022), y GHE 16 BC 0,1″.
+  - `I/355/gaiadr3`: par de RW Aur a 1,493″ y PA 254,4°; movimientos propios; contrapartes de las comparaciones.
+- **Permutaciones** sobre los 450 puntos usados de R Dra: 0 de 1000 alcanzan el pico; semillas 1–5 con 100–400
+  permutaciones, 0 excedencias.
+- **HEAD** a las 594 URI de `provenance.sources`: todas responden 200.
+
+**No verificado:** el ciclo AAVSO contemporáneo de R Dra (se tomó del registro). Por qué la huella publicada no se
+reproduce: probablemente se construyó desde la rama previa al squash o con otras dependencias, pero no se puede
+confirmar.
