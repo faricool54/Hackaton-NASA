@@ -22,7 +22,7 @@ Implementación y validación de esta etapa: [PR #6](https://github.com/faricool
 - ✅ Frontera de archivos robusta: deadline, cupos que sobreviven al timeout, caché TTL memoria/disco,
   errores JSON y validación de entradas/rutas. Tests offline; sin cambios de contrato 0.2.0.
 - ✅ Runner `python scripts/dev.py build-fields`, staging/validación/rollback, contenedor y workflow Pages
-  preparados. ✅ Los cinco campos se reconstruyeron con WS1/WS2 reales; URL pública y hosting siguen pendientes.
+  preparados. ✅ Los cinco campos se reconstruyeron con WS1/WS2 reales; URL Google Cloud pública verificada.
 - ✅ Motor y POST/GET de jobs implementados; correcciones de CORS, destino, publicación, admisión y recuperación
   con regresiones. Contrato 0.3.0 (#32), backend (#33) y conexión WS5 (#34) integrados.
 
@@ -47,12 +47,14 @@ Implementación y validación de esta etapa: [PR #6](https://github.com/faricool
   endpoints/productos 3D y pruebas, junto a enunciado/PDFs/guías. Galería P2 con parámetros sin verificar,
   copia pública corregida y metadatos de asistencia actualizados. Validación local: 39 tests Python,
   9 frontend, schema/lint/build y navegador escritorio/móvil; corregido desbordamiento del canvas en móvil.
-- [ ] **WS4-4 (P0, R01/R03) Deploy** del servicio de construcción por coordenadas (o equivalente verificable)
+- [x] **WS4-4 (P0, R01/R03) Deploy** del servicio de construcción por coordenadas (o equivalente verificable)
   con `ERRANTE_DATA_DIR`, worker/caché y CORS configurado. La web estática sola no cubre coordenadas arbitrarias.
   Documentar en `backend/README.md` y probar frontend → job → imágenes desde la URL pública.
   Entrega web+API con cinco campos reales, snapshots y jobs implementada/probada; volumen persistente,
-  HTTPS opcional y receta de Google Compute Engine en `backend/deploy/`. Falta proyecto/cuenta con créditos
-  verificados, dominio/URL y aceptación pública. No se marcó un contenedor local como deploy público.
+  HTTPS y Google Compute Engine: https://errante.34-148-242-13.sslip.io. Facturación vinculada a la prueba
+  confirmada por el usuario, alerta de consumo USD 20, cinco campos y job público de ocho frames verificados.
+  Reinicio con persistencia y render de los cinco blancos en dos viewports; desbordamiento móvil observado
+  pendiente de WS5. Evidencia y redeploy compartido: `backend/deploy/production.json` y `README.md`.
 - [x] **WS4-5 (P0, R03/C04/C06) Campos por coordenadas arbitrarias.** Diseñar contrato de solicitud
   RA/Dec/FOV/filtros, job ID y polling; reutilizar `build.build_field` básico. Validar rangos, FOV/píxeles/frames,
   concurrencia y tiempos. Caché por todos los parámetros y releases/versiones. Estados: en curso, listo,
@@ -60,12 +62,13 @@ Implementación y validación de esta etapa: [PR #6](https://github.com/faricool
   POST `/api/jobs` y GET `/api/jobs/{id}` consumen contrato 0.3.0 (#32). Frontend conectado en PR
   #34 ya integrado: formulario, mapa, nombre, polling y PNG reales; tres jobs de 40 frames probados en navegador.
   Aceptación local; la URL pública sigue en WS4-4/6.
-- [ ] **WS4-6 (P0, R01) GitHub Pages / Vercel** para el frontend estático (con WS6): workflow que construye
+- [x] **WS4-6 (P0, R01) Publicación del frontend** (con WS6): workflow que construye
   `frontend/` con `VITE_BASE` y publica.
   Para S03, probar app/demo/materiales finales sin login, permisos ni registro; videos/documentos se alojan
   externamente. El PDF no autoriza sustituir una demo de proyecto por una URL inaccesible o solo documentación.
   Workflow opt-in `pages.yml` usa `real` por defecto y exporta curvas/comparaciones precalculadas.
-  La entrega de un solo origen no necesita Pages. Publicación externa y acceso anónimo pendientes.
+  La entrega de un solo origen en Google Cloud ya está pública y sin login; no requiere habilitar Pages.
+  WS6 debe enlazar la URL en los materiales; revisión humana en teléfono y layout móvil corresponden a WS5.
 - [ ] **WS4-7 (P2, dependencia externa) `/api/limits`** cuando WS2 defina el contrato científico de límites.
   No hay ese contrato ni límites medidos: se difiere con WS2. No reemplazar límites de detección por cupos
   del servidor ni inventar medidas. No bloquea el alcance R01–R04 de WS4.
@@ -95,7 +98,7 @@ Implementación y validación de esta etapa: [PR #6](https://github.com/faricool
   caché por contenido/ETag, CLI offline con hijo supervisado, publicación atómica y dos productos FITS reales
   (RW Aurigae y R Draconis). Conserva controles, exclusiones, errores y significancia/aliases; búsquedas
   anteriores marcadas `partial/stale_search`. Contrato 0.6.0 (#78) integrado por indicación explícita del usuario;
-  backend en #79. **Pendiente:** revisión científica independiente de WS3/faricool54 y panel de WS5.
+  backend en #79 y panel WS5 integrado en #83. **Pendiente:** revisión científica independiente de WS3/faricool54.
   El merge no marca validación científica R05 completa.
 
 - WS1: búsqueda/recortes/λ implementados; WS2: reproyección y épocas por temporada × detector implementadas.
@@ -103,7 +106,7 @@ Implementación y validación de esta etapa: [PR #6](https://github.com/faricool
 - Jobs: admisión transaccional, resultados verificados, recuperación por huellas y logs/almacenamiento acotados.
 - Errores públicos sanitizados; los tests de backend no dependen de IRSA/JPL.
 - Espectros/comparaciones implementados con contrato, límites y procedencia; frontend integrado en #55.
-  Hosting público pendiente de destino; fichas/3D físico y validación R05 tienen sus propios responsables.
+  Publicación Google Cloud verificada; 3D físico y revisión científica R05 tienen sus propios responsables.
 
 ## Prompt de arranque
 

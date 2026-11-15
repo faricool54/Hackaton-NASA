@@ -1,5 +1,11 @@
 # Full-stack delivery (WS4, R01–R04/S03)
 
+Public deployment verified 2026-11-15: **https://errante.34-148-242-13.sslip.io**.
+Project `project-4c470287-a034-43da-bf6`, VM `errante`, zone `us-east1-b`, reserved IP `34.148.242.13`.
+Initial application release: `642ea686ce54a1460d6e2d7e6c102bc8b99c8540` (includes WS5 light-curve panel #83).
+See [production.json](production.json) for acceptance evidence and limitations. The sslip.io hostname is
+temporary third-party DNS; it can be replaced by an owned domain without moving the VM or state.
+
 The image serves the existing frontend, API, real PNGs and precomputed light curves on one origin.
 Jobs are enabled. Five real fields and WS1 search snapshots are bundled; a fresh runtime volume is
 seeded once. Existing manifests and jobs are preserved on restart. Runtime products and private
@@ -34,6 +40,45 @@ resources or activate billing automatically. VM, IP, disk and egress may incur c
 estimate/budget. Cloud Run's ephemeral in-memory filesystem and autoscaling need a different persistence
 design for this SQLite worker; do not mount a Cloud Storage bucket as its database.
 
+The user confirmed a fresh USD 300 / 90-day trial; this project's billing link was verified before deployment.
+A **USD 20 monthly usage alert** is configured at 50%, 90% and 100%, excluding credits from the calculation
+so promotional credits do not hide consumption. It is a notification, not a spending cap or shutdown rule.
+Base estimate for the chosen VM + 30 GiB balanced disk + in-use IPv4 is about USD 56/month, excluding
+traffic/taxes and subject to the account's actual prices. No paid-account upgrade or commitment was made.
+
+## Redeploy as a teammate
+
+Each operator uses their own Google account with project access and their own Git checkout. No shared
+password, SSH private key, service-account JSON or access token is needed. Google Cloud Console's browser
+SSH is also available on the VM page. For CLI use, install Google Cloud CLI (or use Cloud Shell), then:
+
+```bash
+gcloud auth login
+git fetch origin
+python scripts/deploy_vm.py --ref origin/main
+python scripts/smoke_delivery.py https://errante.34-148-242-13.sslip.io --live-job
+```
+
+Deploy changes after merging their PR. The helper archives committed files only, uploads with `gcloud
+compute scp`, and uses SSH/sudo on the existing VM. A server-side lock serializes team deployments; releases
+are stored under `/opt/errante/releases/<commit>`. All releases use Compose project `errante`, preserving
+runtime and HTTPS volumes. The latest helper-deployed revision is recorded in `/opt/errante/current-revision`.
+The helper does not create VMs, change billing or destroy/prune volumes. Optional flags override project,
+zone, instance, domain and the gcloud path. If Windows batch wrappers fail, it uses the SDK Python entry point.
+
+Inspect or restart from Cloud Shell/your authenticated terminal:
+
+```bash
+gcloud compute ssh errante --project project-4c470287-a034-43da-bf6 --zone us-east1-b
+sudo docker ps
+sudo docker logs --tail 80 errante-app-1
+sudo docker restart errante-app-1
+```
+
+The initial VM was created without a service account: the app only needs public astronomy services.
+Operators' SSH access uses their own IAM-authorized keys. The bootstrap script is tracked at
+`backend/deploy/google-startup.sh`; pass it as startup metadata when recreating the VM.
+
 Once the team has an authenticated Google Cloud project and has accepted its resource estimate, these are
 the concrete creation parameters (replace `PROJECT_ID`; commands create chargeable resources):
 
@@ -42,7 +87,8 @@ gcloud compute addresses create errante-ip --project PROJECT_ID --region us-east
 gcloud compute instances create errante --project PROJECT_ID --zone us-east1-b \
   --machine-type e2-standard-2 --image-family ubuntu-2404-lts-amd64 --image-project ubuntu-os-cloud \
   --boot-disk-size 30GB --boot-disk-type pd-balanced --no-boot-disk-auto-delete \
-  --address RESERVED_IP --tags errante-web
+  --address RESERVED_IP --tags errante-web --no-service-account --no-scopes \
+  --metadata-from-file startup-script=backend/deploy/google-startup.sh
 gcloud compute firewall-rules create errante-web --project PROJECT_ID --network default \
   --allow tcp:80,tcp:443 --target-tags errante-web
 ```
@@ -62,7 +108,9 @@ preserves volumes; `down -v` destroys state. Stop the application before backing
 Keep the boot disk when deleting/replacing a VM and restore volumes before starting the replacement.
 Allow outbound HTTPS to IRSA/S3/catalogs and inbound 80/443. Caddy obtains HTTPS after DNS points to the VM.
 Verify all five targets and the coordinate flow from the public URL, in an incognito browser and a phone.
-This final public/UI acceptance and the cloud account/domain remain pending until provisioned.
+Public HTTPS/API acceptance is recorded in production.json. Edge rendered all five targets at desktop and
+mobile viewport sizes; the mobile screenshot showed horizontal overflow in the existing WS5 layout. This
+is not full mobile usability certification: WS5 should fix that layout and the team should review on a phone.
 
 ## GitHub administration handoff
 

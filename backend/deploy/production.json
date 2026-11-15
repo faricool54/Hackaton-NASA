@@ -1,0 +1,123 @@
+{
+  "checked_on": "2026-11-15",
+  "public_deployment": true,
+  "origin": "https://errante.34-148-242-13.sslip.io",
+  "project_id": "project-4c470287-a034-43da-bf6",
+  "instance": "errante",
+  "zone": "us-east1-b",
+  "reserved_ipv4": "34.148.242.13",
+  "machine": "e2-standard-2",
+  "durable_disk_gib": 30,
+  "initial_application_revision": "642ea686ce54a1460d6e2d7e6c102bc8b99c8540",
+  "trial_user_confirmed": {
+    "credit_usd": 300,
+    "days_remaining_at_confirmation": 90,
+    "upgraded_to_paid_account": false
+  },
+  "monthly_usage_alert": {
+    "usd": 20,
+    "thresholds": [
+      0.5,
+      0.9,
+      1.0
+    ],
+    "credits_excluded": true,
+    "hard_spending_cap": false
+  },
+  "https": "Lets Encrypt certificate validated by HTTPS client",
+  "smoke": {
+    "base": "https://errante.34-148-242-13.sslip.io",
+    "real_fields": {
+      "barnards-star": 40,
+      "eps-indi-b": 40,
+      "r-draconis": 40,
+      "rw-aurigae": 40,
+      "wise-0855": 40
+    },
+    "job_engine": "running",
+    "live_job": {
+      "id": "584c77fea9c949039f4166d24acb1747",
+      "field_id": "job-584c77fea9c949039f4166d24acb1747-849a48eea6ec49b486f660674a5b9733",
+      "frames": 8
+    }
+  },
+  "browser_render_checks": [
+    {
+      "viewport": "desktop",
+      "target": "barnards-star",
+      "exit": 0,
+      "dom_bytes": 19229,
+      "image_reference": true
+    },
+    {
+      "viewport": "desktop",
+      "target": "eps-indi-b",
+      "exit": 0,
+      "dom_bytes": 19970,
+      "image_reference": true
+    },
+    {
+      "viewport": "desktop",
+      "target": "r-draconis",
+      "exit": 0,
+      "dom_bytes": 19561,
+      "image_reference": true
+    },
+    {
+      "viewport": "desktop",
+      "target": "rw-aurigae",
+      "exit": 0,
+      "dom_bytes": 19765,
+      "image_reference": true
+    },
+    {
+      "viewport": "desktop",
+      "target": "wise-0855",
+      "exit": 0,
+      "dom_bytes": 19079,
+      "image_reference": true
+    },
+    {
+      "viewport": "mobile",
+      "target": "barnards-star",
+      "exit": 0,
+      "dom_bytes": 19229,
+      "image_reference": true
+    },
+    {
+      "viewport": "mobile",
+      "target": "eps-indi-b",
+      "exit": 0,
+      "dom_bytes": 19970,
+      "image_reference": true
+    },
+    {
+      "viewport": "mobile",
+      "target": "r-draconis",
+      "exit": 0,
+      "dom_bytes": 19561,
+      "image_reference": true
+    },
+    {
+      "viewport": "mobile",
+      "target": "rw-aurigae",
+      "exit": 0,
+      "dom_bytes": 19765,
+      "image_reference": true
+    },
+    {
+      "viewport": "mobile",
+      "target": "wise-0855",
+      "exit": 0,
+      "dom_bytes": 19079,
+      "image_reference": true
+    }
+  ],
+  "mobile_layout": "Horizontal overflow observed in WS5 layout; not full phone usability certification",
+  "independent_R05_validation": false,
+  "service_account_attached": false,
+  "team_access": "Operators use their own project IAM and gcloud login/SSH keys; no shared credentials",
+  "temporary_domain_provider": "sslip.io",
+  "restart_persistence_verified": true,
+  "team_redeploy_helper_verified": true
+}
