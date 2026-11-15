@@ -639,6 +639,52 @@ def test_callers_deadline_caps_the_search_budget(monkeypatch):
         irsa.search_frames_report(RA, DEC, deadline_s=float("nan"))
 
 
+def _slow_sia_http(clock: FakeClock, calls: list, sia_s: float):
+    """SIA that answers SIA_XML after ``sia_s`` (a timeout if given less); TAP hangs for the whole timeout."""
+
+    def fake_http(method, url, *, params=None, data=None, timeout):
+        calls.append((url, timeout))
+        if url == settings.IRSA_SIA and timeout >= sia_s:
+            clock.now += sia_s
+            return ok(SIA_XML)
+        clock.now += timeout
+        raise requests.ReadTimeout(f"{url} gave up after {timeout} s")
+
+    return fake_http
+
+
+def test_a_short_callers_deadline_is_all_sia(monkeypatch):
+    """Review 2026-11-15: a caller's 5 s gave SIA only half (2.5 s), so a cold search that SIA answers in 3 s failed
+    with a timeout (504) while TAP (8-19 s) could never use the other half. SIA now gets all of a budget up to
+    _SIA_MIN_S, and half of a longer one, so a hung SIA still leaves TAP its turn."""
+    clock, calls = FakeClock(), []
+    monkeypatch.setattr(irsa, "time", clock)
+    monkeypatch.setattr(irsa, "_http", _slow_sia_http(clock, calls, sia_s=3.0))
+    for name, value in {
+        "SIA_TIMEOUT_S": 30.0,
+        "TAP_TIMEOUT_S": 60.0,
+        "SEARCH_ATTEMPTS": 4,
+        "SEARCH_BACKOFF_S": 1.0,
+    }.items():
+        monkeypatch.setattr(settings, name, value)
+    monkeypatch.setattr(settings, "SEARCH_DEADLINE_S", 60.0)
+    rep = irsa.search_frames_report(RA, DEC, deadline_s=5.0, use_cache=False)
+    assert rep.service == "sia" and rep.result.frames and calls == [(settings.IRSA_SIA, 5.0)]
+
+    # A hung SIA under a long budget: SIA half (30 s), TAP the rest, as before.
+    calls.clear()
+    monkeypatch.setattr(irsa, "_http", _slow_sia_http(clock, calls, sia_s=1e9))
+    t0 = clock.now
+    with pytest.raises(irsa.SearchError):
+        irsa.search_frames_report(RA, DEC, use_cache=False)
+    assert clock.now - t0 <= 60.0
+    sia_time = sum(t for url, t in calls if url == settings.IRSA_SIA)
+    assert sia_time <= 30.0 and any(url == settings.IRSA_TAP_SYNC for url, _ in calls)
+
+    assert irsa.sia_budget(5.0) == 5.0 and irsa.sia_budget(14.0) == 10.0
+    assert irsa.sia_budget(20.0) == 10.0 and irsa.sia_budget(60.0) == 30.0 and irsa.sia_budget(-1.0) == 0.0
+
+
 def test_unknown_collection_is_reported(monkeypatch, caplog):
     install(monkeypatch, sia=[ok(_empty_votable())])
     with caplog.at_level("WARNING", logger="errante.data.irsa"):

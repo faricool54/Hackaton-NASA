@@ -23,7 +23,8 @@ backend maps that to HTTP 504 and any other failure to 502). When one service ti
 other failed differently (e.g. SIA timeout, TAP 502), the timeout is the cause, so callers see 504.
 
 A whole search (SIA retries + TAP fallback) is bounded by ``settings.SEARCH_DEADLINE_S``: SIA may use
-at most half of it, TAP the rest, and no attempt starts without at least ``_MIN_ATTEMPT_S`` left.
+half of it but at least 10 s, or all of a shorter budget (:func:`sia_budget`), TAP the rest, and no attempt
+starts without at least ``_MIN_ATTEMPT_S`` left.
 When the search has a fallback in hand (an expired cache entry or a covering snapshot, see below) the
 budget is capped at ``settings.SEARCH_FALLBACK_DEADLINE_S`` (20 s), so the fallback still answers before
 the backend gives up on the request (ERRANTE_API_TIMEOUT_S, 30 s -> HTTP 504).
@@ -82,7 +83,8 @@ _RELEASE_RANK = {"dr1": 3, "qr3": 2, "qr2": 1}
 _BAND_RE = re.compile(r"D([1-6])\s*$")
 # Matches 'l2b-v27-2026-228' and the rarer 'l2b_retry-v27-2026-230' (seen once at Barnard's Star).
 _VERSION_RE = re.compile(r"v(\d+)-(\d{4})-(\d+)")
-_SIA_SHARE = 0.5  # fraction of SEARCH_DEADLINE_S that SIA may use before TAP gets the rest
+_SIA_SHARE = 0.5  # fraction of the search budget that SIA may use before TAP gets the rest (see sia_budget)
+_SIA_MIN_S = 10.0  # ... but never less (or the whole budget when shorter): SIA's slowest answer seen was 9.3 s
 _MIN_ATTEMPT_S = 2.0  # do not start an HTTP attempt with less time than this left
 _TAP_LOCK = threading.Lock()  # IRSA asks for one TAP query at a time (backend threads + CLI share it)
 # Collections that exist in SIA2/ObsCore (verified live 2026-11-14; qr2 is no longer indexed).
@@ -217,6 +219,8 @@ def search_frames_report(
     wall-clock budget of its own (``point.point_series(deadline_s=...)``). Like every budget here, no attempt
     starts with less than ``_MIN_ATTEMPT_S`` (2 s) left: with less, IRSA is not asked and a fresh cached
     answer, an expired one or a snapshot answers, else :class:`SearchError` (``requests.Timeout`` cause).
+    SIA may use all of a budget up to 10 s and half of a longer one (:func:`sia_budget`), so under ~20 s TAP
+    (8-19 s) has little or no time left: a hung SIA then ends in that timeout, not in a TAP answer.
     """
     if deadline_s is not None and math.isnan(deadline_s):
         raise ValueError("deadline_s must be a number of seconds (or None)")
@@ -314,6 +318,18 @@ def search_budget(*, fallback: bool) -> float:
     limits = [settings.SEARCH_DEADLINE_S] + ([settings.SEARCH_FALLBACK_DEADLINE_S] if fallback else [])
     limits = [s for s in limits if s > 0]
     return min(limits) if limits else 0.0
+
+
+def sia_budget(total_s: float) -> float:
+    """Seconds SIA may use out of a search budget of ``total_s``: half of it (TAP, 8-19 s, gets the rest), but
+    at least ``_SIA_MIN_S`` (10 s), or all of a shorter budget.
+
+    SIA answers in 1-4 s (2.6-9.3 s on the afternoon of 2026-11-14, docs/DATA.md §3.0) and TAP in 8-19 s: on a
+    short budget (a caller's ``deadline_s``) half of it made searches that SIA would have answered fail with a
+    timeout, and the half kept for TAP was too short for TAP anyway (review 2026-11-15). TAP still gets every
+    second that SIA leaves when SIA fails fast (an HTTP error)."""
+    total_s = max(0.0, float(total_s))
+    return max(total_s * _SIA_SHARE, min(total_s, _SIA_MIN_S))
 
 
 def known_collections() -> frozenset[str]:
@@ -502,7 +518,8 @@ def _query_archive(
     errors: list[str] = []
     sia_deadline = None
     if deadline is not None:
-        sia_deadline = time.monotonic() + max(0.0, deadline - time.monotonic()) * _SIA_SHARE
+        now = time.monotonic()
+        sia_deadline = now + sia_budget(deadline - now)
     try:
         rows, overflow = _search_sia(ra, dec, radius, mjd_min, mjd_max, cols, sia_deadline)
         return rows, "sia", overflow, errors

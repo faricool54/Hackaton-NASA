@@ -1703,7 +1703,9 @@ def point_series(
     ``deadline_s`` is a wall-clock budget for the WHOLE call (for interactive use), the archive search included:
     the search gets what is left of it (``irsa.search_frames_report(deadline_s=...)``; with less than ~2 s left
     IRSA is not asked and only a cached answer or a snapshot can answer, else ``irsa.SearchError`` with a
-    timeout cause). If the search used it all, no S3 read starts: every frame is a ``TimeoutError`` failure
+    timeout cause). A cold search needs a few seconds of it (SIA: 1-4 s, up to 9.3 s seen); SIA may use all of
+    the first 10 s (:func:`irsa.sia_budget`), so only ~20 s or more leave TAP (8-19 s) time to stand in for a
+    hung SIA. If the search used it all, no S3 read starts: every frame is a ``TimeoutError`` failure
     that says so. Frames not read by the deadline are ``failures`` with ``TimeoutError`` and the call returns
     at once; requests still in flight stop at the deadline (per-attempt timeout bounded by it, no retry after
     it), so the reader threads end about a second later. Frames are submitted interleaved by season and visit

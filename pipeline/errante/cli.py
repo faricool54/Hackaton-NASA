@@ -544,8 +544,9 @@ def main(argv: list[str] | None = None) -> int:
         "--deadline",
         type=float,
         default=None,
-        help="seconds for the whole call, archive search included; frames not read by then are failures "
-        "(TimeoutError), not cached; what is read is spread over every season",
+        help="seconds for the whole call, archive search included (a cold search takes 1-9 s via SIA; under ~20 s "
+        "TAP cannot stand in for a hung SIA); frames not read by then are failures (TimeoutError), not cached; "
+        "what is read is spread over every season",
     )
     s.add_argument("--out", default=None, help="write the series to OUT.npz + OUT.json")
     s.add_argument("--no-cache", action="store_true", help="ignore and do not write the series cache")

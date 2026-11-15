@@ -734,14 +734,21 @@ def _shift_header(h: fits.Header, x0: int, y0: int, nx: int, ny: int) -> fits.He
 @functools.lru_cache(maxsize=64)
 def wave_table_from_bytes(raw: bytes) -> fits_io.WaveTable:
     """The :class:`fits_io.WaveTable` of raw ``WCS-WAVE`` HDU bytes (header + padded data, as
-    ``HduDirectory.wcs_wave`` keeps them). Raises ValueError/KeyError/TypeError/IndexError/OSError when they do
-    not parse. The table is identical in every file of one calibration (897 real files, 6 ids), so each is parsed
+    ``HduDirectory.wcs_wave`` keeps them). Bytes that do not parse raise ``ValueError`` whatever astropy raised
+    (``VerifyError`` on an unparsable card, ``AttributeError`` on a ``_CorruptedHDU``, ``OSError``, ``KeyError``...,
+    kept as ``__cause__``): the bytes are in memory, so it is a property of the file, never a network error.
+    The table is identical in every file of one calibration (897 real files, 6 ids), so each is parsed
     once per process; the cached tables are shared, their arrays read-only."""
     blob = fits.PrimaryHDU().header.tostring().encode("ascii") + raw
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        with fits.open(io.BytesIO(blob), memmap=False) as hl:
-            table = fits_io.WaveTable.from_hdu(hl[fits_io.WAVE_EXTNAME])
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            with fits.open(io.BytesIO(blob), memmap=False) as hl:
+                table = fits_io.WaveTable.from_hdu(hl[fits_io.WAVE_EXTNAME])
+    except MemoryError:
+        raise
+    except Exception as e:  # astropy raises many types on corrupt bytes (review 2026-11-15)
+        raise ValueError(f"unparsable {fits_io.WAVE_EXTNAME} table: {type(e).__name__}: {e}") from e
     for arr in (table.x_nodes, table.y_nodes, table.wavelength, table.bandwidth):
         arr.flags.writeable = False
     return table
@@ -932,7 +939,7 @@ def read_patch(
     if d.wcs_wave:
         try:
             wave = wave_table_from_bytes(d.wcs_wave)
-        except (ValueError, KeyError, TypeError, IndexError, OSError) as e:  # an odd table never fails the patch
+        except ValueError as e:  # an odd table never fails the patch (every parse error is a ValueError)
             extra["wave_error"] = f"{type(e).__name__}: {e}"
     mjd, mjd_source = fits_io.mid_exposure_mjd(hdr)
     extra.update(

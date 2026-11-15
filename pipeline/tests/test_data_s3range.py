@@ -656,6 +656,38 @@ def test_read_patch_carries_the_wave_table(l2, tmp_path, monkeypatch):
     s3range.wave_table_from_bytes.cache_clear()
 
 
+# Cards astropy cannot parse (found by fuzzing a real-layout WCS-WAVE, review 2026-11-15): VerifyError and a
+# _CorruptedHDU without .data (AttributeError) escaped read_patch's except tuple, so the whole patch failed.
+_CORRUPT_WAVE_CARDS = {
+    "VerifyError": (b"TFORM1  = '9J      '" + b" " * 10, b"TFORM1  = 821-9Y=2AC9'.5=YXZ70"),
+    "AttributeError": (
+        b"XTENSION= 'BINTABLE'           / binary table extension",
+        b"XTENSION= 5  -Z'252'.58742YB.1 / binary table extension",
+    ),
+}
+
+
+@pytest.mark.filterwarnings("ignore::astropy.io.fits.verify.VerifyWarning")  # the corrupt card, cached as JSON
+@pytest.mark.parametrize("astropy_error", sorted(_CORRUPT_WAVE_CARDS))
+def test_an_unparsable_wave_card_never_fails_the_patch(l2, monkeypatch, astropy_error):
+    key, blob, _, fake = l2
+    raw = s3range.hdu_directory(key).wcs_wave
+    old, new = _CORRUPT_WAVE_CARDS[astropy_error]
+    assert raw.count(old) == 1 and len(new) == len(old)
+    bad_raw = raw.replace(old, new)
+    s3range.wave_table_from_bytes.cache_clear()
+    with pytest.raises(ValueError, match="unparsable WCS-WAVE") as err:
+        s3range.wave_table_from_bytes(bad_raw)
+    assert type(err.value.__cause__).__name__ == astropy_error  # what astropy raised, kept as the cause
+    bad_key = key.replace("_0321_", "_0322_")
+    fake.objects[bad_key] = blob[: -len(raw)] + bad_raw
+    ra, dec = _sky(150.3, 99.8)
+    img = s3range.read_patch(bad_key, ra, dec, 3.0)
+    assert img.wave is None and img.extra["wave_error"].startswith("ValueError: unparsable WCS-WAVE")
+    assert img.wavelength_at(ra, dec) is None
+    np.testing.assert_array_equal(img.data, s3range.read_patch(key, ra, dec, 3.0).data)  # the pixels are intact
+
+
 def test_read_range_meta_honours_a_deadline_and_a_cancel_flag(monkeypatch):
     """A caller with a deadline (point_series) never waits HTTP_TIMEOUT_S (120 s) x 4 attempts: each attempt's
     timeout is what is left, no retry or backoff runs past it, and a cancelled read sends nothing more."""

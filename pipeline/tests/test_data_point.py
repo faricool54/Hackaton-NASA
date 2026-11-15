@@ -711,6 +711,26 @@ def test_format_wave_errors_are_not_transient(fake):
     assert "wave_error_transient" not in s.meta
 
 
+@pytest.mark.filterwarnings("ignore::astropy.io.fits.verify.VerifyWarning")
+def test_corrupt_wave_hdu_is_a_wave_error_not_a_failed_frame(fake):
+    """Review 2026-11-15: a WCS-WAVE whose XTENSION card astropy cannot parse (a _CorruptedHDU) raised
+    AttributeError out of read_point_sample (and to_spherex_image); it is a deterministic wave_error now."""
+    key = _key("2025W33_2C_0321_1")
+    blob, _ = make_l2()
+    tail = blob[-2 * 2880 :]
+    old = b"XTENSION= 'BINTABLE'           / binary table extension"
+    assert tail.startswith(old) and b"WCS-WAVE" in tail[:2880]
+    fake.objects[key] = blob[: -len(tail)] + tail.replace(
+        old, b"XTENSION= 5  -Z'252'.58742YB.1 / binary table extension"
+    )
+    s3range.wave_table_from_bytes.cache_clear()
+    s = point.read_point_sample(_frame(key), *_sky(150.0, 100.0))
+    assert s.wavelength_um is None and s.meta["wave_error"].startswith("ValueError")
+    assert "wave_error_transient" not in s.meta
+    img = point.to_spherex_image(s)
+    assert img.wave is None and img.extra["wave_error"].startswith("ValueError")
+
+
 def test_empty_and_all_no_overlap_series_are_not_cached(series_setup, fake, monkeypatch):
     """irsa never caches an empty answer (suspicious for an all-sky survey): neither does point_series."""
     ra, dec, frames, _, _ = series_setup
@@ -1027,6 +1047,26 @@ def test_deadline_covers_the_archive_search(fake, monkeypatch):
     assert seen and max(seen) <= 3.0  # no attempt was given more time than the call had
     assert isinstance(err.value.__cause__, requests.Timeout)  # the backend maps this cause to HTTP 504
     assert fake.calls == 0
+
+
+def test_a_short_deadline_gives_sia_the_whole_search_budget(fake, monkeypatch):
+    """Review 2026-11-15: point_series(deadline_s=5) gave SIA 2.5 s (half, the other half kept for TAP, which needs
+    8-19 s), so a cold search that SIA answers in 3 s failed with SearchError (504) where main returned a series."""
+    ra, dec = _sky(150.0, 100.0)
+    key = _key("2025W33_2C_0001_1")
+    fake.objects[key], _ = make_l2()
+    rows = [irsa.ArchiveRow(_frame(key), "spherex_dr1", "l2b-v27-2026-228")]
+    monkeypatch.setattr(irsa, "find_snapshot", lambda *a, **k: None)
+    given: list[float] = []
+
+    def sia(ra_, dec_, radius, mjd_min, mjd_max, cols, deadline=None):
+        given.append(deadline - time.monotonic())
+        return list(rows), False
+
+    monkeypatch.setattr(irsa, "_search_sia", sia)
+    s = point.point_series(ra, dec, deadline_s=5.0, use_cache=False)
+    assert len(s.samples) == 1 and s.search["service"] == "sia"
+    assert given and 4.0 < given[0] <= 5.0  # was 2.5 s: SIA (1-4 s, up to 9.3 s seen) now has the whole budget
 
 
 def test_no_read_starts_once_the_search_used_up_the_deadline(series_setup, fake, monkeypatch):
