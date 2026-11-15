@@ -1,0 +1,1301 @@
+{
+  "$defs": {
+    "LightCurveBin": {
+      "additionalProperties": false,
+      "properties": {
+        "detector": {
+          "maximum": 6,
+          "minimum": 1,
+          "title": "Detector",
+          "type": "integer"
+        },
+        "index": {
+          "minimum": 0,
+          "title": "Index",
+          "type": "integer"
+        },
+        "lambda_max_um": {
+          "exclusiveMinimum": 0,
+          "title": "Lambda Max Um",
+          "type": "number"
+        },
+        "lambda_min_um": {
+          "exclusiveMinimum": 0,
+          "title": "Lambda Min Um",
+          "type": "number"
+        },
+        "mean_mag": {
+          "title": "Mean Mag",
+          "type": "number"
+        },
+        "mjd_max": {
+          "title": "Mjd Max",
+          "type": "number"
+        },
+        "mjd_min": {
+          "title": "Mjd Min",
+          "type": "number"
+        },
+        "n_points": {
+          "minimum": 1,
+          "title": "N Points",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "index",
+        "detector",
+        "lambda_min_um",
+        "lambda_max_um",
+        "n_points",
+        "mjd_min",
+        "mjd_max",
+        "mean_mag"
+      ],
+      "title": "LightCurveBin",
+      "type": "object"
+    },
+    "LightCurveComparison": {
+      "additionalProperties": false,
+      "properties": {
+        "dec": {
+          "maximum": 90,
+          "minimum": -90,
+          "title": "Dec",
+          "type": "number"
+        },
+        "detectors": {
+          "items": {
+            "maximum": 6,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "title": "Detectors",
+          "type": "array"
+        },
+        "excluded": {
+          "items": {
+            "anyOf": [
+              {
+                "enum": [
+                  "no_flags",
+                  "saturated",
+                  "edge",
+                  "bad_pixels",
+                  "no_sky",
+                  "no_variance",
+                  "no_wavelength",
+                  "non_positive",
+                  "lone_bin",
+                  "short_bin"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "Excluded",
+          "type": "array"
+        },
+        "flux_err_mjy": {
+          "items": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "Flux Err Mjy",
+          "type": "array"
+        },
+        "flux_mjy": {
+          "items": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "Flux Mjy",
+          "type": "array"
+        },
+        "found_in": {
+          "minimum": 0,
+          "title": "Found In",
+          "type": "integer"
+        },
+        "frame_ids": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 2500,
+          "title": "Frame Ids",
+          "type": "array"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "ra": {
+          "exclusiveMaximum": 360,
+          "minimum": 0,
+          "title": "Ra",
+          "type": "number"
+        },
+        "rel_mag": {
+          "items": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "Rel Mag",
+          "type": "array"
+        },
+        "wavelength_um": {
+          "items": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "Wavelength Um",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "ra",
+        "dec",
+        "found_in"
+      ],
+      "title": "LightCurveComparison",
+      "type": "object"
+    },
+    "LightCurveData": {
+      "additionalProperties": false,
+      "properties": {
+        "bins": {
+          "items": {
+            "$ref": "#/$defs/LightCurveBin"
+          },
+          "maxItems": 2500,
+          "title": "Bins",
+          "type": "array"
+        },
+        "comparisons": {
+          "items": {
+            "$ref": "#/$defs/LightCurveComparison"
+          },
+          "maxItems": 12,
+          "title": "Comparisons",
+          "type": "array"
+        },
+        "control": {
+          "additionalProperties": {
+            "$ref": "#/$defs/LightCurveStatistics"
+          },
+          "title": "Control",
+          "type": "object"
+        },
+        "dec": {
+          "description": "ICRS declination [deg]",
+          "maximum": 90,
+          "minimum": -90,
+          "title": "Dec",
+          "type": "number"
+        },
+        "excluded": {
+          "additionalProperties": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "propertyNames": {
+            "enum": [
+              "no_flags",
+              "saturated",
+              "edge",
+              "bad_pixels",
+              "no_sky",
+              "no_variance",
+              "no_wavelength",
+              "non_positive",
+              "lone_bin",
+              "short_bin"
+            ]
+          },
+          "title": "Excluded",
+          "type": "object"
+        },
+        "failures": {
+          "items": {
+            "$ref": "#/$defs/MeasurementFailure"
+          },
+          "title": "Failures",
+          "type": "array"
+        },
+        "lambda_bin_frac": {
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Lambda Bin Frac",
+          "type": "number"
+        },
+        "matched_pairs": {
+          "items": {
+            "$ref": "#/$defs/LightCurvePair"
+          },
+          "maxItems": 100000,
+          "title": "Matched Pairs",
+          "type": "array"
+        },
+        "method": {
+          "enum": [
+            "aperture",
+            "wing"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "min_bin_span_days": {
+          "minimum": 0,
+          "title": "Min Bin Span Days",
+          "type": "number"
+        },
+        "notes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Notes",
+          "type": "array"
+        },
+        "period": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LightCurvePeriod"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "points": {
+          "items": {
+            "$ref": "#/$defs/LightCurvePoint"
+          },
+          "maxItems": 2500,
+          "title": "Points",
+          "type": "array"
+        },
+        "ra": {
+          "description": "ICRS right ascension [deg]",
+          "exclusiveMaximum": 360,
+          "minimum": 0,
+          "title": "Ra",
+          "type": "number"
+        },
+        "relative_only": {
+          "title": "Relative Only",
+          "type": "boolean"
+        },
+        "summary": {
+          "additionalProperties": {
+            "$ref": "#/$defs/LightCurveStatistics"
+          },
+          "title": "Summary",
+          "type": "object"
+        },
+        "unit": {
+          "enum": [
+            "mJy",
+            "MJy/sr"
+          ],
+          "title": "Unit",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ra",
+        "dec",
+        "method",
+        "unit",
+        "relative_only",
+        "lambda_bin_frac",
+        "min_bin_span_days",
+        "points",
+        "bins",
+        "comparisons",
+        "control",
+        "summary",
+        "excluded"
+      ],
+      "title": "LightCurveData",
+      "type": "object"
+    },
+    "LightCurvePair": {
+      "additionalProperties": false,
+      "properties": {
+        "date_a": {
+          "format": "date-time",
+          "title": "Date A",
+          "type": "string"
+        },
+        "date_b": {
+          "format": "date-time",
+          "title": "Date B",
+          "type": "string"
+        },
+        "delta_mag": {
+          "title": "Delta Mag",
+          "type": "number"
+        },
+        "delta_mag_corrected": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Delta Mag Corrected"
+        },
+        "delta_mag_err": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Delta Mag Err"
+        },
+        "detector": {
+          "maximum": 6,
+          "minimum": 1,
+          "title": "Detector",
+          "type": "integer"
+        },
+        "ensemble_mag": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ensemble Mag"
+        },
+        "frame_a": {
+          "title": "Frame A",
+          "type": "string"
+        },
+        "frame_b": {
+          "title": "Frame B",
+          "type": "string"
+        },
+        "mjd_a": {
+          "title": "Mjd A",
+          "type": "number"
+        },
+        "mjd_b": {
+          "title": "Mjd B",
+          "type": "number"
+        },
+        "n_ensemble": {
+          "minimum": 0,
+          "title": "N Ensemble",
+          "type": "integer"
+        },
+        "season_a": {
+          "minimum": 0,
+          "title": "Season A",
+          "type": "integer"
+        },
+        "season_b": {
+          "minimum": 0,
+          "title": "Season B",
+          "type": "integer"
+        },
+        "wavelength_a_um": {
+          "exclusiveMinimum": 0,
+          "title": "Wavelength A Um",
+          "type": "number"
+        },
+        "wavelength_b_um": {
+          "exclusiveMinimum": 0,
+          "title": "Wavelength B Um",
+          "type": "number"
+        }
+      },
+      "required": [
+        "detector",
+        "frame_a",
+        "frame_b",
+        "mjd_a",
+        "mjd_b",
+        "date_a",
+        "date_b",
+        "season_a",
+        "season_b",
+        "wavelength_a_um",
+        "wavelength_b_um",
+        "delta_mag",
+        "n_ensemble"
+      ],
+      "title": "LightCurvePair",
+      "type": "object"
+    },
+    "LightCurveParameters": {
+      "additionalProperties": false,
+      "description": "Reproducible offline calculation, not an HTTP instruction to run expensive work.",
+      "properties": {
+        "collections": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Collections",
+          "type": "array"
+        },
+        "dec": {
+          "description": "ICRS declination [deg]",
+          "maximum": 90,
+          "minimum": -90,
+          "title": "Dec",
+          "type": "number"
+        },
+        "detectors": {
+          "items": {
+            "maximum": 6,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "title": "Detectors",
+          "type": "array"
+        },
+        "lambda_bin_frac": {
+          "default": 0.01,
+          "maximum": 0.05,
+          "minimum": 0.005,
+          "title": "Lambda Bin Frac",
+          "type": "number"
+        },
+        "max_frames": {
+          "default": 600,
+          "maximum": 2500,
+          "minimum": 2,
+          "title": "Max Frames",
+          "type": "integer"
+        },
+        "method": {
+          "default": "aperture",
+          "enum": [
+            "aperture",
+            "wing"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "min_bin_span_days": {
+          "default": 30,
+          "minimum": 0,
+          "title": "Min Bin Span Days",
+          "type": "number"
+        },
+        "mjd_max": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mjd Max"
+        },
+        "mjd_min": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mjd Min"
+        },
+        "n_bootstrap": {
+          "default": 0,
+          "maximum": 1000,
+          "minimum": 0,
+          "title": "N Bootstrap",
+          "type": "integer"
+        },
+        "n_comparison": {
+          "default": 8,
+          "maximum": 12,
+          "minimum": 0,
+          "title": "N Comparison",
+          "type": "integer"
+        },
+        "n_permutations": {
+          "default": 100,
+          "maximum": 1000,
+          "minimum": 0,
+          "title": "N Permutations",
+          "type": "integer"
+        },
+        "period": {
+          "default": false,
+          "title": "Period",
+          "type": "boolean"
+        },
+        "period_range_days": {
+          "default": [
+            20,
+            800
+          ],
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Period Range Days",
+          "type": "array"
+        },
+        "ra": {
+          "description": "ICRS right ascension [deg]",
+          "exclusiveMaximum": 360,
+          "minimum": 0,
+          "title": "Ra",
+          "type": "number"
+        }
+      },
+      "required": [
+        "ra",
+        "dec"
+      ],
+      "title": "LightCurveParameters",
+      "type": "object"
+    },
+    "LightCurvePeriod": {
+      "additionalProperties": false,
+      "description": "Best sinusoid remains a candidate unless the visit-permutation test is significant.",
+      "properties": {
+        "amplitude_mag": {
+          "additionalProperties": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "title": "Amplitude Mag",
+          "type": "object"
+        },
+        "baseline_days": {
+          "exclusiveMinimum": 0,
+          "title": "Baseline Days",
+          "type": "number"
+        },
+        "bootstrap_95_days": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bootstrap 95 Days"
+        },
+        "caveat": {
+          "title": "Caveat",
+          "type": "string"
+        },
+        "delta_chi2": {
+          "title": "Delta Chi2",
+          "type": "number"
+        },
+        "false_alarm": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "False Alarm"
+        },
+        "floor_mag": {
+          "additionalProperties": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "title": "Floor Mag",
+          "type": "object"
+        },
+        "n_permutations": {
+          "default": 0,
+          "minimum": 0,
+          "title": "N Permutations",
+          "type": "integer"
+        },
+        "n_points": {
+          "minimum": 1,
+          "title": "N Points",
+          "type": "integer"
+        },
+        "peaks": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Peaks",
+          "type": "array"
+        },
+        "period_days": {
+          "exclusiveMinimum": 0,
+          "title": "Period Days",
+          "type": "number"
+        },
+        "period_err_formal_days": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Period Err Formal Days"
+        },
+        "period_range_days": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Period Range Days",
+          "type": "array"
+        },
+        "significant": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Significant"
+        }
+      },
+      "required": [
+        "period_days",
+        "delta_chi2",
+        "peaks",
+        "amplitude_mag",
+        "floor_mag",
+        "n_points",
+        "baseline_days",
+        "period_range_days",
+        "caveat"
+      ],
+      "title": "LightCurvePeriod",
+      "type": "object"
+    },
+    "LightCurvePoint": {
+      "additionalProperties": false,
+      "properties": {
+        "bandwidth_um": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bandwidth Um"
+        },
+        "bin": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bin"
+        },
+        "date": {
+          "format": "date-time",
+          "title": "Date",
+          "type": "string"
+        },
+        "detector": {
+          "maximum": 6,
+          "minimum": 1,
+          "title": "Detector",
+          "type": "integer"
+        },
+        "excluded": {
+          "anyOf": [
+            {
+              "enum": [
+                "no_flags",
+                "saturated",
+                "edge",
+                "bad_pixels",
+                "no_sky",
+                "no_variance",
+                "no_wavelength",
+                "non_positive",
+                "lone_bin",
+                "short_bin"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Excluded"
+        },
+        "flags": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Flags",
+          "type": "array"
+        },
+        "flux": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Flux"
+        },
+        "flux_err": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Flux Err"
+        },
+        "frame_id": {
+          "title": "Frame Id",
+          "type": "string"
+        },
+        "mjd": {
+          "title": "Mjd",
+          "type": "number"
+        },
+        "obs_id": {
+          "title": "Obs Id",
+          "type": "string"
+        },
+        "rel_mag": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rel Mag"
+        },
+        "rel_mag_err": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rel Mag Err"
+        },
+        "release": {
+          "enum": [
+            "dr1",
+            "qr2",
+            "qr3",
+            "synthetic"
+          ],
+          "title": "Release",
+          "type": "string"
+        },
+        "season": {
+          "minimum": 0,
+          "title": "Season",
+          "type": "integer"
+        },
+        "wavelength_um": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Wavelength Um"
+        },
+        "zero_point_mag": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Zero Point Mag"
+        }
+      },
+      "required": [
+        "frame_id",
+        "obs_id",
+        "detector",
+        "release",
+        "mjd",
+        "date",
+        "season"
+      ],
+      "title": "LightCurvePoint",
+      "type": "object"
+    },
+    "LightCurveProvenance": {
+      "additionalProperties": false,
+      "properties": {
+        "collections": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Collections",
+          "type": "array"
+        },
+        "n_found": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "N Found"
+        },
+        "n_selected": {
+          "minimum": 0,
+          "title": "N Selected",
+          "type": "integer"
+        },
+        "notes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Notes",
+          "type": "array"
+        },
+        "partial": {
+          "default": false,
+          "title": "Partial",
+          "type": "boolean"
+        },
+        "pipeline_version": {
+          "title": "Pipeline Version",
+          "type": "string"
+        },
+        "processing_fingerprint": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Processing Fingerprint",
+          "type": "string"
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/$defs/LightCurveSource"
+          },
+          "maxItems": 2500,
+          "title": "Sources",
+          "type": "array"
+        },
+        "stale_search": {
+          "default": false,
+          "title": "Stale Search",
+          "type": "boolean"
+        },
+        "truncated_search": {
+          "default": false,
+          "title": "Truncated Search",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "pipeline_version",
+        "processing_fingerprint",
+        "collections",
+        "sources",
+        "n_selected"
+      ],
+      "title": "LightCurveProvenance",
+      "type": "object"
+    },
+    "LightCurveSource": {
+      "additionalProperties": false,
+      "properties": {
+        "frame_id": {
+          "title": "Frame Id",
+          "type": "string"
+        },
+        "source_uri": {
+          "pattern": "^https://",
+          "title": "Source Uri",
+          "type": "string"
+        }
+      },
+      "required": [
+        "frame_id",
+        "source_uri"
+      ],
+      "title": "LightCurveSource",
+      "type": "object"
+    },
+    "LightCurveStatistics": {
+      "additionalProperties": false,
+      "properties": {
+        "excluded": {
+          "additionalProperties": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "propertyNames": {
+            "enum": [
+              "no_flags",
+              "saturated",
+              "edge",
+              "bad_pixels",
+              "no_sky",
+              "no_variance",
+              "no_wavelength",
+              "non_positive",
+              "lone_bin",
+              "short_bin"
+            ]
+          },
+          "title": "Excluded",
+          "type": "object"
+        },
+        "max_abs_mag": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Abs Mag"
+        },
+        "median_mag": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Median Mag"
+        },
+        "n": {
+          "minimum": 0,
+          "title": "N",
+          "type": "integer"
+        },
+        "n_bins": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "N Bins"
+        },
+        "n_exposures": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "N Exposures"
+        },
+        "n_stars": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "N Stars"
+        },
+        "p5_to_p95_mag": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "P5 To P95 Mag"
+        },
+        "p95_abs_mag": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "P95 Abs Mag"
+        },
+        "robust_sigma_mag": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Robust Sigma Mag"
+        },
+        "scatter_over_control": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scatter Over Control"
+        }
+      },
+      "required": [
+        "n"
+      ],
+      "title": "LightCurveStatistics",
+      "type": "object"
+    },
+    "MeasurementFailure": {
+      "additionalProperties": false,
+      "properties": {
+        "frame_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Frame Id"
+        },
+        "reason": {
+          "enum": [
+            "download_failed",
+            "measurement_failed",
+            "no_overlap",
+            "invalid_pixels"
+          ],
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "reason"
+      ],
+      "title": "MeasurementFailure",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "built_at": {
+      "format": "date-time",
+      "title": "Built At",
+      "type": "string"
+    },
+    "curve": {
+      "$ref": "#/$defs/LightCurveData"
+    },
+    "id": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "parameters": {
+      "$ref": "#/$defs/LightCurveParameters"
+    },
+    "provenance": {
+      "$ref": "#/$defs/LightCurveProvenance"
+    },
+    "schema_version": {
+      "default": "0.6.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "ready",
+        "no_usable_points"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "synthetic": {
+      "const": false,
+      "default": false,
+      "title": "Synthetic",
+      "type": "boolean"
+    },
+    "target_id": {
+      "maxLength": 80,
+      "pattern": "^[a-z0-9][a-z0-9-]*$",
+      "title": "Target Id",
+      "type": "string"
+    },
+    "target_name": {
+      "title": "Target Name",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "target_id",
+    "target_name",
+    "built_at",
+    "status",
+    "parameters",
+    "curve",
+    "provenance"
+  ],
+  "title": "LightCurveProduct",
+  "type": "object"
+}

@@ -1,0 +1,95 @@
+{
+  "$defs": {
+    "LightCurveSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "built_at": {
+          "format": "date-time",
+          "title": "Built At",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "method": {
+          "enum": [
+            "aperture",
+            "wing"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "n_points": {
+          "minimum": 0,
+          "title": "N Points",
+          "type": "integer"
+        },
+        "n_used": {
+          "minimum": 0,
+          "title": "N Used",
+          "type": "integer"
+        },
+        "partial": {
+          "title": "Partial",
+          "type": "boolean"
+        },
+        "status": {
+          "enum": [
+            "ready",
+            "no_usable_points"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "synthetic": {
+          "const": false,
+          "default": false,
+          "title": "Synthetic",
+          "type": "boolean"
+        },
+        "target_id": {
+          "title": "Target Id",
+          "type": "string"
+        },
+        "target_name": {
+          "title": "Target Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "target_id",
+        "target_name",
+        "id",
+        "built_at",
+        "method",
+        "status",
+        "n_points",
+        "n_used",
+        "partial"
+      ],
+      "title": "LightCurveSummary",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "products": {
+      "items": {
+        "$ref": "#/$defs/LightCurveSummary"
+      },
+      "title": "Products",
+      "type": "array"
+    },
+    "schema_version": {
+      "default": "0.6.0",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "products"
+  ],
+  "title": "LightCurveIndex",
+  "type": "object"
+}

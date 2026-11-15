@@ -25,7 +25,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, field_validator, model_validator
 
-SCHEMA_VERSION = "0.5.0"
+SCHEMA_VERSION = "0.6.0"
 
 Release = Literal["dr1", "qr2", "qr3", "synthetic"]
 """SPHEREx data release a frame comes from (see docs/DATA.md)."""
@@ -839,6 +839,312 @@ class ObjectContextResponse(_Model):
     synthetic: Literal[False] = False
 
 
+LightCurveDetector = Annotated[int, Field(ge=1, le=6)]
+LightCurveCount = Annotated[int, Field(ge=0)]
+LightCurveExclusion = Literal[
+    "no_flags",
+    "saturated",
+    "edge",
+    "bad_pixels",
+    "no_sky",
+    "no_variance",
+    "no_wavelength",
+    "non_positive",
+    "lone_bin",
+    "short_bin",
+]
+
+
+class LightCurveParameters(SkyCoord):
+    """Reproducible offline calculation, not an HTTP instruction to run expensive work."""
+
+    method: Literal["aperture", "wing"] = "aperture"
+    detectors: list[LightCurveDetector] = Field(default_factory=list)
+    collections: list[str] = Field(default_factory=lambda: ["spherex_dr1", "spherex_qr3"], min_length=1)
+    max_frames: int = Field(default=600, ge=2, le=2500)
+    mjd_min: FiniteFloat | None = None
+    mjd_max: FiniteFloat | None = None
+    lambda_bin_frac: FiniteFloat = Field(default=0.01, ge=0.005, le=0.05)
+    min_bin_span_days: FiniteFloat = Field(default=30, ge=0)
+    n_comparison: int = Field(default=8, ge=0, le=12)
+    period: bool = False
+    period_range_days: tuple[FiniteFloat, FiniteFloat] = (20, 800)
+    n_bootstrap: int = Field(default=0, ge=0, le=1000)
+    n_permutations: int = Field(default=100, ge=0, le=1000)
+
+    @model_validator(mode="after")
+    def ordered_selection(self):
+        if self.mjd_min is not None and self.mjd_max is not None and self.mjd_min > self.mjd_max:
+            raise ValueError("mjd_min must not exceed mjd_max")
+        if not 0 < self.period_range_days[0] < self.period_range_days[1]:
+            raise ValueError("Invalid period search interval")
+        if len(self.detectors) != len(set(self.detectors)) or len(self.collections) != len(set(self.collections)):
+            raise ValueError("Selection contains duplicates")
+        if any(
+            c not in ("spherex_dr1", "spherex_qr3", "spherex_dr1_deep", "spherex_qr3_deep") for c in self.collections
+        ):
+            raise ValueError("Unsupported light-curve collection")
+        return self
+
+
+class LightCurvePoint(_Model):
+    frame_id: str
+    obs_id: str
+    detector: LightCurveDetector
+    release: Release
+    mjd: FiniteFloat
+    date: datetime
+    season: LightCurveCount
+    wavelength_um: FiniteFloat | None = Field(default=None, gt=0)
+    bandwidth_um: FiniteFloat | None = Field(default=None, gt=0)
+    flux: FiniteFloat | None = None
+    flux_err: FiniteFloat | None = Field(default=None, ge=0)
+    bin: LightCurveCount | None = None
+    rel_mag: FiniteFloat | None = None
+    rel_mag_err: FiniteFloat | None = Field(default=None, ge=0)
+    zero_point_mag: FiniteFloat | None = None
+    flags: list[str] = Field(default_factory=list)
+    excluded: LightCurveExclusion | None = None
+
+    @model_validator(mode="after")
+    def valid_relative_measurement(self):
+        if self.rel_mag is not None and (
+            self.excluded is not None
+            or self.bin is None
+            or self.flux is None
+            or self.flux <= 0
+            or self.wavelength_um is None
+        ):
+            raise ValueError("Relative magnitude needs a positive, usable, binned measurement")
+        if self.release == "synthetic":
+            raise ValueError("A scientific light curve requires real observations")
+        return self
+
+
+class LightCurveBin(_Model):
+    index: LightCurveCount
+    detector: LightCurveDetector
+    lambda_min_um: FiniteFloat = Field(gt=0)
+    lambda_max_um: FiniteFloat = Field(gt=0)
+    n_points: int = Field(ge=1)
+    mjd_min: FiniteFloat
+    mjd_max: FiniteFloat
+    mean_mag: FiniteFloat
+
+    @model_validator(mode="after")
+    def ordered_bounds(self):
+        if self.lambda_min_um > self.lambda_max_um or self.mjd_min > self.mjd_max:
+            raise ValueError("Reversed bin bounds")
+        return self
+
+
+class LightCurveComparison(_Model):
+    id: str
+    ra: Annotated[float, Field(ge=0, lt=360)]
+    dec: Annotated[float, Field(ge=-90, le=90)]
+    found_in: LightCurveCount
+    frame_ids: list[str] = Field(default_factory=list, max_length=2500)
+    detectors: list[LightCurveDetector] = Field(default_factory=list)
+    wavelength_um: list[FiniteFloat | None] = Field(default_factory=list)
+    flux_mjy: list[FiniteFloat | None] = Field(default_factory=list)
+    flux_err_mjy: list[Annotated[FiniteFloat, Field(ge=0)] | None] = Field(default_factory=list)
+    rel_mag: list[FiniteFloat | None] = Field(default_factory=list)
+    excluded: list[LightCurveExclusion | None] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def aligned_arrays(self):
+        if (
+            len(
+                {
+                    len(self.frame_ids),
+                    len(self.detectors),
+                    len(self.wavelength_um),
+                    len(self.flux_mjy),
+                    len(self.flux_err_mjy),
+                    len(self.rel_mag),
+                    len(self.excluded),
+                }
+            )
+            != 1
+        ):
+            raise ValueError("Comparison-star arrays must align")
+        if len(set(self.frame_ids)) != len(self.frame_ids):
+            raise ValueError("Duplicate comparison exposure")
+        return self
+
+
+class LightCurveStatistics(_Model):
+    n: LightCurveCount
+    median_mag: FiniteFloat | None = None
+    robust_sigma_mag: FiniteFloat | None = Field(default=None, ge=0)
+    p95_abs_mag: FiniteFloat | None = Field(default=None, ge=0)
+    max_abs_mag: FiniteFloat | None = Field(default=None, ge=0)
+    p5_to_p95_mag: FiniteFloat | None = Field(default=None, ge=0)
+    n_stars: LightCurveCount | None = None
+    n_exposures: LightCurveCount | None = None
+    n_bins: LightCurveCount | None = None
+    excluded: dict[LightCurveExclusion, LightCurveCount] = Field(default_factory=dict)
+    scatter_over_control: FiniteFloat | None = Field(default=None, ge=0)
+
+
+class LightCurvePeriod(_Model):
+    """Best sinusoid remains a candidate unless the visit-permutation test is significant."""
+
+    period_days: FiniteFloat = Field(gt=0)
+    delta_chi2: FiniteFloat
+    period_err_formal_days: FiniteFloat | None = Field(default=None, ge=0)
+    bootstrap_95_days: tuple[FiniteFloat, FiniteFloat] | None = None
+    peaks: list[tuple[FiniteFloat, FiniteFloat]]
+    amplitude_mag: dict[LightCurveDetector, Annotated[FiniteFloat, Field(ge=0)]]
+    floor_mag: dict[LightCurveDetector, Annotated[FiniteFloat, Field(ge=0)]]
+    n_points: int = Field(ge=1)
+    baseline_days: FiniteFloat = Field(gt=0)
+    period_range_days: tuple[FiniteFloat, FiniteFloat]
+    false_alarm: FiniteFloat | None = Field(default=None, ge=0, le=1)
+    n_permutations: LightCurveCount = 0
+    significant: bool | None = None
+    caveat: str
+
+    @model_validator(mode="after")
+    def tested_significance(self):
+        if not 0 < self.period_range_days[0] < self.period_range_days[1]:
+            raise ValueError("Invalid period interval")
+        if self.bootstrap_95_days is not None and not 0 < self.bootstrap_95_days[0] <= self.bootstrap_95_days[1]:
+            raise ValueError("Invalid bootstrap interval")
+        tested = self.false_alarm is not None and self.n_permutations > 0
+        if self.significant is not None and (not tested or self.significant != (self.false_alarm <= 0.01)):
+            raise ValueError("Significance must agree with the visit-permutation false alarm")
+        if self.significant is None and tested:
+            raise ValueError("A tested period must state its significance")
+        return self
+
+
+class LightCurvePair(_Model):
+    detector: LightCurveDetector
+    frame_a: str
+    frame_b: str
+    mjd_a: FiniteFloat
+    mjd_b: FiniteFloat
+    date_a: datetime
+    date_b: datetime
+    season_a: LightCurveCount
+    season_b: LightCurveCount
+    wavelength_a_um: FiniteFloat = Field(gt=0)
+    wavelength_b_um: FiniteFloat = Field(gt=0)
+    delta_mag: FiniteFloat
+    delta_mag_err: FiniteFloat | None = Field(default=None, ge=0)
+    ensemble_mag: FiniteFloat | None = None
+    n_ensemble: LightCurveCount
+    delta_mag_corrected: FiniteFloat | None = None
+
+
+class LightCurveData(SkyCoord):
+    method: Literal["aperture", "wing"]
+    unit: Literal["mJy", "MJy/sr"]
+    relative_only: bool
+    lambda_bin_frac: FiniteFloat = Field(gt=0, lt=1)
+    min_bin_span_days: FiniteFloat = Field(ge=0)
+    points: list[LightCurvePoint] = Field(max_length=2500)
+    bins: list[LightCurveBin] = Field(max_length=2500)
+    comparisons: list[LightCurveComparison] = Field(max_length=12)
+    control: dict[LightCurveDetector, LightCurveStatistics]
+    summary: dict[LightCurveDetector, LightCurveStatistics]
+    excluded: dict[LightCurveExclusion, LightCurveCount]
+    period: LightCurvePeriod | None = None
+    notes: list[str] = Field(default_factory=list)
+    failures: list[MeasurementFailure] = Field(default_factory=list)
+    matched_pairs: list[LightCurvePair] = Field(default_factory=list, max_length=100000)
+
+    @model_validator(mode="after")
+    def consistent_measurements(self):
+        if (self.unit, self.relative_only) != (("mJy", False) if self.method == "aperture" else ("MJy/sr", True)):
+            raise ValueError("Wing photometry is relative surface brightness, not aperture flux")
+        points = {p.frame_id: p for p in self.points}
+        bins = {b.index: b for b in self.bins}
+        if len(points) != len(self.points) or len(bins) != len(self.bins):
+            raise ValueError("Duplicate point or bin identity")
+        for p in self.points:
+            if p.bin is not None and (p.bin not in bins or bins[p.bin].detector != p.detector):
+                raise ValueError("Point refers to an unknown bin or another detector")
+        for c in self.comparisons:
+            if any(fid not in points for fid in c.frame_ids):
+                raise ValueError("Comparison refers to an unknown exposure")
+        for pair in self.matched_pairs:
+            a, b = points.get(pair.frame_a), points.get(pair.frame_b)
+            if a is None or b is None or a.detector != pair.detector or b.detector != pair.detector:
+                raise ValueError("Pair refers to unknown inputs or mixed detectors")
+            if (a.mjd, b.mjd) != (pair.mjd_a, pair.mjd_b) or pair.mjd_a >= pair.mjd_b:
+                raise ValueError("Pair dates do not match the input chronology")
+        return self
+
+
+class LightCurveSource(_Model):
+    frame_id: str
+    source_uri: str = Field(pattern=r"^https://")
+
+
+class LightCurveProvenance(_Model):
+    pipeline_version: str
+    processing_fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
+    collections: list[str]
+    sources: list[LightCurveSource] = Field(max_length=2500)
+    n_found: LightCurveCount | None = None
+    n_selected: LightCurveCount
+    stale_search: bool = False
+    truncated_search: bool = False
+    partial: bool = False
+    notes: list[str] = Field(default_factory=list)
+
+
+class LightCurveProduct(_Model):
+    schema_version: str = SCHEMA_VERSION
+    id: str = Field(pattern=r"^[a-f0-9]{64}$")
+    target_id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]*$", max_length=80)
+    target_name: str
+    built_at: datetime
+    status: Literal["ready", "no_usable_points"]
+    parameters: LightCurveParameters
+    curve: LightCurveData
+    provenance: LightCurveProvenance
+    synthetic: Literal[False] = False
+
+    @model_validator(mode="after")
+    def consistent_product(self):
+        if (self.curve.ra, self.curve.dec, self.curve.method) != (
+            self.parameters.ra,
+            self.parameters.dec,
+            self.parameters.method,
+        ):
+            raise ValueError("Curve does not match its requested position/method")
+        used = any(p.rel_mag is not None for p in self.curve.points)
+        if (self.status == "ready") != used:
+            raise ValueError("Ready requires at least one usable relative measurement")
+        sources = {s.frame_id for s in self.provenance.sources}
+        if len(sources) != len(self.provenance.sources) or any(p.frame_id not in sources for p in self.curve.points):
+            raise ValueError("Every measured exposure needs unambiguous source provenance")
+        if len(self.curve.points) > self.parameters.max_frames:
+            raise ValueError("Product exceeds the requested frame limit")
+        return self
+
+
+class LightCurveSummary(_Model):
+    target_id: str
+    target_name: str
+    id: str
+    built_at: datetime
+    method: Literal["aperture", "wing"]
+    status: Literal["ready", "no_usable_points"]
+    n_points: LightCurveCount
+    n_used: LightCurveCount
+    partial: bool
+    synthetic: Literal[False] = False
+
+
+class LightCurveIndex(_Model):
+    schema_version: str = SCHEMA_VERSION
+    products: list[LightCurveSummary]
+
+
 ALL_MODELS: dict[str, type[BaseModel]] = {
     "Manifest": Manifest,
     "Field": SkyField,
@@ -854,5 +1160,8 @@ ALL_MODELS: dict[str, type[BaseModel]] = {
     "ComparisonRequest": ComparisonRequest,
     "ComparisonResponse": ComparisonResponse,
     "ObjectContextResponse": ObjectContextResponse,
+    "LightCurveParameters": LightCurveParameters,
+    "LightCurveProduct": LightCurveProduct,
+    "LightCurveIndex": LightCurveIndex,
 }
 """Top-level documents, one JSON Schema file each in shared/schema/."""

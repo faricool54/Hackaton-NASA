@@ -1,0 +1,140 @@
+{
+  "additionalProperties": false,
+  "description": "Reproducible offline calculation, not an HTTP instruction to run expensive work.",
+  "properties": {
+    "collections": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Collections",
+      "type": "array"
+    },
+    "dec": {
+      "description": "ICRS declination [deg]",
+      "maximum": 90,
+      "minimum": -90,
+      "title": "Dec",
+      "type": "number"
+    },
+    "detectors": {
+      "items": {
+        "maximum": 6,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "title": "Detectors",
+      "type": "array"
+    },
+    "lambda_bin_frac": {
+      "default": 0.01,
+      "maximum": 0.05,
+      "minimum": 0.005,
+      "title": "Lambda Bin Frac",
+      "type": "number"
+    },
+    "max_frames": {
+      "default": 600,
+      "maximum": 2500,
+      "minimum": 2,
+      "title": "Max Frames",
+      "type": "integer"
+    },
+    "method": {
+      "default": "aperture",
+      "enum": [
+        "aperture",
+        "wing"
+      ],
+      "title": "Method",
+      "type": "string"
+    },
+    "min_bin_span_days": {
+      "default": 30,
+      "minimum": 0,
+      "title": "Min Bin Span Days",
+      "type": "number"
+    },
+    "mjd_max": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Mjd Max"
+    },
+    "mjd_min": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Mjd Min"
+    },
+    "n_bootstrap": {
+      "default": 0,
+      "maximum": 1000,
+      "minimum": 0,
+      "title": "N Bootstrap",
+      "type": "integer"
+    },
+    "n_comparison": {
+      "default": 8,
+      "maximum": 12,
+      "minimum": 0,
+      "title": "N Comparison",
+      "type": "integer"
+    },
+    "n_permutations": {
+      "default": 100,
+      "maximum": 1000,
+      "minimum": 0,
+      "title": "N Permutations",
+      "type": "integer"
+    },
+    "period": {
+      "default": false,
+      "title": "Period",
+      "type": "boolean"
+    },
+    "period_range_days": {
+      "default": [
+        20,
+        800
+      ],
+      "maxItems": 2,
+      "minItems": 2,
+      "prefixItems": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "title": "Period Range Days",
+      "type": "array"
+    },
+    "ra": {
+      "description": "ICRS right ascension [deg]",
+      "exclusiveMaximum": 360,
+      "minimum": 0,
+      "title": "Ra",
+      "type": "number"
+    }
+  },
+  "required": [
+    "ra",
+    "dec"
+  ],
+  "title": "LightCurveParameters",
+  "type": "object"
+}
