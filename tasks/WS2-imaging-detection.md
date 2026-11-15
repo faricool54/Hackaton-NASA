@@ -59,23 +59,6 @@
   brillante ahora, cian = antes, damero = sin datos) y `compare/compare.json` **provisional** (fuera del contrato).
   En el campo real de Barnard la resta de un año muestra el dipolo norte en los 6 detectores. Falta: contrato aditivo
   (`contract:`, WS3) y la capa en la UI (WS5); restas por frame individual y λ emparejada (`wavelength_at` ya está en main, #23/#25).
-  🟡 Blancos débiles (2026-11-15, `compare.py`, claves nuevas y aditivas en `compare.json`): si el límite de color del
-  campo es ≥ 2× el de la región del blanco (segundo mayor |residuo| dentro de `target_exclude_px`, así un píxel caliente
-  o rayo cósmico no lo fija; nunca < 10σ), el límite sale de esa región (`limit_rule`, `field_limit_mjy_sr`,
-  `target_limit_mjy_sr` + nota "field-star residuals clip"); el softening del asinh es `min(1, max(0.05, 3σ/límite))`
-  (`display_softening`), con σ = sigma robusto (1,4826 × MAD) de la imagen diferencia (no `noise_mjy_sr`), para que el
-  ruido quede oscuro. Notas nuevas: diferencia sin escala (s = 1) y núcleo marcado (`target_core_flagged`: algún píxel a
-  ≤ 2 px del centro está marcado o inválido en al menos un frame de un coadd; cuentan las marcas parciales;
-  `core_*_px` por coadd). Cada coadd exporta `weights` (1/mediana de VARIANCE, mismo orden que `frame_ids`;
-  `weights_definition`). En los 5 campos dorados la regla se activa en WISE 0855 16/18 y ε Ind B 2/30 (D1 S1−S0 y
-  D6 S3−S2); Barnard, RW Aur y R Dra quedan con PNG idénticos bit a bit a `main`. Con el segundo mayor residuo bajan 7
-  límites de WISE 0855 en D1–D4 (en 6 el máximo era un píxel aislado de 10–23σ con vecinos ≤ 5,4σ); D5/D6 no cambian,
-  y D5 S1−S0/S2−S1 siguen con la regla del campo (respecto de `main` solo cambia el softening). En ε Ind B, en los 3
-  casos revisados (D2 S2−S0, D5 S1−S0, D6 S3−S2), el máximo de la región es el pico del propio blanco (PSF de ~1 píxel
-  de FWHM: el vecino es 1,2–3,7× menor), así que en D6 S3−S2 ese píxel satura (1,19× el límite). WISE 0855 con 2
-  frames por temporada × detector: D5 S2−S0/S2−S1 muestran un residuo positivo en la posición de S2 sin lóbulo
-  negativo claro (S0/S1 a 4,04–4,08 µm, donde el objeto es más débil que en S2 a 4,18–4,22 µm, y el corrimiento es de
-  0,7–1,3 px): mezcla movimiento y color, no es un dipolo limpio. En D6 no se ve (SNR del coadd 1,0–4,4).
 - [ ] **WS2-8 (P0, R05) Validación visual/astrométrica entre pasadas.** Ayudar a WS3 con Barnard,
   Epsilon Indi B y WISE 0855; comprobar registro de fondo, épocas y desplazamiento/incertidumbre.
   Para RW Aurigae/R Draconis, garantizar render consistente; el brillo científico se mide desde FITS.
