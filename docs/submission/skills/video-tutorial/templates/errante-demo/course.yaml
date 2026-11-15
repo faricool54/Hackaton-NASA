@@ -20,7 +20,10 @@ recording:
   color_scheme: dark
   sso_hosts: []
   local_storage: {}
-  write_guard: {enabled: true, allow: []}
+  write_guard:
+    enabled: true
+    # Only the real scientific comparison operation, prepared off camera; no coordinate jobs.
+    allow: ["POST /api/fields/barnards-star/comparisons"]
 deck: {enabled: true, design_system: neutral}
 delivery:
   final: true
@@ -37,15 +40,23 @@ delivery:
     This demo records the real application with prepared observations. Separate shots
     do not represent an uninterrupted archive-processing job. Narration is in English;
     no subtitles are included.
+    This research has made use of the NASA/IPAC Infrared Science Archive, which is funded
+    by the National Aeronautics and Space Administration and operated by the California
+    Institute of Technology.
   credits:
     - "Observation data: NASA SPHEREx / JPL-Caltech / Caltech-IPAC IRSA."
     - "Data archive: https://irsa.ipac.caltech.edu/data/SPHEREx/"
+    - "Data DOIs: DR1 10.26131/IRSA678; QR3 10.26131/IRSA662; cube 10.26131/IRSA679."
     - "Sky map interface: Aladin Lite / CDS."
   ai_audio_credit: "AI-generated English narration: Microsoft Edge TTS."
   metadata:
     title: Errante — watch the infrared sky change
     artist: Errante project team
-    comment: "Screen recordings of the real Errante application; scientific images are observation products."
+    comment: >-
+      Screen recordings of the real Errante application; scientific images are observation products.
+      This research has made use of the NASA/IPAC Infrared Science Archive, which is funded
+      by the National Aeronautics and Space Administration and operated by the California
+      Institute of Technology.
 sources:
   platform: Errante
   docs: []                 # Point to the project's docs/SUBMISSION_GUIDE.md and docs/CHALLENGE.md.

@@ -45,7 +45,12 @@ or discovery claim; the remaining shots must demonstrate the opening's promise.
 - Use prepared, real curated observations and published light curves. Load images,
   products and the context map off camera. If an async job is shown through a cut,
   make the omitted wait clear; never imply instant archive computation.
-- The default shots use R Draconis, one available detector and its published light curve.
+- The default shots use Barnard search and its D2 S2-minus-scaled-S0 season difference,
+  followed by R Draconis's published light curve. The small native-pixel shift in a raw
+  blink can produce a visible orange/cyan dipole in a difference. Label the processed
+  comparison honestly; retain dates, detector, scaling and quality limitations. It does
+  not establish parallax or a newly discovered object. WS2 proposed this shot in #100,
+  based on the published-product checks of #70; verify it again after any rebuild.
   Verify selectors and available products against the deployed UI. Start recording only
   after real images have loaded. A failed image, error panel or empty chart is not a shot.
 - The sky map is a **context coadd**, not temporal evidence. Preserve dates, wavelength,
@@ -60,7 +65,8 @@ or discovery claim; the remaining shots must demonstrate the opening's promise.
   The supplied takes keep the browser recording for their measured duration: a short blink
   padded with its last still frame is not equivalent to a full moving-image shot.
 
-The app is public: no login is needed. The default write guard allows reads only.
+The app is public: no login is needed. The write guard allows reads and the single
+Barnard comparison POST needed to prepare the real difference off camera.
 Do not trigger production jobs just to obtain footage when existing observations suffice.
 If a chosen scientific endpoint needs POST, allow only that endpoint when it is in scope.
 

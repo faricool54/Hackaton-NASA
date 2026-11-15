@@ -120,7 +120,10 @@ and asset/license inventory before submitting.
 
 Yes. OpenAI Codex assisted with review, documentation, implementation, integration, tests, deployment and
 this submission/About update. Anthropic Claude Code assisted contributors with data access, scientific
-analysis/review, catalog context and 3D work. Separate agents re-measured scientific results; that is not
+analysis/review, catalog context, WS2 image registration/rendering, season comparisons, forced photometry,
+false-color composites, tests and the five real-data golden fields, as well as 3D work.
+WS2's contributor record is [imaging/ai-usage.json](../../pipeline/errante/imaging/ai-usage.json);
+display-only pixel repairs are disclosed in the field provenance. Separate agents re-measured scientific results; that is not
 human review. Scope and metadata are recorded in [AI_USAGE.md](../../AI_USAGE.md),
 [submission metadata](ai-usage.json) and component inventories.
 
@@ -136,6 +139,16 @@ The application uses **real SPHEREx L2 observations from DR1 and QR3**, served t
 plus the DR1 spectral cube and its HiPS representation. Products retain observation IDs, dates,
 detector/release and source URIs. The separate offline R Draconis analysis also uses deep collections;
 those are not included in the published precomputed light curve.
+
+Data-set citations (verified against the official IPAC DOI records):
+
+- SPHEREx DR1 spectral images: [10.26131/IRSA678](https://doi.org/10.26131/IRSA678).
+- SPHEREx QR3 spectral images: [10.26131/IRSA662](https://doi.org/10.26131/IRSA662).
+- SPHEREx DR1 spectral all-sky cube: [10.26131/IRSA679](https://doi.org/10.26131/IRSA679).
+
+This research has made use of the NASA/IPAC Infrared Science Archive, which is funded by the
+National Aeronautics and Space Administration and operated by the California Institute of Technology.
+[IRSA acknowledgment guidance](https://irsa.ipac.caltech.edu/ack.html).
 
 This publication makes use of data products from the Spectro-Photometer for the History of the Universe,
 Epoch of Reionization and Ices Explorer (SPHEREx), which is a joint project of the Jet Propulsion

@@ -1,5 +1,5 @@
 {
-  "document_version": "1.6",
+  "document_version": "1.7",
   "updated_on": "2026-11-15",
   "status": "draft_requires_team_review",
   "scope": "Verified assistance in the current Codex session; not a complete repository authorship audit",
@@ -14,7 +14,8 @@
     "Updated PROJECT.md and the public About page to describe deployed real SPHEREx data, five offline validation records, reviewed light-curve limitations, sources and remaining human/submission tasks",
     "User-authorized WS6 documentation-only refresh of README and status/architecture/contract/requirement/coordination documents against merged/published main 3ed5c91 (#97) and public acceptance; no demo creation, human scientific approval or submission completed",
     "WS3 V18 conditional colour temperatures, descriptive IR colours and remaining LC24 summary, with review follow-ups requested by faricool54/Claude. Component attribution: pipeline/errante/science/continuum-ai-usage.json; no human R05 approval or calibrated stellar Teff claim.",
-    "User-requested adaptation and reviewed import of the supplied video-tutorial skill after reverting #118: English narration without subtitles, demonstrated value within approximately the first 10 seconds, strict 30-second MP4 verification, source/AI credits, templates and regression tests. Only neutral/custom design options remain; no corporate preset or font binaries are bundled. Public voice-output terms are not marked cleared. Component attribution: docs/submission/skills/video-tutorial/ai-usage.json; no final video/voiceover, upload or submission completed."
+    "User-requested adaptation and reviewed import of the supplied video-tutorial skill after reverting #118: English narration without subtitles, demonstrated value within approximately the first 10 seconds, strict 30-second MP4 verification, source/AI credits, templates and regression tests. Only neutral/custom design options remain; no corporate preset or font binaries are bundled. Public voice-output terms are not marked cleared. Component attribution: docs/submission/skills/video-tutorial/ai-usage.json; no final video/voiceover, upload or submission completed.",
+    "Final public-delivery fixes: curate the manifest without removing job products, add verified IRSA acknowledgment/data DOIs, integrate the WS2 contributor record and prepare the Barnard D2 S2-minus-S0 demo shot. No final narrated video, human R05 approval or form submission is implied."
   ],
   "known_affected_code": [
     "pipeline/errante/build.py",
@@ -61,6 +62,41 @@
   ],
   "component_metadata": [
     "pipeline/errante/science/continuum-ai-usage.json",
-    "docs/submission/skills/video-tutorial/ai-usage.json"
+    "docs/submission/skills/video-tutorial/ai-usage.json",
+    "pipeline/errante/imaging/ai-usage.json",
+    "docs/submission/final-delivery-ai-usage.json"
+  ],
+  "workstream_records": [
+    {
+      "workstream": "WS2",
+      "developer": "V0id47",
+      "tool": "Anthropic Claude Code",
+      "model": "Claude Opus 5.5",
+      "record": "pipeline/errante/imaging/ai-usage.json",
+      "pull_requests": [
+        13,
+        16,
+        17,
+        19,
+        25,
+        31,
+        35,
+        37,
+        39,
+        40,
+        41,
+        48,
+        68,
+        69,
+        70,
+        71,
+        72,
+        88
+      ],
+      "rendered_products_ai_generated_imagery": false,
+      "rendered_products_origin": "The PNG frames and false-color composites are renders of measured NASA SPHEREx DR1/QR3 pixel values (IMAGE - ZODI, from IRSA), produced by running the AI-assisted WS2 code, not AI-generated imagery; saturated star cores that SPHEREx left empty and detector-defect pixels are filled from their neighbours for display only (in the composites, a pixel bad in every frame of a channel is drawn neutral, display only), as each field.json's provenance.notes state",
+      "real_target_validation": false,
+      "human_review": "V0id47 directed the work and approved and merged each pull request; a line-by-line human review of the code, tests or products is not claimed"
+    }
   ]
 }

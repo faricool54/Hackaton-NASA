@@ -25,8 +25,8 @@ async def hold_measured(t, ref):
 async def d1(t):
     await t.goto("/#/")
     query = t.page.get_by_role("searchbox", name="Search the sky")
-    await query.fill("R Draconis")
-    match = t.page.get_by_role("button", name=re.compile("R Draconis.*frames", re.I))
+    await query.fill("Barnard")
+    match = t.page.get_by_role("button", name=re.compile("Barnard.*frames", re.I))
     await match.wait_for(state="visible", timeout=30000)
     # A loaded input alone does not establish that the WebGL map is ready.
     await t.page.locator('select[aria-label="Map wavelength"]:not([disabled])').wait_for(timeout=45000)
@@ -36,12 +36,14 @@ async def d1(t):
     await hold_measured(t, "D1")
 
 
-async def prepare_field(t):
-    await t.goto("/#/field/r-draconis")
+async def prepare_field(t, field_id="r-draconis", detector_value=None):
+    await t.goto(f"/#/field/{field_id}")
     await t.page.locator(".blink-frame").first.wait_for(timeout=45000)
     detector = t.page.locator(".field-layout .toolbar select").first
     values = await detector.locator("option").evaluate_all("items => items.map(x => x.value).filter(x => x !== 'all')")
-    if values:
+    if detector_value is not None:
+        await detector.select_option(str(detector_value))
+    elif values:
         await detector.select_option(values[0])
     await t.page.wait_for_function("""() => {
         const imgs = [...document.querySelectorAll('.blink-frame')];
@@ -50,12 +52,23 @@ async def prepare_field(t):
 
 
 async def d2(t):
-    await prepare_field(t)
-    await t.page.locator(".blink").scroll_into_view_if_needed()
-    play = t.page.get_by_role("button", name="Play", exact=True)
-    if await play.count():
-        await play.click()  # off camera: avoid wasting the shot on setup
-    await t.start(ready=".blink-frame")
+    await prepare_field(t, "barnards-star", detector_value=2)
+    summary = t.page.locator("summary").filter(has_text=re.compile("^Compare seasons"))
+    await summary.click()
+    panel = summary.locator("..")
+    await panel.get_by_label(re.compile("^Comparison detector")).select_option("2")
+    await panel.get_by_role("button", name="Build comparisons", exact=True).click()
+    products = panel.get_by_label(re.compile("^Comparison product"))
+    await products.wait_for(timeout=90000)
+    await products.select_option("D2_S2-S0")
+    image = panel.locator(".comparison-image")
+    await image.wait_for(timeout=30000)
+    await t.page.wait_for_function("""() => {
+        const img = document.querySelector('.comparison-image');
+        return img && img.complete && img.naturalWidth > 0;
+    }""", timeout=30000)
+    await products.scroll_into_view_if_needed()
+    await t.start(ready=image)
     await hold_measured(t, "D2")
 
 

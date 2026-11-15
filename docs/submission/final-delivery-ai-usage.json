@@ -1,0 +1,31 @@
+{
+  "updated_on": "2026-11-15",
+  "tool": "OpenAI Codex",
+  "scope": "User-requested final public-delivery fixes coordinated in issue #100",
+  "affected_paths": [
+    "backend/errante_api/routes/products.py",
+    "backend/tests/test_api.py",
+    "backend/tests/test_review_regressions.py",
+    "frontend/src/pages/AboutPage.tsx",
+    "README.md",
+    "AI_USAGE.md",
+    "docs/submission/"
+  ],
+  "changes": [
+    "Curated default manifest with an explicit full-catalog option; job data and direct links retained",
+    "Official IRSA acknowledgment and verified DR1/QR3/cube DOI citations",
+    "Integration of WS2's contributor-authored AI record, without claiming human R05 approval",
+    "English demo script and real-UI take for Barnard D2 S2-minus-scaled-S0, following WS2's recommendation"
+  ],
+  "generated_final_media": [],
+  "human_scientific_approval": false,
+  "form_submitted": false,
+  "coordination": "https://github.com/faricool54/Hackaton-NASA/issues/100#issuecomment-6900422386",
+  "citation_sources": [
+    "https://irsa.ipac.caltech.edu/ack.html",
+    "https://www.ipac.caltech.edu/doi/10.26131/IRSA678",
+    "https://www.ipac.caltech.edu/doi/10.26131/IRSA662",
+    "https://www.ipac.caltech.edu/doi/10.26131/IRSA679"
+  ],
+  "source_and_team_review": "Pending final team review; rights/eligibility and complete authorship are not certified"
+}

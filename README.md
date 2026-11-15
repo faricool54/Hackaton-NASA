@@ -129,6 +129,14 @@ English drafts and provenance:
 
 Real SPHEREx DR1/QR3 observations, the DR1 spectral cube and HiPS come from
 [NASA/IPAC IRSA](https://irsa.ipac.caltech.edu/Missions/spherex.html).
+The data sets are [DR1 spectral images, DOI 10.26131/IRSA678](https://doi.org/10.26131/IRSA678),
+[QR3 spectral images, DOI 10.26131/IRSA662](https://doi.org/10.26131/IRSA662), and the
+[DR1 spectral all-sky cube, DOI 10.26131/IRSA679](https://doi.org/10.26131/IRSA679).
+
+This research has made use of the NASA/IPAC Infrared Science Archive, which is funded by the
+National Aeronautics and Space Administration and operated by the California Institute of Technology.
+See [IRSA's acknowledgment and citation guidance](https://irsa.ipac.caltech.edu/ack.html).
+
 [IRSA tutorial notebooks](https://caltech-ipac.github.io/irsa-tutorials/spherex/) informed development.
 Aladin Lite 3.8.2 (CDS, GPL-3) displays the sky; AllWISE provides separate-mission context through ESA's
 mirror. Gaia DR3, Sesame/SIMBAD/VizieR, 2MASS/CatWISE2020, the NASA Exoplanet Archive and AAVSO provide

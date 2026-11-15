@@ -147,3 +147,32 @@ rejection; those follow-ups were implemented before API integration. The compone
 The native FITS fixture is observed photometry, not generated sky imagery. Algorithm tests, review by
 agents and browser checks do not constitute human R05 approval or a calibrated stellar Teff measurement.
 Farid's RW Aur identity correction (#101) and LC24 follow-up (#106) retain their own authorship.
+
+## WS2 imaging and comparison (November 14–15, 2026)
+
+Claude Code (Anthropic, Claude Opus 5.5) assisted V0id47 in WS2: reprojection onto the field grid,
+season/detector frame selection, bad-frame rejection, registration checks, rendering and display-only
+repairs, season coadds and flux-matched differences, forced photometry, false-color composites and tests.
+The contribution also includes the composites contract (#39), image-mode toggle (#40), published-product
+checks and demonstration animations. The current contributor record lists #13, #16, #17, #19, #25, #31,
+#35, #37, #39, #40, #41, #48, #68–#72 and #88; later changes require their own inventory updates.
+
+The five golden fields were built from real SPHEREx DR1/QR3 exposures. PNG frames and composites render
+measured pixel values; they are not AI-generated sky imagery. Saturated cores and detector-defect pixels
+may be repaired from neighbours for display only; pixels invalid in every composite input are neutral.
+The products disclose these operations in their provenance. Display repairs are not scientific measurements.
+
+V0id47 directed the work and merged the listed PRs; several reviews were performed by AI agents.
+Line-by-line human review and formal human R05 approval are not claimed. #88 was authored and merged by
+faricool54 with Claude Code to synchronize descriptions and is also disclosed in WS3's record.
+The formal validation records remain in `docs/validation/` with their own review status.
+
+Machine-readable source: [pipeline/errante/imaging/ai-usage.json](pipeline/errante/imaging/ai-usage.json).
+
+## Public-delivery follow-up (November 15, 2026)
+
+At rpccp's request, Codex implemented the curated API manifest selection, verified and added the IRSA
+acknowledgment/data DOIs, integrated the contributor-authored WS2 disclosure, and prepared the English
+Barnard D2 season-difference demo take proposed by WS2. Job products and direct/share URLs are retained.
+The update does not generate a final narrated video, submit the form or establish human R05 approval.
+Metadata and checked sources: [final-delivery-ai-usage.json](docs/submission/final-delivery-ai-usage.json).
