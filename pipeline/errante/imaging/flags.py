@@ -35,13 +35,14 @@ FLAG_BITS: dict[str, int] = {
     "GHOST_EXT": 24,
     "STREAK": 25,
     "BLOOM": 26,
+    "SNOWBALL": 27,  # read 2026-11-14 from dr1 and qr3 FLAGS headers (MSKN0027, docs/DATA.md)
     "HALO": 28,
 }
 
 # Pixels whose value cannot be trusted at all.
 DEFAULT_BAD = (
     "OVERFLOW", "SUR_ERROR", "NONFUNC", "MISSING_DATA", "HOT", "COLD",
-    "PHANMISS", "PERSIST", "GHOST", "GHOST_FPA", "GHOST_EXT", "STREAK",
+    "PHANMISS", "PERSIST", "GHOST", "GHOST_FPA", "GHOST_EXT", "STREAK", "SNOWBALL",
 )  # fmt: skip
 # Informational: never mask on these alone.
 INFORMATIONAL = ("SOURCE", "FULLSAMPLE", "CROSSTALK", "DICHROIC")
