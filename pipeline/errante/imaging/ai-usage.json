@@ -34,6 +34,7 @@
   ],
   "generated_media": [],
   "real_target_validation": false,
+  "real_target_validation_basis": "The formal R05 per-target validation records are the coordinator's (docs/validation/, chore PRs #36 and #46) and their human review is pending (docs/VALIDATION.md); the golden fields being real SPHEREx data is not that validation",
   "human_review": "V0id47 directed the work and approved and merged each pull request; a line-by-line human review of the code, tests or products is not claimed",
   "repository_disclosure": "AI_USAGE.md",
   "integration_validation": {
@@ -69,7 +70,7 @@
       "rw-aurigae",
       "wise-0855"
     ],
-    "origin": "Renders of real NASA SPHEREx DR1/QR3 exposures from IRSA, produced by running the AI-assisted WS2 code; the pixels are measured SPHEREx data, not AI-generated imagery",
+    "origin": "The PNG frames and false-color composites are renders of measured NASA SPHEREx DR1/QR3 pixel values (IMAGE - ZODI, from IRSA), produced by running the AI-assisted WS2 code, not AI-generated imagery; saturated star cores that SPHEREx left empty and detector-defect pixels are filled from their neighbours for display only (in the composites, a pixel bad in every frame of a channel is drawn neutral, display only), as each field.json's provenance.notes state",
     "ai_generated_imagery": false,
     "synthetic": false,
     "labels": "Each field.json states its processing in provenance.notes (IMAGE - ZODI in MJy/sr, asinh stretch, display-only repairs); composites are labelled false color (infrared), not true color, in the notes and the UI",
@@ -162,7 +163,7 @@
       "title": "contract: false-color season composites (Field.composites, schema 0.3.1)",
       "merged_at": "2026-11-15T04:00:42Z",
       "ai_generated": [
-        "Contract: Field.composites models in pipeline/errante/models.py, regenerated shared/schema, the frontend/src/api/types.ts mirror, SCHEMA_VERSION 0.3.1, the composite check in errante validate (cli.py)",
+        "Contract: Field.composites models in pipeline/errante/models.py and new Frame.mjd / Frame.date_obs descriptions there (mid-exposure, header MJD-AVG / DATE-AVG), regenerated shared/schema, the frontend/src/api/types.ts mirror, SCHEMA_VERSION 0.3.1, the composite check in errante validate (cli.py)",
         "Tests: test_contract.py"
       ],
       "humans": "V0id47 directed the work and merged it; the pull request asked WS4 or WS5 for an OK before merging, which V0id47 reports was given outside GitHub; it is not recorded as a GitHub review or comment"
