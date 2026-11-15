@@ -82,6 +82,18 @@ class GridFrame:
     data: np.ndarray  # MJy/sr, IMAGE - ZODI
     bad: np.ndarray  # True = do not use
     variance: np.ndarray | None = None  # (MJy/sr)^2
+    wavelength_um: float | None = None  # central wavelength at the field centre (Frame.wavelength_um)
+
+
+@dataclass
+class Stack:
+    """Weighted mean of frames on the grid (any detectors); see ``weighted_stack``."""
+
+    frames: list[GridFrame]  # frames that contributed at least one pixel
+    data: np.ndarray
+    variance: np.ndarray
+    coverage: np.ndarray  # number of frames contributing to each pixel
+    skipped: list[str] = field(default_factory=list)  # frames with no usable pixel
 
 
 @dataclass
@@ -134,12 +146,16 @@ def _robust_sigma(values: np.ndarray) -> float:
     return float(1.4826 * np.median(np.abs(values - med)))
 
 
-def coadd(frames: Sequence[GridFrame], season: int = 0) -> Coadd:
-    """Weighted mean of ``frames`` (one detector): one weight per frame, sky removed, variance propagated."""
+def weighted_stack(frames: Sequence[GridFrame], *, include_bad: bool = False) -> Stack:
+    """Weighted mean of ``frames``: one weight per frame, each frame's sky removed, variance propagated.
+
+    Sky level (median) and weight (1 / median VARIANCE, or 1 / robust noise without a VARIANCE plane)
+    always come from a frame's usable pixels; frames without any usable pixel are skipped. By default
+    bad pixels are left out of the mean. ``include_bad=True`` (display only) also averages the finite
+    bad pixels, i.e. the saturated cores and defects that ``reproject_to_grid`` repaired for display.
+    """
     if not frames:
-        raise ValueError("coadd needs at least one frame")
-    if len({f.detector for f in frames}) != 1:
-        raise ValueError("coadd frames of a single detector only")
+        raise ValueError("a stack needs at least one frame")
     shape = frames[0].data.shape
     total = np.zeros(shape)
     weight = np.zeros(shape)
@@ -160,23 +176,36 @@ def coadd(frames: Sequence[GridFrame], season: int = 0) -> Coadd:
             sigma = _robust_sigma(f.data[ok]) or 1.0
             pixel_var = np.full(shape, sigma**2)
             w = 1.0 / sigma**2
-        total += np.where(ok, f.data - sky, 0.0) * w
-        weight += np.where(ok, w, 0.0)
-        var_sum += np.where(ok, pixel_var, 0.0) * w**2
-        coverage += ok
+        take = np.isfinite(f.data) if include_bad else ok
+        if include_bad and f.variance is not None:
+            pixel_var = np.where(np.isfinite(pixel_var), pixel_var, float(np.median(f.variance[ok])))
+        total += np.where(take, f.data - sky, 0.0) * w
+        weight += np.where(take, w, 0.0)
+        var_sum += np.where(take, pixel_var, 0.0) * w**2
+        coverage += take
         used.append(f)
     with np.errstate(invalid="ignore", divide="ignore"):
         data = np.where(weight > 0, total / weight, np.nan)
         variance = np.where(weight > 0, var_sum / weight**2, np.nan)
+    return Stack(used, data.astype(np.float32), variance.astype(np.float32), coverage, skipped)
+
+
+def coadd(frames: Sequence[GridFrame], season: int = 0) -> Coadd:
+    """Weighted mean of ``frames`` (one detector): one weight per frame, sky removed, variance propagated."""
+    if not frames:
+        raise ValueError("coadd needs at least one frame")
+    if len({f.detector for f in frames}) != 1:
+        raise ValueError("coadd frames of a single detector only")
+    stack = weighted_stack(frames)
     return Coadd(
         detector=frames[0].detector,
         season=season,
-        frame_ids=[f.frame_id for f in used],
-        mjds=[f.mjd for f in used],
-        data=data.astype(np.float32),
-        variance=variance.astype(np.float32),
-        coverage=coverage,
-        skipped=skipped,
+        frame_ids=[f.frame_id for f in stack.frames],
+        mjds=[f.mjd for f in stack.frames],
+        data=stack.data,
+        variance=stack.variance,
+        coverage=stack.coverage,
+        skipped=stack.skipped,
     )
 
 

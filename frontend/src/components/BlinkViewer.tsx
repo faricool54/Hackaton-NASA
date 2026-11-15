@@ -1,15 +1,19 @@
 // Blink comparator (WS5, P0 — UI-2 scrubber redesign applied).
 // All frames of a field share one north-up grid, so frame PNGs are stacked and
 // toggled; overlays use an SVG whose viewBox is the grid size in pixels, so the
-// contract's x/y (PNG convention) can be drawn directly.
+// contract's x/y (PNG convention) can be drawn directly. In the color modes the
+// same stage blinks one false-color composite per season (same grid, no markers).
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Candidate, Field, Frame, KnownObject } from '../api/types';
+import type { Candidate, Composite, Field, Frame, KnownObject } from '../api/types';
 import { DETECTOR_BANDS, formatMjd } from '../api/format';
+import { channelLegend, seasonRange } from './blinkModes';
 
 interface Props {
   field: Field;
   frames: Frame[];
-  imageUrl: (frame: Frame) => string;
+  /** Color modes: season composites to blink instead of the frames. */
+  composites?: Composite[] | null;
+  imageUrl: (image: string) => string; // PNG path relative to the field dir
   candidates: Candidate[];
   known: KnownObject[];
   selectedId: string | null;
@@ -23,7 +27,7 @@ const STATUS_COLOR: Record<string, string> = {
   injected: 'var(--injected)',
 };
 
-export function BlinkViewer({ field, frames, imageUrl, candidates, known, selectedId, onSelect }: Props) {
+export function BlinkViewer({ field, frames, composites, imageUrl, candidates, known, selectedId, onSelect }: Props) {
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [intervalMs, setIntervalMs] = useState(700);
@@ -31,12 +35,16 @@ export function BlinkViewer({ field, frames, imageUrl, candidates, known, select
   const [loaded, setLoaded] = useState<Record<string, 'ready' | 'error'>>({});
   const [retry, setRetry] = useState(0);
 
-  const n = frames.length;
-  const current = frames[Math.min(index, n - 1)];
-  const failed = frames.filter((f) => loaded[f.id] === 'error').length;
-  const remaining = frames.filter((f) => !loaded[f.id]).length;
+  const stack: (Frame | Composite)[] = composites ?? frames;
+  const n = stack.length;
+  // The stack can shrink before the reset effect runs (new field, filter or mode): never index past it.
+  const shown = Math.min(index, Math.max(n - 1, 0));
+  const current: Frame | undefined = composites ? undefined : frames[shown];
+  const composite = composites?.[shown];
+  const failed = stack.filter((f) => loaded[f.id] === 'error').length;
+  const remaining = stack.filter((f) => !loaded[f.id]).length;
 
-  useEffect(() => setIndex(0), [frames]);
+  useEffect(() => setIndex(0), [frames, composites]);
 
   useEffect(() => {
     if (!playing || n < 2 || remaining || failed) return;
@@ -74,7 +82,7 @@ export function BlinkViewer({ field, frames, imageUrl, candidates, known, select
     [seekToPointer],
   );
 
-  const fillPct = n > 1 ? (index / (n - 1)) * 100 : 0;
+  const fillPct = n > 1 ? (shown / (n - 1)) * 100 : 0;
 
   // tick positions (percent along track)
   const ticks = useMemo(
@@ -84,9 +92,11 @@ export function BlinkViewer({ field, frames, imageUrl, candidates, known, select
 
   const selected = useMemo(() => candidates.find((c) => c.id === selectedId) ?? null, [candidates, selectedId]);
 
-  if (!current) return <div className="panel">This field has no frames.</div>;
+  if (composites && !composite) return <div className="panel">No false-color composites for this mode.</div>;
+  if (!current && !composite) return <div className="panel">This field has no frames.</div>;
   const { width_px: w, height_px: h } = field.grid;
   const r = Math.max(2.5, w / 40);
+  const stepDate = composite ? seasonRange(composite) : current ? formatMjd(current.mjd) : '';
 
   return (
     <div className="blink" tabIndex={0} aria-label="Time sequence player" onKeyDown={(e) => {
@@ -100,19 +110,19 @@ export function BlinkViewer({ field, frames, imageUrl, candidates, known, select
       {failed > 0 && <p role="alert" className="error">{failed} image(s) could not load. Playback is paused.
         {' '}<button onClick={() => { setLoaded({}); setRetry((r) => r + 1); }}>Retry images</button></p>}
       <div className="blink-stage" style={{ aspectRatio: `${w} / ${h}` }}>
-        {frames.map((f, i) => (
+        {stack.map((f, i) => (
           <img
             key={`${f.id}/${retry}`}
-            src={`${imageUrl(f)}${retry ? `?retry=${retry}` : ''}`}
-            alt={`SPHEREx frame ${f.id}`}
+            src={`${imageUrl(f.image)}${retry ? `?retry=${retry}` : ''}`}
+            alt={composites ? `False-color infrared composite ${f.id}` : `SPHEREx frame ${f.id}`}
             className="blink-frame"
-            style={{ visibility: i === index ? 'visible' : 'hidden' }}
+            style={{ visibility: i === shown ? 'visible' : 'hidden' }}
             draggable={false}
             onLoad={() => setLoaded((s) => ({ ...s, [f.id]: 'ready' }))}
             onError={() => setLoaded((s) => ({ ...s, [f.id]: 'error' }))}
           />
         ))}
-        {showOverlays && (
+        {showOverlays && current && (
           <svg className="blink-overlay" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
             {selected && (
               <polyline
@@ -156,18 +166,30 @@ export function BlinkViewer({ field, frames, imageUrl, candidates, known, select
           </svg>
         )}
         <div className="blink-caption">
-          <strong>{formatMjd(current.mjd)}</strong> · D{current.detector}
-          {current.wavelength_um ? ` · λ ${current.wavelength_um.toFixed(3)} µm` : ` · ${DETECTOR_BANDS[current.detector]}`}
-          {' · '}{current.release.toUpperCase()}
-          {loaded[current.id] === 'error' && ' · IMAGE UNAVAILABLE'}
+          {composite ? (
+            <>
+              <strong>{stepDate}</strong> · <span title={composite.notes.join('\n')}>False color (infrared)</span> ·{' '}
+              {channelLegend(composite)}
+              {loaded[composite.id] === 'error' && ' · IMAGE UNAVAILABLE'}
+            </>
+          ) : (
+            current && (
+              <>
+                <strong>{stepDate}</strong> · D{current.detector}
+                {current.wavelength_um ? ` · λ ${current.wavelength_um.toFixed(3)} µm` : ` · ${DETECTOR_BANDS[current.detector]}`}
+                {' · '}{current.release.toUpperCase()}
+                {loaded[current.id] === 'error' && ' · IMAGE UNAVAILABLE'}
+              </>
+            )
+          )}
         </div>
       </div>
 
       {/* Scrubber */}
       <div className="scrubber-wrap">
         <div className="scrubber-meta">
-          <span className="scrubber-date">{formatMjd(current.mjd)}</span>
-          <span className="scrubber-count">FRAME {String(index + 1).padStart(2, '0')} <span>/ {String(n).padStart(2, '0')}</span></span>
+          <span className="scrubber-date">{stepDate}</span>
+          <span className="scrubber-count">{composite ? 'SEASON' : 'FRAME'} {String(shown + 1).padStart(2, '0')} <span>/ {String(n).padStart(2, '0')}</span></span>
         </div>
         <div
           className="scrubber-track-wrap"
@@ -175,10 +197,10 @@ export function BlinkViewer({ field, frames, imageUrl, candidates, known, select
           onPointerDown={onTrackPointerDown}
           onPointerMove={onTrackPointerMove}
           role="slider"
-          aria-label="Frame"
+          aria-label={composite ? 'Season' : 'Frame'}
           aria-valuemin={0}
           aria-valuemax={n - 1}
-          aria-valuenow={index}
+          aria-valuenow={shown}
           tabIndex={0}
           onKeyDown={(e) => {
             if (e.key === 'ArrowRight') { e.preventDefault(); setPlaying(false); setIndex((i) => Math.min(i + 1, n - 1)); }
@@ -191,7 +213,7 @@ export function BlinkViewer({ field, frames, imageUrl, candidates, known, select
               {ticks.map((pct, i) => (
                 <div
                   key={i}
-                  className={`scrubber-tick${i === index ? ' scrubber-tick--active' : ''}`}
+                  className={`scrubber-tick${i === shown ? ' scrubber-tick--active' : ''}`}
                   style={{ left: `${pct}%` }}
                 />
               ))}
@@ -228,14 +250,21 @@ export function BlinkViewer({ field, frames, imageUrl, candidates, known, select
             />
             <span className="speed-value">{(1000 / intervalMs).toFixed(1)}×</span>
           </label>
-          <button className={`overlay-toggle${showOverlays ? ' is-on' : ''}`} type="button" aria-pressed={showOverlays} onClick={() => setShowOverlays((shown) => !shown)}>
+          <button
+            className={`overlay-toggle${showOverlays ? ' is-on' : ''}`}
+            type="button"
+            aria-pressed={showOverlays}
+            disabled={!current}
+            title={current ? undefined : 'Markers are drawn on the B/W frames only'}
+            onClick={() => setShowOverlays((shown) => !shown)}
+          >
             <span className="toggle-indicator" aria-hidden="true" />
             Markers
           </button>
         </div>
       </div>
       {/* TODO(WS5): difference-image layer, zoom/pan, crosshair with RA/Dec readout
-          (use grid.wcs), "time-lapse" export as GIF/MP4, color composite of bands. */}
+          (use grid.wcs), "time-lapse" export as GIF/MP4. */}
     </div>
   );
 }
