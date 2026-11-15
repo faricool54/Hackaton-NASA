@@ -57,7 +57,7 @@ class ScienceService:
             "operation": operation,
             "request": request.model_dump(mode="json"),
             "field": field.model_dump(mode="json") if field else None,
-            "processing": source_fingerprint(),
+            "processing": source_fingerprint(include_science=True),
             "adapter": hashlib.sha256(Path(__file__).with_name("science_ops.py").read_bytes()).hexdigest(),
         }
         key = hashlib.sha256(json.dumps(payload, sort_keys=True, allow_nan=False).encode()).hexdigest()

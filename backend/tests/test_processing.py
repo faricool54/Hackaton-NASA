@@ -51,3 +51,20 @@ def test_transitive_source_change_invalidates_jobs_and_science(tmp_path, monkeyp
         assert JobRequest.from_dict(saved.to_dict()).cache_key() == old_job_key
     finally:
         service.close()
+
+
+def test_spectral_interpretation_change_invalidates_science_without_discarding_image_jobs(tmp_path, monkeypatch):
+    source = tmp_path / "science/continuum.py"
+    source.parent.mkdir()
+    source.write_text("model = 1")
+    monkeypatch.setattr("errante_api.processing.errante.__file__", str(tmp_path / "__init__.py"))
+    job_key = JobRequest.create(10, 20, 0.15).cache_key()
+    service = ScienceService(Settings(data_dir=tmp_path / "public", live_cache_dir=tmp_path / "private"))
+    request = SpectrumRequest(ra=10, dec=20)
+    try:
+        key = service._identity("spectrum", request, None)["id"]
+        source.write_text("model = 2")
+        assert service._identity("spectrum", request, None)["id"] != key
+        assert JobRequest.create(10, 20, 0.15).cache_key() == job_key
+    finally:
+        service.close()

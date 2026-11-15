@@ -40,6 +40,9 @@ def test_real_bundles_keep_quality_provenance_and_native_period():
             assert p.provenance.partial
     rw, _, _ = store.read("rw-aurigae")
     assert rw.curve.unit == "mJy" and not rw.curve.relative_only and rw.curve.matched_pairs
+    assert sum(p.rel_mag is not None for p in rw.curve.points) == 10  # playback and pairs retain all measurements
+    assert rw.curve.summary[1].n == 0 and rw.curve.summary[1].scatter_over_control is None
+    assert any("only one independent difference" in note for note in rw.curve.notes)
     dra, _, _ = store.read("r-draconis")
     assert dra.curve.unit == "MJy/sr" and dra.curve.relative_only
     assert dra.curve.period.significant and dra.curve.period.false_alarm <= 0.01
