@@ -1,4 +1,37 @@
 {
+  "$defs": {
+    "SpectrumMotion": {
+      "additionalProperties": false,
+      "description": "Catalog linear proper motion, not SPHEREx astrometry; no parallax or radial velocity.",
+      "properties": {
+        "dec_masyr": {
+          "maximum": 20000,
+          "minimum": -20000,
+          "title": "Dec Masyr",
+          "type": "number"
+        },
+        "epoch_mjd": {
+          "maximum": 80000,
+          "minimum": 40000,
+          "title": "Epoch Mjd",
+          "type": "number"
+        },
+        "ra_cosdec_masyr": {
+          "maximum": 20000,
+          "minimum": -20000,
+          "title": "Ra Cosdec Masyr",
+          "type": "number"
+        }
+      },
+      "required": [
+        "ra_cosdec_masyr",
+        "dec_masyr",
+        "epoch_mjd"
+      ],
+      "title": "SpectrumMotion",
+      "type": "object"
+    }
+  },
   "additionalProperties": false,
   "description": "Bounded extraction at a fixed ICRS position; independent of detected candidates.",
   "properties": {
@@ -69,6 +102,17 @@
       ],
       "default": null,
       "title": "Mjd Min"
+    },
+    "proper_motion": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SpectrumMotion"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "ra": {
       "description": "ICRS right ascension [deg]",

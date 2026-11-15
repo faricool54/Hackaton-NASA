@@ -4,7 +4,7 @@
 // Pixel convention for every x/y: PNG convention — origin at the TOP-LEFT pixel,
 // 0-based, x → right, y → DOWN, on the field's common north-up grid (east left).
 
-export const SCHEMA_VERSION = '0.6.0';
+export const SCHEMA_VERSION = '0.7.0';
 
 export type Release = 'dr1' | 'qr2' | 'qr3' | 'synthetic';
 export type ObjectType =
@@ -367,7 +367,12 @@ export interface ResolvedRegion extends SkyCoord {
 }
 
 
+export interface SpectrumMotion {
+  /** Catalog mu_alpha*cos(dec), mas/year. Prediction, not measured SPHEREx motion. */
+  ra_cosdec_masyr: number; dec_masyr: number; epoch_mjd: number;
+}
 export interface SpectrumRequest extends SkyCoord {
+  proper_motion?: SpectrumMotion | null;
   source?: 'dr1_cube' | 'l2_exposures';
   field_id?: string | null;
   detectors?: number[];
@@ -381,12 +386,14 @@ export interface MeasurementFailure {
   reason: 'download_failed' | 'measurement_failed' | 'no_overlap' | 'invalid_pixels';
 }
 export interface SpectralMeasurement {
+  position?: SkyCoord | null;
   id: string; detector: number; wavelength_um: number | null; bandwidth_um: number | null;
   flux: number | null; flux_err: number | null; usable: boolean; flags: string[];
   frame_id: string | null; mjd: number | null; release: Release; source_uri: string | null;
   nhits: number | null; n_used: number | null; aperture_correction: number | null;
 }
 export interface SpectrumResponse {
+  proper_motion?: SpectrumMotion | null;
   schema_version: string; center: SkyCoord; source: 'dr1_cube' | 'l2_exposures'; unit: 'MJy/sr' | 'mJy';
   static_coadd: boolean; points: SpectralMeasurement[]; built_at: string; field_id: string | null;
   mjd_range: [number | null, number | null]; pixel_scale_arcsec: number | null; aperture_px: number;

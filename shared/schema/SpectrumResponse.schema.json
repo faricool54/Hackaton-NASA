@@ -177,6 +177,18 @@
           "default": null,
           "title": "Nhits"
         },
+        "position": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SkyCoord"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Actual extraction coordinate; catalog prediction when proper motion is used"
+        },
         "release": {
           "default": "dr1",
           "enum": [
@@ -224,6 +236,37 @@
         "usable"
       ],
       "title": "SpectralMeasurement",
+      "type": "object"
+    },
+    "SpectrumMotion": {
+      "additionalProperties": false,
+      "description": "Catalog linear proper motion, not SPHEREx astrometry; no parallax or radial velocity.",
+      "properties": {
+        "dec_masyr": {
+          "maximum": 20000,
+          "minimum": -20000,
+          "title": "Dec Masyr",
+          "type": "number"
+        },
+        "epoch_mjd": {
+          "maximum": 80000,
+          "minimum": 40000,
+          "title": "Epoch Mjd",
+          "type": "number"
+        },
+        "ra_cosdec_masyr": {
+          "maximum": 20000,
+          "minimum": -20000,
+          "title": "Ra Cosdec Masyr",
+          "type": "number"
+        }
+      },
+      "required": [
+        "ra_cosdec_masyr",
+        "dec_masyr",
+        "epoch_mjd"
+      ],
+      "title": "SpectrumMotion",
       "type": "object"
     }
   },
@@ -322,8 +365,19 @@
       "title": "Points",
       "type": "array"
     },
+    "proper_motion": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SpectrumMotion"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
     "schema_version": {
-      "default": "0.6.0",
+      "default": "0.7.0",
       "title": "Schema Version",
       "type": "string"
     },
