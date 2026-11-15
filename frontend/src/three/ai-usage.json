@@ -1,12 +1,15 @@
 {
   "updated_on": "2026-11-15",
   "tool": "Anthropic Claude Code",
-  "scope": "WS7 3D systems, frontend side (DankoLiv with Claude Code): the lazily loaded three.js scene and its pure modules in frontend/src/three/ (Kepler orbits, blackbody and CIE 1931 colour, SPHEREx IR and D1-D6 colour modes, limb darkening, glow, layout, Dataset time on the SPHEREx pass dates, ephemerides, SPHEREx coverage windows, predicted sky track, 'How this body is drawn' notes) with their vitest tests, and the 3D viewer, body panel and system pages; plus, on branch ws7/measured-3d (V13, with V4 and V12; not merged when this record was written, so it has no pull request entry), the removal of the class-typical toggle and its invented surface features on real targets, the 'colour unknown' and 'size unknown · not to scale' rendering, R Dra drawn at constant radius, the fact-origin chips (factOrigin.ts) and the V4/V12 texts of the WS3 review in docs/SCIENCE.md. The pipeline side of the same work is recorded in pipeline/errante/systems/ai-usage.json",
+  "scope": "WS7 3D systems, frontend side (DankoLiv with Claude Code): the lazily loaded three.js scene and its pure modules in frontend/src/three/ (Kepler orbits, blackbody and CIE 1931 colour, SPHEREx IR and D1-D6 colour modes, limb darkening, glow, layout, Dataset time on the SPHEREx pass dates, ephemerides, SPHEREx coverage windows, predicted sky track, 'How this body is drawn' notes) with their vitest tests, and the 3D viewer, body panel and system pages; plus V13 with V4 and V12 (#90: the removal of the class-typical toggle and its invented surface features on real targets, the 'colour unknown' and 'size unknown · not to scale' rendering, R Dra drawn at constant radius, the fact-origin chips (factOrigin.ts) and the V4/V12 texts of the WS3 review in docs/SCIENCE.md), the catalog reticle and predicted track of the five targets in the frame viewer (V3 add-on on top of WS5's #96, #99), the catalog 3D model of any object picked on the map (V14, #107: three/contextSystem.ts and ObjectSystemPreview.tsx) and, on branch ws7/fe-12-3d-polish (FE-12 of docs/FRONTEND_PLAN.md; not merged when this record was written, so it has no pull request entry), the .s3d- stylesheet three/system.css that replaces the inline styles of the 3D pages, the system page without page scroll, the restyled systems list and the optional compact mode of SystemViewer, BodyPanel and ObjectSystemPreview for the explorer dock. The pipeline side of the same work is recorded in pipeline/errante/systems/ai-usage.json",
   "affected_paths": [
     "frontend/src/three/",
     "frontend/src/components/SystemViewer.tsx",
     "frontend/src/components/BodyPanel.tsx",
     "frontend/src/components/ErrorBoundary.tsx",
+    "frontend/src/components/BlinkViewer.tsx",
+    "frontend/src/components/PositionResults.tsx",
+    "frontend/src/components/SkyExplorer.tsx",
     "frontend/src/pages/SystemsPage.tsx",
     "frontend/src/pages/SystemPage.tsx",
     "frontend/src/pages/FieldPage.tsx",
@@ -25,7 +28,7 @@
   "repository_disclosure": "AI_USAGE.md",
   "integration_validation": {
     "source": "systems JSON built from catalog and literature values (pipeline/errante/systems); no SPHEREx pixel is drawn in 3D, and the SPHEREx light curves are shown by WS5's LightCurvePanel, not by the 3D",
-    "arbitrary_coordinate_job": "not part of WS7: there is no 3D for an arbitrary click yet (V14, future work)",
+    "arbitrary_coordinate_job": "not a WS7 processing job: since V14 (#107) the 3D tab of a picked position draws a catalog model built in the browser from the object card (GET /api/object, live API only); it is not a SPHEREx measurement",
     "golden_fields": "the five published systems open at #/system/<id> in the real dataset and link to and from their real SPHEREx fields (#64; checked in the browser, tasks/WS7-3d-systems.md)",
     "checks_reported_in_pull_requests": [
       "#47: astro tests check the Kim et al. 2002 locus, the IAU nominal Sun, Earth Teq 278.3 K, the 2MASS Ks of Barnard's Star and the AllWISE W2 of WISE 0855 (blackbody flagged unreliable)",
@@ -127,7 +130,40 @@
         "Tests: fieldLink.test.ts"
       ],
       "humans": "DankoLiv directed the work; it was squash-merged into main"
+    },
+    {
+      "number": 90,
+      "title": "ws7: build the 3D from measurements and drop invented surface detail (V13, V4, V12)",
+      "merged_at": "2026-11-15T17:54:02Z",
+      "ai_generated": [
+        "UI code: class-typical toggle removed, 'colour unknown' and 'size unknown · not to scale' rendering, fact-origin chips (three/factOrigin.ts) in BodyPanel.tsx, SystemViewer.tsx and SystemsPage.tsx",
+        "Tests: factOrigin.test.ts and the updated three/ suites",
+        "Docs: docs/VISION_3D.md, tasks/WS7-3d-systems.md, the WS7 AI-usage records"
+      ],
+      "humans": "DankoLiv directed the work; it was squash-merged into main"
+    },
+    {
+      "number": 99,
+      "title": "ws7: catalog reticle for all five targets, honest label and predicted track (V3, on top of #96)",
+      "merged_at": "2026-11-15T17:58:20Z",
+      "ai_generated": [
+        "Code: three/blinkTarget.ts (predicted position, track and legend of the five targets on their SPHEREx frames)",
+        "UI code: the WS7 additions to BlinkViewer.tsx and FieldPage.tsx (WS5's #96 zoom, reticle and toggle kept as they were)",
+        "Tests: blinkTarget.test.ts"
+      ],
+      "humans": "DankoLiv directed the work; it was squash-merged into main"
+    },
+    {
+      "number": 107,
+      "title": "ws7: procedural catalog 3D for any object picked on the map (V14)",
+      "merged_at": "2026-11-15T19:01:59Z",
+      "ai_generated": [
+        "Code: three/contextSystem.ts (a SystemModel built in the browser from the object card, verified catalog values only)",
+        "UI code: three/ObjectSystemPreview.tsx and the 3D fallback and lookup pass-through in PositionResults.tsx and SkyExplorer.tsx",
+        "Tests: contextSystem.test.ts, sceneLayout.test.ts and bodyFormat.test.ts additions"
+      ],
+      "humans": "DankoLiv directed the work; it was squash-merged into main"
     }
   ],
-  "trailer_note": "Squash commits keep the Co-Authored-By trailers of every commit on the branch, so some list Claude more than once; the squash-commit author that git shows is not always the WS7 developer. Teammates' code in these files (#27 speed slider in SystemViewer.tsx, #30 cards in SystemPage.tsx and the UNVERIFIED VALUES badge in SystemPage.tsx) is kept verbatim and is not covered by this record"
+  "trailer_note": "Squash commits keep the Co-Authored-By trailers of every commit on the branch, so some list Claude more than once; the squash-commit author that git shows is not always the WS7 developer. Teammates' code in these files (BenjaminPondal's #26/#27 transport and speed slider in SystemViewer.tsx, his #30 cards in SystemPage.tsx, and the UNVERIFIED VALUES badge in SystemPage.tsx, which git blame gives to rpccp and Juan Farid Jalil Barberis) was kept verbatim up to #107. FE-12 (ws7/fe-12-3d-polish) restyles part of it: the #30 cards move their inline styles into three/system.css classes with the same values, and the UNVERIFIED VALUES badge takes the u-badge u-badge--warn classes and moves into the new page header; their texts, order and behaviour are unchanged, and the #26/#27 transport keeps its controls, order and texts in the default view (it only gains .s3d- classes; the new optional compact mode folds the view options). Their authorship is not covered by this record"
 }
