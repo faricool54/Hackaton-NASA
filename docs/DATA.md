@@ -203,8 +203,9 @@ propio. Evidencia en [`validation/`](validation/) (#36) y en las PRs #42 (cubo) 
 ### 3.3 Para el deploy (WS4) ✅ (2026-11-14, código en `849a2d0`, simulación y mediciones en vivo)
 
 Verificado por WS1 (Claude) la noche del 14/11 (≈ 02 UTC del 15/11) desde una laptop en Buenos Aires, leyendo
-`backend/Dockerfile`, `backend/errante_api/{settings,live_service}.py` y `pipeline/errante/data/*.py`. No cambia
-código de WS1; lo que toca `backend/` queda como `TODO(WS4)`.
+`backend/Dockerfile`, `backend/errante_api/{settings,live_service}.py`, `backend/errante_api/jobs/supervisor.py` y
+`pipeline/errante/data/*.py`. De código de WS1 solo cambia el texto de una nota de `cube_spectrum` (e); lo que toca
+`backend/` queda como `TODO(WS4)`. b), c), d) y e) se revisaron el 15/11 ≈ 02:45 UTC con reproducciones (abajo).
 
 **a) Los snapshots de búsqueda no entran en la imagen.**
 
@@ -232,9 +233,12 @@ código de WS1; lo que toca `backend/` queda como `TODO(WS4)`.
 **b) Presupuestos de tiempo frente a `ERRANTE_API_TIMEOUT_S` (30 s).**
 
 `live_service.call` espera 30 s con `asyncio.wait_for` y contesta 504, pero el trabajo **sigue corriendo** en su
-hilo y retiene uno de los `ERRANTE_API_MAX_CONCURRENT` (2) cupos hasta terminar; mientras tanto las demás consultas
-reciben 503 ("Archive capacity is busy"). Cada presupuesto de WS1 tiene que quedar por debajo de 30 s para contestar
-a tiempo **y** para liberar el cupo. Todas estas variables se leen al importar (cambiarlas = reiniciar el proceso).
+hilo y retiene uno de los `ERRANTE_API_MAX_CONCURRENT` (2) cupos hasta terminar. Con un solo cupo retenido la
+siguiente consulta usa el otro y contesta normal; **si los 2 cupos quedan retenidos**, las demás reciben 503
+("Archive capacity is busy") hasta que alguno termine. Reproducido con `LiveService(Settings(live_timeout_s=0,5,
+live_max_concurrent=2))` y una función que duerme 3 s: lenta → 504, rápida → 200, lenta → 504, rápida → **503**.
+Cada presupuesto de WS1 tiene que quedar por debajo de 30 s para contestar a tiempo **y** para liberar el cupo. Todas
+estas variables se leen al importar (cambiarlas = reiniciar el proceso).
 
 | Variable | Default (código) | Qué acota | Recomendado en el contenedor |
 |---|---|---|---|
@@ -262,11 +266,30 @@ S3, debería andar más rápido, ❓ sin medir):
 **c) Otras suposiciones de WS1 sobre rutas y disco (leyendo `pipeline/errante/data/*.py`).**
 
 - Todo lo que WS1 escribe va bajo `settings.CACHE_DIR` (`ERRANTE_CACHE_DIR=/app/data/cache` en el Dockerfile, creado
-  y con dueño 10001): `queries/` (búsquedas), `cube/dir` (~40 KB por tile) y `cube/spectra` (~7 KB por espectro),
-  `s3range/dir`, `point/layout`, `point/wave` y `point/series`; el backend agrega `api/` y `jobs/`. Todas las
-  escrituras son best-effort: un `OSError` no rompe la lectura, solo se pierde la caché. **No hay desalojo ni tope
-  de tamaño**: crece con cada punto o tile distinto. En un disco efímero se borra con cada redeploy (correcto, solo
-  más lento la primera vez).
+  y con dueño 10001); el backend agrega `api/` y `jobs/`. Hay dos tipos de escritura:
+  - **Obligatorias (el archivo en disco es el resultado):** los píxeles de cada frame de un build.
+    `s3range.fetch_patch` escribe `s3patch/<ra>_<dec>_<tamaño>am/<release>/<frame>.fits` y, si S3 falla, el respaldo
+    IBE (`cutouts.fetch_cutout` → `cache.cached_download`) escribe `<hh>/<hash>.fits`. Las dos propagan el `OSError`:
+    con la caché sin permiso de escritura o sin espacio, cada frame termina como `DOWNLOAD_FAILED` en `build.py` y el
+    build se queda sin imágenes. Son además lo que más ocupa: 358 patches S3 de 12′ de Barnard = 134 MB
+    ([`validation/barnards-star.md`](validation/barnards-star.md)).
+  - **Best-effort (solo caché):** `queries/` (búsquedas), `cube/dir` (~40 KB por tile) y `cube/spectra` (~7 KB por
+    espectro), `s3range/dir`, `point/layout`, `point/wave` y `point/series`. Un `OSError` no rompe la consulta, solo
+    se pierde la caché.
+  - Reproducido (15/11 ≈ 02:45 UTC) con `ERRANTE_CACHE_DIR` debajo de un archivo común: `cache.cached_download` →
+    `FileExistsError [WinError 183]`; la escritura de un patch (`s3range._atomic_write` sin `best_effort`) → el mismo
+    error; la del directorio de `s3range` (`best_effort=True`) → `False` sin excepción. En vivo, la búsqueda de
+    Barnard contestó igual (SIA, 358 frames; `irsa._cache_write` solo registra `Could not write search cache ...`),
+    pero `cutouts.fetch_cutouts` de 2 frames devolvió `[None, None]` (`S3: FileExistsError ...; IBE: FileExistsError
+    ...`).
+- **Cada job de build usa su propia caché.** `backend/errante_api/jobs/supervisor.py` (`_launch_child`) lanza el
+  proceso hijo con `ERRANTE_CACHE_DIR=<jobs_dir>/staging/<intento>/cache` (`jobs_dir` = `ERRANTE_JOBS_DIR`, por
+  defecto `CACHE_DIR/jobs`). Un job no reutiliza los patches de la API ni de otros jobs; `_cleanup` borra esa
+  `cache/` cuando el intento terminó y el job ya no está `running` ni `publishing` (y todo el staging a las 24 h). El
+  disco tiene que alcanzar para los patches de los jobs simultáneos: no montar `CACHE_DIR` ni `jobs_dir` como solo
+  lectura ni con un tope chico.
+- **No hay desalojo ni tope de tamaño** en la caché de la API: crece con cada punto o tile distinto. En un disco
+  efímero se borra con cada redeploy (correcto, solo más lento la primera vez).
 - La única ruta del repo que WS1 usa en ejecución es `data/index/search` (a). En producción solo se lee;
   `errante snapshot-search` la escribe, pero es una herramienta de desarrollo.
 - `fields.toml` viaja dentro del paquete (`errante/config/`, leído por `build.py`), así que `COPY pipeline/errante`
@@ -277,24 +300,32 @@ S3, debería andar más rápido, ❓ sin medir):
 
 **d) Espectros reales como fixtures para WS4/WS5.** `pipeline/tests/fixtures/ws1/cube_spectra/<id>_ap{0,2}.json`:
 `CubeSpectrum.to_dict()` en JSON estricto (NaN → `null`), 7,6–8,7 KB cada una, cargadas por
-`pipeline/tests/test_data_cube_spectra_fixtures.py`. Llamada en vivo del 2026-11-15 ~02:10 UTC desde S3, en el
-centro de `fields.toml`, con `with_nhits` y `with_flags`. El cielo vacío es (200,0, +40,1): sin fuentes Gaia DR3 a
-< 45″ y la AllWISE más cercana a 19″ (W1 = 17,2), según VizieR CfA.
+`pipeline/tests/test_data_cube_spectra_fixtures.py`. Llamadas en vivo desde S3 con `with_nhits` y `with_flags`: el
+2026-11-15 ~02:10 UTC en el centro de `fields.toml` de los cinco blancos y en un cielo vacío, y ~02:40 UTC en un
+hueco de cobertura cerca del centro galáctico. El cielo vacío es (200,0, +40,1): sin fuentes Gaia DR3 a < 45″ y la
+AllWISE más cercana a 19″ (W1 = 17,2), según VizieR CfA. El hueco es (268,09113, −28,71602), a ~1,5° de Sgr A\*.
 
-| Punto | Tile, píxel (x, y) | Planos válidos (ap 0 = ap 2) | Núcleo vacío (NaN, NHITS = 0) | Válidos con `OVERFLOW` |
+| Punto | Tile, píxel (x, y) | Planos válidos (ap 0 / ap 2) | Núcleo vacío (NaN, NHITS = 0) | Válidos con `OVERFLOW` |
 |---|---|---|---|---|
-| Barnard | 7945 (98, 103) | **10**: solo D5/D6, ≥ 4,29 µm | 90 | 2 |
-| ε Ind B | 11391 (98, 408) | 100 | 0 | 0 |
-| WISE 0855 | 10226 (212, 238) | 100 | 0 | 0 |
-| RW Aur | 277 (400, 252) | 85 | 15 (D4, 2,51–3,77 µm) | 50 |
+| Barnard | 7945 (98, 103) | **10**: solo D5/D6, ≥ 4,29 µm (igual) | 90 | 2 |
+| ε Ind B | 11391 (98, 408) | 100 (igual) | 0 | 0 |
+| WISE 0855 | 10226 (212, 238) | 100 (igual) | 0 | 0 |
+| RW Aur | 277 (400, 252) | 85 (igual) | 15 (D4, 2,51–3,77 µm) | 50 |
 | R Dra | 2928 (20, 425) | **0** | 100 | 0 |
-| Cielo vacío | 2708 (178, 220) | 100 | 0 | 0 |
+| Cielo vacío | 2708 (178, 220) | 100 (igual) | 0 | 0 |
+| Hueco (centro galáctico) | 7207 (75, 107) | 68 / 66 (planos 7 y 29: < 50 % de la apertura con datos) | **32** (D1–D3, 0,91–2,35 µm) | 5 |
 
 - Los planos 50 y 51 (dicroicos) están siempre en blanco. La apertura de 2 px no rescata un núcleo vacío.
-- En el FLAGS del cubo, los planos con el núcleo vacío llevan `SUR_ERROR` + `BLOOM` y **nunca** `OVERFLOW`, aunque
-  en las exposiciones L2 esos mismos núcleos tienen `OVERFLOW` (§3.2). En el cubo, `OVERFLOW` marca en cambio planos
-  **válidos** (finitos, probablemente subestimados). `SOURCE` está prendido en los 100 planos del cielo vacío: el
-  FLAGS del cubo acumula los bits de las entradas, y `SOURCE` no sirve para decir "acá hay una estrella".
+- **Núcleo vacío no es lo mismo que saturado.** En las tres estrellas saturadas, la región NaN que contiene el núcleo
+  mide 1–28 px (Barnard 2 y 6, RW Aur 1 y 3, R Dra 3 y 28, en dos planos perdidos de cada una, leídos completos). En el
+  hueco mide 33 014 px (plano 8) y 11 312 px (plano 34), con caja de hasta ~46′ × 67′ que llega al borde del tile: es
+  falta de cobertura del coadd, no una estrella.
+- En el FLAGS del cubo, los planos perdidos de las **estrellas saturadas** llevan `SUR_ERROR` + `BLOOM` (los 90, 15 y
+  100) y **nunca** `OVERFLOW`, aunque en las exposiciones L2 esos mismos núcleos tienen `OVERFLOW` (§3.2). Los del
+  **hueco** llevan `CROSSTALK` (32 de 32) y `PERSIST` (28), **nunca** `SUR_ERROR`, y `BLOOM` en uno (plano 30). En el
+  cubo, `OVERFLOW` marca en cambio planos **válidos** (finitos, probablemente subestimados; también 5 en el hueco).
+  `SOURCE` está prendido en los 100 planos del cielo vacío: el FLAGS del cubo acumula los bits de las entradas, y
+  `SOURCE` no sirve para decir "acá hay una estrella".
 
 **e) Propuesta para un futuro PR `contract:` (espectro de un punto).** No se tocó `models.py`. Un modelo nuevo y
 opcional (p. ej. `PointSpectrum`), con campos que salen directo de `CubeSpectrum.to_dict()`:
@@ -314,12 +345,15 @@ opcional (p. ej. `PointSpectrum`), con campos que salen directo de `CubeSpectrum
 | `mjd_range` | `[float, float]` | MJD de las entradas del coadd: **no hay eje temporal** |
 | `source`, `release` | str | `s3` o `irsa`; `dr1/hips5_cube/hips_20261026` |
 | `notes` | str[] | la primera es siempre la nota de IRSA "for visualization" (`cube.NOTE_VISUALIZATION`): la UI tiene que mostrarla |
-| `saturated` | bool | **regla:** algún plano fuera de `blank_planes` con `core_valid` falso (núcleo NaN, NHITS = 0). Sale de la llamada por defecto, sin FLAGS. Medido: verdadero en Barnard, RW Aur y R Dra; falso en ε Ind B, WISE 0855 y el cielo vacío. `cube_spectrum` ya agrega una nota equivalente |
-| `n_core_missing` | int | cuántos planos cumplen la regla (Barnard 90, RW Aur 15, R Dra 100) |
-| `overflow_planes` (opcional) | int[] | solo con `with_flags`: planos válidos con `OVERFLOW` en el FLAGS del cubo (RW Aur 50, Barnard 2) |
+| `n_core_missing` | int | planos fuera de `blank_planes` con `core_valid` falso (núcleo NaN, NHITS = 0). Sale de la llamada por defecto, sin FLAGS. **Significa "núcleo saturado o sin cobertura"**, no "saturado": Barnard 90, RW Aur 15, R Dra 100 y también el hueco del centro galáctico, 32 (d). `cube_spectrum` agrega una nota cuando es > 0 y nombra las dos causas |
+| `saturated` | `bool \| null` | **regla (INFERIDA de 3 estrellas saturadas + 1 hueco + 3 puntos limpios):** algún plano de los que cuenta `n_core_missing` con `SUR_ERROR` **y** `BLOOM` en el FLAGS del cubo. Necesita `with_flags`; sin FLAGS es `null` (desconocido), nunca `false`. Medido: verdadero en Barnard, RW Aur y R Dra (todos sus planos perdidos tienen los dos bits); falso en ε Ind B, WISE 0855, el cielo vacío **y el hueco** (sin `SUR_ERROR`). "`SUR_ERROR` **o** `BLOOM`" no sirve: el plano 30 del hueco tiene `BLOOM` |
+| `n_core_saturated` (opcional) | int | solo con `with_flags`: cuántos planos cumplen la regla de `saturated`; `n_core_missing − n_core_saturated` = planos perdidos por cobertura |
+| `overflow_planes` (opcional) | int[] | solo con `with_flags`: planos válidos con `OVERFLOW` en el FLAGS del cubo (RW Aur 50, Barnard 2, hueco 5). No indica saturación por sí solo |
 
-`tile`, `pixel`, `nhits`, `flags` y `timings` quedan fuera del contrato (sirven para depurar). La regla de
-`saturated` está implementada en el test (`saturation_hint`) para que el PR de contrato la copie.
+`tile`, `pixel`, `nhits`, `flags` y `timings` quedan fuera del contrato (sirven para depurar). Las reglas de
+`n_core_missing` y `saturated` están implementadas en el test (`saturation_hint`), con el hueco como regresión, para
+que el PR de contrato las copie. Una regla sin FLAGS (`saturated` = algún núcleo vacío) marcaría el hueco como
+estrella saturada: no usarla.
 
 ## 4. Instrumento y survey 📄
 
