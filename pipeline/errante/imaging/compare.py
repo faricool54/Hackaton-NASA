@@ -25,16 +25,21 @@ Every coadd exports its per-frame weights (``Coadd.weights``, same order as
 ``frame_ids``): 1 / median VARIANCE of the frame's usable pixels, in
 (MJy/sr)^-2, or 1 / robust noise^2 for a frame without a VARIANCE plane.
 
-Display (``display_scale``): the colour range is normally the field's
-brightest residuals (99.9th percentile) or 10 x the noise. A faint target
-(WISE 0855) is then drawn far below the residuals of bright field stars, so
-when the field limit is at least ``FAINT_TARGET_RATIO`` x the limit of the
-target region (the circle of ``target_exclusion``), the range comes from the
-target region instead, never below 10 x the noise, and the note says that
-field-star residuals clip. The asinh softening keeps residuals under ~3 x the
-noise in its linear, dark part, whatever the range. Notes also flag an
-unscaled difference (s = 1) and a target core that is saturated or flagged
-in a coadd: the difference there is not a brightness measurement.
+Display (``display_scale``): "noise" there is the robust sigma (1.4826 x
+MAD) of the difference image's valid pixels. The colour range is normally the
+field's brightest residuals (99.9th percentile of |residual|) or 10 x the
+noise. A faint target (WISE 0855) is then drawn far below the residuals of
+bright field stars, so when the field limit is at least
+``FAINT_TARGET_RATIO`` x the limit of the target region (the SECOND-largest
+|residual| within the circle of ``target_exclusion``, so that one hot pixel
+or cosmic ray does not set it; never below 10 x the noise), the range comes
+from the target region instead and the note says that field-star residuals
+clip. The asinh softening is min(1, max(0.05, 3 x noise / limit)): residuals
+under ~3 x the noise stay in its linear, dark part, whatever the range. Notes
+also flag an unscaled difference (s = 1) and a flagged target core
+(``Difference.target_core_flagged``: some core pixel is flagged or invalid in
+at least one frame of a coadd; partial flags count): the difference there is
+not a clean brightness measurement.
 
 Limitation: a coadd holds only the field's selected frames (a few per season
 and detector), which sample different wavelengths in each season. A target
@@ -75,12 +80,15 @@ HALO_NSIGMA = (
 MIN_RING_PIXELS = 8  # rings with fewer valid pixels (saturated core, no data) do not end the halo
 MIN_BACKGROUND_PIXELS = 50
 # Display of a difference. The field limit (brightest residuals or 10 x noise) must be at least this many times the
-# target-region limit before the range is taken from the target region. Golden fields (2026-11-15, 40-frame builds):
-# field / target-region limit is 0.15-1.32 for Barnard's Star, 0.08-1.20 RW Aurigae, 0.31-0.90 R Draconis, 0.06-2.16
-# eps Indi B (2.16 in D1 S1-S0 only) and 1.28-12 WISE 0855 (D5/D6 1.28-2.44).
+# target-region limit before the range is taken from the target region. Golden fields (2026-11-15, 40-frame builds,
+# target limit = second-largest |residual|): field / target-region limit is 0.21-1.36 for Barnard's Star, 0.11-1.35
+# RW Aurigae, 0.51-0.93 R Draconis, 0.17-2.17 eps Indi B (>= 2 in D1 S1-S0 and D6 S3-S2 only) and 1.28-12 WISE 0855
+# (D5/D6 1.28-2.44).
 FAINT_TARGET_RATIO = 2.0
 DIFF_SOFTENING = 0.05  # asinh softening (fraction of the limit) for a range far above the noise
-NOISE_SOFTENING_SIGMAS = 3.0  # softening x limit >= this many noise sigmas: the noise stays in the dark, linear part
+# softening x limit >= this many noise sigmas (robust sigma of the difference image), softening capped at 1: the
+# noise stays in the dark, linear part
+NOISE_SOFTENING_SIGMAS = 3.0
 CORE_RADIUS_PX = 2.0  # the target core: pixels within this radius of the field centre (12 px)
 
 LIMITATIONS = [
@@ -92,9 +100,11 @@ LIMITATIONS = [
     "and the difference also shows the wavelength change. A saturated target in a sparse field (e.g. R Draconis) "
     "often leaves too few stars and falls back to s = 1.",
     "Saturated cores and detector defects carry no valid data (grey checkerboard).",
-    "Display only: the colour range is the field's brightest residuals or 10 x the noise. When the target region "
-    "is much fainter (field range >= 2 x target-region range, e.g. WISE 0855), the range is set from the target "
-    "region and brighter field-star residuals clip (saturate). Residuals under ~3 x the noise stay dark.",
+    "Display only: the colour range is the field's brightest residuals or 10 x the noise (noise = robust sigma of "
+    "the difference image). When the target region is much fainter (field range >= 2 x target-region range, e.g. "
+    "WISE 0855), the range is set from the target region (its second-largest residual: one hot pixel cannot set "
+    "it, and the brightest pixel there may clip) and brighter field-star residuals clip (saturate). Residuals under "
+    "~3 x the noise stay dark.",
     "With two or three frames per season and detector, a faint target can stay in the noise: an empty target "
     "region at this depth is not evidence that the target did not move or vary.",
 ]
@@ -104,10 +114,14 @@ WEIGHTS_DEFINITION = (
     "is the weighted mean of the frames valid there (sky removed per frame)."
 )
 DISPLAY_DEFINITION = (
-    "Signed asinh: v = asinh(x / (softening x limit)) / asinh(1 / softening), clipped at +/- limit "
-    "('limit_mjy_sr'). softening = max(0.05, 3 x noise / limit). 'limit_rule' is 'field' (99.9th percentile of the "
-    "field's |residuals| or 10 x noise) or 'target_region' (largest |residual| within 'target_exclude_px' of the field "
-    "centre, at least 10 x noise; used when the field limit is >= 2 x that)."
+    "Signed asinh: v = asinh(x / (softening x limit)) / asinh(1 / softening) for a residual x (MJy/sr) clipped at "
+    "+/- limit ('limit_mjy_sr'). softening = min(1, max(0.05, 3 x noise / limit)) ('display_softening'), where noise "
+    "is the robust sigma (1.4826 x median absolute deviation) of the difference image's valid pixels (not "
+    "'noise_mjy_sr', which comes from the propagated VARIANCE). 'field_limit_mjy_sr' = 99.9th percentile of the "
+    "field's |residuals| or 10 x noise, whichever is larger. 'target_limit_mjy_sr' = second-largest |residual| "
+    "within 'target_exclude_px' of the field centre (so one hot pixel or cosmic ray cannot set it; the brightest "
+    "pixel there may clip), at least 10 x noise. 'limit_rule' is 'target_region' (limit = target limit) when the "
+    "field limit is >= 2 x the target limit, else 'field' (limit = field limit)."
 )
 
 
@@ -155,14 +169,15 @@ class Coadd:
 
 @dataclass(frozen=True)
 class CoreCoverage:
-    """How many target-core pixels (within ``CORE_RADIUS_PX`` of the field centre) lost frames to bad pixels."""
+    """How many target-core pixels (within ``CORE_RADIUS_PX`` of the field centre) are flagged or invalid."""
 
     pixels: int
-    no_data: int  # no valid frame at all: saturated or flagged in every frame (grey checkerboard)
-    fewer_frames: int  # valid in some frames only: the mean there mixes fewer frames (other wavelengths)
+    no_data: int  # flagged or invalid in every frame of the coadd: no data (grey checkerboard)
+    fewer_frames: int  # flagged or invalid in some frames only: the mean there mixes fewer frames (other wavelengths)
 
     @property
     def flagged(self) -> bool:
+        """Some core pixel is flagged or invalid in at least one frame of the coadd (partial flags count)."""
         return self.no_data > 0 or self.fewer_frames > 0
 
 
@@ -186,6 +201,11 @@ class Difference:
 
     @property
     def target_core_flagged(self) -> bool:
+        """Some target-core pixel is flagged or invalid in at least one frame of either coadd (partial flags count).
+
+        Not "saturated": a core pixel flagged in one frame of three is enough. ``core_no_data_px`` and
+        ``core_fewer_frames_px`` of each coadd say how many core pixels are flagged in every / some frames.
+        """
         return core_coverage(self.late).flagged or core_coverage(self.early).flagged
 
 
@@ -289,23 +309,22 @@ def core_coverage(c: Coadd, radius: float = CORE_RADIUS_PX) -> CoreCoverage:
     )
 
 
+def _core_counts(cid: str, cov: CoreCoverage) -> str:
+    every = f", {cov.no_data} of them in every frame" if cov.no_data else ""
+    return f"{cid}: {cov.no_data + cov.fewer_frames} of {cov.pixels} px{every}"
+
+
 def _core_note(late: Coadd, early: Coadd) -> str | None:
-    """One note when the target core of either coadd is saturated or flagged; None when it is clean."""
-    covs = [(c.id, core_coverage(c)) for c in (early, late)]
-    where = f"within {CORE_RADIUS_PX:g} px of the field centre"
-    saturated = [f"{cid} ({cov.no_data} of {cov.pixels} px)" for cid, cov in covs if cov.no_data]
-    if saturated:
-        return (
-            f"Target core saturated or flagged in {', '.join(saturated)} {where}: no valid data there (grey "
-            "checkerboard), so the difference there is not a brightness measurement."
-        )
-    partial = [f"{cid} ({cov.fewer_frames} of {cov.pixels} px)" for cid, cov in covs if cov.fewer_frames]
-    if partial:
-        return (
-            f"Target core flagged in some frames of {', '.join(partial)} {where}: those pixels average fewer frames "
-            "(other wavelengths), so the difference there is not a clean brightness measurement."
-        )
-    return None
+    """The note of ``Difference.target_core_flagged`` (partial flags count); None when the core is clean."""
+    flagged = [_core_counts(c.id, cov) for c in (early, late) if (cov := core_coverage(c)).flagged]
+    if not flagged:
+        return None
+    return (
+        f"Target core flagged: pixels within {CORE_RADIUS_PX:g} px of the field centre are flagged or invalid in at "
+        f"least one frame of the coadd ({'; '.join(flagged)}). Those pixels average fewer frames (other "
+        "wavelengths) or, when flagged in every frame, have no data (grey checkerboard), so the difference there is "
+        "not a clean brightness measurement."
+    )
 
 
 def _max_exclusion(shape: tuple[int, ...]) -> float:
@@ -418,34 +437,47 @@ class DisplayScale:
     """How a difference is drawn by ``diverging_rgba``: colour range, softening and why."""
 
     limit: float  # MJy/sr: |residual| drawn at full colour (clipped above)
-    softening: float
+    softening: float  # min(1, max(DIFF_SOFTENING, 3 x noise / limit)); noise = robust sigma of the difference
     rule: str  # "field" or "target_region"
     field_limit: float  # brightest field residuals (pct) or nsigma x noise
-    target_limit: float | None  # largest residual in the target region, at least nsigma x noise
+    target_limit: float | None  # second-largest |residual| in the target region, at least nsigma x noise
     notes: tuple[str, ...] = ()
 
 
 def noise_softening(limit: float, sigma: float) -> float:
-    """asinh softening that keeps residuals under ``NOISE_SOFTENING_SIGMAS`` x ``sigma`` in the dark linear part."""
+    """asinh softening ``min(1, max(DIFF_SOFTENING, NOISE_SOFTENING_SIGMAS x sigma / limit))``.
+
+    ``sigma`` is the noise of the difference image (``display_scale`` passes its robust sigma): residuals under
+    ``NOISE_SOFTENING_SIGMAS`` x ``sigma`` stay in the dark, linear part of the asinh. The cap at 1 keeps the map
+    close to linear when the limit is under ~3 x the noise. ``DIFF_SOFTENING`` without a valid sigma or limit.
+    """
     if not (math.isfinite(sigma) and sigma > 0 and limit > 0):
         return DIFF_SOFTENING
     return min(max(DIFF_SOFTENING, NOISE_SOFTENING_SIGMAS * sigma / limit), 1.0)
 
 
 def _target_region_peak(diff: Difference) -> float | None:
-    """Largest |residual| within ``target_exclude_px`` of the field centre; None without valid pixels there."""
+    """Second-largest |residual| within ``target_exclude_px`` of the field centre; None without valid pixels there.
+
+    Not the largest: one hot pixel or cosmic ray in the region must not set the colour range. A moving target
+    leaves two lobes, so this is usually the fainter lobe; a residual held by one pixel (SPHEREx undersamples
+    its PSF) clips there. A region with a single valid pixel returns that pixel.
+    """
     region = np.isfinite(diff.data) & (_centre_distance(diff.data.shape) <= diff.target_exclude_px)
-    if not region.any():
+    values = np.abs(diff.data[region])
+    if values.size == 0:
         return None
-    return float(np.abs(diff.data[region]).max())
+    if values.size == 1:
+        return float(values[0])
+    return float(np.partition(values, -2)[-2])
 
 
 def _target_region_note(limit: float, peak: float, field_limit: float, radius: float, nsigma: float) -> str:
     where = f"within {radius:.0f} px of the field centre"
     why = (
-        f"the largest residual {where}"
+        f"the second-largest residual {where}: the single brightest pixel there may clip"
         if peak >= limit
-        else f"{nsigma:g} x the noise: no residual {where} is brighter than that"
+        else f"{nsigma:g} x the noise: the second-largest residual {where} is fainter than that"
     )
     return (
         f"Faint target: display limit set from the target region ({limit:.3g} MJy/sr, {why}) instead of the field "
@@ -456,10 +488,12 @@ def _target_region_note(limit: float, peak: float, field_limit: float, radius: f
 def display_scale(diff: Difference, nsigma: float = 10.0, pct: float = 99.9) -> DisplayScale:
     """Colour range and softening of a difference.
 
-    Field limit: the field's brightest residuals (``pct`` percentile of |residual|) or ``nsigma`` x the
-    robust noise, whichever is larger. When it is at least ``FAINT_TARGET_RATIO`` x the target-region
-    limit (largest |residual| within ``target_exclude_px`` of the field centre, never below ``nsigma`` x
-    noise) the target region sets the range and a note says that field-star residuals clip.
+    noise = robust sigma (1.4826 x MAD) of the difference image's valid pixels. Field limit: the field's
+    brightest residuals (``pct`` percentile of |residual|) or ``nsigma`` x noise, whichever is larger. When
+    it is at least ``FAINT_TARGET_RATIO`` x the target-region limit (second-largest |residual| within
+    ``target_exclude_px`` of the field centre, so one hot pixel does not set it; never below ``nsigma`` x
+    noise) the target region sets the range and a note says that field-star residuals clip. Softening:
+    ``noise_softening(limit, noise)`` = min(1, max(0.05, 3 x noise / limit)).
     """
     ok = np.isfinite(diff.data)
     if not ok.any():
@@ -540,7 +574,7 @@ def _difference_meta(d: Difference, scale: DisplayScale, image: str) -> dict:
         "target_limit_mjy_sr": scale.target_limit,
         "display_softening": scale.softening,
         "noise_mjy_sr": _finite_or_none(float(np.sqrt(np.nanmedian(d.variance)))),
-        "target_core_flagged": d.target_core_flagged,
+        "target_core_flagged": d.target_core_flagged,  # a core pixel flagged/invalid in >= 1 frame of a coadd
         "image": image,
         "notes": [*d.notes, *scale.notes],
     }

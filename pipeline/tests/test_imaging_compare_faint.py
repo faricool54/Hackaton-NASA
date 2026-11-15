@@ -1,5 +1,7 @@
 """WS2-7 follow-up: season differences stay readable for faint targets (WISE 0855) and say what they cannot show."""
 
+from dataclasses import replace
+
 import numpy as np
 import pytest
 from test_imaging_compare import N, _field, _loader, frame, scene
@@ -15,6 +17,7 @@ from errante.imaging.compare import (
     difference_limit,
     display_scale,
     diverging_rgba,
+    noise_softening,
 )
 
 C = (N - 1) / 2
@@ -30,10 +33,18 @@ def _pair(target_amp: float, extra_late=(VARIABLE_FIELD_STAR,), seed=20):
     return difference(late, early)
 
 
-def _region_max(d) -> float:
+def _region_values(d) -> np.ndarray:
     yy, xx = np.indices(d.data.shape)
     inside = np.isfinite(d.data) & (np.hypot(xx - C, yy - C) <= d.target_exclude_px)
-    return float(np.abs(d.data[inside]).max())
+    return np.sort(np.abs(d.data[inside]))
+
+
+def _region_max(d) -> float:
+    return float(_region_values(d)[-1])
+
+
+def _region_second(d) -> float:
+    return float(_region_values(d)[-2])
 
 
 def _field_limit(d, nsigma=10.0) -> float:
@@ -47,12 +58,12 @@ def test_a_faint_target_takes_the_limit_from_its_region_and_says_so():
     scale = display_scale(d)
     assert scale.rule == "target_region"
     assert scale.field_limit == pytest.approx(_field_limit(d))
-    assert scale.limit == pytest.approx(_region_max(d)) and scale.limit > 10 * sigma
+    assert scale.limit == pytest.approx(_region_second(d)) and scale.limit > 10 * sigma
     assert scale.field_limit >= FAINT_TARGET_RATIO * scale.limit
     assert difference_limit(d) == scale.limit
     (note,) = scale.notes
     assert "display limit set from the target region" in note and "field-star residuals clip" in note
-    assert "the largest residual within 8 px of the field centre" in note
+    assert "the second-largest residual within 8 px of the field centre" in note
     # the dipole reads much brighter than with the field limit, while the variable field star saturates
     y_now = int(C)
     shown = diverging_rgba(d.data, scale.limit, scale.softening)[y_now, int(C), 0]
@@ -76,7 +87,20 @@ def test_without_a_target_signal_the_limit_never_goes_below_nsigma_noise():
     assert scale.rule == "target_region" and scale.limit == pytest.approx(10 * sigma)
     assert display_scale(d, nsigma=20).limit == pytest.approx(20 * sigma)
     (note,) = scale.notes
-    assert "10 x the noise: no residual within 8 px of the field centre is brighter" in note
+    assert "10 x the noise: the second-largest residual within 8 px of the field centre is fainter" in note
+
+
+def test_one_hot_pixel_in_the_target_region_does_not_set_the_display_limit():
+    d = _pair(target_amp=3.0)
+    clean = display_scale(d)
+    hot = d.data.copy()
+    y, x = int(C) + 4, int(C) - 3  # 4.9 px from the centre: inside the 8-px target region
+    hot[y, x] = 50 * clean.limit  # a cosmic ray or hot pixel left in one coadd
+    scale = display_scale(replace(d, data=hot))
+    assert scale.rule == "target_region"
+    assert scale.limit == pytest.approx(_region_max(d))  # the target's own brightest residual, not the hot pixel
+    assert scale.limit < hot[y, x] / 10
+    assert diverging_rgba(hot, scale.limit, scale.softening)[y, x, 0] == 255  # the hot pixel clips
 
 
 def test_a_field_without_bright_residuals_keeps_the_field_limit():
@@ -93,6 +117,9 @@ def test_the_noise_stays_dark_whatever_the_limit():
     assert diverging_rgba(noise_px, faint.limit, DIFF_SOFTENING)[0, 0, 0] > 90  # the old fixed softening
     bright = display_scale(_pair(target_amp=80.0, extra_late=()))  # limit >> 60 x noise
     assert bright.softening == DIFF_SOFTENING
+    near_noise = display_scale(_pair(target_amp=0.0), nsigma=2.0)  # limit = 2 x noise: 3 x noise / limit = 1.5
+    assert near_noise.rule == "target_region" and near_noise.softening == 1.0  # capped at 1
+    assert noise_softening(1.0, 1.0) == 1.0 and noise_softening(1.0, float("nan")) == DIFF_SOFTENING
 
 
 def test_an_unscaled_difference_says_so_first():
@@ -139,7 +166,9 @@ def test_a_saturated_target_core_is_not_a_brightness_measurement():
     d = difference(late, early)
     assert d.target_core_flagged
     (note,) = [n for n in d.notes if "core" in n]
-    assert "saturated or flagged" in note and "D2_S0" in note and "not a brightness measurement" in note
+    assert note.startswith("Target core flagged") and "flagged or invalid in at least one frame" in note
+    assert "D2_S0: 12 of 12 px, 12 of them in every frame" in note and "D2_S1" not in note
+    assert "no data (grey checkerboard)" in note and "not a clean brightness measurement" in note
 
 
 def test_a_target_core_flagged_in_some_frames_says_fewer_frames():
@@ -150,8 +179,10 @@ def test_a_target_core_flagged_in_some_frames_says_fewer_frames():
     cov = core_coverage(early)
     assert (cov.no_data, cov.fewer_frames) == (0, 1) and cov.flagged
     d = difference(late, early)
+    assert d.target_core_flagged  # partial flags count: one core pixel in one of two frames
     (note,) = [n for n in d.notes if "core" in n]
-    assert "fewer frames" in note and "D3_S0" in note and "not a clean brightness measurement" in note
+    assert "flagged or invalid in at least one frame" in note and "(D3_S0: 1 of 12 px)" in note
+    assert "fewer frames" in note and "not a clean brightness measurement" in note
 
 
 def test_a_clean_target_core_adds_no_note():
