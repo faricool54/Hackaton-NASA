@@ -98,26 +98,116 @@ def compute_stretch(img: np.ndarray, sigma_low: float = 2.0, sigma_high: float =
     return Stretch(vmin=vmin, vmax=vmax, method="asinh")
 
 
-def to_uint8(img: np.ndarray, stretch: Stretch, softening: float = 0.1) -> np.ndarray:
-    x = (img - stretch.vmin) / (stretch.vmax - stretch.vmin)
-    x = np.clip(np.nan_to_num(x, nan=0.0), 0.0, 1.0)
+HIGHLIGHT_KNEE = 0.85  # with a highlight roll-off, stretch.vmax maps to this fraction of white
+TARGET_RADIUS_PX = 2.5  # the target's core: grid pixels this close to the field centre
+# A group gets a roll-off only if its target core holds no flagged pixel in at least half of its frames: a
+# flagged core pixel is mostly saturation (OVERFLOW) or a ramp error, i.e. a lower bound that would still clip
+# (RW Aurigae D2-D6 have OVERFLOW in the core in 24 of 25 frames, Barnard and R Draconis in all).
+MAX_BAD_CORE_FRACTION = 0.0
+MAX_TOP_OVER_MEDIAN = 4.0  # roll-off top at most this x the median target peak (RW Aur varies 2.4x in D1)
+
+
+def to_uint8(img: np.ndarray, stretch: Stretch, softening: float = 0.1, highlight: float | None = None) -> np.ndarray:
+    """8-bit grey levels of ``img`` under ``stretch``.
+
+    With ``highlight`` (MJy/sr, above ``stretch.vmax``) values beyond ``vmax`` are not clipped to white: the
+    usual curve fills [0, ``HIGHLIGHT_KNEE``] of the grey range and a logarithmic roll-off maps
+    (vmax, highlight] onto the rest, so a bright, unsaturated target keeps its brightness changes visible.
+    """
+    x = np.nan_to_num((img - stretch.vmin) / (stretch.vmax - stretch.vmin), nan=0.0)
+    y = np.clip(x, 0.0, 1.0)
     if stretch.method == "asinh":
-        x = np.arcsinh(x / softening) / np.arcsinh(1.0 / softening)
+        y = np.arcsinh(y / softening) / np.arcsinh(1.0 / softening)
     elif stretch.method == "log":
-        x = np.log1p(1000 * x) / np.log1p(1000)
-    return (x * 255).round().astype(np.uint8)
+        y = np.log1p(1000 * y) / np.log1p(1000)
+    if highlight is not None and highlight > stretch.vmax:
+        top = (highlight - stretch.vmin) / (stretch.vmax - stretch.vmin)
+        above = x > 1.0
+        y = HIGHLIGHT_KNEE * y
+        y[above] = HIGHLIGHT_KNEE + (1.0 - HIGHLIGHT_KNEE) * np.log(np.minimum(x[above], top)) / np.log(top)
+    return (y * 255).round().astype(np.uint8)
 
 
-def save_png(img: np.ndarray, path: Path, stretch: Stretch | None = None) -> Stretch:
+def _core(shape: tuple[int, ...]) -> np.ndarray:
+    h, w = shape
+    yy, xx = np.indices((h, w))
+    return np.hypot(xx - (w - 1) / 2, yy - (h - 1) / 2) <= TARGET_RADIUS_PX
+
+
+def target_highlights(
+    images: Sequence[np.ndarray],
+    groups: Sequence[Hashable],
+    bad_masks: Sequence[np.ndarray | None],
+    stretches: Sequence[Stretch],
+    hi_pct: float = 99.5,
+) -> list[float | None]:
+    """Per image, the top of a highlight roll-off (``to_uint8``) or None.
+
+    A group (detector) gets one when its target (the field centre) is clean — no flagged (bad) core pixel
+    in at least half of its frames, see ``MAX_BAD_CORE_FRACTION`` — and the target's brightest
+    usable core pixel is above the group's shared bright end in at least half of its frames (one odd frame,
+    e.g. a cosmic ray on the core, does not change a detector's look). The top is the largest such peak above
+    each frame's own sky, capped at ``MAX_TOP_OVER_MEDIAN`` x the median peak, so the target clips in no
+    ordinary frame. Saturated targets (Barnard's Star, R Draconis, RW Aurigae D2-D6) keep the plain stretch:
+    their core values are lower bounds and cannot show brightness changes.
+    """
+    peaks: list[float | None] = []
+    fractions: list[float] = []
+    backgrounds: list[float | None] = []
+    for img, bad in zip(images, bad_masks, strict=True):
+        core = _core(img.shape)
+        usable = core & np.isfinite(img) & (~bad if bad is not None else True)
+        stats = _sky_stats(img, hi_pct, bad)
+        backgrounds.append(None if stats is None else stats.background)
+        fractions.append(1.0 - usable.sum() / core.sum())
+        peaks.append(float(img[usable].max()) - stats.background if usable.any() and stats is not None else None)
+    tops: dict[Hashable, float | None] = {}
+    for key in dict.fromkeys(groups):
+        idx = [i for i, g in enumerate(groups) if g == key]
+        measured = [i for i in idx if peaks[i] is not None and backgrounds[i] is not None]
+        if not measured or np.median([fractions[i] for i in idx]) > MAX_BAD_CORE_FRACTION:
+            tops[key] = None
+            continue
+        rises = sum(peaks[i] > stretches[i].vmax - backgrounds[i] for i in measured)
+        median_peak = float(np.median([peaks[i] for i in measured]))
+        top = min(max(peaks[i] for i in measured), MAX_TOP_OVER_MEDIAN * median_peak)
+        tops[key] = top if 2 * rises >= len(idx) and top > 0 else None
+    return [
+        None if tops[g] is None or backgrounds[i] is None else backgrounds[i] + tops[g] for i, g in enumerate(groups)
+    ]
+
+
+def target_scores(
+    images: Sequence[np.ndarray], bad_masks: Sequence[np.ndarray | None], stretches: Sequence[Stretch]
+) -> list[tuple[float, float]]:
+    """Per image, (signal-to-noise, prominence) of the target's core peak above the sky.
+
+    Prominence = peak / the shared bright end of the stretch: > 1 means the target outshines the field's
+    bright stars in that image. Saturated cores count with their display fill (a lower bound). (0, 0) for an
+    image without a usable sky.
+    """
+    out = []
+    for img, bad, s in zip(images, bad_masks, stretches, strict=True):
+        stats = _sky_stats(img, 99.5, bad)
+        core = _core(img.shape) & np.isfinite(img)
+        if stats is None or not core.any() or stats.sigma <= 0 or s.vmax <= stats.background:
+            out.append((0.0, 0.0))
+            continue
+        peak = float(img[core].max()) - stats.background
+        out.append((peak / stats.sigma, peak / (s.vmax - stats.background)))
+    return out
+
+
+def save_png(img: np.ndarray, path: Path, stretch: Stretch | None = None, highlight: float | None = None) -> Stretch:
     """``img`` must already be in PNG orientation (row 0 = north/top).
 
     Grid pixels without data (NaN: outside the cutout) become TRANSPARENT
     (grey + alpha PNG) instead of black, so the viewer can tell missing data
-    from dark sky. Images without NaN stay plain 8-bit grey.
+    from dark sky. Images without NaN stay plain 8-bit grey. ``highlight``: see ``to_uint8``.
     """
     stretch = stretch or compute_stretch(img)
     path.parent.mkdir(parents=True, exist_ok=True)
-    grey = to_uint8(img, stretch)
+    grey = to_uint8(img, stretch, highlight=highlight)
     nodata = ~np.isfinite(img)
     if nodata.any():
         alpha = np.where(nodata, 0, 255).astype(np.uint8)
