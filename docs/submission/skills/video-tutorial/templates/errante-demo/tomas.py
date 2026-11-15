@@ -42,7 +42,8 @@ async def d1(t):
 async def prepare_field(t, field_id="r-draconis", detector_value=None):
     await t.goto(f"/#/field/{field_id}")
     await t.page.locator(".blink-frame").first.wait_for(timeout=45000)
-    detector = t.page.locator(".field-layout .toolbar select").first
+    # FE-6 (#145) moved the detector select under the player (.fd-detector); keep the old toolbar as a fallback.
+    detector = t.page.locator(".fd-detector select, .field-layout .toolbar select").first
     values = await detector.locator("option").evaluate_all("items => items.map(x => x.value).filter(x => x !== 'all')")
     if detector_value is not None:
         await detector.select_option(str(detector_value))
@@ -54,11 +55,20 @@ async def prepare_field(t, field_id="r-draconis", detector_value=None):
     }""", timeout=60000)
 
 
+async def open_field_panel(t, tab_name, summary_pattern, tab_panel_selector):
+    """FE-6 (#145) shows the field panels as tabs; older builds used <details> summaries."""
+    tab = t.page.get_by_role("tab", name=tab_name, exact=True)
+    if await tab.count():
+        await tab.first.click()
+        return t.page.locator(tab_panel_selector).first
+    summary = t.page.locator("summary").filter(has_text=re.compile(summary_pattern))
+    await summary.click()
+    return summary.locator("..")
+
+
 async def d2(t):
     await prepare_field(t, "barnards-star", detector_value=2)
-    summary = t.page.locator("summary").filter(has_text=re.compile("^Compare seasons"))
-    await summary.click()
-    panel = summary.locator("..")
+    panel = await open_field_panel(t, "Seasons", "^Compare seasons", 'section[aria-label="Compare seasons"]')
     await panel.get_by_label(re.compile("^Comparison detector")).select_option("2")
     await panel.get_by_role("button", name="Build comparisons", exact=True).click()
     products = panel.get_by_label(re.compile("^Comparison product"))
@@ -72,22 +82,20 @@ async def d2(t):
     }""", timeout=30000)
     # Put the real image, its dates and the nearby quality warning in the frame;
     # merely revealing the selector can leave the entire difference below the fold.
-    await image.evaluate("""img => window.scrollTo({
-        top: Math.max(0, img.getBoundingClientRect().top + window.scrollY - 100),
-        behavior: 'instant'
-    })""")
+    # FE-6 scrolls the side panel itself, not the window, so scroll the nearest scroller.
+    await image.scroll_into_view_if_needed()
+    await image.evaluate("""img => img.scrollIntoView({ block: 'start', behavior: 'instant' })""")
     await t.start(ready=image)
     await hold_measured(t, "D2")
 
 
 async def d3(t):
     await prepare_field(t)
-    summary = t.page.locator("summary").filter(has_text=re.compile("^Light curve$"))
-    await summary.click()  # load the published product before recording
-    panel = summary.locator("..")
-    await panel.get_by_role("img").wait_for(timeout=45000)
+    # load the published product before recording
+    panel = await open_field_panel(t, "Light curve", "^Light curve$", '[role="tabpanel"]:not([hidden])')
+    await panel.get_by_role("img").first.wait_for(timeout=45000)
     await panel.scroll_into_view_if_needed()
-    await t.start(ready=panel.get_by_role("img"))
+    await t.start(ready=panel.get_by_role("img").first)
     await hold_measured(t, "D3")
 
 
