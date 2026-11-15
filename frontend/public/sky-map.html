@@ -51,7 +51,9 @@
     let allwiseLoading = false;
     let allwiseVisible = false;
     map.on('click', (p) => { if (p && Number.isFinite(p.ra) && Number.isFinite(p.dec))
-      send({ type: 'select', ra: p.ra, dec: p.dec }); });
+      // Aladin also emits click when a drag ends.
+      if (!p.isDragging) send({ type: 'select', ra: p.ra, dec: p.dec });
+    });
     addEventListener('message', (event) => {
       if (event.source !== parent || event.origin !== location.origin || event.data?.source !== 'errante-ui') return;
       const p = event.data;
