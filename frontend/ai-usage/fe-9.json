@@ -1,0 +1,5 @@
+{
+  "tool": "OpenAI Codex",
+  "scope": "FE-9 shared loading and error states, progress, tabs and provenance badges",
+  "human_review": "pending"
+}
