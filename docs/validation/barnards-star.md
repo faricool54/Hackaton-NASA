@@ -8,7 +8,7 @@
 >
 > Las dos búsquedas fueron SIA2 en vivo. No se usó el snapshot versionado, que da el mismo conjunto.
 >
-> Los scripts y la caché de A y de R quedaron en el scratch local de la sesión de Claude y no se versionan («scratch local» abajo; los de R están en `review/`). scipy 1.18.1 y matplotlib 3.11.2 se instalaron en ese scratch, fuera del venv del repo, y A y R usan esas mismas bibliotecas. Las figuras van en [`figures/barnards-star/`](figures/barnards-star/). Revisión humana pendiente.
+> Los scripts y la caché de A y de R quedaron en el scratch local de la sesión de Claude y no se versionan («scratch local» abajo; los de R están en `review/`). scipy 1.18.1 y matplotlib 3.11.2 se instalaron en ese scratch, fuera del venv del repo, y A y R usan esas mismas bibliotecas. Las figuras van en [`figures/barnards-star/`](figures/barnards-star/). Revisión humana: DankoLiv, 2026-11-15 (guiada; los análisis no se volvieron a correr).
 
 **Resultado: success.** Se ensayó el movimiento propio de Barnard's Star (Gaia DR3 4472832130942575872) con las 358 exposiciones SPHEREx que cubren la posición: DR1 + QR3, 3 temporadas, del 2025-08-15 al 2026-09-22. La estrella **satura** (VERIFICADO por A y R, con los mismos conteos):
 - `OVERFLOW` en el núcleo en 357 de 358 exposiciones (1–11 px a ≤ 3 px);
@@ -237,7 +237,7 @@ Convención: **VERIFICADO** = medido en esta sesión (script en scratch); **INFE
     - [fig3_wcs.png](figures/barnards-star/fig3_wcs.png): Análisis original: punto cero del WCS por exposición.
     - [fig4_published_pngs.png](figures/barnards-star/fig4_published_pngs.png): Análisis original: los 40 PNG publicados con la posición predicha y el centroide de la meseta.
     - [fig5_methods.png](figures/barnards-star/fig5_methods.png): Análisis original: máscaras de cada método y residuos frente a la fase subpíxel.
-- **Reviewer / date:** Claude (WS1) con revisión adversarial independiente / 2026-11-15; revisión humana pendiente
+- **Reviewer / date:** Claude (WS1) con revisión adversarial independiente / 2026-11-15; revisión humana: DankoLiv / 2026-11-15 (revisión guiada de resultado, evidencia, figuras y limitaciones con la hoja de V5; los análisis no se volvieron a correr)
 
 ## Detalle de la medición
 
