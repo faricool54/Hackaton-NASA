@@ -4,7 +4,7 @@
 >
 > **Vigencia (2026-11-14).** Se analizó el build de integración (main `9b8ba42` + `ws2/season-compare`, 18:41 UTC). El campo publicado en `main` por #17 (18:54 UTC) tiene **los mismos 40 frames y PNG idénticos bit a bit** (md5), así que este registro vale para el campo publicado. Única diferencia: #17 ya publica `wavelength_um`/`bandwidth_um` en el centro del campo en los 40 frames, así que lo que abajo se dice de «λ nula en `field.json`» quedó resuelto en el producto. Sigue abierto que la *selección* de frames no ordena por λ: las filas SIA no traen λ y la selección de #17 es idéntica.
 >
-> Los scripts y la caché del análisis quedaron en el scratch local de la sesión de Claude y no se versionan («scratch local» abajo). Las figuras sí están en el repo, en [`figures/rw-aurigae/`](figures/rw-aurigae/). Revisión humana pendiente.
+> Los scripts y la caché del análisis quedaron en el scratch local de la sesión de Claude y no se versionan («scratch local» abajo). Las figuras sí están en el repo, en [`figures/rw-aurigae/`](figures/rw-aurigae/). Revisión humana: DankoLiv, 2026-11-15 (guiada; los análisis no se volvieron a correr).
 
 **Resultado: `success` para la variabilidad, medida en los FITS y solo en D1 (0,74–0,88 µm).** Se compararon frames sin flags
 del mismo detector a longitud de onda compatible (|Δλ|/λ < 1 %). RW Aur (A+B sin resolver) **se abrillanta ~1 mag a
@@ -225,7 +225,7 @@ La revisión encontró dos problemas nuevos:
     - [fig_review_pairs.png](figures/rw-aurigae/fig_review_pairs.png): Revisión: Δm de los pares frente a las comparaciones
     - [fig_review_compare.png](figures/rw-aurigae/fig_review_compare.png): Revisión: coadds y diferencias de `compare`
 
-- **Reviewer / date:** Claude (WS1) con revisión adversarial independiente / 2026-11-14; revisión humana pendiente.
+- **Reviewer / date:** Claude (WS1) con revisión adversarial independiente / 2026-11-14; revisión humana: DankoLiv / 2026-11-15 (revisión guiada de resultado, evidencia, figuras y limitaciones con la hoja de V5; los análisis no se volvieron a correr).
 
 ## Detalle de la medición
 

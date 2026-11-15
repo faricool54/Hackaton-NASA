@@ -5,7 +5,7 @@ main.xp-app {
 
 .xp-explorer {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) clamp(310px, 33vw, 460px);
+  grid-template-columns: minmax(0, 1fr) var(--dock-w, clamp(310px, 33vw, 460px));
   height: calc(100dvh - var(--topbar-h, 49px));
   min-width: 0;
 }
@@ -19,7 +19,7 @@ main.xp-app {
 
 .xp-search {
   position: absolute;
-  z-index: 2;
+  z-index: var(--z-map-ui, 10);
   inset: 12px auto auto 12px;
   width: min(390px, calc(100% - 112px));
   max-height: min(65%, 460px);
@@ -61,7 +61,7 @@ main.xp-app {
 @media (max-width: 900px) {
   .xp-explorer { grid-template-columns: minmax(0, 1fr); height: auto; }
   .xp-map { min-height: 50dvh; height: max(50dvh, 310px); }
-  .xp-search { inset: 8px auto auto 8px; width: min(330px, calc(100% - 86px)); }
+  .xp-search { inset: 8px auto auto 8px; width: min(330px, calc(100% - 104px)); }
   .xp-dock { border-inline-start: 0; border-block-start: 1px solid var(--border); }
   .xp-dock-body { overflow: visible; }
 }

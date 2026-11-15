@@ -4,7 +4,7 @@
 >
 > **Vigencia (2026-11-14).** Se analizó el build de integración (main `9b8ba42` + `ws2/season-compare`, 18:42 UTC). El campo publicado en `main` por #17 (18:53 UTC) tiene **los mismos 40 frames y PNG idénticos bit a bit** (md5), así que este registro vale para el campo publicado. Única diferencia: #17 ya publica `wavelength_um`/`bandwidth_um` en el centro del campo en los 40 frames, así que lo que abajo se dice de «λ nula en `field.json`» quedó resuelto en el producto. Sigue abierto que la *selección* de frames no ordena por λ: las filas SIA no traen λ y la selección de #17 es idéntica.
 >
-> Los scripts y la caché del análisis quedaron en el scratch local de la sesión de Claude y no se versionan («scratch local» abajo). Las figuras sí están en el repo, en [`figures/eps-indi-b/`](figures/eps-indi-b/). Revisión humana pendiente.
+> Los scripts y la caché del análisis quedaron en el scratch local de la sesión de Claude y no se versionan («scratch local» abajo). Las figuras sí están en el repo, en [`figures/eps-indi-b/`](figures/eps-indi-b/). Revisión humana: DankoLiv, 2026-11-15 (guiada; los análisis no se volvieron a correr).
 
 **Resultado: success.** Se ensayó el movimiento propio sobre el campo `eps-indi-b` con datos reales de SPHEREx (DR1 + QR3).
 ε Indi B (Ba+Bb, que SPHEREx no resuelve) se detecta como una sola fuente en 37 de los 40 frames publicados y en ~440 de los
@@ -170,7 +170,7 @@ Convención: **VERIFICADO** = medido en esta sesión (script en scratch); **INFE
     - [fig6_built_pngs_D1_D2_D3.png](figures/eps-indi-b/fig6_built_pngs_D1_D2_D3.png): Análisis original: PNG publicados D1–D3 (frames D1 sin objetivo, salto de fondo)
     - [fig7_ui_localhost_eps-indi-b.jpg](figures/eps-indi-b/fig7_ui_localhost_eps-indi-b.jpg): Análisis original: captura de la UI local
 
-- **Reviewer / date:** Claude (WS1) con revisión adversarial independiente / 2026-11-14; revisión humana pendiente
+- **Reviewer / date:** Claude (WS1) con revisión adversarial independiente / 2026-11-14; revisión humana: DankoLiv / 2026-11-15 (revisión guiada de resultado, evidencia, figuras y limitaciones con la hoja de V5; los análisis no se volvieron a correr)
 
 ## Detalle de la medición
 

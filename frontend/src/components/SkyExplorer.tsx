@@ -29,9 +29,6 @@ interface SelectionOptions {
 
 type SelectionOrigin = 'map' | 'preset' | 'search' | 'form';
 
-// The map reads this option once the optional FE-4a.0 prop lands.
-const MAP_LAYOUT = { layout: 'fill' } as const;
-
 function initialPosition() {
   try {
     const params = new URLSearchParams(location.search);
@@ -208,7 +205,7 @@ export function SkyExplorer({ sequences, systems, synthetic, manifestError }: Pr
 
   return <section className="xp-explorer" aria-label="SPHEREx sky explorer">
     <div className="xp-map">
-      <ExplorerMap {...MAP_LAYOUT} center={mapCenter} footprintFieldId={footprintFieldId}
+      <ExplorerMap layout="fill" center={mapCenter} footprintFieldId={footprintFieldId}
         onSelect={(point: SkyCoord & { insideFieldId?: string }) => {
           select(point, 'map', { fieldId: point.insideFieldId === footprintFieldId ? footprintFieldId : undefined });
         }} />
