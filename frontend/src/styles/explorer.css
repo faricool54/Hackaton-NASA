@@ -21,17 +21,18 @@ main.xp-app {
   position: absolute;
   z-index: var(--z-map-ui, 10);
   inset: 12px auto auto 12px;
-  width: min(390px, calc(100% - 112px));
-  max-height: min(65%, 460px);
-  overflow: auto;
+  width: min(420px, calc(100% - 112px));
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  /* The search results popover must overlay the map, so this box neither scrolls nor clips. */
+  overflow: visible;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 10px;
 }
 
 .xp-search > section { border: 0; margin: 0; }
-.xp-search > label { display: block; padding: 0 14px 12px; }
-.xp-search select { max-width: 100%; }
 
 .xp-dock {
   display: grid;
@@ -46,6 +47,7 @@ main.xp-app {
 .xp-dock-header { padding: 14px 16px 8px; overflow-wrap: anywhere; }
 .xp-dock-header h1 { margin: 0 0 5px; font-size: clamp(1.15rem, 1.55vw, 1.45rem); }
 .xp-dock-header p { margin: 4px 0; }
+.xp-dock-header .xp-note { font-size: 0.75rem; line-height: 1.3; }
 .xp-dock-links { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; }
 .xp-tabs { margin: 0 16px 8px; width: max-content; max-width: calc(100% - 32px); }
 .xp-tabs [aria-selected="true"] { background: var(--accent); color: var(--bg); }
@@ -60,8 +62,10 @@ main.xp-app {
 
 @media (max-width: 900px) {
   .xp-explorer { grid-template-columns: minmax(0, 1fr); height: auto; }
-  .xp-map { min-height: 50dvh; height: max(50dvh, 310px); }
-  .xp-search { inset: 8px auto auto 8px; width: min(330px, calc(100% - 104px)); }
+  /* Phones: the search and the target chips sit above the map instead of covering it (until FE-10). */
+  .xp-map { display: flex; flex-direction: column; overflow: visible; }
+  .xp-map > .mp-root.mp-fill { flex: none; height: max(50dvh, 310px); }
+  .xp-search { position: relative; inset: auto; order: -1; width: auto; border-width: 0 0 1px; border-radius: 0; }
   .xp-dock { border-inline-start: 0; border-block-start: 1px solid var(--border); }
   .xp-dock-body { overflow: visible; }
 }

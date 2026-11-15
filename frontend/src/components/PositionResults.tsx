@@ -20,6 +20,7 @@ interface Props {
   view: ExplorerView;
   onView: (view: ExplorerView) => void;
   label: string;
+  note: string;
   synthetic: boolean;
   notice: string;
   onCopyLink: () => void;
@@ -29,7 +30,7 @@ interface Props {
 
 export function PositionResults({
   position, sequences, systems, selectedFieldId, job, quickLook, lookup,
-  view, onView, label, synthetic, notice, onCopyLink, object, build,
+  view, onView, label, note, synthetic, notice, onCopyLink, object, build,
 }: Props) {
   const selected = Boolean(lookup || job || selectedFieldId);
   const timeFieldId = job?.status === 'ready' ? job.result_field_id ?? selectedFieldId : selectedFieldId;
@@ -40,6 +41,7 @@ export function PositionResults({
     <h1>{label || field?.name || (selected ? 'Selected sky position' : 'Watch the infrared sky change')}</h1>
     {selected ? <p className="small">{formatRaDec(position.ra, position.dec)}</p>
       : <p className="small">Pick a challenge target, search a name, or click any star.</p>}
+    {note && <p className="muted small xp-note">{note}</p>}
     {synthetic && <p className="small">SYNTHETIC DATA · NOT SPHEREx</p>}
     {selected && <div className="xp-dock-links small">
       <button type="button" className="link-button" onClick={onCopyLink}>Copy link</button>
@@ -54,7 +56,7 @@ export function PositionResults({
       {lookup ? object : <p className="muted">Select a position to see its catalog information.</p>}
     </ExplorerPanel>
     <ExplorerPanel name="Time" active={view === 'Time'}>
-      {timeFieldId && !synthetic && <p className="muted small">SPHEREx observations</p>}
+      {timeFieldId && !synthetic && !field?.synthetic && <p className="muted small">SPHEREx observations</p>}
       {timeFieldId && <FieldPage key={timeFieldId} fieldId={timeFieldId} embedded />}
       {build}
       {nearby.length > 0 && <ul aria-label="Saved sequences covering this position">
@@ -62,7 +64,7 @@ export function PositionResults({
       </ul>}
     </ExplorerPanel>
     <ExplorerPanel name="Spectrum" active={view === 'Spectrum'}>
-      {selected ? <PositionSpectrum position={position} fieldId={timeFieldId} inline quickLook={quickLook} />
+      {selected ? <PositionSpectrum key={`${position.ra}/${position.dec}/${timeFieldId ?? ''}/${quickLook}`} position={position} fieldId={timeFieldId} inline quickLook={quickLook} />
         : <p className="muted">Select a position to see its SPHEREx spectrum.</p>}
     </ExplorerPanel>
     <ExplorerPanel name="3D" active={view === '3D'}>

@@ -11,6 +11,7 @@ import type { ExplorerView } from './ExplorerDock';
 import { ObjectCard } from './ObjectCard';
 import { PositionResults } from './PositionResults';
 import { SkySearch } from './SkySearch';
+import { TargetChips } from './TargetChips';
 
 interface Props {
   sequences: SearchSequence[];
@@ -25,9 +26,31 @@ interface SelectionOptions {
   fieldId?: string;
   detector?: number;
   size?: number;
+  /** One-line provenance shown in the dock header (preset astrometry or name resolver). */
+  note?: string;
 }
 
-type SelectionOrigin = 'map' | 'preset' | 'search' | 'form';
+export type SelectionOrigin = 'map' | 'preset' | 'search' | 'form';
+
+/** D-1: presets and searches never start a job; a map click does only live and away from a saved sequence. */
+export function buildsOnSelect(origin: SelectionOrigin, live: boolean, savedFieldId?: string) {
+  return live && ((origin === 'map' && !savedFieldId) || origin === 'form');
+}
+
+export function presetNote(target: { name: string; mjd: number }) {
+  return `${target.name}: ICRS position propagated to mean epoch MJD ${target.mjd}. Sesame/SIMBAD CfA astrometry, `
+    + 'checked 14 Nov 2026. This preset is not a validated detection.';
+}
+
+export function resolverNote(name: string, source?: string) {
+  return `${name} · ${source || 'name resolver'}. Catalog position; coverage is checked separately. High proper-motion `
+    + 'targets can move from their catalog position; use the propagated challenge targets.';
+}
+
+/** The backend's 503 text names an environment variable; visitors get a plain sentence instead. */
+export function buildFailureText(message: string) {
+  return message.startsWith('Job engine is disabled.') ? 'Generating new sequences is disabled on this server.' : message;
+}
 
 function initialPosition() {
   try {
@@ -54,8 +77,10 @@ export function SkyExplorer({ sequences, systems, synthetic, manifestError }: Pr
   const [lookup, setLookup] = useState<ObjectLookup | null>(() =>
     initial.linked ? coordinateLookup(initial.request.ra, initial.request.dec) : null);
   const [label, setLabel] = useState('');
+  const [note, setNote] = useState('');
+  const [quickLook, setQuickLook] = useState(false);
   const [explicitFieldId, setExplicitFieldId] = useState<string>();
-  const [view, setView] = useState<ExplorerView>(initial.linked ? 'Time' : 'Object');
+  const [view, setView] = useState<ExplorerView>(initial.linked || initial.error ? 'Time' : 'Object');
   const controller = useRef<AbortController | null>(null);
   const live = client.config.mode === 'api';
   const selectedFieldId = explicitFieldId ?? (lookup ? localTargetSequences(sequences, position)[0]?.field.id : undefined);
@@ -115,6 +140,8 @@ export function SkyExplorer({ sequences, systems, synthetic, manifestError }: Pr
     const fieldId = options.fieldId ?? localTargetSequences(sequences, point)[0]?.field.id;
     setExplicitFieldId(fieldId);
     setLabel(options.label ?? '');
+    setNote(options.note ?? '');
+    setQuickLook(true);
     const catalogName = options.catalogName ?? (options.fieldId ? undefined : options.label);
     setLookup(origin === 'map' ? positionLookup(point.ra, point.dec)
       : catalogName ? nameLookup(catalogName) : coordinateLookup(point.ra, point.dec));
@@ -125,7 +152,7 @@ export function SkyExplorer({ sequences, systems, synthetic, manifestError }: Pr
     setFov(String(size));
     setDetector(selectedDetector);
     const body: JobSubmitRequest = { ra: point.ra, dec: point.dec, size_deg: size, detectors: [selectedDetector], max_frames: 40 };
-    if (live && ((origin === 'map' && !fieldId) || origin === 'form')) void build(body);
+    if (buildsOnSelect(origin, live, fieldId)) void build(body);
     else updateShare(body);
   };
 
@@ -192,7 +219,7 @@ export function SkyExplorer({ sequences, systems, synthetic, manifestError }: Pr
     {!busy && job?.status === 'no_coverage' && <p className="small" role="status">
       No usable archive coverage. Try another position, detector or field size.
     </p>}
-    {(error || job?.error_detail) && <p className="error" role="alert">{error || job?.error_detail}</p>}
+    {(error || job?.error_detail) && <p className="error" role="alert">{buildFailureText(error || job?.error_detail || '')}</p>}
     <div className="xp-build-actions">
       {busy && <button type="button" onClick={() => {
         controller.current?.abort();
@@ -211,19 +238,17 @@ export function SkyExplorer({ sequences, systems, synthetic, manifestError }: Pr
         }} />
       <div className="xp-search">
         <SkySearch sequences={sequences} onSelectSequence={selectSearchSequence}
-          onLocate={(point, name) => select(point, 'search', { label: name })} />
-        <label>Challenge target<select value="" onChange={(event) => {
-          if (!event.target.value) return;
-          const target = SHOWCASE_TARGETS[Number(event.target.value)];
-          if (target) select(target, 'preset', { label: target.name, catalogName: target.catalogName, detector: target.detector, size: 0.15 });
-        }}><option value="">Choose a challenge target…</option>
-          {SHOWCASE_TARGETS.map((target, index) => <option key={target.name} value={index}>{target.name}</option>)}
-        </select></label>
+          onLocate={(point, name, source) => select(point, 'search',
+            { label: name, note: name ? resolverNote(name, source) : undefined })} />
+        <TargetChips sequences={sequences} activeName={SHOWCASE_TARGETS.some((t) => t.name === label) ? label : undefined}
+          onPick={(target) => select(target, 'preset', {
+            label: target.name, catalogName: target.catalogName, detector: target.detector, size: 0.15, note: presetNote(target),
+          })} />
         {manifestError && <p className="error small" role="alert">Could not load saved fields: {manifestError}</p>}
       </div>
     </div>
     <PositionResults position={position} sequences={sequences} systems={systems} selectedFieldId={selectedFieldId}
-      job={job} quickLook={Boolean(lookup)} lookup={lookup} label={label} synthetic={synthetic}
+      job={job} quickLook={quickLook} lookup={lookup} label={label} note={note} synthetic={synthetic}
       view={view} onView={setView} object={<ObjectCard lookup={lookup} />}
       onCopyLink={() => { void navigator.clipboard.writeText(shareUrl).then(
         () => setNotice('Link copied.'), () => setNotice('Copy the link from your browser address bar.')); }}
