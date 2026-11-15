@@ -1,5 +1,0 @@
-# Personal working notes and test artifacts: they carry local paths and never ship with the skill.
-tasks/
-.coverage
-.pytest_cache/
-__pycache__/
