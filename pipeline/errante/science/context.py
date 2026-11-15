@@ -130,6 +130,15 @@ GAIA_MAX_ROWS = 2000
 PM_AGREEMENT_MASYR = 25.0
 PM_AGREEMENT_FRACTION = 0.1
 SESAME_GAIA_WARN_ARCSEC = 1.0
+# Gaia DR3 sources that SIMBAD cross-identifies with the other component of a close pair (V15). RW Aur: SIMBAD calls
+# 156430817820015232 "RW Aur B" and 156430822114424576 "RW Aur A", but the WDS (05078+3024 JOY 5: A->BC 1.50" at PA 254 deg,
+# 2022, with A the fainter, 13.0 vs 12.2) and Gaia DR3 (...822, G 12.18, lies 1.493" at PA 254.4 deg from ...817, G 13.04)
+# make ...817 = A and ...822 = B. Checked on 2026-11-15 against VizieR CfA B/wds and Gaia DR3 (docs/SCIENCE.md section 0.3).
+COMPONENT_NAME_FIXES: dict[tuple[int, str], str] = {
+    (156430817820015232, "RW Aur B"): "RW Aur A",
+    (156430822114424576, "RW Aur A"): "RW Aur B",
+}
+COMPONENT_FIX_REFERENCE = 'the WDS (JOY 5: A to BC 1.5" at PA 254 deg, 2022) and the Gaia DR3 positions'
 VSX_MATCH_ARCSEC = 5.0
 TWOMASS_MATCH_ARCSEC = 3.0
 ALLWISE_MATCH_ARCSEC = 3.0
@@ -1330,6 +1339,14 @@ def object_context(
         ctx.spectral_type = sesame_used.spectral_type
     elif src is not None:
         ctx.display_name = f"Gaia DR3 {src.source_id}"
+    fixed = COMPONENT_NAME_FIXES.get((src.source_id, ctx.display_name)) if src is not None else None
+    if fixed is not None:
+        warnings.append(
+            f'SIMBAD cross-identifies Gaia DR3 {src.source_id} as "{ctx.display_name}", but {COMPONENT_FIX_REFERENCE} make '
+            f'it {fixed}. The spectral type and variability on this card come from the SIMBAD entry "{ctx.display_name}". '
+            'SPHEREx (6.15" pixels) does not resolve the pair: its measurements are of the blended system.'
+        )
+        ctx.display_name = fixed
     if sesame_used is not None and src is not None and sesame_used.is_simbad:
         s_ra, s_dec = Track(
             sesame_used.ra_j2000, sesame_used.dec_j2000, J2000_MJD, sesame_used.pm_ra, sesame_used.pm_dec

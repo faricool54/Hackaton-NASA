@@ -16,7 +16,9 @@ y registros de validación; luego espectros/contexto. `Candidate`/cruce/distanci
 ## Estado actual
 - ✅ `motion.py`: movimiento lineal desde detecciones; distancia aproximada por velocidad en oposición (solo
   orden de magnitud — SPHEREx mira a ~90° del Sol, ver SCIENCE §1).
-- ⛔ `known_objects.objects_in_frame/ephemeris/crossmatch`, `spectra.*`, `planet_x.*`.
+- ✅ `context.py` (ficha del objeto, #58/#74, en la app con #73–#76; V15 nombres A/B de RW Aur corregidos), `spectra.py`
+  (#59, salvo `color_class`/temperatura desde el espectro: V18) y `variability.py` (#59; arreglos de la revisión en #93).
+- ⛔ `known_objects.objects_in_frame/ephemeris/crossmatch`, `planet_x.*` (P2).
 
 ## Tareas
 
@@ -45,10 +47,10 @@ y registros de validación; luego espectros/contexto. `Candidate`/cruce/distanci
   simulaciones o confianza de candidatos en nota 1–5 del proyecto.
 - [ ] **WS3-8 (P2) Ephemeris overlay**: posiciones predichas de objetos conocidos en todos los frames (ya
   soportado por `KnownObject.positions`) para que la UI muestre "dónde debería estar" vs "dónde lo vimos".
-- [x] **WS3-9 (P0, R05) Variables RW Aurigae y R Draconis.** ✅ Validadas en `docs/validation/` (#36) y producto `science.variability.light_curve` (#59; CLI `errante lightcurve`). Revisión científica de los productos precalculados de #78/#79/#83 en `docs/SCIENCE.md` § Revisión científica de las curvas de luz (2026-11-15): sin bloqueantes; LC1–LC7 importantes, y LC23–LC30 son de WS3. Construir comparación de brillo a λ
+- [x] **WS3-9 (P0, R05) Variables RW Aurigae y R Draconis.** ✅ Validadas en `docs/validation/` (#36) y producto `science.variability.light_curve` (#59; CLI `errante lightcurve`). Revisión científica de los productos precalculados de #78/#79/#83 en `docs/SCIENCE.md` § Revisión científica de las curvas de luz (2026-11-15): sin bloqueantes; LC1–LC7 importantes; los de WS3 (LC6, LC7, LC23–LC29) se aplicaron en #87/#93, los productos se republicaron en #94/#95 y el panel de WS5 en #97. Construir comparación de brillo a λ
   compatible, con incertidumbre, fondo/PSF, saturación y mezcla de componentes controlados. Conservar flujo
   real y fechas; mismo detector no garantiza misma λ. Reportar resultado positivo, negativo o inconcluso.
-- [x] **WS3-10 (P1, C05) Contexto Gaia DR3/WISE.** ✅ `science.context.object_context` + `physical_parameters` (Facts con fuente; 'unknown' si no se midió) y CLI `errante object` (#58). Falta que WS4/WS5 lo conecten al panel y WS7 al 3D. Verificar catálogo, versión y condiciones de uso;
+- [x] **WS3-10 (P1, C05) Contexto Gaia DR3/WISE.** ✅ `science.context.object_context` + `physical_parameters` (Facts con fuente; 'unknown' si no se midió) y CLI `errante object` (#58). Conectado al panel del click por WS4/WS5 (#73–#76); falta que WS7 lo use en el 3D (V13, #90). Verificar catálogo, versión y condiciones de uso;
   propagar astrometría Gaia a épocas SPHEREx cuando haya datos. Exponer misión, banda, fecha y procedencia
   para WS5-4; no asumir que Gaia cubre enanas marrones débiles ni presentar WISE como SPHEREx.
 - [ ] **WS3-11 (P2) Evaluar recursos CSA/CADC/NEOSSat.** Revisar página de misión, acceso CADC,

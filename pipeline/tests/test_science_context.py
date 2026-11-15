@@ -236,6 +236,9 @@ def test_rw_aur_click_names_the_component():
     ctx = at("rw-aurigae")
     no_replay_gaps(ctx)
     assert ctx.main_id == "V* RW Aur B" and ctx.gaia.ambiguous  # SIMBAD cross-id of Gaia DR3 156430817820015232
+    # V15: the WDS and the Gaia positions make that source RW Aur A; SIMBAD's label is kept in main_id and explained
+    assert ctx.display_name == "RW Aur A"
+    assert any("RW Aur A" in w and "WDS" in w and "SIMBAD" in w and "blended" in w for w in ctx.warnings)
     # review 2026-11-15: values reached through the ambiguous match (SIMBAD by Gaia id, VSX by position) are not
     # verified and say why
     f = facts(ctx)
@@ -802,3 +805,12 @@ def test_live_exoplanet_archive_box_at_the_pole(tmp_path):
         lambda r: _prov_errors(r[2]),
     )
     assert prov.status in {"ok", "no_match"}
+
+
+def test_component_name_fixes_only_swap_the_known_rw_aur_cross_ids():
+    assert C.COMPONENT_NAME_FIXES == {
+        (156430817820015232, "RW Aur B"): "RW Aur A",
+        (156430822114424576, "RW Aur A"): "RW Aur B",
+    }
+    # by name, the system itself is not renamed (no component label to fix)
+    assert by_name("RW Aur").display_name == "RW Aur"
