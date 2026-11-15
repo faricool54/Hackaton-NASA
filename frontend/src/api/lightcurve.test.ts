@@ -373,3 +373,33 @@ describe('light-curve panel', () => {
     expect(html).not.toContain('live API mode');
   });
 });
+
+describe('light-curve panel variants (FE-8)', () => {
+  it('inline renders headline and plot without a <details> wrapper, keeping every limit in the page', () => {
+    const product = BUNDLED['r-draconis'];
+    const inline = renderToStaticMarkup(createElement(LightCurveProductView, { product, variant: 'inline' }));
+    const svg = inline.indexOf('<svg');
+    expect(svg).toBeGreaterThan(-1);
+    expect(inline.slice(0, svg)).not.toContain('<details');
+    expect(inline.indexOf('Significant time-correlated variability')).toBeLessThan(svg);
+    expect(inline).toMatch(/<summary>Limits and method \(\d+ limits stated by this product\)<\/summary>/);
+    // Same plotted points as the panel, and no limit, selection or provenance text dropped.
+    const panel = renderToStaticMarkup(createElement(LightCurveProductView, { product }));
+    expect(count(inline, 'circle')).toBe(count(panel, 'circle'));
+    const text = (html: string) => new Set(html.replace(/<[^>]+>/g, '\n').split('\n').map((t) => t.trim()).filter(Boolean));
+    const inlineText = text(inline);
+    for (const line of text(panel)) {
+      if (/^Limits stated by this product \(\d+\)$/.test(line)) continue;
+      expect(inlineText, line).toContain(line);
+    }
+  });
+
+  it('inline panel has no Light curve summary; the default panel keeps it', () => {
+    const inline = renderToStaticMarkup(createElement(LightCurvePanel, { targetId: 'r-draconis', variant: 'inline' }));
+    expect(inline).toMatch(/^<section[^>]*aria-label="Light curve"/);
+    expect(inline).not.toContain('<details');
+    const panel = renderToStaticMarkup(createElement(LightCurvePanel, { targetId: 'r-draconis' }));
+    expect(panel).toContain('<summary>Light curve</summary>');
+    expect(panel.startsWith('<details')).toBe(true);
+  });
+});

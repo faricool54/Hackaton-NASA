@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createClient } from './client';
-import { comparisonSelection, comparisonTitle, plotMeasurements } from './science';
+import { comparisonSelection, comparisonTitle, plotMeasurements, SPECTRUM_SOURCE_LABELS, spectrumCaveat, spectrumSummary } from './science';
 import type { ComparisonImage, Field, SpectralMeasurement } from './types';
 
 afterEach(() => vi.unstubAllGlobals());
@@ -56,5 +56,16 @@ describe('plotting and comparisons', () => {
     expect(comparisonTitle({kind:'scaled_difference', detector:2, earlier:'early', later:'late', flux_scale:1.2} as ComparisonImage))
       .toBe('D2 · late − 1.200 × early');
     expect(comparisonTitle({kind:'weighted_mean',detector:2,season:1} as ComparisonImage)).toContain('weighted mean');
+  });
+});
+
+describe('spectrum panel texts (FE-8)', () => {
+  it('keeps both honesty legends and the summary wording', () => {
+    expect(spectrumCaveat('dr1_cube')).toMatch(/^Static surface brightness \(MJy\/sr\)/);
+    expect(spectrumCaveat('l2_exposures')).toContain('do not interpret a mixed-epoch curve as a simultaneous spectrum');
+    expect(SPECTRUM_SOURCE_LABELS.dr1_cube).toBe('DR1 cube · static quick look');
+    const point = { usable: true } as SpectralMeasurement;
+    expect(spectrumSummary({ points: [point, { ...point, usable: false }], failures: [] }))
+      .toBe('1 usable / 2 measured points · 0 failed inputs');
   });
 });
