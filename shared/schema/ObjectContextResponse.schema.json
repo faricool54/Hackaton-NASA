@@ -1,0 +1,969 @@
+{
+  "$defs": {
+    "ContextMagnitude": {
+      "additionalProperties": false,
+      "description": "Context photometry from OTHER missions (2MASS, AllWISE): never a SPHEREx measurement.",
+      "properties": {
+        "band": {
+          "title": "Band",
+          "type": "string"
+        },
+        "catalog": {
+          "title": "Catalog",
+          "type": "string"
+        },
+        "contamination": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Contamination"
+        },
+        "designation": {
+          "title": "Designation",
+          "type": "string"
+        },
+        "epoch_mjd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Epoch Mjd"
+        },
+        "identity_uncertain": {
+          "default": false,
+          "title": "Identity Uncertain",
+          "type": "boolean"
+        },
+        "mag": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mag"
+        },
+        "mag_err": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mag Err"
+        },
+        "mission": {
+          "enum": [
+            "2MASS",
+            "WISE"
+          ],
+          "title": "Mission",
+          "type": "string"
+        },
+        "other_mission": {
+          "const": true,
+          "default": true,
+          "title": "Other Mission",
+          "type": "boolean"
+        },
+        "quality": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Quality"
+        },
+        "separation_arcsec": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Separation Arcsec"
+        },
+        "system": {
+          "default": "Vega",
+          "title": "System",
+          "type": "string"
+        },
+        "upper_limit": {
+          "default": false,
+          "title": "Upper Limit",
+          "type": "boolean"
+        },
+        "wavelength_um": {
+          "description": "Nominal band centre",
+          "exclusiveMinimum": 0,
+          "title": "Wavelength Um",
+          "type": "number"
+        }
+      },
+      "required": [
+        "mission",
+        "catalog",
+        "designation",
+        "band",
+        "wavelength_um"
+      ],
+      "title": "ContextMagnitude",
+      "type": "object"
+    },
+    "ContextService": {
+      "additionalProperties": false,
+      "description": "Provenance of one external call: which catalog, when, and whether it answered.",
+      "properties": {
+        "cached": {
+          "default": false,
+          "title": "Cached",
+          "type": "boolean"
+        },
+        "catalog": {
+          "title": "Catalog",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        },
+        "retrieved_utc": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Retrieved Utc"
+        },
+        "service": {
+          "title": "Service",
+          "type": "string"
+        },
+        "stale": {
+          "default": false,
+          "description": "An expired cache entry served because the service failed",
+          "title": "Stale",
+          "type": "boolean"
+        },
+        "status": {
+          "enum": [
+            "ok",
+            "no_match",
+            "error",
+            "skipped"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        }
+      },
+      "required": [
+        "service",
+        "catalog",
+        "status"
+      ],
+      "title": "ContextService",
+      "type": "object"
+    },
+    "Fact": {
+      "additionalProperties": false,
+      "description": "One human-readable fact shown in a body's info panel.",
+      "properties": {
+        "label": {
+          "description": "e.g. 'Distance', 'Spectral type'",
+          "title": "Label",
+          "type": "string"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Catalog/paper/URL the value comes from",
+          "title": "Source"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "e.g. 'pc', 'K', 'Earth masses'",
+          "title": "Unit"
+        },
+        "value": {
+          "description": "Display value, already formatted, e.g. '1.83'",
+          "title": "Value",
+          "type": "string"
+        },
+        "verified": {
+          "default": false,
+          "description": "True only if checked against `source`",
+          "title": "Verified",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "label",
+        "value"
+      ],
+      "title": "Fact",
+      "type": "object"
+    },
+    "NearbyPlanetHost": {
+      "additionalProperties": false,
+      "description": "A confirmed planet host NEAR the object but not the object itself (e.g. eps Ind A next to eps Ind B).",
+      "properties": {
+        "hostname": {
+          "title": "Hostname",
+          "type": "string"
+        },
+        "planets": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Planets",
+          "type": "array"
+        },
+        "separation_arcsec": {
+          "minimum": 0,
+          "title": "Separation Arcsec",
+          "type": "number"
+        }
+      },
+      "required": [
+        "hostname",
+        "separation_arcsec"
+      ],
+      "title": "NearbyPlanetHost",
+      "type": "object"
+    },
+    "ObjectIdentity": {
+      "additionalProperties": false,
+      "description": "Who the object is, according to SIMBAD and Gaia DR3 (never according to SPHEREx).",
+      "properties": {
+        "display_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "SIMBAD main id without catalog prefix",
+          "title": "Display Name"
+        },
+        "gaia_method": {
+          "anyOf": [
+            {
+              "enum": [
+                "simbad_crossid",
+                "nearest_after_propagation",
+                "brightest_within_radius"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Gaia Method"
+        },
+        "gaia_source_id": {
+          "anyOf": [
+            {
+              "pattern": "^\\d+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Gaia DR3 source_id as a STRING (64-bit; exceeds JS numbers)",
+          "title": "Gaia Source Id"
+        },
+        "identity_uncertain": {
+          "default": false,
+          "description": "True: identity-dependent values may belong to a neighbouring source",
+          "title": "Identity Uncertain",
+          "type": "boolean"
+        },
+        "main_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "SIMBAD main identifier",
+          "title": "Main Id"
+        },
+        "match": {
+          "enum": [
+            "name",
+            "matched",
+            "ambiguous",
+            "loose",
+            "none",
+            "unavailable"
+          ],
+          "title": "Match",
+          "type": "string"
+        },
+        "n_gaia_within_radius": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "N Gaia Within Radius"
+        },
+        "object_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "SIMBAD object type code, e.g. 'BY*'",
+          "title": "Object Type"
+        },
+        "object_type_label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Readable label of a few SIMBAD types",
+          "title": "Object Type Label"
+        },
+        "resolver": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Service that gave the identity, e.g. SIMBAD via Sesame",
+          "title": "Resolver"
+        },
+        "separation_arcsec": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Query position to the adopted Gaia DR3 source, both at the epoch",
+          "title": "Separation Arcsec"
+        },
+        "spectral_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "SIMBAD spectral type",
+          "title": "Spectral Type"
+        }
+      },
+      "required": [
+        "match"
+      ],
+      "title": "ObjectIdentity",
+      "type": "object"
+    },
+    "ObjectPlanet": {
+      "additionalProperties": false,
+      "description": "One CONFIRMED planet of this object (NASA Exoplanet Archive pscomppars). Nothing hypothetical.",
+      "properties": {
+        "controversial": {
+          "default": false,
+          "title": "Controversial",
+          "type": "boolean"
+        },
+        "discovery_facility": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Discovery Facility"
+        },
+        "discovery_method": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Discovery Method"
+        },
+        "discovery_year": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Discovery Year"
+        },
+        "eccentricity": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Eccentricity"
+        },
+        "hostname": {
+          "title": "Hostname",
+          "type": "string"
+        },
+        "inclination_deg": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Inclination Deg"
+        },
+        "mass_earth": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mass Earth"
+        },
+        "mass_kind": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "e.g. 'Mass' or 'Msini' (minimum mass)",
+          "title": "Mass Kind"
+        },
+        "match": {
+          "enum": [
+            "gaia_dr3_id",
+            "hostname",
+            "position"
+          ],
+          "title": "Match",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "period_days": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Period Days"
+        },
+        "radius_calculated": {
+          "default": false,
+          "description": "True: estimated by the archive, not measured",
+          "title": "Radius Calculated",
+          "type": "boolean"
+        },
+        "radius_earth": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Radius Earth"
+        },
+        "reference": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reference"
+        },
+        "semi_major_axis_au": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Semi Major Axis Au"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "hostname",
+        "match",
+        "source"
+      ],
+      "title": "ObjectPlanet",
+      "type": "object"
+    },
+    "ObjectPosition": {
+      "additionalProperties": false,
+      "description": "Adopted position of the object at ``epoch_mjd`` (ICRS degrees).",
+      "properties": {
+        "dec": {
+          "description": "ICRS declination [deg]",
+          "maximum": 90,
+          "minimum": -90,
+          "title": "Dec",
+          "type": "number"
+        },
+        "epoch_mjd": {
+          "title": "Epoch Mjd",
+          "type": "number"
+        },
+        "ra": {
+          "description": "ICRS right ascension [deg]",
+          "exclusiveMaximum": 360,
+          "minimum": 0,
+          "title": "Ra",
+          "type": "number"
+        },
+        "source": {
+          "description": "e.g. 'Gaia DR3 propagated to the epoch' or 'query position (static)'",
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ra",
+        "dec",
+        "epoch_mjd",
+        "source"
+      ],
+      "title": "ObjectPosition",
+      "type": "object"
+    },
+    "ObjectQuery": {
+      "additionalProperties": false,
+      "description": "What was asked: exactly one of ``name`` or ``ra`` + ``dec`` (ICRS degrees at ``epoch_mjd``).",
+      "properties": {
+        "dec": {
+          "anyOf": [
+            {
+              "maximum": 90,
+              "minimum": -90,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dec"
+        },
+        "epoch_mjd": {
+          "description": "Epoch of the clicked position and of the reported one [MJD]",
+          "title": "Epoch Mjd",
+          "type": "number"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "ra": {
+          "anyOf": [
+            {
+              "exclusiveMaximum": 360,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ra"
+        },
+        "radius_arcsec": {
+          "description": "Match radius around the position [arcsec]",
+          "exclusiveMinimum": 0,
+          "title": "Radius Arcsec",
+          "type": "number"
+        }
+      },
+      "required": [
+        "epoch_mjd",
+        "radius_arcsec"
+      ],
+      "title": "ObjectQuery",
+      "type": "object"
+    },
+    "ObjectVariability": {
+      "additionalProperties": false,
+      "description": "Catalogued variability (AAVSO VSX). A missing entry does not prove the object is constant.",
+      "properties": {
+        "mag_max": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mag Max"
+        },
+        "mag_min": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Faintest magnitude, or amplitude (see flag)",
+          "title": "Mag Min"
+        },
+        "min_is_amplitude": {
+          "default": false,
+          "title": "Min Is Amplitude",
+          "type": "boolean"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "passband": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Passband"
+        },
+        "period_days": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Period Days"
+        },
+        "separation_arcsec": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Separation Arcsec"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        },
+        "var_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Var Type"
+        }
+      },
+      "required": [
+        "name",
+        "source"
+      ],
+      "title": "ObjectVariability",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "GET /api/object: catalog context of a clicked position or a name (C05, WS3 object context).\n\nEvery value comes from another catalog/mission and carries its source; ``Fact.value == 'unknown'`` means not\nmeasured or not found, and a service with ``status: 'error'`` is a gap, never a negative result.",
+  "properties": {
+    "built_at": {
+      "format": "date-time",
+      "title": "Built At",
+      "type": "string"
+    },
+    "facts": {
+      "description": "Physical parameters; 'unknown' when not measured",
+      "items": {
+        "$ref": "#/$defs/Fact"
+      },
+      "title": "Facts",
+      "type": "array"
+    },
+    "identity": {
+      "$ref": "#/$defs/ObjectIdentity"
+    },
+    "nearby_planet_hosts": {
+      "items": {
+        "$ref": "#/$defs/NearbyPlanetHost"
+      },
+      "title": "Nearby Planet Hosts",
+      "type": "array"
+    },
+    "note": {
+      "description": "Catalog context, not SPHEREx measurements",
+      "title": "Note",
+      "type": "string"
+    },
+    "partial": {
+      "default": false,
+      "description": "True when a service did not answer in time: its values are unknown, not negative",
+      "title": "Partial",
+      "type": "boolean"
+    },
+    "photometry": {
+      "items": {
+        "$ref": "#/$defs/ContextMagnitude"
+      },
+      "title": "Photometry",
+      "type": "array"
+    },
+    "planets": {
+      "items": {
+        "$ref": "#/$defs/ObjectPlanet"
+      },
+      "title": "Planets",
+      "type": "array"
+    },
+    "position": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ObjectPosition"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "provenance": {
+      "items": {
+        "$ref": "#/$defs/ContextService"
+      },
+      "title": "Provenance",
+      "type": "array"
+    },
+    "query": {
+      "$ref": "#/$defs/ObjectQuery"
+    },
+    "schema_version": {
+      "default": "0.5.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "synthetic": {
+      "const": false,
+      "default": false,
+      "title": "Synthetic",
+      "type": "boolean"
+    },
+    "variability": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ObjectVariability"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "query",
+    "identity",
+    "built_at",
+    "note"
+  ],
+  "title": "ObjectContextResponse",
+  "type": "object"
+}

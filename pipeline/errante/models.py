@@ -25,7 +25,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, field_validator, model_validator
 
-SCHEMA_VERSION = "0.4.0"
+SCHEMA_VERSION = "0.5.0"
 
 Release = Literal["dr1", "qr2", "qr3", "synthetic"]
 """SPHEREx data release a frame comes from (see docs/DATA.md)."""
@@ -673,6 +673,172 @@ class ComparisonResponse(_Model):
         return self
 
 
+# --- Object card: catalog context of a position or a name (WS3 -> WS4 `/api/object`, 0.5.0, C05) --------------
+
+ObjectMatch = Literal["name", "matched", "ambiguous", "loose", "none", "unavailable"]
+"""How the catalog identity was reached.
+name = the requested name was resolved by SIMBAD (Gaia DR3 identification, if any, not ambiguous);
+matched = a click matched one Gaia DR3 source after proper-motion propagation to the epoch;
+ambiguous = several Gaia DR3 sources of similar brightness inside the radius (identity not verified);
+loose = the adopted Gaia DR3 source is farther than half the radius from the click (identity not verified);
+none = no secure identification: no Gaia DR3 source inside the radius, or a name not resolved by SIMBAD;
+unavailable = Gaia DR3 could not be reached: the identity is unknown, NOT a negative result."""
+ContextServiceStatus = Literal["ok", "no_match", "error", "skipped"]
+"""ok = answered with data; no_match = answered, nothing matched; error = did not answer (unknown, not a negative
+result); skipped = not queried."""
+
+
+class ObjectQuery(_Model):
+    """What was asked: exactly one of ``name`` or ``ra`` + ``dec`` (ICRS degrees at ``epoch_mjd``)."""
+
+    ra: FiniteFloat | None = Field(default=None, ge=0, lt=360)
+    dec: FiniteFloat | None = Field(default=None, ge=-90, le=90)
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    epoch_mjd: FiniteFloat = Field(description="Epoch of the clicked position and of the reported one [MJD]")
+    radius_arcsec: FiniteFloat = Field(gt=0, description="Match radius around the position [arcsec]")
+
+    @model_validator(mode="after")
+    def name_or_position(self):
+        if (self.name is None) == (self.ra is None or self.dec is None) or (self.ra is None) != (self.dec is None):
+            raise ValueError("Give either a name or both ra and dec")
+        return self
+
+
+class ObjectPosition(SkyCoord):
+    """Adopted position of the object at ``epoch_mjd`` (ICRS degrees)."""
+
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+    epoch_mjd: FiniteFloat
+    source: str = Field(description="e.g. 'Gaia DR3 propagated to the epoch' or 'query position (static)'")
+
+
+class ObjectIdentity(_Model):
+    """Who the object is, according to SIMBAD and Gaia DR3 (never according to SPHEREx)."""
+
+    display_name: str | None = Field(default=None, description="SIMBAD main id without catalog prefix")
+    main_id: str | None = Field(default=None, description="SIMBAD main identifier")
+    object_type: str | None = Field(default=None, description="SIMBAD object type code, e.g. 'BY*'")
+    object_type_label: str | None = Field(default=None, description="Readable label of a few SIMBAD types")
+    spectral_type: str | None = Field(default=None, description="SIMBAD spectral type")
+    resolver: str | None = Field(default=None, description="Service that gave the identity, e.g. SIMBAD via Sesame")
+    gaia_source_id: str | None = Field(
+        default=None, pattern=r"^\d+$", description="Gaia DR3 source_id as a STRING (64-bit; exceeds JS numbers)"
+    )
+    gaia_method: Literal["simbad_crossid", "nearest_after_propagation", "brightest_within_radius"] | None = None
+    match: ObjectMatch
+    identity_uncertain: bool = Field(
+        default=False, description="True: identity-dependent values may belong to a neighbouring source"
+    )
+    separation_arcsec: FiniteFloat | None = Field(
+        default=None, ge=0, description="Query position to the adopted Gaia DR3 source, both at the epoch"
+    )
+    n_gaia_within_radius: int | None = Field(default=None, ge=0)
+
+
+class ObjectVariability(_Model):
+    """Catalogued variability (AAVSO VSX). A missing entry does not prove the object is constant."""
+
+    name: str
+    var_type: str | None = None
+    period_days: FiniteFloat | None = Field(default=None, gt=0)
+    mag_max: FiniteFloat | None = None
+    mag_min: FiniteFloat | None = Field(default=None, description="Faintest magnitude, or amplitude (see flag)")
+    min_is_amplitude: bool = False
+    passband: str | None = None
+    separation_arcsec: FiniteFloat | None = Field(default=None, ge=0)
+    url: str | None = None
+    source: str
+
+
+class ObjectPlanet(_Model):
+    """One CONFIRMED planet of this object (NASA Exoplanet Archive pscomppars). Nothing hypothetical."""
+
+    name: str
+    hostname: str
+    match: Literal["gaia_dr3_id", "hostname", "position"]
+    period_days: FiniteFloat | None = None
+    semi_major_axis_au: FiniteFloat | None = None
+    radius_earth: FiniteFloat | None = None
+    radius_calculated: bool = Field(default=False, description="True: estimated by the archive, not measured")
+    mass_earth: FiniteFloat | None = None
+    mass_kind: str | None = Field(default=None, description="e.g. 'Mass' or 'Msini' (minimum mass)")
+    eccentricity: FiniteFloat | None = None
+    inclination_deg: FiniteFloat | None = None
+    discovery_year: int | None = None
+    discovery_method: str | None = None
+    discovery_facility: str | None = None
+    reference: str | None = None
+    controversial: bool = False
+    source: str
+
+
+class NearbyPlanetHost(_Model):
+    """A confirmed planet host NEAR the object but not the object itself (e.g. eps Ind A next to eps Ind B)."""
+
+    hostname: str
+    separation_arcsec: FiniteFloat = Field(ge=0)
+    planets: list[str] = Field(default_factory=list)
+
+
+class ContextMagnitude(_Model):
+    """Context photometry from OTHER missions (2MASS, AllWISE): never a SPHEREx measurement."""
+
+    mission: Literal["2MASS", "WISE"]
+    other_mission: Literal[True] = True
+    catalog: str
+    designation: str
+    band: str
+    wavelength_um: FiniteFloat = Field(gt=0, description="Nominal band centre")
+    mag: FiniteFloat | None = None
+    mag_err: FiniteFloat | None = Field(default=None, ge=0)
+    system: str = "Vega"
+    quality: str | None = None
+    contamination: str | None = None
+    upper_limit: bool = False
+    epoch_mjd: FiniteFloat | None = None
+    separation_arcsec: FiniteFloat | None = Field(default=None, ge=0)
+    identity_uncertain: bool = False
+
+
+class ContextService(_Model):
+    """Provenance of one external call: which catalog, when, and whether it answered."""
+
+    service: str
+    catalog: str
+    url: str | None = None
+    status: ContextServiceStatus
+    retrieved_utc: datetime | None = None
+    cached: bool = False
+    stale: bool = Field(default=False, description="An expired cache entry served because the service failed")
+    note: str | None = None
+
+
+class ObjectContextResponse(_Model):
+    """GET /api/object: catalog context of a clicked position or a name (C05, WS3 object context).
+
+    Every value comes from another catalog/mission and carries its source; ``Fact.value == 'unknown'`` means not
+    measured or not found, and a service with ``status: 'error'`` is a gap, never a negative result.
+    """
+
+    schema_version: str = SCHEMA_VERSION
+    query: ObjectQuery
+    position: ObjectPosition | None = None
+    identity: ObjectIdentity
+    facts: list[Fact] = Field(default_factory=list, description="Physical parameters; 'unknown' when not measured")
+    variability: ObjectVariability | None = None
+    planets: list[ObjectPlanet] = Field(default_factory=list)
+    nearby_planet_hosts: list[NearbyPlanetHost] = Field(default_factory=list)
+    photometry: list[ContextMagnitude] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    provenance: list[ContextService] = Field(default_factory=list)
+    partial: bool = Field(
+        default=False, description="True when a service did not answer in time: its values are unknown, not negative"
+    )
+    built_at: datetime
+    note: str = Field(description="Catalog context, not SPHEREx measurements")
+    synthetic: Literal[False] = False
+
+
 ALL_MODELS: dict[str, type[BaseModel]] = {
     "Manifest": Manifest,
     "Field": SkyField,
@@ -687,5 +853,6 @@ ALL_MODELS: dict[str, type[BaseModel]] = {
     "SpectrumResponse": SpectrumResponse,
     "ComparisonRequest": ComparisonRequest,
     "ComparisonResponse": ComparisonResponse,
+    "ObjectContextResponse": ObjectContextResponse,
 }
 """Top-level documents, one JSON Schema file each in shared/schema/."""

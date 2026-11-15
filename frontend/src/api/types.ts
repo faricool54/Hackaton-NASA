@@ -4,7 +4,7 @@
 // Pixel convention for every x/y: PNG convention — origin at the TOP-LEFT pixel,
 // 0-based, x → right, y → DOWN, on the field's common north-up grid (east left).
 
-export const SCHEMA_VERSION = '0.4.0';
+export const SCHEMA_VERSION = '0.5.0';
 
 export type Release = 'dr1' | 'qr2' | 'qr3' | 'synthetic';
 export type ObjectType =
@@ -406,4 +406,56 @@ export interface ComparisonResponse {
   schema_version: string; id: string; field_id: string; field_built_at: string; built_at: string;
   unit: 'MJy/sr'; method: string; input_frames: Frame[]; images: ComparisonImage[];
   failures: MeasurementFailure[]; notes: string[]; synthetic: boolean;
+}
+
+/** Contract 0.5.0 (C05): GET /api/object, catalog context of a position or a name. Never SPHEREx measurements. */
+export type ObjectMatch = 'name' | 'matched' | 'ambiguous' | 'loose' | 'none' | 'unavailable';
+export type ContextServiceStatus = 'ok' | 'no_match' | 'error' | 'skipped';
+/** Exactly one of `name` or `ra` + `dec`. */
+export interface ObjectQuery {
+  ra: number | null; dec: number | null; name: string | null; epoch_mjd: number; radius_arcsec: number;
+}
+export interface ObjectPosition extends SkyCoord { epoch_mjd: number; source: string; }
+export interface ObjectIdentity {
+  display_name: string | null; main_id: string | null; object_type: string | null;
+  object_type_label: string | null; spectral_type: string | null; resolver: string | null;
+  /** 64-bit Gaia DR3 source_id as a string (exceeds Number.MAX_SAFE_INTEGER). */
+  gaia_source_id: string | null;
+  gaia_method: 'simbad_crossid' | 'nearest_after_propagation' | 'brightest_within_radius' | null;
+  match: ObjectMatch; identity_uncertain: boolean; separation_arcsec: number | null;
+  n_gaia_within_radius: number | null;
+}
+export interface ObjectVariability {
+  name: string; var_type: string | null; period_days: number | null; mag_max: number | null;
+  mag_min: number | null; min_is_amplitude: boolean; passband: string | null;
+  separation_arcsec: number | null; url: string | null; source: string;
+}
+export interface ObjectPlanet {
+  name: string; hostname: string; match: 'gaia_dr3_id' | 'hostname' | 'position';
+  period_days: number | null; semi_major_axis_au: number | null; radius_earth: number | null;
+  radius_calculated: boolean; mass_earth: number | null; mass_kind: string | null;
+  eccentricity: number | null; inclination_deg: number | null; discovery_year: number | null;
+  discovery_method: string | null; discovery_facility: string | null; reference: string | null;
+  controversial: boolean; source: string;
+}
+export interface NearbyPlanetHost { hostname: string; separation_arcsec: number; planets: string[]; }
+/** Context photometry of OTHER missions (2MASS, AllWISE): never SPHEREx. */
+export interface ContextMagnitude {
+  mission: '2MASS' | 'WISE'; other_mission: true; catalog: string; designation: string; band: string;
+  wavelength_um: number; mag: number | null; mag_err: number | null; system: string;
+  quality: string | null; contamination: string | null; upper_limit: boolean;
+  epoch_mjd: number | null; separation_arcsec: number | null; identity_uncertain: boolean;
+}
+export interface ContextService {
+  service: string; catalog: string; url: string | null; status: ContextServiceStatus;
+  retrieved_utc: string | null; cached: boolean; stale: boolean; note: string | null;
+}
+export interface ObjectContextResponse {
+  schema_version: string; query: ObjectQuery; position: ObjectPosition | null; identity: ObjectIdentity;
+  /** Physical parameters; value 'unknown' = not measured or not found. */
+  facts: Fact[]; variability: ObjectVariability | null; planets: ObjectPlanet[];
+  nearby_planet_hosts: NearbyPlanetHost[]; photometry: ContextMagnitude[]; warnings: string[];
+  provenance: ContextService[];
+  /** A service did not answer in time: its values are unknown, not negative. */
+  partial: boolean; built_at: string; note: string; synthetic: false;
 }
