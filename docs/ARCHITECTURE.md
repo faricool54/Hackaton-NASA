@@ -2,6 +2,8 @@
 
 Fuente de alcance: [CHALLENGE.md](CHALLENGE.md). Cobertura: [REQUIREMENTS.md](REQUIREMENTS.md).
 La siguiente estructura distingue **lo implementado** de **lo diseñado y pendiente**.
+Estado actualizado al 15/11/2026: main 3ed5c91 (#97); última publicación verificada 3ed5c91 (#97), en
+[Errante](https://errante.34-148-242-13.sslip.io). Contrato vigente: **0.7.0**.
 Entrega: [SUBMISSION_GUIDE.md](SUBMISSION_GUIDE.md), condiciones S01–S10 del PDF. El video/slides de envío
 es un artefacto distinto del visor temporal: <= 30 s o <= 7 slides, en inglés y accesible sin login.
 El servicio público y sus materiales deben estar disponibles antes del cierre UP Buenos Aires: 15/11/2026
@@ -42,8 +44,8 @@ Ni candidatos, ni JPL/SkyBoT, ni inferencia de distancia son dependencias del vi
 | `pipeline/errante/imaging/` (WS2) | Registro WCS, máscara de calidad y PNGs comparables | Coadds por detector/visita; suma/resta de épocas; metadatos de contaminación |
 | `pipeline/errante/science/` (WS3) | Identidad, astrometría y protocolo de los cinco blancos | Fotometría de variables, espectros en cualquier posición, Gaia DR3; detección y Planeta X como extras |
 | `pipeline/errante/build.py`, `cli.py` | Publicar primero el campo visible | `--analyze` opta por detección y cruce sin impedir conservar las imágenes |
-| `backend/` (WS4) | Servir productos y ejecutar jobs persistentes por coordenadas con límites | Operaciones científicas bajo demanda y publicación pública |
-| `frontend/` (WS5) | Mapa/nombre/RA-Dec → job → secuencia local; FOV/λ/capas y URL | Suma/resta, flags, modo embebido compacto y recorrido público |
+| `backend/` (WS4) | API/productos, jobs persistentes, operaciones científicas y publicación pública | Nuevos flags/releases y límites científicos cuando exista su contrato/dato |
+| `frontend/` (WS5) | Mapa/nombre/RA-Dec → job → secuencia pública, espectros/comparaciones/curvas, FOV/λ y URL | UI de calidad/vistas de curvas adicionales, capas Gaia, panel de tres vistas y compacto |
 | `docs/submission/` (WS6) | Demo pública, evidencia, fuentes, límites y entrega | Todos los puntos C01–C08 declarados con su estado real |
 | `pipeline/errante/systems/`, `frontend/src/three/` (WS7) | Galería ilustrativa actual; migración P1 a modelos físicos | Mediciones WS3, incertidumbre/fuentes y compañeras confirmadas |
 
@@ -71,13 +73,15 @@ python scripts/dev.py web                                 # abrir ?dataset=real
 
 **Estado actual:** búsqueda/cutouts/reproyección y selección por temporada están implementados. #17 aporta
 los cinco campos reales, #19 las comparaciones y #31 fotometría por exposición. Las mediciones y su
-interpretación/validación científica siguen siendo tareas separadas; la demo continúa siendo sintética.
+interpretación/validación científica son tareas separadas: los cinco registros FITS existen y necesitan
+revisión humana. La app pública utiliza datos reales; el dataset sintético se conserva para desarrollo.
 
-## Coordenadas arbitrarias implementadas; publicación pendiente
+## Coordenadas arbitrarias implementadas y publicadas
 
 La web estática actual sirve campos preconstruidos; es útil para desarrollo, demostración y caché.
-**No cumple sola R03** para posiciones arbitrarias. El servicio WS4-5 y formulario/mapa WS5-7 están implementados y probados localmente;
-falta elegir destino/URL y verificar el recorrido público (WS4-4/6). No hace falta hosting para uso local.
+**No cumple sola R03** para posiciones arbitrarias. El servicio WS4-5 y formulario/mapa WS5-7 están
+implementados y probados en la URL pública: Google Compute Engine, web/API en un origen HTTPS,
+volumen persistente y jobs reales que sobreviven al redeploy (#84/#95). No hace falta hosting para uso local.
 
 1. La UI acepta RA/Dec con unidades claras, valida rangos y muestra FOV; formato sexagesimal se normaliza
    a grados ICRS. C04 agrega elección pública del FOV dentro de límites del servidor.
@@ -89,7 +93,7 @@ falta elegir destino/URL y verificar el recorrido público (WS4-4/6). No hace fa
    servicio. Debe publicar la misma estructura JSON/PNG que los campos curados.
 5. Cuando termina, el visor abre el campo devuelto. Encontrar URIs sin generar una secuencia no cierra R03.
 
-POST `/api/jobs` y GET `/api/jobs/{id}` usan contrato 0.3.0. El mapa Aladin/IRSA y el formulario comparten
+POST `/api/jobs` y GET `/api/jobs/{id}` usan los modelos introducidos en 0.3.0, conservados en 0.7.0. El mapa y el formulario comparten
 ese flujo; Sesame/CfA resuelve nombres. El HiPS es un coadd estático; la secuencia usa exposiciones reales.
 Productos servidos y construidos comparten raíz; SQLite serializa admisión y un supervisor posee el worker.
 Batch y jobs comparten lock de publicación, validación PNG y manifest atómico. Límites y recuperación en
@@ -109,29 +113,34 @@ Batch y jobs comparten lock de publicación, validación PNG y manifest atómico
   Aladin es una capa de contexto, sin reemplazar el blink de observaciones SPHEREx.
 - **C06, enlaces:** URL implementada `?mode=api&ra=<deg>&dec=<deg>&fov=<deg>&detector=<1..6>`; restaurar el estado
   al abrirla, y ofrecer modo embebido. El host debe permitir el iframe de prueba desde otro origen.
-  `job` opcional retoma el polling; sin él no se construye al cargar. Modo compacto y prueba de iframe externo pendientes.
+  `job` opcional retoma el polling; sin él no se construye al cargar. Iframe externo probado con jobs (#95);
+  la vista compacta sigue pendiente de WS5.
 - **C07, calidad:** panel por frame con MJD/fecha, release, origen, detector, λ/ancho, fracción válida y flags;
   las flags deben tener significado y procedencia. Si falta una medida, mostrar desconocido.
 - **C08, herramientas:** Astropy ya se usa para FITS/WCS; evaluar notebooks IRSA, Aladin y licencias antes
-  de agregar dependencias. Ver el registro de recursos en DATA.md.
+  de agregar dependencias. Aladin está integrado; queda revisar el inventario/licencias final con WS6.
+  Ver el registro de recursos en DATA.md.
 
 ## Galería 3D integrada y migración a mediciones (WS7, P1)
 
 Se conserva la ampliación importada: `SystemModel`, `Manifest.systems`, `errante systems`,
 `GET /api/systems/{id}`, rutas `#/systems` y `#/system/<id>[/<body>]`. `demo` incluye seis modelos.
-La migración a modelos físicos desde mediciones es P1 según VISION.md. Three.js se importa dinámicamente al abrir el visor 3D. Los cinco modelos de blancos usan parámetros
-introducidos a mano y `verified=False`; el modelo orbital del demo es sintético. Ver VISION_3D.md.
+La migración a modelos físicos desde mediciones es P1 según VISION.md. Three.js se importa dinámicamente
+al abrir el visor. Los blancos tienen fuentes/estados de verificación por valor; no todos son
+`verified=False`. Las correcciones V4/V12/V13 están en PR #90 abierto, sin integrar; el modelo orbital
+del demo es sintético. Ver VISION_3D.md.
 Son ilustraciones educativas, no observaciones, inferencias 3D desde un punto luminoso ni cinco ensayos R05.
 Verificar los valores y publicar sus fuentes es condición para presentarlos como datos medidos.
 
 ## Contrato y compatibilidad
 
 Se mantiene `models.py` → `shared/schema/` → `frontend/src/api/types.ts` como contrato vigente.
-Jobs/resolver usan **0.3.0**. La integración científica **0.4.0** (#53) agrega espectros/comparaciones,
-preservando composites 0.3.1 (#39); schema y espejo TS sincronizados. Ver orden en CONTRACT.md.
+La versión vigente es **0.7.0**: conserva jobs/resolver 0.3.0, composites 0.3.1, espectros/comparaciones
+0.4.0 y ficha 0.5.0; agrega curvas 0.6.0 (#78) y movimiento propio L2 0.7.0 (#81).
+Schema y espejo TS están sincronizados. Ver orden y rutas en CONTRACT.md.
 La separación del build usa los campos actuales, sin otro cambio de schema.
-WS4-10 coordina las próximas ampliaciones aditivas para cobertura/calidad, productos combinados y espectros en
-posiciones arbitrarias. Cada cambio real requiere versión, schema, tipos TS y pruebas en el mismo PR.
+WS4-10 coordina las próximas ampliaciones aditivas para nuevos flags, releases y límites científicos;
+productos combinados y espectros en posiciones arbitrarias ya están integrados. Cada cambio real requiere versión, schema, tipos TS y pruebas en el mismo PR.
 No escribir campos propuestos en los JSON publicados hasta implementar su contrato.
 
 ### Servicio científico y caché (15/11/2026)
@@ -152,6 +161,11 @@ El cubo mide brillo superficial estático sin errores; L2 mide flujo de apertura
 error y cielo local. La UI separa unidades, conserva negativos/huecos y advierte mezcla temporal/espectral.
 Las comparaciones son medias ponderadas y restas escaladas por detector, con procedencia y limitaciones;
 no afirman variabilidad ni reconstruyen por sí solas un sistema físico 3D.
+
+Las curvas de RW Aur y R Dra son productos offline tipados, servidos por GET sin recálculo público.
+#93–#95 actualizaron algoritmos/productos y procedencia SIA; las advertencias y controles viajan con ellos.
+La UI de notas/floors/selección de datos está integrada, publicada y comprobada en #97. Comparaciones congeladas: 196 PNG en el paquete
+del backend, exportables al sitio estático. La UI estática de curvas entró en #97 y requiere el JSON exportado; la UI de comparaciones sigue live.
 
 ## Hitos y dependencias
 

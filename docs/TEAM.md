@@ -5,8 +5,10 @@ Completar en el kickoff. Una persona por fila; cada una con su(s) agente(s).
 **Plan vigente:** [trabajo paralelo, entregables y dependencias](PARALLEL_PLAN.md).
 Reserva confirmada el 14/11/2026: **rpccp** (rocco) con Codex toma **WS4**; **faricool54** con Claude toma **WS1** (búsqueda SIA/TAP, lectura por rangos en S3, `wavelength_at`); **V0id47** con Claude toma **WS2** (`reproject_to_grid`, selección temporada × detector en `build.py`, render consistente por campo).
 Reserva del 15/11/2026: **faricool54** con Claude toma también **WS3** (ciencia: contexto Gaia/catálogos, espectros por posición, curvas de luz, revisión científica de textos), que no tenía responsable.
-Las otras filas siguen pendientes de confirmación; no representan reservas automáticas.
-**Sin reserva al 15/11/2026, 03:30 ART:** WS5, WS6, WS7 y coordinación. Aportes de facto, que no son reservas:
+Actualización del 15/11 sobre main #97 (publicación verificada #97): el usuario confirmó actividad de un compañero en WS5; #96 ya está
+publicado. WS7 tiene PR #90 abierto. **rpccp con Codex toma WS6 solo para README/documentos de estado**,
+por instrucción del usuario; no implica asumir demo, formulario ni el envío. Responsable único de entrega
+y backup siguen sin confirmar. Aportes de facto, que no son reservas completas:
 WS5, rpccp (#34, #55), V0id47 (#40) y BenjaminPondal (#15, #20, #26); WS7, DankoLiv (#47), BenjaminPondal (#27, #30)
 y faricool54 (#9, #64). Colaboradores del repo sin fila: BenjaminPondal, DankoLiv y mateoa007. Qué falta y qué hay
 que decidir: [PARALLEL_PLAN.md](PARALLEL_PLAN.md) §2-§4.
@@ -26,7 +28,7 @@ no se agregan personas después. Workstreams y agentes no son integrantes adicio
 | WS3 | Cinco blancos, astrometría, variables, espectros y contexto | faricool54 | Claude | el/la más "astro" del grupo |
 | WS4 | Backend + integración + CI | rpccp (rocco) | Codex | backend, devops |
 | WS5 | Frontend | _nombre_ | | React/TS, ojo para UX |
-| WS6 | Producto, narrativa, deploy, entrega | _nombre_ | | comunicación, diseño, video |
+| WS6 | Producto, narrativa, deploy, entrega | rpccp solo README/estado; resto por confirmar | Codex (documentación) | comunicación, diseño, video |
 | WS7 | Galería 3D opcional, modelos y procedencia | _nombre/rol compartido_ | | gráficos y datos; el 3D desde mediciones es P1 (VISION.md) |
 
 **Coordinador/a de integración:** _nombre_ (cuida `main`, el contrato y el cronograma; suele ser WS4).

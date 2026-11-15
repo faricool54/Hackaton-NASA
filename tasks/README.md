@@ -1,7 +1,9 @@
 # Tareas por workstream
 
 **Para arrancar en paralelo:** leer [plan compartido y dependencias](../docs/PARALLEL_PLAN.md).
-**WS4 está reservado por rpccp (rocco) con Codex**; los otros responsables deben confirmar su reserva.
+Reservas formales: **WS1/WS3 faricool54**, **WS2 V0id47**, **WS4 rpccp con Codex**.
+El usuario confirmó actividad WS5 (#96); WS7 tiene PR #90 abierto. rpccp toma **solo README/estado de WS6**
+en esta tarea; demo y envío siguen pendientes de responsable. Ver TEAM.md antes de reservar otra tarea.
 
 Cada archivo es **autocontenido**: objetivo, rutas que te pertenecen, qué recibís y qué entregás, tareas con
 criterio de aceptación y un **prompt de arranque** para pegarle a tu agente (Claude Code o Codex).
@@ -25,7 +27,8 @@ La [guía de evaluación](../docs/JUDGING_GUIDE.md) precisa elegibilidad y escal
 la [revisión interna](../docs/submission/JUDGING_REVIEW.md) exige evidencia sin adjudicar notas oficiales.
 
 Prioridades: **P0** = RA/Dec → imágenes reales → blink público + cinco ensayos · **P1** = consideraciones
-opcionales del enunciado · **P2** = ampliaciones propias (detección automática, distancias, límites, Planeta X).
+opcionales del enunciado y 3D desde mediciones según VISION.md · **P2** = detección automática, distancias,
+límites y Planeta X.
 Marcá `[x]` al terminar (solo en tu archivo) y poné el link al PR.
 
 Orden de integración: I1 imágenes reales sin detección → I2 coordenadas y publicación → I3 cinco validaciones

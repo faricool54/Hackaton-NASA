@@ -89,14 +89,16 @@ the browser. Human review remains pending. Technical deployment checks do not ce
 The app's R Draconis light curve uses **wide-survey DR1+QR3 only**, not the deep observations included in
 the larger offline record. RW Aurigae's curve excludes saturated measurements, preferentially removing
 bright states. Narrow wavelength bins, incomplete sampling and systematic errors limit interpretation.
-Displayed error bars are statistical; period significance indicates time-ordered variability, not a
-unique physical period. Comparison-star zero-point corrections are not applied to published relative
-magnitudes. The light-curve panels still need fuller inline warnings.
+Displayed error bars distinguish statistical uncertainties from empirical error floors; period significance
+indicates time-ordered variability, not a unique physical period. Comparison-star zero-point corrections
+are not applied to published relative magnitudes. The published light-curve panels now display limits, error floors, data selection and
+candidate-period/alias warnings (#97). Additional detector/phase/matched-pair views remain pending.
 
 Motion is only about 1-2 native pixels over these baselines. Saturated cores, display stretching and
-faintness can hide changes in the 40-frame previews. Human phone testing and correction of observed
-mobile horizontal overflow remain pending. No automatic discovery, Planet X detection, measured distance,
-temperature or radius from SPHEREx is claimed.
+faintness can hide changes in the 40-frame previews. Zoom and a catalog-predicted Barnard reticle are
+published (#96); the reticle is not measured astrometry. Mobile layout corrections were checked at
+390 px, while human testing on physical phones remains pending. No automatic discovery, Planet X
+detection, measured distance, temperature or radius from SPHEREx is claimed.
 
 ### Contribution and evidence for judging
 
