@@ -25,7 +25,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-SCHEMA_VERSION = "0.3.0"
+SCHEMA_VERSION = "0.3.1"
 
 Release = Literal["dr1", "qr2", "qr3", "synthetic"]
 """SPHEREx data release a frame comes from (see docs/DATA.md)."""
@@ -38,6 +38,13 @@ known = matched to a cataloged object; artifact = rejected by vetting;
 injected = simulated object planted to measure sensitivity."""
 
 MatchSource = Literal["jpl_sbident", "jpl_horizons", "skybot", "simbad", "synthetic"]
+
+CompositeMode = Literal["detectors", "jhk"]
+"""How a FALSE-COLOR composite maps SPHEREx infrared wavelengths to red/green/blue.
+detectors = channels built from whole SPHEREx detectors over the full 0.75-5.0 um range;
+jhk = 2MASS-like: channels from exposures near the J, H and Ks bands (~1.25, ~1.65, ~2.15 um).
+By convention blue = shortest and red = longest wavelengths (chromatic order)."""
+CompositeColor = Literal["red", "green", "blue"]
 
 
 class _Model(BaseModel):
@@ -76,8 +83,10 @@ class Frame(_Model):
     id: str = Field(description="Unique within the field, e.g. '2025W19_2B_0007_1D1'")
     obs_id: str = Field(description="SPHEREx OBSID header value")
     detector: int = Field(ge=1, le=6, description="1-3 SWIR, 4-6 MWIR")
-    mjd: float = Field(description="Mid-exposure time (MJD-OBS) [days]")
-    date_obs: datetime
+    mjd: float = Field(
+        description="Mid-exposure time [MJD days]: header MJD-AVG (fallbacks in docs/DATA.md; MJD-OBS is the START)"
+    )
+    date_obs: datetime = Field(description="Same instant as mjd, ISO-8601 UTC (header DATE-AVG)")
     wavelength_um: float | None = Field(
         default=None, description="Central wavelength at the field center (from WCS-WAVE)"
     )
@@ -183,6 +192,84 @@ class Provenance(_Model):
     notes: list[str] = Field(default_factory=list)
 
 
+class CompositeChannel(_Model):
+    """One color channel of a FALSE-COLOR composite: which infrared exposures were mapped to it."""
+
+    color: CompositeColor = Field(description="Display channel these infrared exposures are mapped to")
+    detector: int | None = Field(
+        default=None, ge=1, le=6, description="SPHEREx detector of every input; None = inputs from several detectors"
+    )
+    wavelength_um: float | None = Field(
+        default=None, gt=0, description="Mean central wavelength of the inputs at the field centre [um]"
+    )
+    wavelength_min_um: float | None = Field(
+        default=None, gt=0, description="Shortest central wavelength among the inputs at the field centre [um]"
+    )
+    wavelength_max_um: float | None = Field(
+        default=None, gt=0, description="Longest central wavelength among the inputs at the field centre [um]"
+    )
+    frame_ids: list[str] = Field(
+        min_length=1,
+        description="Exposures combined into this channel (Frame.id convention). They may include exposures "
+        "that are not published in Field.frames.",
+    )
+
+    @model_validator(mode="after")
+    def _check_wavelength_range(self) -> CompositeChannel:
+        lo, hi, mean = self.wavelength_min_um, self.wavelength_max_um, self.wavelength_um
+        if lo is not None and hi is not None and lo > hi:
+            raise ValueError(f"wavelength_min_um ({lo}) > wavelength_max_um ({hi})")
+        if mean is not None and lo is not None and hi is not None and not lo <= mean <= hi:
+            raise ValueError(f"wavelength_um ({mean}) outside [{lo}, {hi}]")
+        return self
+
+
+class Composite(_Model):
+    """A FALSE-COLOR infrared composite of one observing season, as an RGB(A) PNG on the field grid.
+
+    SPHEREx observes 0.75-5.0 um, invisible to the eye: red/green/blue are assigned to infrared
+    wavelengths (see CompositeMode). It is NOT a true-color image and the UI must say so.
+    """
+
+    id: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]*$", description="Unique within the field, e.g. 'detectors_S0'")
+    mode: CompositeMode = Field(
+        description="detectors = whole SPHEREx detectors over the full 0.75-5.0 um range; jhk = 2MASS-like, "
+        "exposures near J/H/Ks (~1.25/1.65/2.15 um). Blue = shortest, red = longest wavelengths."
+    )
+    season: int = Field(ge=0, description="0-based observing season of the field (0 = earliest)")
+    mjd_min: float = Field(description="Earliest mid-exposure MJD among the inputs [days]")
+    mjd_max: float = Field(description="Latest mid-exposure MJD among the inputs [days]")
+    image: str = Field(
+        pattern=r"\.png$",
+        description="RGB/RGBA PNG on the field grid, path relative to the field directory (no '..', no "
+        "absolute or Windows paths), e.g. 'color/detectors_S0.png'",
+    )
+    channels: list[CompositeChannel] = Field(
+        min_length=3, max_length=3, description="Exactly three channels, in the order red, green, blue"
+    )
+    notes: list[str] = Field(default_factory=list, description="Plain-language caveats for the UI")
+
+    @model_validator(mode="after")
+    def _check_composite(self) -> Composite:
+        image = self.image
+        parts = image.split("/")
+        if (
+            "\\" in image
+            or image.startswith("/")
+            or (len(image) > 1 and image[1] == ":")
+            or ".." in parts
+            or "" in parts
+            or any(ch in image for ch in "?#")
+        ):
+            raise ValueError(f"image must be a relative path inside the field directory, got {image!r}")
+        if self.mjd_min > self.mjd_max:
+            raise ValueError(f"mjd_min ({self.mjd_min}) > mjd_max ({self.mjd_max})")
+        colors = [c.color for c in self.channels]
+        if colors != ["red", "green", "blue"]:
+            raise ValueError(f"channels must be red, green, blue in this order, got {colors}")
+        return self
+
+
 class SkyField(_Model):
     """A patch of sky with all its frames. Called 'Field' in JSON Schema / TypeScript."""
 
@@ -197,6 +284,19 @@ class SkyField(_Model):
     grid: Grid
     frames: list[Frame]
     provenance: Provenance
+    composites: list[Composite] = Field(
+        default_factory=list,
+        description="Optional FALSE-COLOR infrared composites per observing season (infrared wavelengths mapped "
+        "to RGB, not true color). Empty when none were built; absent in products older than 0.3.1.",
+    )
+
+    @model_validator(mode="after")
+    def _check_unique_composite_ids(self) -> SkyField:
+        ids = [c.id for c in self.composites]
+        duplicates = sorted({i for i in ids if ids.count(i) > 1})
+        if duplicates:
+            raise ValueError(f"composite ids must be unique within a field, repeated: {duplicates}")
+        return self
 
 
 # --- 3D systems (WS7): models of the objects we track and their systems ------
