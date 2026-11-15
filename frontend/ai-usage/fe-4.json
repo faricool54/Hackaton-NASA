@@ -1,0 +1,18 @@
+{
+  "updated_on": "2026-11-15",
+  "tool": "Anthropic Claude Code",
+  "package": "FE-4 (docs/FRONTEND_PLAN.md): map layout, layers menu and credits; later the hover card and Gaia per view",
+  "scope": "FE-4a.0: optional ExplorerMap layout prop ('panel' default, unchanged markup; 'fill' for FE-2): the map fills its container, the toolbar (wavelength, AllWISE, sequence footprint, Gaia DR3, Zoom to sequence) moves into a keyboard-accessible floating Layers menu, loading and error messages overlay the map top left, and the legends (SPHEREx sequence grid outline, Gaia DR3 catalog positions predicted for the median frame date and not SPHEREx detections, AllWISE not SPHEREx) stay visible with the credits (static coadd, NASA/SPHEREx Caltech/IPAC, Aladin Lite 3.8.2 GPL-3, ESA/Gaia/DPAC while Gaia is shown) in a bottom-right strip outside the menu; the iframe keeps the same element in both layouts and every existing message to it is unchanged; one new 'layout' message lets sky-map.html hide, in the fill layout only, the Aladin corner controls under those overlays (frame selector and location box, projection button, logo; Aladin Lite stays credited in the strip); the sequence footprint outline changes from the 3D-model violet to the SPHEREx colour; checked in the browser with a temporary harness that was not committed (956x602 container gives a 956x602 iframe, keyboard open/Escape/focus return, closing on a map click, Gaia legend and credit, same iframe element across layout switches, 375x812 phone); new prefixed stylesheet and server-rendered vitest tests of both layouts. No new external assets",
+  "affected_paths": [
+    "frontend/src/components/ExplorerMap.tsx",
+    "frontend/src/components/ExplorerMap.test.tsx",
+    "frontend/src/styles/map.css",
+    "frontend/public/sky-map.html",
+    "frontend/ai-usage/fe-4.json"
+  ],
+  "external_assets": [],
+  "generated_media": [],
+  "scientific_R05_validation": false,
+  "human_review": "pending",
+  "repository_disclosure": "AI_USAGE.md"
+}
