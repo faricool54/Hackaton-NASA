@@ -159,10 +159,13 @@ No se reutilizan resultados de `season-grid-v2`; los pedidos persistidos conserv
 ### Invalidación de procesamiento (15/11)
 
 La revisión `display-mask-v4` incluye los cambios de máscara/render de WS2 #48. La clave captura también
-un SHA-256 del contenido de build/settings/models/data/imaging y versiones de las librerías de imagen.
+un SHA-256 del contenido de build/settings/models/products/data/imaging/detect y versiones de las librerías de imagen.
 El hash usa nombres relativos: mover un worktree no cambia el resultado. Cambiar código o dependencias
 invalida resultados viejos sin tener que recordar subir una constante. Cada pedido conserva su contexto;
 un pedido en cola cuyo procesamiento cambió falla y debe reenviarse, en lugar de publicar bajo otra clave.
+`detect/` también participa sin `--analyze`: registro y color (#41) importan helpers de `detect/difference.py`.
+Se incluyen todos sus módulos Python recursivamente, además de `products.py`; la huella compartida invalida
+tanto jobs como espectros/comparaciones. Los pedidos ya persistidos mantienen su identidad original.
 
 ## Espectros y comparaciones (15/11, C02/C03)
 
