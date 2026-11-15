@@ -18,6 +18,7 @@
     "pipeline/tests/test_imaging_register.py",
     "pipeline/tests/test_imaging_display.py",
     "pipeline/tests/test_imaging_ai_usage.py",
+    "pipeline/tests/test_imaging_snrcheck.py",
     "data/products/",
     "tasks/WS2-imaging-detection.md",
     "pipeline/errante/models.py",
