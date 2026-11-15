@@ -10,6 +10,7 @@ GET /api/fields/{id}/known            KnownObjectList
 GET /api/search?ra=&dec=              SearchResult      (live IRSA, WS1)   501 until done
 GET /api/known-objects?ra=&dec=&mjd=  list[KnownObject] (live JPL, WS3)    501 until done
 GET /api/resolve-name?name=           ResolvedRegion    (Sesame/CfA proxy)
+GET /api/object?name= | ?ra=&dec=     ObjectContextResponse (catalog context for the object card, WS3)
 POST /api/jobs                        JobStatusResponse (submit RA/Dec build job)
 GET  /api/jobs/{id}                   JobStatusResponse (poll job status)
 GET /data/...                         static files (frame PNGs, thumbnails)
@@ -30,7 +31,8 @@ from errante.models import SCHEMA_VERSION
 from errante.products import ProductStore
 
 from .live_service import LiveService
-from .routes import jobs, live, products, resolve, science
+from .object_service import ObjectService
+from .routes import jobs, live, objects, products, resolve, science
 from .science_service import ScienceService
 from .settings import Settings
 from .store import PublicProductStore
@@ -66,6 +68,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 log.info("job engine stopped")
             app.state.live.close()
             app.state.science.close()
+            app.state.objects.close()
 
     app = FastAPI(
         title="Errante API",
@@ -82,6 +85,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.store = PublicProductStore(settings.data_dir)
     app.state.live = LiveService(settings)
     app.state.science = ScienceService(settings)
+    app.state.objects = ObjectService(settings)
 
     @app.get("/api/health")
     def health() -> dict:
@@ -102,6 +106,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(resolve.router, prefix="/api")
     app.include_router(jobs.router, prefix="/api")
     app.include_router(science.router, prefix="/api")
+    app.include_router(objects.router, prefix="/api")
     if settings.data_dir.exists():
         app.mount("/data", StaticFiles(directory=settings.data_dir), name="data")
     return app
