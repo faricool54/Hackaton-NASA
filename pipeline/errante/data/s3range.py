@@ -41,6 +41,7 @@ import json
 import math
 import os
 import re
+import ssl
 import threading
 import time
 import uuid
@@ -68,14 +69,23 @@ __all__ = [
     "HduInfo",
     "NoOverlap",
     "RangeReader",
+    "cached_directory",
+    "data_size",
+    "decode_flag_rows",
     "fetch_patch",
     "fetch_patches",
     "fetch_patches_report",
+    "flag_descriptor_dtype",
+    "forget_directory",
     "hdu_directory",
+    "padded",
+    "parse_header",
     "patch_box",
     "patch_path",
     "read_patch",
     "read_range",
+    "read_range_meta",
+    "read_tail",
     "write_patch_fits",
 ]
 
@@ -106,10 +116,72 @@ def _pad(n: int) -> int:
     return -(-n // BLOCK) * BLOCK
 
 
+def padded(n: int) -> int:
+    """``n`` bytes rounded up to whole 2880-byte FITS blocks."""
+    return _pad(n)
+
+
 # --- HTTP Range reader --------------------------------------------------------
 
 _session_lock = threading.Lock()
 _SESSION: requests.Session | None = None
+
+
+class _PreloadedCAAdapter(requests.adapters.HTTPAdapter):
+    """HTTPAdapter whose TLS connections share ONE SSLContext with requests' default CA bundle loaded once.
+
+    Stock requests sets ``ca_certs`` on every new connection, so urllib3 re-parses the ~280 KB bundle each
+    time: ~0.2 s of CPU per connection, ~0.7 s each when 32 threads open connections at once (measured
+    2026-11-14 on Windows: 24 s of CPU for 32 connections, 0.5 s with this adapter). Verification is
+    unchanged: CERT_REQUIRED + hostname check against the same bundle.
+
+    Only ``verify=True`` without a client certificate uses the shared context. urllib3 loads a custom CA
+    (``verify=<path>``, also REQUESTS_CA_BUNDLE set after the session was made), a client certificate and
+    ``verify=False`` (CERT_NONE) INTO the pool's SSLContext, so those requests go through a separate stock
+    adapter: the shared trust store can never be widened or switched off by one request (tested on
+    localhost with a self-signed certificate).
+    """
+
+    def __init__(self, ssl_context, **kwargs):
+        self._ssl_context = ssl_context
+        self._stock = requests.adapters.HTTPAdapter(**kwargs)
+        super().__init__(**kwargs)
+
+    def init_poolmanager(self, connections, maxsize, block=False, **pool_kwargs):
+        pool_kwargs.setdefault("ssl_context", self._ssl_context)
+        super().init_poolmanager(connections, maxsize, block=block, **pool_kwargs)
+
+    def send(self, request, stream=False, timeout=None, verify=True, cert=None, proxies=None):
+        if verify is not True or cert is not None:
+            return self._stock.send(request, stream=stream, timeout=timeout, verify=verify, cert=cert, proxies=proxies)
+        return super().send(request, stream=stream, timeout=timeout, verify=verify, cert=cert, proxies=proxies)
+
+    def cert_verify(self, conn, url, verify, cert):
+        super().cert_verify(conn, url, verify, cert)
+        if (
+            verify is True
+            and getattr(conn, "ca_certs", None) == requests.utils.DEFAULT_CA_BUNDLE_PATH
+            and getattr(conn, "conn_kw", {}).get("ssl_context") is self._ssl_context
+        ):
+            conn.ca_certs = None  # already in the shared context: do not load it again per connection
+
+    def close(self):
+        self._stock.close()
+        super().close()
+
+
+def _adapter() -> requests.adapters.HTTPAdapter:
+    kwargs = {"pool_connections": 4, "pool_maxsize": 64}
+    if os.environ.get("REQUESTS_CA_BUNDLE") or os.environ.get("CURL_CA_BUNDLE"):
+        return requests.adapters.HTTPAdapter(**kwargs)  # custom trust store: stock behaviour
+    try:
+        from urllib3.util.ssl_ import create_urllib3_context
+
+        ctx = create_urllib3_context(cert_reqs=ssl.CERT_REQUIRED)
+        ctx.load_verify_locations(requests.utils.DEFAULT_CA_BUNDLE_PATH)
+    except (ImportError, OSError, ssl.SSLError):
+        return requests.adapters.HTTPAdapter(**kwargs)
+    return _PreloadedCAAdapter(ctx, **kwargs)
 
 
 def _session() -> requests.Session:
@@ -118,9 +190,8 @@ def _session() -> requests.Session:
     with _session_lock:
         if _SESSION is None:
             s = requests.Session()
-            adapter = requests.adapters.HTTPAdapter(pool_connections=4, pool_maxsize=64)
-            s.mount("https://", adapter)
-            s.mount("http://", adapter)
+            s.mount("https://", _adapter())
+            s.mount("http://", requests.adapters.HTTPAdapter(pool_connections=4, pool_maxsize=64))
             _SESSION = s
         return _SESSION
 
@@ -141,8 +212,18 @@ def read_range(key: str, start: int, stop: int) -> bytes:
     Refuses a 200 (whole-object) answer instead of silently downloading 60+ MB, and a 206
     for a range that does not start at ``start``.
     """
+    return read_range_meta(key, start, stop)[0]
+
+
+def read_range_meta(key: str, start: int, stop: int) -> tuple[bytes, int | None, str]:
+    """Like :func:`read_range`, plus WHICH object answered: (bytes, total object size, ETag).
+
+    Every 206 carries the object's size (``Content-Range: bytes a-b/<size>``) and its ``ETag``; they change
+    when S3 rewrites the object under the same key (RECON §2.4), so a caller that cached offsets can tell
+    they no longer apply. ``None`` / ``""`` where the answer did not say (e.g. a 416 past the end).
+    """
     if stop <= start:
-        return b""
+        return b"", None, ""
     url = f"{settings.S3_HTTPS}/{key.lstrip('/')}"
     last: Exception | None = None
     for attempt in range(RANGE_RETRIES):
@@ -153,7 +234,7 @@ def read_range(key: str, start: int, stop: int) -> bytes:
                 url, headers={"Range": f"bytes={start}-{stop - 1}"}, stream=True, timeout=settings.HTTP_TIMEOUT_S
             ) as r:
                 if r.status_code == 416:
-                    return b""
+                    return b"", None, ""
                 if r.status_code == 206:
                     first, total = _content_range(r.headers.get("Content-Range"))
                     if first is not None and first != start:
@@ -161,7 +242,7 @@ def read_range(key: str, start: int, stop: int) -> bytes:
                         continue
                     data = r.content
                     if len(data) == stop - start or (total is not None and start + len(data) == total):
-                        return data
+                        return data, total, str(r.headers.get("ETag") or "")
                     last = OSError(f"short read: {len(data)} of {stop - start} bytes")
                 elif r.status_code == 200:
                     raise OSError(f"server ignored the Range header for {url}")
@@ -173,6 +254,45 @@ def read_range(key: str, start: int, stop: int) -> bytes:
         except _TRANSIENT as e:
             last = e
     raise OSError(f"S3 range read failed after {RANGE_RETRIES} attempts: {key} [{start}:{stop})") from last
+
+
+def read_tail(key: str, nbytes: int) -> tuple[bytes, int]:
+    """The last ``nbytes`` of ``s3://nasa-irsa-spherex/<key>`` and the object's total size.
+
+    One suffix Range request (``bytes=-N``, answered 206 by S3; verified 2026-11-14). The WCS-WAVE
+    HDU of an L2 file is its last 5760 bytes, so this needs no HDU walk. Same retries as
+    :func:`read_range`; the whole object comes back when it is shorter than ``nbytes``.
+    """
+    if nbytes <= 0:
+        raise ValueError("nbytes must be > 0")
+    url = f"{settings.S3_HTTPS}/{key.lstrip('/')}"
+    last: Exception | None = None
+    for attempt in range(RANGE_RETRIES):
+        if attempt:
+            time.sleep(0.5 * 2 ** (attempt - 1))
+        try:
+            with _session().get(
+                url, headers={"Range": f"bytes=-{nbytes}"}, stream=True, timeout=settings.HTTP_TIMEOUT_S
+            ) as r:
+                if r.status_code == 206:
+                    first, total = _content_range(r.headers.get("Content-Range"))
+                    if first is None or total is None:
+                        last = OSError(f"suffix read without a usable Content-Range: {r.headers.get('Content-Range')}")
+                        continue
+                    data = r.content
+                    if first + len(data) == total and len(data) == min(nbytes, total):
+                        return data, total
+                    last = OSError(f"short suffix read: {len(data)} bytes from {first} of {total}")
+                elif r.status_code == 200:
+                    raise OSError(f"server ignored the Range header for {url}")
+                elif r.status_code >= 500 or r.status_code == 429:
+                    last = requests.HTTPError(f"HTTP {r.status_code} for {url}", response=r)
+                else:
+                    r.raise_for_status()
+                    raise OSError(f"unexpected HTTP {r.status_code} for {url}")
+        except _TRANSIENT as e:
+            last = e
+    raise OSError(f"S3 suffix read failed after {RANGE_RETRIES} attempts: {key} [-{nbytes}:]") from last
 
 
 class _CountingReader:
@@ -267,6 +387,25 @@ def _find_end(buf: bytes) -> int | None:
     return None
 
 
+def parse_header(buf: bytes) -> tuple[fits.Header, int] | None:
+    """(header, length incl. padding) of the FITS header at the start of ``buf``; None if its END is not in ``buf``.
+
+    Raises ValueError when ``buf`` does not start with a header card (``SIMPLE``/``XTENSION``): a caller that
+    guessed an offset learns at once that the guess was wrong.
+    """
+    if not (buf.startswith(b"SIMPLE  =") or buf.startswith(b"XTENSION=")):
+        if len(buf) >= 9:
+            raise ValueError(f"no FITS header here (starts with {buf[:20]!r})")
+        return None
+    end = _find_end(buf)
+    if end is None:
+        return None
+    hlen = _pad(end + CARD)
+    if len(buf) < hlen:
+        return None
+    return fits.Header.fromstring(buf[:hlen].decode("ascii")), hlen
+
+
 def _read_header(
     key: str, offset: int, reader: RangeReader, chunk: int, buf: bytes = b""
 ) -> tuple[fits.Header, int, bytes] | None:
@@ -301,6 +440,11 @@ def _data_size(h: fits.Header) -> int:
     for i in range(1, naxis + 1):
         n *= int(h[f"NAXIS{i}"])
     return abs(int(h["BITPIX"])) // 8 * int(h.get("GCOUNT", 1)) * (int(h.get("PCOUNT", 0)) + n)
+
+
+def data_size(h: fits.Header) -> int:
+    """Bytes of data after this header, before padding: |BITPIX|/8 * GCOUNT * (PCOUNT + prod NAXISn)."""
+    return _data_size(h)
 
 
 def _walk(key: str, reader: RangeReader) -> HduDirectory:
@@ -392,6 +536,22 @@ def _cached_directory(mkey: tuple[str, str], key: str) -> HduDirectory | None:
     except (ValueError, KeyError, OSError):
         pass  # missing, corrupt or unreadable cache entry: (re)build it
     return None
+
+
+def cached_directory(key: str) -> HduDirectory | None:
+    """The cached HDU directory of ``key`` (memory, then disk) or None. Never touches the network."""
+    return _cached_directory((str(settings.CACHE_DIR), key), key)
+
+
+def forget_directory(key: str) -> None:
+    """Drop the cached HDU directory of ``key`` (memory and disk), e.g. when the object was rewritten."""
+    mkey = (str(settings.CACHE_DIR), key)
+    with _mem_lock:
+        _mem.pop(mkey, None)
+    try:
+        _dir_cache_path(key).unlink(missing_ok=True)
+    except OSError:
+        pass
 
 
 def hdu_directory(key: str, reader: RangeReader | None = None, use_cache: bool = True) -> HduDirectory:
@@ -520,13 +680,12 @@ def _read_rows(key: str, info: HduInfo, x0: int, x1: int, y0: int, y1: int, read
     return arr
 
 
-def _read_flags(
-    key: str, info: HduInfo, x0: int, x1: int, y0: int, y1: int, reader: RangeReader
-) -> tuple[np.ndarray, fits.Header]:
-    """FLAGS rows y0..y1, columns x0..x1 (int32) and the image-style header of the full plane."""
-    h = info.header
-    if str(h.get("XTENSION", "")).strip() == "IMAGE":  # not compressed in some future release
-        return _read_rows(key, info, x0, x1, y0, y1, reader).astype(np.int32), h
+def flag_descriptor_dtype(h: fits.Header) -> np.dtype:
+    """Dtype of one (count, offset) heap descriptor of a FLAGS plane stored with one RICE tile per row.
+
+    Raises ValueError (message names ZTILE1/ZTILE2 when that is the problem) if the plane is not a 2-D
+    tile-compressed image with one tile per row, the only layout seen in real L2 files.
+    """
     if not h.get("ZIMAGE", False) or int(h.get("ZNAXIS", 0)) != 2 or int(h.get("TFIELDS", 0)) != 1:
         raise ValueError("FLAGS is not a 2-D tile-compressed image with one column")
     if int(h.get("ZTILE2", 0)) != 1 or int(h.get("ZTILE1", 0)) != int(h["ZNAXIS1"]):
@@ -535,21 +694,27 @@ def _read_flags(
     if not m:
         raise ValueError(f"unexpected FLAGS TFORM1={h['TFORM1']!r}")
     ddt = np.dtype(">i4" if m[1] == "P" else ">i8")
-    dsize = 2 * ddt.itemsize
-    if int(h["NAXIS1"]) != dsize:
-        raise ValueError(f"FLAGS row is {h['NAXIS1']} bytes, expected a {dsize}-byte descriptor")
-    ny = y1 - y0 + 1
-    raw_desc = reader(key, info.data_offset + y0 * dsize, info.data_offset + (y1 + 1) * dsize)
-    if len(raw_desc) != ny * dsize:
-        raise OSError(f"short read for FLAGS descriptors of {key}")
-    desc = np.frombuffer(raw_desc, dtype=ddt).reshape(ny, 2).astype(np.int64)
-    counts, offsets = desc[:, 0], desc[:, 1]
-    theap = int(h.get("THEAP", int(h["NAXIS1"]) * int(h["NAXIS2"])))
+    if int(h["NAXIS1"]) != 2 * ddt.itemsize:
+        raise ValueError(f"FLAGS row is {h['NAXIS1']} bytes, expected a {2 * ddt.itemsize}-byte descriptor")
+    return ddt
+
+
+def decode_flag_rows(h: fits.Header, desc: np.ndarray, heap: bytes, heap_lo: int) -> tuple[np.ndarray, fits.Header]:
+    """Decompress consecutive FLAGS rows (all columns, int32) from their descriptors and heap bytes.
+
+    ``h`` is the compressed FLAGS header (see :func:`flag_descriptor_dtype`), ``desc`` the (n, 2)
+    (count, offset) descriptors of the rows, ``heap`` the heap bytes from heap offset ``heap_lo`` on
+    (covering every row). Wraps them in a minimal compressed HDU in memory and lets astropy do the
+    RICE_1 decoding. Also returns the image-style header astropy derives for those rows.
+    """
+    ddt = flag_descriptor_dtype(h)
+    desc = np.asarray(desc, dtype=np.int64).reshape(-1, 2)
+    ny = len(desc)
+    counts, offsets = desc[:, 0], desc[:, 1] - heap_lo
     lo, hi = int(offsets.min()), int((offsets + counts).max())
-    heap = reader(key, info.data_offset + theap + lo, info.data_offset + theap + hi)
-    if len(heap) != hi - lo:
-        raise OSError(f"short read for FLAGS heap of {key}")
-    # Minimal compressed HDU holding only these rows; astropy does the RICE_1 decoding.
+    if lo < 0 or hi > len(heap):
+        raise ValueError(f"FLAGS heap slice [{lo}, {hi}) is outside the {len(heap)} bytes given")
+    heap = heap[lo:hi]
     mini = h.copy()
     mini["NAXIS2"] = ny
     mini["ZNAXIS2"] = ny
@@ -576,8 +741,32 @@ def _read_flags(
             image_header = fits.Header(hdu.header)
     if rows.shape != (ny, int(h["ZNAXIS1"])):
         raise ValueError(f"decompressed FLAGS rows have shape {rows.shape}")
+    return rows.astype(np.int32), image_header
+
+
+def _read_flags(
+    key: str, info: HduInfo, x0: int, x1: int, y0: int, y1: int, reader: RangeReader
+) -> tuple[np.ndarray, fits.Header]:
+    """FLAGS rows y0..y1, columns x0..x1 (int32) and the image-style header of the full plane."""
+    h = info.header
+    if str(h.get("XTENSION", "")).strip() == "IMAGE":  # not compressed in some future release
+        return _read_rows(key, info, x0, x1, y0, y1, reader).astype(np.int32), h
+    ddt = flag_descriptor_dtype(h)
+    dsize = 2 * ddt.itemsize
+    ny = y1 - y0 + 1
+    raw_desc = reader(key, info.data_offset + y0 * dsize, info.data_offset + (y1 + 1) * dsize)
+    if len(raw_desc) != ny * dsize:
+        raise OSError(f"short read for FLAGS descriptors of {key}")
+    desc = np.frombuffer(raw_desc, dtype=ddt).reshape(ny, 2).astype(np.int64)
+    counts, offsets = desc[:, 0], desc[:, 1]
+    theap = int(h.get("THEAP", int(h["NAXIS1"]) * int(h["NAXIS2"])))
+    lo, hi = int(offsets.min()), int((offsets + counts).max())
+    heap = reader(key, info.data_offset + theap + lo, info.data_offset + theap + hi)
+    if len(heap) != hi - lo:
+        raise OSError(f"short read for FLAGS heap of {key}")
+    rows, image_header = decode_flag_rows(h, desc, heap, lo)
     image_header["NAXIS2"] = int(h["ZNAXIS2"])  # describe the full plane; _shift_header crops it
-    return rows[:, x0 : x1 + 1].astype(np.int32), image_header
+    return rows[:, x0 : x1 + 1], image_header
 
 
 def read_patch(

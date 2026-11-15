@@ -132,6 +132,83 @@ def cmd_search(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_point(args: argparse.Namespace) -> int:
+    from .data.irsa import SearchError
+    from .data.point import point_series
+
+    try:
+        series = point_series(
+            args.ra,
+            args.dec,
+            box_px=args.box,
+            detectors=args.detector,
+            mjd_min=args.mjd_min,
+            mjd_max=args.mjd_max,
+            collections=args.collections,
+            max_frames=args.max_frames,
+            max_workers=args.workers,
+            use_cache=not args.no_cache,
+            deadline_s=args.deadline,
+        )
+    except (SearchError, ValueError) as e:
+        print(f"Point series failed: {e}", file=sys.stderr)
+        return 2
+    paths = series.save(args.out) if args.out else None
+    t = series.timings
+    if not args.summary:
+        doc = {
+            "ra": series.ra,
+            "dec": series.dec,
+            "box_px": series.box_px,
+            "search": series.search,
+            "timings": t,
+            "failures": [{"obs_id": f.obs_id, "detector": f.detector, "reason": r} for f, r in series.failures],
+            "samples": series.summary_rows(),
+        }
+        print(json.dumps(doc, indent=1))
+    else:
+        from collections import Counter
+
+        origin = "cache" if t.get("from_cache") else f"{t.get('frames')} frames read from S3"
+        print(
+            f"{len(series.samples)} samples at ({series.ra:.5f}, {series.dec:.5f}), box {series.box_px} px "
+            f"({origin}) in {t.get('total_s')} s"
+        )
+        s = series.search
+        print(
+            f"  search: {s.get('n_found')} frames via {s.get('service')}"
+            f"{' (cache)' if s.get('from_cache') else ''}{' STALE' if s.get('stale') else ''}"
+            f"{' TRUNCATED' if s.get('overflow') else ''}, {s.get('n_selected')} selected"
+        )
+        if not t.get("from_cache"):
+            print(
+                f"  S3: {t.get('requests')} requests ({t.get('requests_per_frame')}/frame), "
+                f"{(t.get('bytes') or 0) / 1e6:.1f} MB ({(t.get('bytes_per_frame') or 0) / 1e3:.0f} KB/frame), "
+                f"fetch {t.get('fetch_s')} s, layouts {t.get('layouts')}"
+            )
+        by_det: dict[int, list] = {}
+        for smp in series.samples:
+            by_det.setdefault(smp.detector, []).append(smp)
+        for det, smps in sorted(by_det.items()):
+            lam = [x.wavelength_um for x in smps if x.wavelength_um is not None]
+            rng = f"{min(lam):.3f}-{max(lam):.3f} um" if lam else "no wavelength"
+            rel = ", ".join(f"{k}: {n}" for k, n in sorted(Counter(x.release for x in smps).items()))
+            print(f"  D{det}: {len(smps)} samples, {rng}, MJD {smps[0].mjd:.2f}-{smps[-1].mjd:.2f} ({rel})")
+        if series.failures:
+            reasons = Counter(r.split(":", 1)[0] for _, r in series.failures)
+            print(f"  failures: {len(series.failures)} ({', '.join(f'{k}: {n}' for k, n in reasons.items())})")
+    if t.get("wave_errors"):
+        print(
+            f"WARNING: {t['wave_errors']} samples have no wavelength because S3 failed (not cached: ask again)",
+            file=sys.stderr,
+        )
+    if t.get("timed_out"):
+        print(f"WARNING: {t['timed_out']} frames not read within --deadline (not cached)", file=sys.stderr)
+    if paths:
+        print(f"Wrote {paths[0]} and {paths[1]}", file=sys.stderr)
+    return 0
+
+
 def cmd_snapshot_search(args: argparse.Namespace) -> int:
     """(Re)generate committed search snapshots (data/index/search/<field-id>.json) from a live SIA query."""
     from .build import load_field_configs
@@ -412,6 +489,37 @@ def main(argv: list[str] | None = None) -> int:
         help="print counts by collection, release, detector, visit and season instead of the JSON",
     )
     s.set_defaults(func=cmd_search)
+
+    s = sub.add_parser("point", help="stamps of every SPHEREx exposure at a position, read from S3 (WS1)")
+    s.add_argument("--ra", type=float, required=True)
+    s.add_argument("--dec", type=float, required=True)
+    s.add_argument(
+        "--box",
+        type=int,
+        default=11,
+        help="stamp side [px] (default 11; 1 px = 6.15 arcsec; >= 15 for imaging.photometry's sky annulus)",
+    )
+    s.add_argument("--detector", type=int, action="append", choices=range(1, 7), help="repeat for several")
+    s.add_argument("--mjd-min", type=float, default=None)
+    s.add_argument("--mjd-max", type=float, default=None)
+    s.add_argument(
+        "--collections",
+        default=None,
+        help="comma-separated IRSA collections (default: spherex_dr1,spherex_qr3; deep fields: "
+        "spherex_dr1_deep,spherex_qr3_deep)",
+    )
+    s.add_argument("--max-frames", type=int, default=None, help="cap, spread over detectors and visits")
+    s.add_argument("--workers", type=int, default=None, help="max S3 requests in flight (default 48, at most 64)")
+    s.add_argument(
+        "--deadline",
+        type=float,
+        default=None,
+        help="seconds for the whole call; frames not read by then are failures (TimeoutError), not cached",
+    )
+    s.add_argument("--out", default=None, help="write the series to OUT.npz + OUT.json")
+    s.add_argument("--no-cache", action="store_true", help="ignore and do not write the series cache")
+    s.add_argument("--summary", action="store_true", help="human-readable summary instead of the JSON")
+    s.set_defaults(func=cmd_point)
 
     s = sub.add_parser(
         "snapshot-search",
