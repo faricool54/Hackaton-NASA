@@ -81,8 +81,8 @@ Estado al 15/11/2026, 03:30 ART (`main` `c333390`). La lista viva, con IDs, due�
 2. **P0:** los cinco blancos validados (R05). *Cinco registros `success` en [`validation/`](validation/) (#36, #46);
    faltan la revisión humana y el recorrido en la URL pública (V5, A9).*
 3. **P1:** espectro en el panel. *Hecho con la API (cubo DR1 o fotometría L2, #53-#55), sin movimiento propio (V9).
-   La ficha del objeto (contexto de catálogo de WS3, #58) ya está escrita en la rama local `integ/object-card`
-   (contrato 0.5.0, `GET /api/object` y `ObjectCard`), todavía sin push ni PR (V6).*
+   La ficha del objeto (contexto de catálogo de WS3, #58) ya está en el panel del click: contrato 0.5.0 (#73),
+   `GET /api/object` (#76) y `ObjectCard` (#75) (V6, hecho).*
 4. **P1:** 3D desde mediciones; primero los cinco blancos, después cualquier estrella con datos de Gaia. *Hoy hay un
    3D de catálogo verificado para los cinco (#47, #64), todavía no construido desde mediciones SPHEREx (V13, V14).*
 5. **P2:** detección automática y Planeta X. *Sin empezar; propuesta: congelarlos hasta después del envío (D10).*
@@ -93,11 +93,11 @@ Responsables según [`TEAM.md`](TEAM.md). «De facto» indica quién hizo el tra
 
 | WS | Responsable | Ya hecho | Lo que sigue (IDs de `PARALLEL_PLAN.md`) |
 |---|---|---|---|
-| **WS5** (frontend) | Sin reserva. Aportes: rpccp (#34, #55), V0id47 (#40), BenjaminPondal (#15, #20, #26) | Mapa Aladin con SPHEREx, selector de λ, buscador, coordenadas en la URL, click → job → blink, modos de color, paneles de espectro y comparación | Mapa negro (V1), retícula y zoom (V3), revisar `ObjectCard` (V6: ya escrito por faricool54 en `integ/object-card`, sin PR), panel de tres vistas (V7), calidad por frame (V8), About y filas de la revisión de textos (A2, A13), onboarding y Lighthouse (A10) |
+| **WS5** (frontend) | Sin reserva. Aportes: rpccp (#34, #55), V0id47 (#40), BenjaminPondal (#15, #20, #26) | Mapa Aladin con SPHEREx, selector de λ, buscador, coordenadas en la URL, click → job → blink, modos de color, paneles de espectro y comparación | Mapa negro (V1), retícula y zoom (V3), revisar `ObjectCard` (V6, mergeado en #75), panel de tres vistas (V7), calidad por frame (V8), About y filas de la revisión de textos (A2, A13), onboarding y Lighthouse (A10) |
 | **WS7** (3D) | Sin reserva; de facto DankoLiv (#47) | Valores de los cinco verificados contra catálogos (#9); 3D procedural con esferas lisas, *Dataset time* y panel del cielo (#47); publicado en el dataset real (#64) | Fila «bloquea» (V4), filas «importante» (V12), alimentar el 3D desde `physical_parameters` y después desde mediciones SPHEREx (V13), 3D para un click arbitrario (V14) |
 | **WS3** (ciencia) | faricool54 + Claude (#51) | Validación de los cinco (#36, #46), contexto del objeto (#58), espectro por temporada y curvas de luz (#59), revisión de textos (#60) y del 3D (#65) | Nombre A/B de RW Aur (V15), textos de `fields.toml` (V16), temperatura desde el espectro (V18), curva de luz como producto (V10) |
 | **WS2** (imágenes) | V0id47 + Claude (#13) | Reproyección y selección (#16, #35), cinco campos reales (#17, #41), restas y coadds (#19, #37, #69), fotometría forzada (#31), chequeo de productos y animaciones (#70, #71) | Comparaciones visibles sin backend (V11), SNR del coadd (V21), flags por frame (V8) |
-| **WS4** (backend y deploy) | rpccp + Codex | Jobs por coordenadas y nombre (#18, #32, #33), espectros y comparaciones (#53, #54), caché (#52, #57) | Revisar `GET /api/object` (V6: ya escrito por faricool54 en `integ/object-card`, sin PR), deploy (V2, A12), espectro con movimiento propio (V9) |
+| **WS4** (backend y deploy) | rpccp + Codex | Jobs por coordenadas y nombre (#18, #32, #33), espectros y comparaciones (#53, #54), caché (#52, #57) | Revisar `GET /api/object` (V6, mergeado en #76), deploy (V2, A12), espectro con movimiento propio (V9) |
 | **WS1** (datos) | faricool54 + Claude (#10) | Búsqueda SIA/TAP, S3, λ y MJD (#21-#23), cubo DR1 (#42), todas las exposiciones de un punto (#45, #50), snapshots para caídas de IRSA (#43) | Probar en vivo el fallback TAP; releases nuevos (V20) |
 | **WS6** (entrega) | Sin reserva. TEAM.md: deploy → WS4; textos, About, pitch y video → WS5 + quien termine antes (normalmente WS3) | Guías y borradores en `docs/submission/` | Todo §3 de `PARALLEL_PLAN.md`: textos (A1-A3, A7), demo (A4), registro de IA (A5), fuentes (A6), envío (E1-E9) |
 
