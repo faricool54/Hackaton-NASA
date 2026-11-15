@@ -40,7 +40,9 @@ Planes 50 and 51 (D3 channel 17 and D4 channel 1, the dichroic channels) are all
 purpose (``BLANKCH`` in the primary header, and the HiPS ``properties``). Plane k belongs to
 detector ``k // 17 + 1``, channel ``k % 17 + 1`` (checked against SPECTRAL_CHANNELS).
 Saturated stars (Barnard's Star, R Dra, ...) are NaN holes with NHITS = 0: the coadd rejects
-their core samples, so their spectrum at the star's pixel is mostly invalid.
+their core samples, so their spectrum at the star's pixel is mostly invalid. The converse does not
+hold: the coadd also has large NaN gaps without saturation (near the Galactic Centre, tens of
+arcmin wide), so a lost core alone does not mean "saturated" (docs/DATA.md §3.3 d-e).
 
 Caching: tile headers (HDU directory + WCS-WAVE bytes, ~40 KB) under ``CACHE_DIR/cube/dir`` and
 finished spectra under ``CACHE_DIR/cube/spectra`` (a fixed release: entries never expire). A cold
@@ -1296,9 +1298,10 @@ def _cube_spectrum_from(
     core_lost = [k for k in range(n) if k not in blanks and not core_valid[k]]
     if core_lost:
         notes.append(
-            f"{len(core_lost)} planes have no input samples at the centre pixel (NaN, NHITS = 0): typical of a "
-            "saturated bright star, whose core the coadd rejects. Those planes are invalid with or without an "
-            "aperture (the ring around a rejected core underestimates the source): use the L2 exposures."
+            f"{len(core_lost)} planes have no input samples at the centre pixel (NaN, NHITS = 0): either the core "
+            "of a saturated bright star, which the coadd rejects, or a gap in the coadd's coverage. Those planes "
+            "are invalid with or without an aperture (the ring around a rejected core underestimates the source): "
+            "use the L2 exposures."
         )
     thin = [k for k in range(n) if core_valid[k] and n_used[k] < min_used]
     if thin:

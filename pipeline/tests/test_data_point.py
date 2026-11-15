@@ -11,15 +11,20 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import logging
 import math
 import os
+import re
 import threading
 import time
 import warnings
+from concurrent.futures import ThreadPoolExecutor
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import numpy as np
 import pytest
+import requests
 from astropy.io import fits
 from astropy.wcs import WCS
 
@@ -152,11 +157,11 @@ class FakeS3:
             self._etags[id(obj)] = '"' + hashlib.md5(obj).hexdigest() + '"'
         return self._etags[id(obj)]
 
-    def meta(self, key: str, start: int, stop: int) -> tuple[bytes, int | None, str]:
+    def meta(self, key: str, start: int, stop: int, **limits) -> tuple[bytes, int | None, str]:
         data = self(key, start, stop)
         return data, len(self.objects[key]), self.etag(key)
 
-    def tail(self, key: str, nbytes: int) -> tuple[bytes, int]:
+    def tail(self, key: str, nbytes: int, **limits) -> tuple[bytes, int]:
         with self._lock:
             self.tails += 1
         obj = self.objects[key]
@@ -631,7 +636,7 @@ def test_transient_wave_error_is_retried_once_and_never_cached(series_setup, fak
     real_tail = fake.tail
     state = {"fail": 10**9, "calls": 0}
 
-    def flaky_tail(key, nbytes):
+    def flaky_tail(key, nbytes, **limits):
         state["calls"] += 1
         if state["fail"] > 0:
             state["fail"] -= 1
@@ -668,7 +673,7 @@ def test_s3_outage_on_wcs_wave_never_serves_a_series_without_wavelengths(series_
     ra, dec, *_ = series_setup
     healthy = fake.tail
 
-    def down(key, nbytes):
+    def down(key, nbytes, **limits):
         raise OSError("S3 suffix read failed after 4 attempts (simulated 503s)")
 
     monkeypatch.setattr(s3range, "read_tail", down)
@@ -684,7 +689,7 @@ def test_s3_outage_on_wcs_wave_never_serves_a_series_without_wavelengths(series_
 def test_cli_point_reports_missing_wavelengths_and_takes_a_deadline(series_setup, fake, monkeypatch, capsys):
     ra, dec, *_ = series_setup
 
-    def down(key, nbytes):
+    def down(key, nbytes, **limits):
         raise OSError("simulated 503s")
 
     monkeypatch.setattr(s3range, "read_tail", down)
@@ -704,6 +709,26 @@ def test_format_wave_errors_are_not_transient(fake):
     s = point.read_point_sample(_frame(key), *_sky(150.0, 100.0))
     assert s.wavelength_um is None and s.meta["wave_error"].startswith("ValueError")
     assert "wave_error_transient" not in s.meta
+
+
+@pytest.mark.filterwarnings("ignore::astropy.io.fits.verify.VerifyWarning")
+def test_corrupt_wave_hdu_is_a_wave_error_not_a_failed_frame(fake):
+    """Review 2026-11-15: a WCS-WAVE whose XTENSION card astropy cannot parse (a _CorruptedHDU) raised
+    AttributeError out of read_point_sample (and to_spherex_image); it is a deterministic wave_error now."""
+    key = _key("2025W33_2C_0321_1")
+    blob, _ = make_l2()
+    tail = blob[-2 * 2880 :]
+    old = b"XTENSION= 'BINTABLE'           / binary table extension"
+    assert tail.startswith(old) and b"WCS-WAVE" in tail[:2880]
+    fake.objects[key] = blob[: -len(tail)] + tail.replace(
+        old, b"XTENSION= 5  -Z'252'.58742YB.1 / binary table extension"
+    )
+    s3range.wave_table_from_bytes.cache_clear()
+    s = point.read_point_sample(_frame(key), *_sky(150.0, 100.0))
+    assert s.wavelength_um is None and s.meta["wave_error"].startswith("ValueError")
+    assert "wave_error_transient" not in s.meta
+    img = point.to_spherex_image(s)
+    assert img.wave is None and img.extra["wave_error"].startswith("ValueError")
 
 
 def test_empty_and_all_no_overlap_series_are_not_cached(series_setup, fake, monkeypatch):
@@ -851,7 +876,7 @@ def test_max_workers_caps_concurrent_requests(fake, monkeypatch):
     state = {"now": 0, "peak": 0}
 
     def tracked(fn):
-        def wrapper(*a):
+        def wrapper(*a, **limits):
             with lock:
                 state["now"] += 1
                 state["peak"] = max(state["peak"], state["now"])
@@ -876,7 +901,7 @@ def test_deadline_turns_unfinished_frames_into_failures(series_setup, fake, monk
     release = threading.Event()
     slow = frames[0].s3_key
 
-    def stalled(key, start, stop):
+    def stalled(key, start, stop, **limits):
         if key == slow:
             release.wait(20)
         return fake.meta(key, start, stop)
@@ -993,6 +1018,320 @@ def test_to_spherex_image_without_flags_or_wave_table(fake):
     assert img.header["PATCHFLG"] == "unavailable"  # unknown, NOT clean
     assert img.wave is None and img.extra["wave_error"].startswith("ValueError")
     assert img.wavelength_at(*_sky(150.0, 100.0)) is None
+
+
+# --- follow-ups of the #45 review (2026-11-14): deadline, cut spread, in-flight reads, pool, CLI ----------------
+
+
+def test_deadline_covers_the_archive_search(fake, monkeypatch):
+    """``deadline_s`` is for the WHOLE call: a stalled IRSA gets what is left of it, not SEARCH_DEADLINE_S (60 s)."""
+    ra, dec = _sky(150.0, 100.0)
+    monkeypatch.setattr(irsa, "find_snapshot", lambda *a, **k: None)  # no committed fallback: IRSA must answer
+    seen: list[float] = []
+    stop = threading.Event()
+
+    def stalled_http(method, url, *, params=None, data=None, timeout):
+        seen.append(timeout)
+        stop.wait(min(timeout, 3.0))  # a stalled IRSA (bounded so that the old code fails in ~15 s, not minutes)
+        raise requests.Timeout(f"{url} stalled")
+
+    monkeypatch.setattr(irsa, "_http", stalled_http)
+    t0 = time.perf_counter()
+    try:
+        with pytest.raises(irsa.SearchError) as err:
+            point.point_series(ra, dec, deadline_s=3.0, use_cache=False)
+    finally:
+        stop.set()
+    elapsed = time.perf_counter() - t0
+    assert elapsed < 3.0 + 1.5
+    assert seen and max(seen) <= 3.0  # no attempt was given more time than the call had
+    assert isinstance(err.value.__cause__, requests.Timeout)  # the backend maps this cause to HTTP 504
+    assert fake.calls == 0
+
+
+def test_a_short_deadline_gives_sia_the_whole_search_budget(fake, monkeypatch):
+    """Review 2026-11-15: point_series(deadline_s=5) gave SIA 2.5 s (half, the other half kept for TAP, which needs
+    8-19 s), so a cold search that SIA answers in 3 s failed with SearchError (504) where main returned a series."""
+    ra, dec = _sky(150.0, 100.0)
+    key = _key("2025W33_2C_0001_1")
+    fake.objects[key], _ = make_l2()
+    rows = [irsa.ArchiveRow(_frame(key), "spherex_dr1", "l2b-v27-2026-228")]
+    monkeypatch.setattr(irsa, "find_snapshot", lambda *a, **k: None)
+    given: list[float] = []
+
+    def sia(ra_, dec_, radius, mjd_min, mjd_max, cols, deadline=None):
+        given.append(deadline - time.monotonic())
+        return list(rows), False
+
+    monkeypatch.setattr(irsa, "_search_sia", sia)
+    s = point.point_series(ra, dec, deadline_s=5.0, use_cache=False)
+    assert len(s.samples) == 1 and s.search["service"] == "sia"
+    assert given and 4.0 < given[0] <= 5.0  # was 2.5 s: SIA (1-4 s, up to 9.3 s seen) now has the whole budget
+
+
+def test_no_read_starts_once_the_search_used_up_the_deadline(series_setup, fake, monkeypatch):
+    ra, dec, frames, _, _ = series_setup
+    budgets = []
+
+    def slow_search(*a, **k):
+        budgets.append(k.get("deadline_s"))
+        time.sleep(0.4)
+        return _report(list(frames), ra, dec)
+
+    monkeypatch.setattr(irsa, "search_frames_report", slow_search)
+    s = point.point_series(ra, dec, deadline_s=0.3, use_cache=False)
+    assert budgets and budgets[0] is not None and 0 < budgets[0] <= 0.3  # the search got the remaining budget
+    assert s.samples == [] and fake.calls == 0 and fake.tails == 0  # nothing was sent to S3 after the deadline
+    assert s.timings["timed_out"] == 3 and len(s.failures) == 3
+    assert all(r.startswith("TimeoutError") and "search" in r for _, r in s.failures)  # says where the time went
+
+
+def _season_frames(fake, n_per_season: int = 6) -> tuple[list[FrameRef], dict[str, int]]:
+    """Four seasons (two DR1, two QR3), one visit every 2 days, in time order."""
+    blob, _ = make_l2(seed=1)
+    frames, season_of = [], {}
+    for s_i, (rel, start) in enumerate((("dr1", 60800.0), ("dr1", 60990.0), ("qr3", 61180.0), ("qr3", 61370.0))):
+        for i in range(n_per_season):
+            k = _key(f"2025W33_2C_{s_i}{i:03d}_1", 3, rel)
+            fake.objects[k] = blob
+            frames.append(_frame(k, mjd=start + 2.0 * i))
+            season_of[k] = s_i
+    return frames, season_of
+
+
+def test_read_order_spreads_every_prefix_over_seasons_releases_and_visits(fake):
+    frames, season_of = _season_frames(fake, n_per_season=9)
+    order = point._read_order(frames)
+    assert sorted(f.s3_key for f in order) == sorted(f.s3_key for f in frames)  # a permutation
+    assert [season_of[f.s3_key] for f in order[:4]] == [0, 1, 2, 3]  # every season (and release) first
+    first = [f for f in order if season_of[f.s3_key] == 0]
+    assert [f.mjd for f in first[:3]] == [60800.0, 60816.0, 60808.0]  # first, last, middle visit: coarse to fine
+    groups = point._season_groups(frames)
+    assert [(g[0].release, len(g)) for g in groups] == [("dr1", 9), ("dr1", 9), ("qr3", 9), ("qr3", 9)]
+
+
+def test_deadline_cut_keeps_every_season_and_both_releases(fake, monkeypatch):
+    """When the deadline cuts the series, the frames kept are spread over the whole baseline (every season, both
+    releases), not the earliest weeks: frames are SUBMITTED interleaved by season and visit. Here only the first 4
+    frames whose reads start can finish (4 frame threads, FIFO); every later one stalls past the deadline."""
+    ra, dec = _sky(150.0, 100.0)
+    frames, season_of = _season_frames(fake)
+    started: list[str] = []
+    lock = threading.Lock()
+    release = threading.Event()
+    real = point.read_point_sample
+
+    def gated(frame, *a, **k):
+        with lock:
+            started.append(frame.s3_key)
+            late = len(started) > 4
+        if late:  # stalls without holding any S3 request slot
+            release.wait(20)
+            raise TimeoutError("released after the test")
+        return real(frame, *a, **k)
+
+    monkeypatch.setattr(point, "read_point_sample", gated)
+    try:
+        s = point.point_series(ra, dec, frames=frames, max_workers=4, deadline_s=1.5, use_cache=False)
+    finally:
+        release.set()
+    assert len(s.samples) == 4 and sorted(season_of[x.frame.s3_key] for x in s.samples) == [0, 1, 2, 3]
+    assert {x.release for x in s.samples} == {"dr1", "qr3"}
+    assert [x.mjd for x in s.samples] == sorted(x.mjd for x in s.samples)  # the output is still in time order
+    assert s.timings["timed_out"] == 20 and all(r.startswith("TimeoutError") for _, r in s.failures)
+    cut = s.timings["seasons"]  # what the deadline cut, per (release, season)
+    assert [(c["release"], c["frames"], c["samples"], c["timed_out"]) for c in cut] == [
+        ("dr1", 6, 1, 5),
+        ("dr1", 6, 1, 5),
+        ("qr3", 6, 1, 5),
+        ("qr3", 6, 1, 5),
+    ]
+    assert cut[0]["mjd_min"] == 60800.0 and cut[-1]["mjd_max"] == 61380.0
+
+
+class _RangeHandler(BaseHTTPRequestHandler):
+    """A tiny S3: GET with ``Range: bytes=a-b`` or ``bytes=-n`` answered 206 with Content-Range and ETag."""
+
+    protocol_version = "HTTP/1.1"  # keep-alive, like S3: connections are pooled by the client
+
+    def setup(self):
+        super().setup()
+        self.server.count("open", +1)
+
+    def finish(self):
+        try:
+            super().finish()
+        finally:
+            self.server.count("open", -1)
+
+    def do_GET(self):
+        srv = self.server
+        key = self.path.lstrip("/")
+        if key in srv.stall:
+            srv.release.wait(30)
+        elif srv.delay:
+            time.sleep(srv.delay)
+        obj = srv.objects.get(key)
+        m = re.fullmatch(r"bytes=(\d*)-(\d*)", self.headers.get("Range", ""))
+        if obj is None or m is None:
+            self.send_response(404 if obj is None else 400)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        size = len(obj)
+        if m[1] == "":
+            a, b = max(0, size - int(m[2])), size - 1
+        else:
+            a, b = int(m[1]), min(int(m[2]) if m[2] else size - 1, size - 1)
+        if a >= size:
+            self.send_response(416)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        part = obj[a : b + 1]
+        self.send_response(206)
+        self.send_header("Content-Length", str(len(part)))
+        self.send_header("Content-Range", f"bytes {a}-{b}/{size}")
+        self.send_header("ETag", '"' + hashlib.md5(obj).hexdigest() + '"')
+        self.end_headers()
+        self.wfile.write(part)
+
+    def log_message(self, *args):
+        pass
+
+
+class _RangeServer(ThreadingHTTPServer):
+    daemon_threads = True
+    request_queue_size = 512  # many simultaneous connects (the default backlog of 5 refuses them on Windows)
+
+    def __init__(self):
+        super().__init__(("127.0.0.1", 0), _RangeHandler)
+        self.objects: dict[str, bytes] = {}
+        self.stall: set[str] = set()
+        self.delay = 0.0
+        self.release = threading.Event()
+        self.now = {"open": 0}  # TCP connections open at the server
+        self.peak = {"open": 0}
+        self._lock = threading.Lock()
+
+    def count(self, what: str, d: int) -> None:
+        with self._lock:
+            self.now[what] += d
+            self.peak[what] = max(self.peak[what], self.now[what])
+
+    def handle_error(self, request, client_address):
+        pass  # a client that gave up (deadline) closed its socket under a stalled answer: expected here
+
+
+@pytest.fixture
+def s3_server(monkeypatch):
+    """The real s3range readers (fresh pooled session) against a local Range server."""
+    for var in ("HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy"):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setenv("NO_PROXY", "localhost,127.0.0.1")
+    monkeypatch.setenv("no_proxy", "localhost,127.0.0.1")
+    server = _RangeServer()
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    monkeypatch.setattr(settings, "S3_HTTPS", f"http://127.0.0.1:{server.server_address[1]}")
+    monkeypatch.setattr(s3range, "_SESSION", None)
+    monkeypatch.setattr(s3range, "_REQUEST_SLOTS", None, raising=False)
+    try:
+        yield server
+    finally:
+        server.release.set()
+        if s3range._SESSION is not None:
+            s3range._SESSION.close()
+        server.shutdown()
+        server.server_close()
+
+
+def _point_threads() -> set[threading.Thread]:
+    return {t for t in threading.enumerate() if t.name.startswith(("point-io", "point-frame"))}
+
+
+def test_deadline_stops_in_flight_s3_reads(s3_server):
+    """After the deadline the call returns AND its reader threads stop within a few seconds: a stalled S3 request
+    gets a per-attempt timeout bounded by the deadline and no retry, instead of HTTP_TIMEOUT_S (120 s) x 4."""
+    ra, dec = _sky(150.0, 100.0)
+    frames = []
+    for i in range(3):
+        k = _key(f"2025W33_2C_00{i:02d}_1")
+        s3_server.objects[k], _ = make_l2(seed=i)
+        frames.append(_frame(k, mjd=60900.0 + i))
+    s3_server.stall.add(frames[1].s3_key)
+    before = _point_threads()
+    t0 = time.perf_counter()
+    s = point.point_series(ra, dec, frames=frames, deadline_s=1.5, use_cache=False)
+    elapsed = time.perf_counter() - t0
+    assert elapsed < 1.5 + 1.0
+    assert len(s.samples) == 2 and [f.s3_key for f, _ in s.failures] == [frames[1].s3_key]
+    assert s.failures[0][1].startswith("TimeoutError") and s.timings["timed_out"] == 1
+    t1 = time.perf_counter()
+    while (left := [t for t in _point_threads() - before if t.is_alive()]) and time.perf_counter() - t1 < 3.0:
+        time.sleep(0.05)
+    assert not left, f"{len(left)} reader threads still running {time.perf_counter() - t1:.1f} s after the call"
+
+
+def test_two_concurrent_series_stay_within_the_s3_connection_pool(s3_server, caplog):
+    """Two point series at once in one process (WS4 runs up to ERRANTE_API_MAX_CONCURRENT=2 jobs) never ask for
+    more connections than s3range's pool holds: no urllib3 'Connection pool is full, discarding connection'."""
+    blob, _ = make_l2(seed=1)
+    ra, dec = _sky(150.0, 100.0)
+    per_series = []
+    for j in range(2):
+        frames = []
+        for i in range(40):
+            k = _key(f"2025W33_2C_{j}{i:03d}_1")
+            s3_server.objects[k] = blob
+            frames.append(_frame(k, mjd=60900.0 + i))
+        per_series.append(frames)
+    s3_server.delay = 0.03  # every answer takes a while: both series' requests overlap
+    caplog.set_level(logging.WARNING, logger="urllib3")
+    with ThreadPoolExecutor(2) as pool:
+        results = list(
+            pool.map(lambda fr: point.point_series(ra, dec, frames=fr, max_workers=48, use_cache=False), per_series)
+        )
+    assert [len(r.samples) for r in results] == [40, 40] and not any(r.failures for r in results)
+    assert [r.getMessage() for r in caplog.records if "pool is full" in r.getMessage()] == []
+    adapter = s3range._session().get_adapter(settings.S3_HTTPS + "/x")
+    limit = adapter.poolmanager.connection_pool_kw["maxsize"]
+    # Never more connections than the pool keeps, but more than one series alone (capped at 48 requests) needs:
+    # the two series did overlap. (Before the fix: up to 96 connections, the extra ones discarded with a warning.)
+    assert 48 < s3_server.peak["open"] <= limit
+
+
+def test_cli_point_summary_says_what_was_read_and_exits_3_without_samples(series_setup, fake, monkeypatch, capsys):
+    ra, dec, frames, _, _ = series_setup
+    release = threading.Event()
+    slow = frames[0].s3_key
+
+    def stalled(key, start, stop, **limits):
+        if key == slow:
+            release.wait(20)
+        return fake.meta(key, start, stop)
+
+    monkeypatch.setattr(s3range, "read_range_meta", stalled)
+    try:
+        code = cli.main(["point", "--ra", str(ra), "--dec", str(dec), "--deadline", "1", "--summary", "--no-cache"])
+    finally:
+        release.set()
+    out = capsys.readouterr()
+    assert code == 0  # 2 samples: a partial series is still a result
+    assert "3 frames read from S3" not in out.out and "read from S3: 2 of 3 frames" in out.out
+    assert "1 timed out" in out.out
+    far = _sky(-200.0, 100.0)  # every frame NoOverlap: no sample at all
+    assert cli.main(["point", "--ra", str(far[0]), "--dec", str(far[1]), "--no-cache"]) == cli.POINT_NO_SAMPLES == 3
+    out = capsys.readouterr()
+    doc = json.loads(out.out)  # the JSON is still printed (why: failures, timings)
+    assert doc["samples"] == [] and doc["timings"]["no_overlap"] == 3 and "no sample" in out.err
+
+
+def test_point_sample_docstring_says_saturated_cores_can_be_finite():
+    """docs/validation/barnards-star.md: OVERFLOW in 357/358 Barnard exposures, NaN in 240, finite OVERFLOW
+    pixels in 339; the old docstring said saturated cores were NaN."""
+    doc = " ".join((point.PointSample.__doc__ or "").split())
+    assert "Saturated cores are NaN with OVERFLOW" not in doc
+    assert "finite" in doc and "NaN" in doc and "OVERFLOW" in doc
 
 
 # --- live -------------------------------------------------------------------------------------------------------

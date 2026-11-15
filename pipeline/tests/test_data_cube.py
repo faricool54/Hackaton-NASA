@@ -279,6 +279,8 @@ def test_spectrum_single_pixel_cold_then_warm_then_cached():
             assert s.valid[k] and s.flux[k] == expected_flux(k, 98, 103)
     assert s.nhits[10] == 1 + (98 + 206 + 10) % 9 and s.nhits[SAT_FROM] == 0
     assert any("NHITS = 0" in n for n in s.notes)
+    # A lost core is not always saturation: near the Galactic Centre the coadd has coverage gaps (DATA.md §3.3 d).
+    assert any("saturated bright star" in n and "gap in the coadd's coverage" in n for n in s.notes)
     assert any("for visualization" in n for n in s.notes)  # IRSA's own description of the cube
     assert list(s.core_valid) == list(s.valid)  # single pixel: valid <=> the centre pixel has data
     assert list(s.detector[[0, 16, 17, 101]]) == [1, 1, 2, 6] and list(s.channel[[0, 16, 17, 101]]) == [1, 17, 1, 17]
