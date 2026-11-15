@@ -90,11 +90,16 @@ def test_an_undetected_target_in_a_noisy_channel_is_said_not_to_be_visible():
     comp, balance = balanced(frames(red_noise=0.5, red_target=0.0))
     snr = balance.target_snr[(comp.id, "red")]
     assert snr is not None and snr < color.TARGET_MIN_SNR
-    notes = [n for n in balance.notes[comp.id] if n.startswith("The target is not detected")]
+    n = len(next(ch for ch in comp.channels if ch.color == "red").frame_ids)
+    notes = [n_ for n_ in balance.notes[comp.id] if n_.startswith("The target is not significantly detected")]
+    # A non-detection with few frames is not evidence of absence: the note must not call the centre noise.
     assert notes == [
-        f"The target is not detected in the red channel (D6 aperture S/N {snr:.1f} at the field centre, below 3): "
-        "it cannot be seen in this single-season D6 coadd, and red specks near the centre are noise."
+        f"The target is not significantly detected in the red channel of this {n}-frame D6 coadd (aperture S/N "
+        f"{snr:.1f} at the field centre, below 3). This is not evidence that it is absent: a red speck at its "
+        "position cannot be told apart from noise here."
     ]
+    # With a noisy red channel, fainter field stars look cyan, and the balance note says so.
+    assert "fainter ones look cyan because the red black point is raised" in balance.notes[comp.id][0]
 
 
 def test_a_detected_target_in_a_noisy_channel_gets_no_such_note_and_stays_red():

@@ -1890,9 +1890,9 @@
       "Pixel values and stretch limits are IMAGE - ZODI (SPHEREx zodiacal model subtracted) in MJy/sr; PNGs use an asinh mapping with the same contrast for every frame of a detector, and transparent pixels mean no data. Saturated star cores that SPHEREx left empty (NaN) and detector-defect pixels (NONFUNC, HOT, COLD, PERSIST, SNOWBALL, and SUR_ERROR that is not part of a star's profile, e.g. cosmic-ray hits) are filled from their neighbours for display only; SUR_ERROR pixels on a star and finite OVERFLOW pixels are shown as recorded. All of them count as invalid in valid_fraction. thumb.png is a D1 frame.",
       "Frame selection: downloaded 80 candidate frame(s) (up to 2 x max_frames=40) and kept 40, spread round-robin over seasons x detectors; inside each (season, detector) the frames whose wavelength at the field centre is closest to a per-detector reference (D1 0.842 um, D2 1.552 um, D3 2.258 um, D4 2.777 um, D5 4.074 um, D6 4.895 um) come first, then those nearest the season middle; frames without a known wavelength rank last. Rejected 1 bad frame(s) whose IMAGE - ZODI robust scatter exceeds 15x the noise of their VARIANCE plane (background steps). Downloaded 24 more D2/D3 frame(s) only to find J/H/Ks wavelengths for the false-color composites; they are not blink frames.",
       "Registration check: every frame's field stars were compared with their median position over the field's candidate frames (all detectors: a correct WCS puts a star at the same grid position at every wavelength); 79 of 79 blink candidate frame(s) and 24 of 24 J/H/Ks top-up frame(s) checked (kept: median 0.03 px, max 0.33 px).",
-      "False-color composites: 3 'detectors' and 3 'jhk' season composite(s) (infrared, not true color). detectors = full range: blue = D1 (fallback D2), green = D3 (D4), red = D6 (D5), coadds of the season's published frames. jhk = 2MASS-like: blue / green / red = coadd of the season's downloaded exposures (including unpublished candidates) within 0.06 µm of J 1.25 / H 1.65 / Ks 2.17 µm at the field centre, else the nearest one within 0.12 µm. Each channel: one weight per frame, sky removed, bad pixels left out; a pixel bad in every frame of a channel (saturated core, detector defect, ramp-fit error) is drawn neutral at the brightest channel's level, so saturated cores look white (display only). Green spans 2 sigma below the sky to the bright end of its usable pixels; red and blue are scaled to green by the median field-star flux ratio (target halo excluded), so typical field stars look white; limits shared by every season with the same detectors; a noisy channel (pixel noise above 3% of its range) has its black point raised to the sky + 2 sigma, so its speckle goes black; colour-preserving asinh (Lupton et al. 2004).",
+      "False-color composites: 3 'detectors' and 3 'jhk' season composite(s) (infrared, not true color). detectors = full range: blue = D1 (fallback D2), green = D3 (D4), red = D6 (D5), coadds of the season's published frames. jhk = 2MASS-like: blue / green / red = coadd of the season's downloaded exposures (including unpublished candidates) within 0.06 µm of J 1.25 / H 1.65 / Ks 2.17 µm at the field centre, else the nearest one within 0.12 µm. Each channel: one weight per frame, sky removed, bad pixels left out; a pixel bad in every frame of a channel (saturated core, detector defect, ramp-fit error) is drawn neutral at the brightest channel's level, so saturated cores look white (display only). Green spans 2 sigma below the sky to the bright end of its usable pixels; red and blue are scaled to green by the median field-star flux ratio (target halo excluded), so typical bright field stars look white; limits shared by every season with the same detectors, except that a noisy channel (pixel noise above 3% of its range) has its black point set per season at its own sky + 2 sigma, so its speckle goes black (fainter field stars then look the complementary colour); colour-preserving asinh (Lupton et al. 2004).",
       "Skipped 1 frame(s): 2025W19_1B_0241_4D1: bad frame: noise 19.6x VARIANCE",
-      "Updated in place on 2026-11-15 20:48 UTC (WS2): false-color composites and provenance/composite notes regenerated with the current pipeline from the same frames (frame PNGs, frame metadata and frame_flags unchanged; built_at is the build time of those frames)."
+      "Updated in place on 2026-11-15 21:15 UTC (WS2): false-color composites and provenance/composite notes regenerated with the current pipeline from the same frames (frame PNGs, frame metadata and frame_flags unchanged; built_at is the build time of those frames)."
     ]
   },
   "composites": [
@@ -1942,10 +1942,10 @@
       "notes": [
         "False color: SPHEREx infrared wavelengths mapped to red, green and blue (infrared, not true color).",
         "Full range: red = D6 4.91 µm, green = D3 2.29 µm, blue = D1 1.02 µm (mean wavelength at the field centre).",
-        "Colour balance: red and blue scaled to green by the median flux ratio of the field stars (red x0.276, blue x0.903; median of 3 season fit(s)), so typical field stars look white.",
+        "Colour balance: red and blue scaled to green by the median flux ratio of the field stars (red x0.276, blue x0.903; median of 3 season fit(s)), so bright field stars look white; fainter ones look cyan because the red black point is raised (see below).",
         "The red channel (D6, 2 frame(s)) is noisy here (pixel noise 10% of its colour-balanced range), so its black point is raised to 2 sigma of that noise above the sky: most noise specks are black, but faint red light is hidden too (faint field stars look cyan), and isolated red specks that remain are mostly noise, not red objects.",
-        "The target is not detected in the red channel (D6 aperture S/N 2.1 at the field centre, below 3): it cannot be seen in this single-season D6 coadd, and red specks near the centre are noise.",
-        "Colours are relative to the field: typical field stars look roughly white and an object redder than they are looks red."
+        "The target is not significantly detected in the red channel of this 2-frame D6 coadd (aperture S/N 2.1 at the field centre, below 3). This is not evidence that it is absent: a red speck at its position cannot be told apart from noise here.",
+        "Colours are relative to the field: typical bright field stars look roughly white and an object redder than they are looks red."
       ]
     },
     {
@@ -1994,10 +1994,10 @@
       "notes": [
         "False color: SPHEREx infrared wavelengths mapped to red, green and blue (infrared, not true color).",
         "Full range: red = D6 4.89 µm, green = D3 2.25 µm, blue = D1 0.82 µm (mean wavelength at the field centre).",
-        "Colour balance: red and blue scaled to green by the median flux ratio of the field stars (red x0.276, blue x0.903; median of 3 season fit(s)), so typical field stars look white.",
+        "Colour balance: red and blue scaled to green by the median flux ratio of the field stars (red x0.276, blue x0.903; median of 3 season fit(s)), so bright field stars look white; fainter ones look cyan because the red black point is raised (see below).",
         "The red channel (D6, 2 frame(s)) is noisy here (pixel noise 11% of its colour-balanced range), so its black point is raised to 2 sigma of that noise above the sky: most noise specks are black, but faint red light is hidden too (faint field stars look cyan), and isolated red specks that remain are mostly noise, not red objects.",
-        "The target is not detected in the red channel (D6 aperture S/N 1.9 at the field centre, below 3): it cannot be seen in this single-season D6 coadd, and red specks near the centre are noise.",
-        "Colours are relative to the field: typical field stars look roughly white and an object redder than they are looks red."
+        "The target is not significantly detected in the red channel of this 2-frame D6 coadd (aperture S/N 1.9 at the field centre, below 3). This is not evidence that it is absent: a red speck at its position cannot be told apart from noise here.",
+        "Colours are relative to the field: typical bright field stars look roughly white and an object redder than they are looks red."
       ]
     },
     {
@@ -2046,10 +2046,10 @@
       "notes": [
         "False color: SPHEREx infrared wavelengths mapped to red, green and blue (infrared, not true color).",
         "Full range: red = D6 4.91 µm, green = D3 2.28 µm, blue = D1 0.84 µm (mean wavelength at the field centre).",
-        "Colour balance: red and blue scaled to green by the median flux ratio of the field stars (red x0.276, blue x0.903; median of 3 season fit(s)), so typical field stars look white.",
+        "Colour balance: red and blue scaled to green by the median flux ratio of the field stars (red x0.276, blue x0.903; median of 3 season fit(s)), so bright field stars look white; fainter ones look cyan because the red black point is raised (see below).",
         "The red channel (D6, 2 frame(s)) is noisy here (pixel noise 10% of its colour-balanced range), so its black point is raised to 2 sigma of that noise above the sky: most noise specks are black, but faint red light is hidden too (faint field stars look cyan), and isolated red specks that remain are mostly noise, not red objects.",
-        "The target is not detected in the red channel (D6 aperture S/N 0.7 at the field centre, below 3): it cannot be seen in this single-season D6 coadd, and red specks near the centre are noise.",
-        "Colours are relative to the field: typical field stars look roughly white and an object redder than they are looks red."
+        "The target is not significantly detected in the red channel of this 2-frame D6 coadd (aperture S/N 0.7 at the field centre, below 3). This is not evidence that it is absent: a red speck at its position cannot be told apart from noise here.",
+        "Colours are relative to the field: typical bright field stars look roughly white and an object redder than they are looks red."
       ]
     },
     {
@@ -2095,7 +2095,7 @@
         "False color: SPHEREx infrared wavelengths mapped to red, green and blue (infrared, not true color).",
         "2MASS-like: each channel holds narrow SPHEREx samples near J, H or Ks, not the 2MASS filters or 2MASS photometry. red = D3 2.21 µm, green = D2 1.63 µm, blue = D2 1.28 µm (mean wavelength at the field centre).",
         "Colour balance: red and blue scaled to green by the median flux ratio of the field stars (red x0.744, blue x0.932; median of 3 season fit(s)), so typical field stars look white.",
-        "Colours are relative to the field: typical field stars look roughly white and an object redder than they are looks red."
+        "Colours are relative to the field: typical bright field stars look roughly white and an object redder than they are looks red."
       ]
     },
     {
@@ -2143,7 +2143,7 @@
         "False color: SPHEREx infrared wavelengths mapped to red, green and blue (infrared, not true color).",
         "2MASS-like: each channel holds narrow SPHEREx samples near J, H or Ks, not the 2MASS filters or 2MASS photometry. red = D3 2.20 µm, green = D2 1.63 µm, blue = D2 1.27 µm (mean wavelength at the field centre).",
         "Colour balance: red and blue scaled to green by the median flux ratio of the field stars (red x0.744, blue x0.932; median of 3 season fit(s)), so typical field stars look white.",
-        "Colours are relative to the field: typical field stars look roughly white and an object redder than they are looks red."
+        "Colours are relative to the field: typical bright field stars look roughly white and an object redder than they are looks red."
       ]
     },
     {
@@ -2194,7 +2194,7 @@
         "False color: SPHEREx infrared wavelengths mapped to red, green and blue (infrared, not true color).",
         "2MASS-like: each channel holds narrow SPHEREx samples near J, H or Ks, not the 2MASS filters or 2MASS photometry. red = D3 2.17 µm, green = D3 1.68 µm, blue = D2 1.22 µm (mean wavelength at the field centre).",
         "Colour balance: red and blue scaled to green by the median flux ratio of the field stars (red x0.744, blue x0.932; median of 3 season fit(s)), so typical field stars look white.",
-        "Colours are relative to the field: typical field stars look roughly white and an object redder than they are looks red."
+        "Colours are relative to the field: typical bright field stars look roughly white and an object redder than they are looks red."
       ]
     }
   ]
