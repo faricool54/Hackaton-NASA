@@ -81,6 +81,7 @@ jobs:
         run: |
           curl --fail --retry 15 --retry-all-errors --retry-delay 1 --connect-timeout 2 --max-time 5 http://127.0.0.1:8000/api/health
           curl --fail http://127.0.0.1:8000/api/manifest
+          python3 scripts/smoke_delivery.py http://127.0.0.1:8000
       - name: Container logs
         if: failure()
         run: docker logs api-smoke

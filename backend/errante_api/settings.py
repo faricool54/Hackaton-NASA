@@ -28,6 +28,7 @@ class Settings:
     live_max_concurrent: int = 2
     live_cache_entries: int = 128
     enable_jobs: bool = False
+    web_dir: Path | None = None
     jobs_dir: Path = field(default_factory=lambda: core.CACHE_DIR / "jobs")
     # GET /api/object (catalog context): None = derived from live_timeout_s (see ObjectService)
     object_deadline_s: float | None = None
@@ -37,6 +38,8 @@ class Settings:
 
     def __post_init__(self) -> None:
         self.data_dir = Path(self.data_dir).resolve()
+        if self.web_dir is not None:
+            self.web_dir = Path(self.web_dir).resolve()
         self.live_cache_dir = Path(self.live_cache_dir).resolve()
         self.jobs_dir = Path(self.jobs_dir).resolve()
         self.context_cache_dir = Path(self.context_cache_dir).resolve()
@@ -76,6 +79,7 @@ class Settings:
             live_max_concurrent=int(os.environ.get("ERRANTE_API_MAX_CONCURRENT", "2")),
             live_cache_entries=int(os.environ.get("ERRANTE_API_CACHE_ENTRIES", "128")),
             enable_jobs=enabled,
+            web_dir=Path(os.environ["ERRANTE_WEB_DIR"]) if os.environ.get("ERRANTE_WEB_DIR") else None,
             jobs_dir=Path(os.environ.get("ERRANTE_JOBS_DIR", core.CACHE_DIR / "jobs")),
             object_deadline_s=_optional_float("ERRANTE_OBJECT_DEADLINE_S"),
             object_service_timeout_s=_optional_float("ERRANTE_OBJECT_SERVICE_TIMEOUT_S"),

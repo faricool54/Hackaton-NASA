@@ -19,7 +19,7 @@ dev = ["pytest>=8"]
 include = ["errante_api*"]
 
 [tool.setuptools.package-data]
-errante_api = ["curated/lightcurves/*.json"]
+errante_api = ["curated/lightcurves/*.json", "curated/comparisons/index/*.json", "curated/comparisons/analyses/*/analysis.json", "curated/comparisons/analyses/*/compare/*.png"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

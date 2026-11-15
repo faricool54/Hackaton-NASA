@@ -1,0 +1,39 @@
+services:
+  app:
+    build:
+      context: ../..
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 45s
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - runtime:/app/runtime
+    environment:
+      ERRANTE_JOB_MAX_BYTES: "805306368"
+      ERRANTE_JOBS_MAX_BYTES: "2147483648"
+    mem_limit: 4g
+    cpus: 2
+    pids_limit: 256
+  https:
+    image: caddy:2-alpine
+    profiles: [https]
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      ERRANTE_DOMAIN: ${ERRANTE_DOMAIN:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - certificates:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+volumes:
+  runtime:
+  certificates:
+  caddy_config:

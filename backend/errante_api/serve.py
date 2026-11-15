@@ -6,6 +6,13 @@ import uvicorn
 
 
 def main():
+    if os.environ.get("ERRANTE_SEED_DIR"):
+        from pathlib import Path
+
+        from .bootstrap import seed_products
+        from .settings import Settings
+
+        seed_products(Path(os.environ["ERRANTE_SEED_DIR"]), Settings.from_env().data_dir)
     port = int(os.environ.get("PORT", "8000"))
     if not 1 <= port <= 65535:
         raise ValueError("PORT must be between 1 and 65535")

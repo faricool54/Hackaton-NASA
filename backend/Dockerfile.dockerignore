@@ -12,6 +12,5 @@
 **/*.fits.gz
 **/*.fits.fz
 data/cache
-data/products
-frontend
+frontend/dist
 docs

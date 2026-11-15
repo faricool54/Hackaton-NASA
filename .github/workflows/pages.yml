@@ -36,8 +36,15 @@ jobs:
         env:
           VITE_BASE: ${{ steps.pages.outputs.base_path }}/
           VITE_DATA_MODE: ${{ vars.VITE_DATA_MODE || 'static' }}
-          VITE_DATASET: ${{ vars.VITE_DATASET || 'demo' }}
+          VITE_DATASET: ${{ vars.VITE_DATASET || 'real' }}
           VITE_API_BASE: ${{ vars.VITE_API_BASE }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Include precomputed science snapshots
+        run: |
+          pip install -e pipeline -e backend
+          python scripts/export_static_science.py
       - uses: actions/upload-pages-artifact@v4
         with:
           path: frontend/dist

@@ -21,6 +21,7 @@ el inventario de IA (coordinación): agregar claves a `ai-usage.json` rompe el e
 | `GET /api/object?name=` o `?ra=&dec=[&epoch_mjd&radius_arcsec]` | `ObjectContextResponse`: ficha de catálogo (C05, abajo) |
 | `POST /api/jobs`, `GET /api/jobs/{id}` | construcción por coordenadas |
 | `POST /api/spectra`, `POST /api/fields/{id}/comparisons` | espectros y comparaciones (0.4.0) |
+| `GET /api/fields/{id}/comparisons` | validated frozen WS2 comparisons; no downloads/computation |
 | `GET /api/lightcurves`, `GET /api/lightcurves/{target_id}` | offline light-curve index/product (0.6.0; independent WS3 review pending) |
 | `GET /data/...` | PNG y análisis publicados |
 
@@ -89,12 +90,12 @@ docker run --rm -p 8000:8000 errante-api
 ```
 
 El contenedor instala ambos paquetes y el extra científico, corre sin root y usa `PORT` (default 8000).
-Inicialmente sirve la demo sintética; eso no satisface R02/R03. Para productos reales configurar
-`ERRANTE_DATA_DIR=/app/data/products`, persistir productos y caché en volúmenes separados, ambos escribibles
-por UID 10001, y fijar el origen HTTPS del frontend en `ERRANTE_CORS_ORIGINS`.
-El host debe permitir salida a IRSA/S3, ofrecer HTTPS y almacenamiento persistente. El usuario confirmó que
-todavía no se eligió hosting: proveedor/cuenta y URL pública pendientes. No se creó un servicio externo ni
-se activó facturación.
+Ahora incluye web + API, los cinco campos reales, snapshots WS1 y jobs activos. Inicializa una copia en
+`/app/runtime/products` y conserva `/app/runtime/cache` como estado privado; persistir `/app/runtime` con
+un volumen. Los productos fuente no se modifican. El arranque no reemplaza un manifest existente.
+Guía completa, Compose/HTTPS, prueba real y parámetros para una VM de Google Cloud:
+[deploy/README.md](deploy/README.md). Cuenta/proyecto, créditos, dominio y URL pública pendientes;
+no se creó infraestructura ni se activó facturación. Pages ahora usa `real` por defecto.
 
 Producción sin Docker: instalar `pipeline[science]` y `backend` juntos, configurar rutas persistentes y correr
 `python -m errante_api.serve`. No usar `--reload`. CI construye el contenedor y prueba health/manifest.
@@ -321,3 +322,49 @@ invalid overrides, content-cache invalidation, atomic publication, real child te
 disk admission and native WS3 integration on explicitly synthetic test stamps. Synthetic test products are
 never bundled. Code/document assistance: OpenAI Codex; numerical products come from the unchanged WS3
 algorithms applied to real FITS, not generated imagery. Human scientific review remains pending.
+
+## WS4 closeout: motion and offline comparisons (0.7.0)
+
+L2 requests optionally accept `proper_motion: {ra_cosdec_masyr, dec_masyr, epoch_mjd}`. RA/Dec is the
+catalog position at that reference epoch; rates are mas/year (RA already includes cos(dec)). The adapter
+uses WS2's existing `propagate` and `measure`: searches around the predicted position at MJD 61000,
+downloads 81-pixel native stamps and extracts at each exposure's MJD. Results echo the motion and include
+`points[].position`. A trajectory leaving a stamp is a `no_overlap` failure. No parallax/radial velocity is
+applied; this is predicted catalog motion, not SPHEREx astrometry. Near-polar motion is rejected. Static
+DR1 cubes reject motion because they have no time axis. No-motion L2 requests retain the fixed-position
+behavior. Cache identity and worker validation include all motion parameters. Example:
+
+```json
+{"ra":269.44623,"dec":4.76870,"source":"l2_exposures","detectors":[2],"max_frames":8,
+ "proper_motion":{"ra_cosdec_masyr":-802,"dec_masyr":10362,"epoch_mjd":61000}}
+```
+
+`GET /api/fields/{id}/comparisons` returns frozen `ComparisonResponse` products for the five golden fields.
+The bundle contains 196 real WS2 PNGs (~2.2 MB), generated from native FITS with the unchanged season mean /
+scaled-difference algorithm, with zero failed inputs reported in this run. JSON preserves dates, member
+frames, wavelength ranges, scale/noise, masks/valid fractions and caveats. It is not independent R05 validation.
+JSON and PNGs are checked against the current real field. A stale input set is 409; absent snapshot 404;
+invalid JSON/PNG 503. Existing runtime `fields/{id}/comparisons.json` overrides the bundle; corrupt overrides
+do not silently fall back. `/data/analyses/{id}/compare/{file}.png` serves runtime images or bundled images.
+Neither GET performs network access or recomputation.
+
+Regenerate/export offline, with the existing scientific service's one-child admission, 140 s deadline,
+512 MiB staging budget and 1 MiB logs per target:
+
+```bash
+python -m errante_api.precompute_comparisons --source data/products --out data/cache/comparison-export
+python scripts/export_static_science.py --out frontend/dist/data/real
+```
+
+The first command exports immutable `analyses/` PNGs plus `index/{id}.json` and `fields/{id}/comparisons.json`;
+it never modifies source fields/manifest. Failed calculations do not produce a successful snapshot index;
+any per-frame failures in a completed calculation remain explicit. Select individual fields with `--target`;
+private work can be set with `--work-dir`.
+The second command overlays the tracked bundles and light curves after a static frontend build, preserving
+its manifest. Pages runs it automatically and defaults to real data. WS5 can consume these static JSON/PNG
+products or the GET route; its visual panels remain a separate workstream.
+
+`python scripts/dev.py api` now seeds a private copy under `data/cache/local/products` by default, with
+separate private cache/jobs; explicitly configured paths are respected. This avoids writing jobs/analyses
+into WS2's versioned golden fields. See [deploy/README.md](deploy/README.md) and
+[deploy/acceptance.json](deploy/acceptance.json) for the concrete delivery and outstanding external steps.
