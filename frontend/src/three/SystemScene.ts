@@ -31,8 +31,8 @@
 //     64 points uniform in mean anomaly is drawn: on a fitted orbit it shows where the body could be;
 //     on an assumed or hypothetical orbit neither the orbit nor the phase is known;
 //   - variability follows ephemerides.variabilityPhase: a periodic variable with a catalogue ephemeris
-//     (R Dra, VSX) follows the predicted phase; 'unknown' ones are frozen at mean brightness and
-//     labelled; irregular variables never get a curve.
+//     (R Dra: measured AAVSO maxima inside the SPHEREx window, VSX outside) follows that phase;
+//     'unknown' ones are frozen at mean brightness and labelled; irregular variables never get a curve.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
@@ -991,7 +991,8 @@ export class SystemScene {
   /**
    * V brightness factor of a body now (it drives the glow only; the radius is constant). Free-running:
    * the catalog sinusoid (arbitrary phase). Dataset time: the catalogue ephemeris when there is one
-   * (R Dra, VSX), otherwise frozen at the mean (1); irregular variables are 1 in both modes.
+   * (R Dra: measured maxima inside the SPHEREx window, VSX outside), otherwise frozen at the mean (1);
+   * irregular variables are 1 in both modes.
    */
   private pulsationAt(node: BodyNode): { factor: number } {
     const body = node.body;

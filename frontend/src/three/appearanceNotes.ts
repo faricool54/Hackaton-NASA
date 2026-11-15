@@ -146,6 +146,9 @@ export const FLAG_TEXT: Readonly<Record<string, string>> = {
   'blackbody-unreliable': `Teff < ${BLACKBODY_MIN_TEFF_K} K: blackbody unreliable, qualitative only`,
   'brighter-than-nonlinearity':
     'brighter than the pre-launch non-linearity onset: check the OVERFLOW and NONLINEAR pixel flags',
+  // A9: the five targets were checked offline (astro.SPHEREX_SATURATION_RESULTS); the method quotes the result.
+  'overflow-measured':
+    'brighter than the pre-launch non-linearity onset; OVERFLOW measured in its SPHEREx exposures (offline FITS analysis; counts in the note below)',
   'assumed-orbit': 'orbit assumed, not fitted',
 };
 
@@ -587,8 +590,11 @@ function glowRow({ body, system }: Ctx): AppearanceNote | null {
   let variable = '';
   if (v && v.amplitude_mag && v.period_days) {
     const curve = `the ${fmt(v.amplitude_mag, 2)} mag${v.band ? ` ${v.band}-band` : ''} light curve (catalog, not measured by SPHEREx) modulates the glow in visible mode only (opacity × f^0.25, size × f^0.3, f = flux / mean flux; the radius stays constant; ${SPHEREX_LIGHT_CURVE_POINTER})`;
+    const dating = eph?.observedMaximaMjd
+      ? `the ${eph.band} phase dated as in the pulsation row (measured maxima inside the SPHEREx window, the ephemeris outside it), on the asymmetric curve of the ephemeris`
+      : `the predicted ${eph?.band ?? 'V'} phase on the asymmetric curve of the ephemeris in the pulsation row`;
     const clocks = eph
-      ? `free-running clock, a sine at the catalog period with an arbitrary phase; Dataset time, the predicted ${eph.band} phase on the asymmetric curve of the ephemeris in the pulsation row (${MIRA_PREDICTION_CAVEAT})`
+      ? `free-running clock, a sine at the catalog period with an arbitrary phase; Dataset time, ${dating} (${MIRA_PREDICTION_CAVEAT})`
       : 'free-running clock, a sine at the catalog period with an arbitrary phase; Dataset time, held at the mean (no catalogue ephemeris: phase unknown)';
     const tio = miraReason(body) ? `; that swing is driven by TiO absorption, not by the Planck function (${MIRA_TIO_CITATION})` : '';
     variable = `; ${curve}: ${clocks}${tio}`;
@@ -775,13 +781,23 @@ function sizeRow({ body, system }: Ctx): AppearanceNote {
 function pulsationRow({ body, system }: Ctx): AppearanceNote | null {
   if (!drawsPulsation(body)) return null;
   const eph = miraEphemerisFor(system.id, body.id);
+  const ephemeris = eph ? `the ephemeris ${eph.source} (±${fmt(eph.timingSigmaDays, 2)} d timing band, 1σ)` : '';
+  // V12a: inside the SPHEREx window the measured maxima date the phase; the ephemeris only outside it.
+  const dating = !eph
+    ? ''
+    : eph.observedMaximaMjd && eph.observedTimingDays !== null
+      ? `, which Dataset time dates with the ${eph.band} maxima measured by AAVSO inside the SPHEREx window (MJD ${eph.observedMaximaMjd.join(', ')}; linear phase between them, ±${fmt(eph.observedTimingDays, 2)} d band) and with ${ephemeris} outside it`
+      : `, which Dataset time dates with ${ephemeris}`;
+  const measuredCite = eph?.observedMaximaSource ? `; measured maxima: ${eph.observedMaximaSource}; their band: ${eph.observedTimingSource ?? 'not stated'}` : '';
   return row(
     'drawn',
     'Pulsation (radius)',
     'radius drawn constant',
     'not-drawn',
-    `the size change of this pulsating star is not measured, so its radius is drawn constant in both clocks (docs/VISION.md: a pulsation is drawn from a measured light curve, otherwise a static model); only the glow follows the ${body.variability?.band ?? 'visual'}-band light curve (catalog, not measured by SPHEREx; see the glow row)${eph ? `, which Dataset time dates with the ephemeris ${eph.source} (±${fmt(eph.timingSigmaDays, 2)} d timing band, 1σ)` : ''}; ${SPHEREX_LIGHT_CURVE_POINTER}`,
-    eph ? `${WS7_RULE}; SCIENCE.md 3D review (V12b); ephemeris: ${eph.source}; timing band: ${eph.timingSource}` : `${WS7_RULE}; SCIENCE.md 3D review (V12b)`,
+    `the size change of this pulsating star is not measured, so its radius is drawn constant in both clocks (docs/VISION.md: a pulsation is drawn from a measured light curve, otherwise a static model); only the glow follows the ${body.variability?.band ?? 'visual'}-band light curve (catalog, not measured by SPHEREx; see the glow row)${dating}; ${SPHEREX_LIGHT_CURVE_POINTER}`,
+    eph
+      ? `${WS7_RULE}; SCIENCE.md 3D review (V12b, V12a); ephemeris: ${eph.source}; timing band: ${eph.timingSource}${measuredCite}`
+      : `${WS7_RULE}; SCIENCE.md 3D review (V12b)`,
   );
 }
 

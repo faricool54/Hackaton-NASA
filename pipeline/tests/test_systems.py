@@ -500,7 +500,7 @@ def test_barnard_phase_spread_matches_the_orbit_notes():
     )
 
 
-# --- R Dra: two clocks (free-running sine, Dataset time on the VSX ephemeris) ----
+# --- R Dra: two clocks (free-running sine; Dataset time on the measured maxima, VSX outside) ----
 
 
 def test_r_draconis_notes_describe_both_clocks():
@@ -519,6 +519,10 @@ def test_r_draconis_notes_describe_both_clocks():
         "Dataset time",
         "HJD 2457370.00, P = 246.12 d",
         "rises in 45 % of the cycle",
+        # V12a (full variant): measured AAVSO maxima inside the SPHEREx window, VSX outside it
+        "dated by the V maxima measured by AAVSO in 2025–2026 (MJD 60811.4, 61046.5 and 61304.3",
+        "±3 d band",
+        "±9.0 d band",
         "frontend/src/three/ephemerides.ts",
         # V12 (D3, docs/SCIENCE.md 3D review): constant radius, and the SPHEREx measurement quoted (B5, verbatim)
         "the radius is drawn constant, because its size change is not measured",

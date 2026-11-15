@@ -6,12 +6,15 @@
 // - Pass windows (MJD) and image counts: docs/DATA.md, "Cobertura de los 5 objetivos" (passes there
 //   are "temporadas": blocks of frames separated by more than 30 days). The MJDs are given to the
 //   day; DR1 starts at t_min 60789.75 and DATA.md writes 60790, so they are rounded (+-0.5 d).
+//   Epsilon Indi image counts are the live SIA2 count of 2026-11-14 19:24 UTC (458, the DATA.md
+//   section 3.0 note and docs/validation/eps-indi-b.md), not the first DATA.md count of 460
+//   (SCIENCE.md 3D review A11).
 // - Calendar dates, per-detector counts, counts at a local wavelength of 3.9-5 um, the detectors of
 //   the last Epsilon Indi pass and the 10-day split of WISE 0855's second pass:
 //   docs/RECON_SPHEREX.md section 4.2.
 // The calendar dates of RECON and the MJDs of DATA.md agree within that rounding for every pass
 // (checked in spherexCoverage.test.ts). The two queries differ slightly (TAP at the DATA.md centre vs
-// SIA r = 1" at the 2026 position), so a few counts differ by 1-2 images; pass notes say where.
+// SIA r = 1" at the 2026 position); with the Epsilon Indi counts above, every total now agrees.
 //
 // These are ARCHIVE windows: IRSA has frames of the target there. This dataset may not contain them
 // (most targets have no built field), and the UI must say so.
@@ -21,7 +24,7 @@
 import type { Body, Frame, Provenance, SystemModel } from '../api/types';
 import { mjdToDate } from '../api/format';
 import { isSpherexTarget, type SpherexTargetId } from './datasetGate';
-import { variabilityPhase } from './ephemerides';
+import { miraEphemerisFor, variabilityPhase } from './ephemerides';
 
 // The id list lives in datasetGate.ts (main chunk); this module loads with the 3D view.
 export { isSpherexTarget, type SpherexTargetId };
@@ -131,28 +134,28 @@ export const SPHEREX_COVERAGE: Readonly<Record<SpherexTargetId, TargetCoverage>>
   'epsilon-indi': {
     target: 'Epsilon Indi B (Ba+Bb, unresolved)',
     queryCenter: { ra: 331.0964, dec: -56.8006 },
-    imagesByCollection: { spherex_dr1: 340, spherex_qr3: 120 },
-    imagesByDetector: [46, 93, 96, 46, 84, 93], // 458: RECON's query; DATA.md counts 460
+    imagesByCollection: { spherex_dr1: 338, spherex_qr3: 120 }, // live SIA2 2026-11-14 (A11); DATA.md first counted 340
+    imagesByDetector: [46, 93, 96, 46, 84, 93], // 458
     dateRange: ['2025-04-24', '2026-10-02'],
     passes: [
       {
-        startMjd: 60790, endMjd: 60836, nImages: 120, dates: ['2025-04-24', '2025-06-10'], detectors: null, nImagesLongWave: 50,
-        note: 'RECON 4.2 (SIA, r = 1″ at the 2026 position) counts 118 images.',
+        startMjd: 60790, endMjd: 60836, nImages: 118, dates: ['2025-04-24', '2025-06-10'], detectors: null, nImagesLongWave: 50,
+        note: 'DATA.md §3.0 first counted 120 images (see the coverage note).',
       },
       {
-        startMjd: 60947, endMjd: 60992, nImages: 147, dates: ['2025-09-28', '2025-11-12'], detectors: null, nImagesLongWave: 39,
-        note: 'RECON 4.2 (SIA, r = 1″ at the 2026 position) counts 146 images.',
+        startMjd: 60947, endMjd: 60992, nImages: 146, dates: ['2025-09-28', '2025-11-12'], detectors: null, nImagesLongWave: 39,
+        note: 'DATA.md §3.0 first counted 147 images (see the coverage note).',
       },
       {
-        startMjd: 61149, endMjd: 61164, nImages: 73, dates: ['2026-04-18', '2026-05-04'], detectors: null, nImagesLongWave: 16,
-        note: 'RECON 4.2 (SIA, r = 1″ at the 2026 position) counts 74 images.',
+        startMjd: 61149, endMjd: 61164, nImages: 74, dates: ['2026-04-18', '2026-05-04'], detectors: null, nImagesLongWave: 16,
+        note: 'DATA.md §3.0 first counted 73 images (see the coverage note).',
       },
       {
         startMjd: 61305, endMjd: 61315, nImages: 120, dates: ['2026-09-22', '2026-10-02'], detectors: [2, 3, 5, 6], nImagesLongWave: 55,
         note: 'Only detectors D2, D3, D5 and D6 cover the target in this pass.',
       },
     ],
-    note: 'Coverage queried at Epsilon Indi B; Epsilon Indi A is 402.6″ to the west.',
+    note: 'Coverage queried at Epsilon Indi B; Epsilon Indi A is 402.6″ to the west. DATA.md §3.0 first counted 460 (340/120); live SIA2 on 2026-11-14 19:24 UTC gives 458 at this centre and at the field centre (docs/validation/eps-indi-b.md); the cause of the difference is not verified.',
   },
   'wise-0855': {
     target: 'WISE 0855−0714',
@@ -580,7 +583,10 @@ export interface PhaseStatus {
   dated: string[];
   /** Orbiting bodies without an epoch: arbitrary phase, never a position for a real date. */
   arbitrary: string[];
-  /** Variability 'predicted' (ephemerides.variabilityPhase): a WS7 catalogue ephemeris gives the phase on a real date. */
+  /**
+   * Variability 'predicted' (ephemerides.variabilityPhase): a WS7 table entry gives the phase on a real date
+   * (catalogue ephemeris, or measured maxima inside the SPHEREx window where tabulated, V12a).
+   */
   pulsationPredicted: string[];
   /**
    * Variability 'unknown': periodic without an ephemeris, or a non-irregular kind without a period.
@@ -636,7 +642,14 @@ export function phaseStatusLine(system: Pick<SystemModel, 'id' | 'bodies'>): str
   if (s.dated.length + s.arbitrary.length > 0) {
     parts.push(`Real epoch: ${names(s.dated)}`, `Arbitrary phase: ${names(s.arbitrary)}`);
   }
-  if (s.pulsationPredicted.length > 0) parts.push(`Predicted pulsation phase (catalogue ephemeris): ${names(s.pulsationPredicted)}`);
+  // V12a: an ephemeris with measured maxima dates the phase with them inside the SPHEREx window
+  // (ephemerides.miraPhase), so the line names both datings; the others use the ephemeris alone.
+  const byMaxima = s.pulsationPredicted.filter((id) => !!miraEphemerisFor(system.id, id)?.observedMaximaMjd);
+  const byEphemeris = s.pulsationPredicted.filter((id) => !byMaxima.includes(id));
+  if (byMaxima.length > 0) {
+    parts.push(`Pulsation phase (measured AAVSO maxima inside the SPHEREx window, catalogue ephemeris outside): ${names(byMaxima)}`);
+  }
+  if (byEphemeris.length > 0) parts.push(`Predicted pulsation phase (catalogue ephemeris): ${names(byEphemeris)}`);
   if (s.pulsationArbitrary.length > 0) parts.push(`Variability phase unknown, mean brightness: ${names(s.pulsationArbitrary)}`);
   if (s.irregular.length > 0) parts.push(`Irregular, unpredictable: ${names(s.irregular)}`);
   return parts.length ? parts.join(' · ') : 'Nothing in this model depends on an orbital or pulsation phase.';

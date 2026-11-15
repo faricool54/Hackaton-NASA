@@ -11,15 +11,23 @@ import {
   irregularText,
   isLineOfSightOrbit,
   jdToMjd,
+  maximumText,
   MIRA_EPHEMERIDES,
   MIRA_PREDICTION_CAVEAT,
   minimumPhase,
+  miraCycle,
+  miraDatedByMaxima,
   miraEphemerisFor,
+  miraMaxima,
   miraPhase,
+  miraPhaseSigma,
   miraShape,
   miraState,
   miraTimingSigmaDays,
+  nextMaximum,
+  nextMiraMaximum,
   normalQuantile,
+  OBSERVED_WINDOW_ROUNDING_DAYS,
   onThisDate,
   ORBIT_EPHEMERIDES,
   orbitEphemerisFor,
@@ -38,7 +46,7 @@ import {
   variabilityTracks,
   type OrbitEphemeris,
 } from './ephemerides';
-import { DR1_START_MJD, QR3_LAST_MJD, isoDateToMjd, mjdToIsoDate } from './spherexCoverage';
+import { DR1_START_MJD, PASS_EDGE_TOLERANCE_DAYS, QR3_LAST_MJD, SPHEREX_COVERAGE, isoDateToMjd, mjdToIsoDate } from './spherexCoverage';
 import { orbitalPosition } from './orbits';
 import { ORBIT_COLOR } from './sceneLayout';
 
@@ -61,6 +69,11 @@ const eph = (bid: string): OrbitEphemeris => {
   return e;
 };
 const RDRA = miraEphemerisFor('r-draconis', 'r-draconis')!;
+/** Phase of the VSX ephemeris alone, frac((t − E0)/P), whatever the dating inside the SPHEREx window. */
+const vsxPhase = (mjd: number): number => {
+  const c = miraCycle(RDRA, mjd);
+  return c - Math.floor(c);
+};
 
 describe('orbit ephemerides (M5)', () => {
   it('agree with the catalog orbits shipped in data/demo (Basant et al. 2025, Table 3)', () => {
@@ -183,18 +196,21 @@ describe('Mira ephemeris of R Dra (S3)', () => {
     expect(MIRA_EPHEMERIDES).toHaveLength(1);
     expect(RDRA.epochHjd).toBe(2457370.0);
     expect(RDRA.periodDays).toBe(246.12);
-    expect(miraPhase(RDRA, DR1_START_MJD)).toBeCloseTo(0.897, 3);
-    expect(miraPhase(RDRA, QR3_LAST_MJD)).toBeCloseTo(0.043, 3);
+    // The VSX phase itself (judge fixtures); inside the SPHEREx window the drawn phase uses the measured maxima.
+    expect(vsxPhase(DR1_START_MJD)).toBeCloseTo(0.897, 3);
+    expect(miraPhase(RDRA, QR3_LAST_MJD)).toBeCloseTo(0.043, 3); // 2026-10-05: after the window, VSX
     // ε not sourced: the O−C band alone. Centre = VSX dates (not shifted), so 1σ = RMS of O−C about VSX:
-    // the 2025–2026 AAVSO maxima came −3.8, −14.8 and −3.1 d from VSX (SCIENCE.md 3D review V12a, fallback).
+    // the 2025–2026 AAVSO maxima came −3.8, −14.8 and −3.1 d from VSX (SCIENCE.md 3D review V12a).
     expect(RDRA.ocMeanDays).toBe(-4.7);
     expect(RDRA.ocSdDays).toBe(4.6);
     const oc = [-3.8, -14.8, -3.1];
     expect(Math.sqrt(oc.reduce((s, x) => s + x * x, 0) / oc.length)).toBeCloseTo(9.0, 1);
-    expect(miraTimingSigmaDays(RDRA, 61000)).toBe(9.0);
-    expect(formatTimingDays(miraTimingSigmaDays(RDRA, 61000))).toBe('9.0');
+    const outside = 61400; // after the SPHEREx window: the VSX band
+    expect(miraDatedByMaxima(RDRA, outside)).toBe(false);
+    expect(miraTimingSigmaDays(RDRA, outside)).toBe(9.0);
+    expect(formatTimingDays(miraTimingSigmaDays(RDRA, outside))).toBe('9.0');
     // The band covers the earlier mean offset too: a maximum 4.7 d early is within 1σ.
-    expect(Math.abs(RDRA.ocMeanDays)).toBeLessThan(miraTimingSigmaDays(RDRA, 61000));
+    expect(Math.abs(RDRA.ocMeanDays)).toBeLessThan(miraTimingSigmaDays(RDRA, outside));
     expect(RDRA.note).toMatch(/±9\.0 d band \(1σ\) is the RMS of that O−C about VSX/);
     expect(RDRA.note).toMatch(/not shifted/);
     expect(RDRA.note).toMatch(/the radius is drawn constant/);
@@ -203,11 +219,87 @@ describe('Mira ephemeris of R Dra (S3)', () => {
     );
   });
 
-  it('predicts the 2025–2026 maxima of research item 3b', () => {
+  it('V12a: dates the phase with the measured AAVSO maxima inside the SPHEREx window', () => {
+    expect(RDRA.observedMaximaMjd).toEqual([60811.4, 61046.5, 61304.3]);
+    expect(RDRA.observedMaximaSource).toBe(
+      'AAVSO International Database, 818 visual and V observations, JD 2460700–2461360; maxima from ±40 d parabolas (offline WS3 analysis, docs/validation/r-draconis.md)',
+    );
+    expect(RDRA.observedTimingDays).toBe(3);
+    expect(RDRA.observedTimingSource).toMatch(/^SCIENCE\.md 3D review V12a: ±3 d about each measured maximum/);
+    // The window is the SPHEREx archive window of R Dra, rounded to the day like the coverage table.
+    const passes = SPHEREX_COVERAGE['r-draconis'].passes;
+    expect(RDRA.observedWindowMjd).toEqual([passes[0].startMjd, passes[passes.length - 1].endMjd]);
+    expect(OBSERVED_WINDOW_ROUNDING_DAYS).toBe(PASS_EDGE_TOLERANCE_DAYS);
+    expect(miraDatedByMaxima(RDRA, DR1_START_MJD)).toBe(true); // the dataset clock starts inside it
+    expect(miraDatedByMaxima(RDRA, 60789.4)).toBe(false);
+    expect(miraDatedByMaxima(RDRA, 61310.5)).toBe(true);
+    expect(miraDatedByMaxima(RDRA, 61310.6)).toBe(false);
+    // The measured maxima are phase 0, dated as 2025-05-16, 2026-01-06 and 2026-09-21 (SCIENCE.md V12a).
+    const measured = RDRA.observedMaximaMjd ?? [];
+    expect(measured.map(mjdToIsoDate)).toEqual(['2025-05-16', '2026-01-06', '2026-09-21']);
+    for (const m of measured) {
+      expect(miraPhase(RDRA, m)).toBeCloseTo(0, 12);
+      expect(miraPhase(RDRA, m - 1e-6)).toBeCloseTo(1, 6); // continuous through each maximum
+    }
+    // O−C of the measured maxima about VSX: −3.8, −14.8 and −3.1 d.
+    const vsx = predictedMaxima(RDRA, 60700, 61360);
+    expect(measured.map((m, i) => Number((m - vsx[i]).toFixed(1)))).toEqual([-3.8, -14.8, -3.1]);
+    // Linear phase between consecutive maxima (cycles of 235.1 and 257.8 d).
+    expect(miraPhase(RDRA, 60811.4 + 0.5 * 235.1)).toBeCloseTo(0.5, 9);
+    expect(miraPhase(RDRA, 61046.5 + 0.25 * 257.8)).toBeCloseTo(0.25, 9);
+    // Before the first and after the last maximum (still inside the window): VSX period from the nearest one.
+    expect(miraPhase(RDRA, DR1_START_MJD)).toBeCloseTo(1 - (60811.4 - DR1_START_MJD) / 246.12, 12);
+    expect(miraPhase(RDRA, 61310)).toBeCloseTo((61310 - 61304.3) / 246.12, 12);
+    // The drawn minima (phase 1 − rise = 0.55) fall inside the measured AAVSO minima: 60939–60947 and 61185–61196.
+    const minima = [60811.4 + 0.55 * 235.1, 61046.5 + 0.55 * 257.8];
+    expect(minima[0]).toBeGreaterThanOrEqual(60939);
+    expect(minima[0]).toBeLessThanOrEqual(60947);
+    expect(minima[1]).toBeGreaterThanOrEqual(61185);
+    expect(minima[1]).toBeLessThanOrEqual(61196);
+    for (const m of minima) expect(miraShape(RDRA, miraPhase(RDRA, m))).toBeCloseTo(-1, 9);
+    // ±3 d band inside the window; the phase spread is the band over the local cycle length.
+    expect(miraTimingSigmaDays(RDRA, 61000)).toBe(3);
+    expect(miraPhaseSigma(RDRA, 61000)).toBeCloseTo(3 / 235.1, 12);
+    expect(miraPhaseSigma(RDRA, 61200)).toBeCloseTo(3 / 257.8, 12);
+    expect(miraPhaseSigma(RDRA, 61400)).toBeCloseTo(9 / 246.12, 12);
+    // At the window edges the phase jumps by less than 0.02 cycles (5 d) between the two datings.
+    for (const [inside, outside] of [
+      [60789.5, 60789.49],
+      [61310.5, 61310.51],
+    ]) {
+      const d = Math.abs(miraPhase(RDRA, inside) - miraPhase(RDRA, outside));
+      expect(Math.min(d, 1 - d)).toBeLessThan(0.02);
+    }
+  });
+
+  it('predicts the 2025–2026 maxima of research item 3b (VSX), and draws the measured ones instead', () => {
     const maxima = predictedMaxima(RDRA, DR1_START_MJD, QR3_LAST_MJD).map(mjdToIsoDate);
     expect(maxima).toEqual(['2025-05-20', '2026-01-21', '2026-09-24']);
-    const p = miraPhase(RDRA, isoDateToMjd('2025-05-20') + 0.18);
+    const p = vsxPhase(isoDateToMjd('2025-05-20') + 0.18);
     expect(Math.min(p, 1 - p)).toBeLessThan(0.001);
+    // One maximum per cycle: inside the window the measured date replaces the VSX one.
+    const drawn = miraMaxima(RDRA, DR1_START_MJD, QR3_LAST_MJD);
+    expect(drawn.map((m) => [mjdToIsoDate(m.mjd), m.measured, m.sigmaDays])).toEqual([
+      ['2025-05-16', true, 3],
+      ['2026-01-06', true, 3],
+      ['2026-09-21', true, 3],
+    ]);
+    // Outside the window: the VSX dates with the 9.0 d band.
+    const wide = miraMaxima(RDRA, 60400, 61700);
+    expect(wide.map((m) => [mjdToIsoDate(m.mjd), m.measured, m.sigmaDays])).toEqual([
+      ['2024-09-16', false, 9],
+      ['2025-05-16', true, 3],
+      ['2026-01-06', true, 3],
+      ['2026-09-21', true, 3],
+      ['2027-05-28', false, 9],
+    ]);
+    expect(maximumText(wide[0])).toBe('predicted maximum 2024-09-16 ± 9.0 d');
+    expect(maximumText(wide[1])).toBe('measured maximum 2025-05-16 ± 3.0 d');
+    // Next maximum: the measured one inside the window; after the last, the next VSX cycle (2026-09-24 is the measured one).
+    expect(nextMiraMaximum(RDRA, DR1_START_MJD)).toEqual({ mjd: 60811.4, measured: true, sigmaDays: 3 });
+    expect(nextMaximum(RDRA, 61000)).toBe(61046.5);
+    expect(mjdToIsoDate(nextMaximum(RDRA, 61305))).toBe('2027-05-28');
+    expect(nextMiraMaximum(RDRA, 61305).measured).toBe(false);
   });
 
   it('draws an asymmetric curve: maximum at 0, minimum at 1 − rise = 0.55, continuous', () => {
@@ -226,20 +318,24 @@ describe('Mira ephemeris of R Dra (S3)', () => {
 
   it("spans the catalog's V range on the glow only: no radius factor (the size change is not measured)", () => {
     const rdra = bodyOf('r-draconis', 'r-draconis');
-    const atMax = predictedPulsation(RDRA, rdra, isoDateToMjd('2026-01-21') + 0.3);
-    const atMin = predictedPulsation(RDRA, rdra, isoDateToMjd('2026-01-21') + 0.3 + 0.55 * 246.12);
+    const atMax = predictedPulsation(RDRA, rdra, 61046.5); // measured maximum of 2026-01-06
+    const atMin = predictedPulsation(RDRA, rdra, 61046.5 + 0.55 * 257.8);
     expect(atMax.factor / atMin.factor).toBeCloseTo(Math.pow(10, 0.4 * 6.5), 0);
     expect(Object.keys(atMax).sort()).toEqual(['factor', 'phase', 'phaseSigma', 'shape']);
     expect(MIRA_PREDICTION_CAVEAT).toMatch(/^V-band prediction from a catalogue ephemeris, not a SPHEREx light curve\. Measured offline/);
     expect(MIRA_PREDICTION_CAVEAT).not.toMatch(/\.$/); // callers end the sentence
   });
 
-  it('summarises the predicted phase of each SPHEREx pass', () => {
+  it('summarises the phase of each SPHEREx pass', () => {
     expect(passPhaseSummary(RDRA, 60790, 60879)).toBe(
-      'predicted V phase 0.90 → 0.26 (±0.04); predicted maximum 2025-05-20 ± 9.0 d',
+      'V phase 0.91 → 0.29 (±0.01, dated by the measured AAVSO maxima); measured maximum 2025-05-16 ± 3.0 d',
     );
     expect(passPhaseSummary(RDRA, 60916, 61310)).toBe(
-      'predicted V phase 0.41 → 0.01 (±0.04); 1.6 cycles; predicted maxima 2026-01-21 ± 9.0 d, 2026-09-24 ± 9.0 d',
+      'V phase 0.44 → 0.02 (±0.01, dated by the measured AAVSO maxima); 1.6 cycles; measured maximum 2026-01-06 ± 3.0 d, measured maximum 2026-09-21 ± 3.0 d',
+    );
+    expect(passPhaseSummary(RDRA, 61320, 61400)).toBe('predicted V phase 0.05 → 0.38 (±0.04, VSX ephemeris); no maximum in this pass');
+    expect(passPhaseSummary(RDRA, 61300, 61400)).toBe(
+      'V phase 0.98 → 0.38 (±0.04, measured AAVSO maxima inside the SPHEREx window, VSX ephemeris outside); measured maximum 2026-09-21 ± 3.0 d',
     );
   });
 
@@ -262,8 +358,14 @@ describe('Mira ephemeris of R Dra (S3)', () => {
     expect(rw.find((l) => l.bodyId === 'rw-aur-b' && l.kind === 'arbitrary')?.source).toMatch(/Kurtovic/);
     const line = onThisDate(system('r-draconis'), DR1_START_MJD)[0];
     expect(line.text).toBe(
-      'predicted V phase 0.90 ± 0.04 (VSX ephemeris, ±9.0 d 1σ timing band about the VSX dates) · rising · next predicted maximum 2025-05-20',
+      'V phase 0.91 ± 0.01 (dated by the measured AAVSO maxima, ±3.0 d band about each) · rising, near maximum · next measured maximum 2025-05-16',
     );
+    expect(line.source).toBe(`${RDRA.observedMaximaSource}; outside the SPHEREx window: ${RDRA.source}`);
+    const after = onThisDate(system('r-draconis'), QR3_LAST_MJD)[0];
+    expect(after.text).toBe(
+      'predicted V phase 0.04 ± 0.04 (VSX ephemeris, ±9.0 d 1σ timing band about the VSX dates) · just past maximum · next predicted maximum 2027-05-28',
+    );
+    expect(after.source).toBe(RDRA.source);
   });
 
   it('classifies variability with one rule: only kind "irregular" is irregular', () => {

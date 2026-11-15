@@ -18,7 +18,7 @@ import {
   separationVerdict,
   type AppearanceNote,
 } from './appearanceNotes';
-import { MIRA_TIO_CITATION, PHYS, granulationParams, spherexPrediction } from './astro';
+import { MIRA_TIO_CITATION, PHYS, granulationParams, spherexPrediction, spherexSaturationResult } from './astro';
 import { COLOR_MODES, COLOR_MODE_LABEL, SPHEREX_LIGHT_CURVE_POINTER, bodyLook } from './colorModes';
 import { MIRA_EPHEMERIDES, MIRA_PREDICTION_CAVEAT } from './ephemerides';
 import { UNKNOWN_COLOUR_TEXT, UNKNOWN_SIZE_TEXT } from './factOrigin';
@@ -101,7 +101,12 @@ describe('every demo body', () => {
     for (const s of SYSTEMS) {
       const before = JSON.stringify(s);
       for (const b of s.bodies) {
-        for (const n of appearanceNotes(b, s)) expect(JSON.stringify(n), `${b.id} ${n.property}`).not.toMatch(/saturat/i);
+        // The one exception is the offline FITS result of a target (A9, astro.SPHEREX_SATURATION_RESULTS), quoted verbatim.
+        const measured = spherexSaturationResult(s.id, b.id);
+        for (const n of appearanceNotes(b, s)) {
+          const text = measured ? JSON.stringify(n).split(measured).join('') : JSON.stringify(n);
+          expect(text, `${b.id} ${n.property}`).not.toMatch(/saturat/i);
+        }
       }
       expect(JSON.stringify(s)).toBe(before);
     }
@@ -257,17 +262,22 @@ describe('How this body is drawn', () => {
     const puls = rowOf(notes, 'Pulsation (radius)');
     expect(puls.method).toMatch(/^the size change of this pulsating star is not measured, so its radius is drawn constant in both clocks/);
     expect(puls.method).toContain('V-band light curve (catalog, not measured by SPHEREx; see the glow row)');
-    expect(puls.method).toContain(`${eph.source} (±9 d timing band, 1σ)`);
+    // V12a: the measured AAVSO maxima date the phase inside the SPHEREx window (±3 d), VSX only outside it (±9 d).
+    expect(puls.method).toContain(
+      `which Dataset time dates with the V maxima measured by AAVSO inside the SPHEREx window (MJD 60811.4, 61046.5, 61304.3; linear phase between them, ±3 d band) and with the ephemeris ${eph.source} (±9 d timing band, 1σ) outside it`,
+    );
     expect(puls.method).toContain(SPHEREX_LIGHT_CURVE_POINTER);
     expect(puls.method).not.toMatch(/±10 %|class-typical/);
     expect(puls.citation).toContain(`ephemeris: ${eph.source}; timing band: ${eph.timingSource}`);
+    expect(puls.citation).toContain(`measured maxima: ${eph.observedMaximaSource}; their band: ${eph.observedTimingSource}`);
+    expect(puls.citation).toContain('SCIENCE.md 3D review (V12b, V12a)');
     // The glow: modulated in visible mode only, on both clocks, TiO-driven.
     const glow = rowOf(notes, 'Glow');
     expect(glow.method).toMatch(/light curve \(catalog, not measured by SPHEREx\) modulates the glow in visible mode only \(opacity × f\^0\.25, size × f\^0\.3/);
     expect(glow.method).toContain('the radius stays constant');
     expect(glow.method).toContain('free-running clock, a sine at the catalog period with an arbitrary phase');
     expect(glow.method).toContain(
-      `Dataset time, the predicted ${eph.band} phase on the asymmetric curve of the ephemeris in the pulsation row (${MIRA_PREDICTION_CAVEAT})`,
+      `Dataset time, the ${eph.band} phase dated as in the pulsation row (measured maxima inside the SPHEREx window, the ephemeris outside it), on the asymmetric curve of the ephemeris (${MIRA_PREDICTION_CAVEAT})`,
     );
     expect(glow.method).toContain(`TiO absorption, not by the Planck function (${MIRA_TIO_CITATION})`);
     expect(glow.citation).toContain(eph.source);
@@ -437,11 +447,23 @@ describe('At SPHEREx scale', () => {
   it('flags predictions brighter than the pre-launch non-linearity onset', () => {
     const ab = notesOf('barnards-star', 'barnards-star').filter((n) => n.unit === 'AB mag');
     expect(ab.map((n) => n.value)).toEqual(['6.93', '6.45', '6.46', '6.82', '7.22', '7.42']);
+    // A9: Barnard's saturation was measured offline, so its rows give the result instead of "check".
     for (const r of ab) {
-      expect(r.flags, r.property).toContain('brighter-than-nonlinearity');
-      expect(r.method, r.property).toMatch(/non-linearity onset AB [\d.]+ \(pre-launch model\)/);
+      expect(r.flags, r.property).toEqual(['overflow-measured']);
+      expect(r.method, r.property).toMatch(
+        /non-linearity onset AB [\d.]+ \(pre-launch model\); SPHEREx pixel flags: saturated \(OVERFLOW\) in 357 of 358 exposures \(offline FITS analysis, docs\/validation\/barnards-star\.md\)$/,
+      );
     }
-    expect(FLAG_TEXT['brighter-than-nonlinearity']).toMatch(/OVERFLOW and NONLINEAR/);
+    expect(FLAG_TEXT['overflow-measured']).not.toMatch(/check/);
+    expect(FLAG_TEXT['overflow-measured']).toMatch(/OVERFLOW measured in its SPHEREx exposures/);
+    // Any other bright star (ε Ind A) keeps the generic "check the flags" text.
+    const epsA = notesOf('epsilon-indi', 'eps-indi-a').filter((n) => n.unit === 'AB mag');
+    expect(epsA.length).toBe(6);
+    for (const r of epsA) {
+      expect(r.flags, r.property).toEqual(['brighter-than-nonlinearity']);
+      expect(r.method, r.property).not.toMatch(/SPHEREx pixel flags/);
+    }
+    expect(FLAG_TEXT['brighter-than-nonlinearity']).toMatch(/check the OVERFLOW and NONLINEAR pixel flags/);
   });
 
   it('the blend fraction appears only for blended stellar pairs, with numbers only when both are reliable', () => {
@@ -521,12 +543,12 @@ describe('physical quantities behind the drawing', () => {
         "derived | Fraction of the light per SPHEREx detector | D1 0.26 · D2 0.28 · D3 0.19 · D4 0.11 · D5 0.017 · D6 0.01 | model",
         "derived | Spectral class (parsed) | M4 V (main-sequence) | derived",
         "spherex | Angular diameter | 0.94 mas = 1/6,500 px | derived",
-        "spherex | Predicted AB, D1 (0.746–1.117 µm) | 6.93 AB mag | model | brighter-than-nonlinearity",
-        "spherex | Predicted AB, D2 (1.103–1.65 µm) | 6.45 AB mag | model | brighter-than-nonlinearity",
-        "spherex | Predicted AB, D3 (1.63–2.435 µm) | 6.46 AB mag | model | brighter-than-nonlinearity",
-        "spherex | Predicted AB, D4 (2.403–3.847 µm) | 6.82 AB mag | model | brighter-than-nonlinearity",
-        "spherex | Predicted AB, D5 (3.811–4.43 µm) | 7.22 AB mag | model | brighter-than-nonlinearity",
-        "spherex | Predicted AB, D6 (4.412–5.01 µm) | 7.42 AB mag | model | brighter-than-nonlinearity",
+        "spherex | Predicted AB, D1 (0.746–1.117 µm) | 6.93 AB mag | model | overflow-measured",
+        "spherex | Predicted AB, D2 (1.103–1.65 µm) | 6.45 AB mag | model | overflow-measured",
+        "spherex | Predicted AB, D3 (1.63–2.435 µm) | 6.46 AB mag | model | overflow-measured",
+        "spherex | Predicted AB, D4 (2.403–3.847 µm) | 6.82 AB mag | model | overflow-measured",
+        "spherex | Predicted AB, D5 (3.811–4.43 µm) | 7.22 AB mag | model | overflow-measured",
+        "spherex | Predicted AB, D6 (4.412–5.01 µm) | 7.42 AB mag | model | overflow-measured",
       ]
     `);
     expect(compact('barnards-star', 'barnard-b')).toMatchInlineSnapshot(`

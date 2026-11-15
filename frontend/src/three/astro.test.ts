@@ -37,8 +37,10 @@ import {
   pressureScaleHeight,
   separationBoundsArcsec,
   spectralClass,
+  SPHEREX_SATURATION_RESULTS,
   spherexPrediction,
   spherexReliability,
+  spherexSaturationResult,
   surfaceGravity,
   TIERS,
   weakestTier,
@@ -373,9 +375,47 @@ describe('independent photometric checks', () => {
   });
 
   it('flags predictions brighter than the SPHEREx non-linearity onset', () => {
-    for (const b of spherexPrediction(barnard, BARNARD).value) expect(b.abMag.flags).toContain('brighter-than-nonlinearity');
+    // Barnard was checked offline (A9): the result, not "check the flags".
+    const barnardSat = 'saturated (OVERFLOW) in 357 of 358 exposures (offline FITS analysis, docs/validation/barnards-star.md)';
+    for (const b of spherexPrediction(barnard, BARNARD).value) {
+      expect(b.abMag.flags, b.detector.id).toEqual(['overflow-measured']);
+      expect(b.abMag.method, b.detector.id).toMatch(/brighter than the non-linearity onset AB [\d.]+ \(pre-launch model\); SPHEREx pixel flags: /);
+      expect(b.abMag.method.endsWith(`SPHEREx pixel flags: ${barnardSat}`), b.detector.id).toBe(true);
+    }
+    // ε Ind A is not one of the five targets' measured sources: it keeps the generic flag.
+    for (const b of spherexPrediction(epsA, EPS).value) {
+      expect(b.abMag.flags, b.detector.id).toEqual(['brighter-than-nonlinearity']);
+      expect(b.abMag.method, b.detector.id).not.toMatch(/SPHEREx pixel flags/);
+    }
     const far: SystemModel = { ...BARNARD, motion: { ...BARNARD.motion!, distance_pc: 2000 } };
-    for (const b of spherexPrediction(barnard, far).value) expect(b.abMag.flags).not.toContain('brighter-than-nonlinearity');
+    for (const b of spherexPrediction(barnard, far).value) expect(b.abMag.flags).toEqual([]);
+  });
+
+  it('A9: the measured saturation of the targets is keyed by system and body id, verbatim', () => {
+    expect(SPHEREX_SATURATION_RESULTS).toEqual({
+      'r-draconis/r-draconis':
+        'saturated (OVERFLOW) in all 2,488 SPHEREx exposures, NONLINEAR never (offline FITS analysis, docs/validation/r-draconis.md)',
+      'rw-aurigae/rw-aur-a':
+        'OVERFLOW in 304 of 335 SPHEREx exposures, and no clean D2–D6 exposure (0 of 279; offline FITS analysis, docs/validation/rw-aurigae.md)',
+      'rw-aurigae/rw-aur-b':
+        'OVERFLOW in 304 of 335 SPHEREx exposures, and no clean D2–D6 exposure (0 of 279; offline FITS analysis, docs/validation/rw-aurigae.md)',
+      'barnards-star/barnards-star':
+        'saturated (OVERFLOW) in 357 of 358 exposures (offline FITS analysis, docs/validation/barnards-star.md)',
+    });
+    // Keyed by id, never by name: the same body in another system, or another body, has no result.
+    expect(spherexSaturationResult('barnards-star', 'barnards-star')).toBe(SPHEREX_SATURATION_RESULTS['barnards-star/barnards-star']);
+    expect(spherexSaturationResult('not-a-target', 'barnards-star')).toBeNull();
+    expect(spherexSaturationResult('epsilon-indi', 'eps-indi-a')).toBeNull();
+    expect(spherexSaturationResult('toString', '')).toBeNull();
+    // No demo body outside the table carries the measured flag or the result text.
+    for (const s of SYSTEMS) {
+      for (const b of s.bodies) {
+        if (spherexSaturationResult(s.id, b.id)) continue;
+        const p = spherexPrediction(b, s);
+        expect(p.method, b.id).not.toMatch(/SPHEREx pixel flags/);
+        for (const est of p.value) expect(est.abMag.flags, `${b.id} ${est.detector.id}`).not.toContain('overflow-measured');
+      }
+    }
   });
 });
 
@@ -426,6 +466,11 @@ describe('reliability of the SPHEREx numbers', () => {
       expect(r.citation, s.id).toMatch(/are 1\.4, 1\.9 and 2\.8 mag brighter than the A\+B photosphere blackbody \(catalog Teff and radii, 156\.1 pc\)/);
       expect(r.citation, s.id).toMatch(/0 of 279 are clean \(OVERFLOW in 304 of 335 exposures overall; offline FITS analysis, docs\/validation\/rw-aurigae\.md\), so no SPHEREx flux is quoted here$/);
       expect(r.citation, s.id).not.toMatch(/SPHEREx measured|RECON_SPHEREX\.md §4\.4/);
+      // A9: the measured A+B saturation instead of "check the OVERFLOW/NONLINEAR flags".
+      expect(r.method, s.id).toMatch(
+        /; no AB value is shown; SPHEREx pixel flags: OVERFLOW in 304 of 335 SPHEREx exposures, and no clean D2–D6 exposure \(0 of 279; offline FITS analysis, docs\/validation\/rw-aurigae\.md\)$/,
+      );
+      expect(r.method, s.id).not.toMatch(/check the OVERFLOW/);
       const p = spherexPrediction(s, RWAUR);
       expect(p.reliability).toBe('photosphere only - IR excess not modelled');
       for (const est of p.value) {
@@ -434,6 +479,11 @@ describe('reliability of the SPHEREx numbers', () => {
         expect(est.fraction.method).toMatch(/photosphere only/);
       }
     }
+    // Any other IR-excess star keeps the generic text.
+    const other: SystemModel = { ...RWAUR, id: 'not-a-target' };
+    expect(spherexReliability(a, other).method).toMatch(
+      /no AB value is shown \(the real source may be brighter than the non-linearity onset: check the OVERFLOW\/NONLINEAR flags\)$/,
+    );
   });
 
   it('R Dra (Mira): no AB numbers, because the molecular bands and dust are not modelled', () => {
@@ -446,7 +496,11 @@ describe('reliability of the SPHEREx numbers', () => {
     expect(r.method).toMatch(/H₂O and CO/);
     // Its Teff, radius and mass are not measured: the Mira reason still comes first (not 'not modelled').
     expect(r.method).toMatch(/no Teff is measured for this star/);
-    expect(r.method).not.toMatch(/OVERFLOW/); // no photosphere to compare with the onset
+    // A9: no photosphere to compare with the onset, but the saturation was measured offline.
+    expect(r.method).toMatch(
+      /so no AB value is shown; SPHEREx pixel flags: saturated \(OVERFLOW\) in all 2,488 SPHEREx exposures, NONLINEAR never \(offline FITS analysis, docs\/validation\/r-draconis\.md\)$/,
+    );
+    expect(r.method).not.toMatch(/check the OVERFLOW|non-linearity onset/);
     expect(r.citation).toMatch(/Höfner & Olofsson 2018, A&ARv 26, 1/);
     expect(r.citation).toMatch(/Lançon & Wood 2000, A&AS 146, 217/);
     const p = spherexPrediction(rdra, RDRA);
@@ -461,7 +515,13 @@ describe('reliability of the SPHEREx numbers', () => {
     // With test inputs (Teff, R, M) the same reason, and the bare photosphere is above the onset.
     const giant = spherexReliability(rDraTestGiant, RDRA);
     expect(giant.value).toBe(r.value);
-    expect(giant.method).toMatch(/OVERFLOW\/NONLINEAR/);
+    expect(giant.method).toMatch(
+      /already brighter than the pre-launch non-linearity onset in every detector; SPHEREx pixel flags: saturated \(OVERFLOW\) in all 2,488/,
+    );
+    expect(giant.method).not.toMatch(/check the OVERFLOW/);
+    // The same giant outside the measured table keeps the generic "check" text.
+    const unmeasured = spherexReliability(rDraTestGiant, { ...RDRA, id: 'not-a-target' });
+    expect(unmeasured.method).toMatch(/in every detector: check the OVERFLOW\/NONLINEAR pixel flags$/);
     for (const est of spherexPrediction(rDraTestGiant, RDRA).value) {
       expect(est.fraction.value, est.detector.id).not.toBeNull();
       expect(est.fraction.method, est.detector.id).toMatch(/molecular bands and dust are not modelled/);

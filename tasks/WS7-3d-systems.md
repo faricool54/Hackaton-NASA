@@ -136,8 +136,8 @@ guardia de ownership los marca (precedentes #47 y #64, declarados en el PR).
   - [ ] Línea "On this date: phase X ± σ" en la ficha (`bodyFormat.ts` / `BodyPanel.tsx`); hoy está solo en el visor.
   - [ ] Banda de R Dra con un término de Eddington–Plakidis con fuente, y contraste con los máximos AAVSO 2025–2026.
     El contraste ya está hecho (registro de R Dra, 818 observaciones AAVSO): V13 toma su O−C (−3.8, −14.8, −3.1 d) para
-    la banda de **9.0 d** (variante corta de V12a). Falta la variante completa (fechar la fase con los máximos medidos
-    dentro de la ventana SPHEREx, banda de ±3 d) y el término de Eddington–Plakidis.
+    la banda de **9.0 d** (variante corta de V12a), y la variante completa ya fecha la fase con los máximos medidos
+    dentro de la ventana SPHEREx (±3 d). Falta solo el término de Eddington–Plakidis.
   - [x] Pasar de ventanas de archivo a frames reales cuando existan campos construidos de los cinco blancos:
     `errante systems --out data/products --real-only` (15/11) publica los cinco sistemas en el dataset real, cada
     uno con el `field_id` de su campo; en `?dataset=real` el "Dataset time" marca los frames construidos
@@ -199,8 +199,8 @@ revisión humana todavía.
   magnitudes D5/D6 de núcleos saturados; texto literal de la revisión (2MASS/AllWISE: 1.4, 1.9 y 2.8 mag sobre la
   fotosfera A+B; ningún flujo SPHEREx). Comentario: "(RW Aur: 1.4–2.8 mag at 2.2–4.6 µm, 2MASS/AllWISE)".
 - V12 · importantes:
-  - [ ] **V12a** (`ephemerides.ts`, R Dra): hecha la variante corta (banda de 9.0 d con el O−C de los máximos AAVSO
-    2025–2026); falta la completa (fase fechada con los máximos medidos, ±3 d).
+  - [x] **V12a** (`ephemerides.ts`, R Dra): variante completa. Dentro de la ventana SPHEREx la fase se fecha con los
+    máximos AAVSO medidos (lineal entre máximos, ±3 d); fuera, VSX con la banda de 9.0 d de la variante corta.
   - [x] **V12b** (`sceneLayout.ts`, `ephemerides.ts`, leyenda en `colorModes.ts`): radio de R Dra constante; ya no hay
     toggle, así que la parte "With class-typical features on: ±10 %" de la leyenda propuesta no aplica.
   - [x] **V12c** (`ephemerides.ts`, `IRREGULAR_TEXT`): "irregular: cannot be predicted" y, para RW Aur, lo medido
@@ -213,11 +213,12 @@ revisión humana todavía.
   - [x] `catalog.py` órbitas de Barnard b–e: e ajustadas (0.03–0.08) y el error de hasta 2e rad del dibujo circular.
   - [x] `ephemerides.ts` `MIRA_PREDICTION_CAVEAT`: amplitud IR medida (0.5–1.3 mag) y retraso de los máximos.
   - [x] `colorModes.ts`: chip del modo visible "VISIBLE · BLACKBODY COLOUR MODEL".
-  - [ ] `astro.ts` / `appearanceNotes.ts`: el resultado de saturación de los registros en lugar de "check the
-    OVERFLOW/NONLINEAR pixel flags" para los cinco blancos.
+  - [x] `astro.ts` / `appearanceNotes.ts`: el resultado de saturación de los registros en lugar de "check the
+    OVERFLOW/NONLINEAR pixel flags" para los cinco blancos (tabla `SPHEREX_SATURATION_RESULTS` por sistema/cuerpo,
+    flag `overflow-measured`); cualquier otro objeto (ε Ind A) sigue con "check".
   - [x] `spherexCoverage.ts` R Dra: "R Dra is 8.6° from the north ecliptic pole, inside the footprint of the SPHEREx
     deep collections (1,954 of its 2,493 frames)".
-  - [ ] `spherexCoverage.ts` ε Ind: conteo principal 458 (`spherex_dr1: 338`; pasadas 118, 146, 74 y 120) en lugar de
+  - [x] `spherexCoverage.ts` ε Ind: conteo principal 458 (`spherex_dr1: 338`; pasadas 118, 146, 74 y 120) en lugar de
     460, con la nota de la revisión.
   - [x] `appearanceNotes.ts` RW Aur A: "AAVSO VSX lists 2.64 d for RW Aur …: not adopted".
   - [ ] `docs/DATA.md:439-440` (notas WS7 de ε Ind B y WISE 0855): `docs/DATA.md` es de WS1 según
@@ -279,8 +280,8 @@ Lo que WS7 no puede cerrar solo (14/11/2026; actualizado el 15/11 con V13):
   - WISE 0855: **resuelto por WS3 (#65):** se usa Kirkpatrick+2021 (la solución publicada, la de `fields.toml` y del
     registro); el ajuste propio de RECON §4.1 queda como control a 0.31″ (0.05 px). El panel del cielo ya lo dice;
   - los puntos de cada pasada están a mitad de la ventana: sin `MJD-AVG` por frame de los blancos reales;
-  - R Dra: las fechas VSX no se corrigen por la media del O−C (la banda, ahora de 9.0 d con los máximos AAVSO
-    2025–2026, la incluye) y no hay término de Eddington–Plakidis;
+  - R Dra: fuera de la ventana SPHEREx las fechas VSX no se corrigen por la media del O−C (la banda de 9.0 d la
+    incluye; dentro de la ventana mandan los máximos medidos) y no hay término de Eddington–Plakidis;
   - Barnard: para errores asimétricos se usó el lado mayor y para e la σP del paper (0.0028 d), así que e va de
     23.2° a 31.0° (con 0.003 d serían 23.6° a 32.3°);
   - ε Ind Bb: un T0 derivado de la Tabla 3 de Chen+2022 no se usa (no publicado); Bb y Ab quedan como anillos.

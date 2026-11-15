@@ -61,6 +61,9 @@ export type Flag =
   | 'blackbody-unreliable'
   /** Predicted brighter than the SPHEREx non-linearity onset of that band (pre-launch model). */
   | 'brighter-than-nonlinearity'
+  /** As 'brighter-than-nonlinearity', for a target whose SPHEREx saturation was measured offline
+   *  (SPHEREX_SATURATION_RESULTS): the method gives the result instead of "check the flags". */
+  | 'overflow-measured'
   /** The orbit is assumed or hypothetical (Orbit.quality), not a fitted solution. */
   | 'assumed-orbit';
 
@@ -1154,6 +1157,30 @@ export function miraReason(body: Body): string | null {
 export const IR_EXCESS_CITE =
   'evidence for the rule (RW Aur A+B, classical T Tauri stars with disks): 2MASS Ks = 7.020 Vega = 8.87 AB (Cutri et al. 2003, VizieR II/246; K_AB − K_Vega = 1.85, Blanton & Roweis 2007, AJ 133, 734) and AllWISE W1 = 6.246 and W2 = 5.228 Vega = 8.95 and 8.57 AB (Cutri et al. 2013, VizieR II/328; AB − Vega = 2.699 and 3.339, WISE Explanatory Supplement) are 1.4, 1.9 and 2.8 mag brighter than the A+B photosphere blackbody (catalog Teff and radii, 156.1 pc); the epochs differ and the star varies by magnitudes. No SPHEREx D2–D6 exposure of RW Aur is usable: 0 of 279 are clean (OVERFLOW in 304 of 335 exposures overall; offline FITS analysis, docs/validation/rw-aurigae.md), so no SPHEREx flux is quoted here';
 
+const RW_AUR_SATURATION =
+  'OVERFLOW in 304 of 335 SPHEREx exposures, and no clean D2–D6 exposure (0 of 279; offline FITS analysis, docs/validation/rw-aurigae.md)';
+
+/**
+ * SPHEREx saturation measured offline for the challenge targets, verbatim from the SCIENCE.md 3D review
+ * (A9), keyed by '<system id>/<body id>': shown instead of "check the OVERFLOW/NONLINEAR pixel flags".
+ * RW Aur A and B (1.5″ apart) are one SPHEREx source, so both carry the A+B result. ε Ind B and WISE 0855
+ * do not saturate and get no AB numbers (Teff < 2500 K), so they need no entry. Every other body, ε Ind A
+ * included, keeps the generic "check" text.
+ */
+export const SPHEREX_SATURATION_RESULTS: Readonly<Record<string, string>> = {
+  'r-draconis/r-draconis':
+    'saturated (OVERFLOW) in all 2,488 SPHEREx exposures, NONLINEAR never (offline FITS analysis, docs/validation/r-draconis.md)',
+  'rw-aurigae/rw-aur-a': RW_AUR_SATURATION,
+  'rw-aurigae/rw-aur-b': RW_AUR_SATURATION,
+  'barnards-star/barnards-star': 'saturated (OVERFLOW) in 357 of 358 exposures (offline FITS analysis, docs/validation/barnards-star.md)',
+};
+
+/** The measured SPHEREx saturation of a body, or null when it was not measured (then: "check the flags"). */
+export function spherexSaturationResult(systemId: string, bodyId: string): string | null {
+  const key = `${systemId}/${bodyId}`;
+  return Object.prototype.hasOwnProperty.call(SPHEREX_SATURATION_RESULTS, key) ? SPHEREX_SATURATION_RESULTS[key] : null;
+}
+
 /**
  * Why a stellar body's SPHEREx flux is not photospheric: a pre-main-sequence (T Tauri / YSO) star,
  * or a system that contains a circumstellar disk. Null when neither applies.
@@ -1222,20 +1249,28 @@ export function spherexReliability(body: Body, system: SystemModel): Derived<Sph
       teff !== null
         ? `a single photosphere blackbody at Teff ${fmt(teff)} K (${T.tier}; Teff itself changes through the cycle) models neither`
         : 'a single photosphere blackbody would model neither, and no Teff is measured for this star';
+    // A measured saturation (A9) replaces "check the flags", with or without a photosphere to compare.
+    const sat = spherexSaturationResult(system.id, body.id);
+    const onset = overOnset ? '; the photosphere blackbody alone is already brighter than the pre-launch non-linearity onset in every detector' : '';
+    const flagsText = sat ? `; SPHEREx pixel flags: ${sat}` : overOnset ? ': check the OVERFLOW/NONLINEAR pixel flags' : '';
     return {
       value: 'photosphere blackbody - molecular bands and dust not modelled',
       tier: 'model',
-      method: `${mira}: its extended, pulsating atmosphere has deep H₂O and CO absorption bands in the 0.75–5 µm range, and circumstellar dust adds emission towards 5 µm; ${model}, so no AB value is shown${overOnset ? '; the photosphere blackbody alone is already brighter than the pre-launch non-linearity onset in every detector: check the OVERFLOW/NONLINEAR pixel flags' : ''}`,
+      method: `${mira}: its extended, pulsating atmosphere has deep H₂O and CO absorption bands in the 0.75–5 µm range, and circumstellar dust adds emission towards 5 µm; ${model}, so no AB value is shown${onset}${flagsText}`,
       citation: `${SPHEREX_BANDS_CITATION}; ${MIRA_CITE}`,
       flags: ['not-modelled'],
     };
   }
   const excess = irExcessReason(body, system);
   if (excess) {
+    const sat = spherexSaturationResult(system.id, body.id);
+    const flagsText = sat
+      ? `; SPHEREx pixel flags: ${sat}`
+      : ' (the real source may be brighter than the non-linearity onset: check the OVERFLOW/NONLINEAR flags)';
     return {
       value: 'photosphere only - IR excess not modelled',
       tier: 'model',
-      method: `${excess}: circumstellar dust and accretion add near- and mid-IR emission that a photosphere blackbody does not include, so it underestimates the SPHEREx flux by magnitudes; no AB value is shown (the real source may be brighter than the non-linearity onset: check the OVERFLOW/NONLINEAR flags)`,
+      method: `${excess}: circumstellar dust and accretion add near- and mid-IR emission that a photosphere blackbody does not include, so it underestimates the SPHEREx flux by magnitudes; no AB value is shown${flagsText}`,
       citation: `${SPHEREX_BANDS_CITATION}; ${IR_EXCESS_CITE}`,
       flags: ['not-modelled'],
     };
@@ -1280,6 +1315,7 @@ export function spherexPrediction(body: Body, system: SystemModel): SpherexPredi
   const photosphereOnly = rel.value === 'photosphere only - IR excess not modelled';
   const molecular = rel.value === 'photosphere blackbody - molecular bands and dust not modelled';
   const d = distanceTier(system);
+  const sat = spherexSaturationResult(system.id, body.id);
   const bands = SPHEREX_DETECTORS.map((det): SpherexBandEstimate => {
     const fr =
       isStellar(body) && body.teff_k !== null
@@ -1302,14 +1338,19 @@ export function spherexPrediction(body: Body, system: SystemModel): SpherexPredi
     }
     const bb = blackbodyBandAbMag(body.teff_k, body.radius_km, Number(d.value), det);
     const ab = bb.value;
-    const flags: Flag[] = ab !== null && ab < det.nonLinearityOnsetAB ? ['brighter-than-nonlinearity'] : [];
+    const overOnset = ab !== null && ab < det.nonLinearityOnsetAB;
+    // A measured saturation (A9) gives the result; any other body keeps the "check the flags" flag.
+    const flags: Flag[] = overOnset ? [sat ? 'overflow-measured' : 'brighter-than-nonlinearity'] : [];
+    const onsetText = overOnset
+      ? `; brighter than the non-linearity onset AB ${det.nonLinearityOnsetAB} (pre-launch model)${sat ? `; SPHEREx pixel flags: ${sat}` : ''}`
+      : '';
     return {
       detector: det,
       fraction,
       abMag: {
         value: ab,
         tier: rel.tier,
-        method: `${bb.method}; ${rel.value}; ${rel.method}${flags.length ? `; brighter than the non-linearity onset AB ${det.nonLinearityOnsetAB} (pre-launch model)` : ''}`,
+        method: `${bb.method}; ${rel.value}; ${rel.method}${onsetText}`,
         citation,
         flags,
       },
