@@ -9,6 +9,7 @@
     "frontend/README.md",
     "tasks/WS5-frontend.md"
   ],
+  "home_link_fix": "OpenAI Codex corrected the challenge-field shortcut to use the active data source and verified API and static home navigation.",
   "external_assets": [
     "Aladin Lite 3.8.2 GPL-3 via jsdelivr",
     "IRSA SPHEREx DR1 HiPS",

@@ -4,7 +4,7 @@
 >
 > **Vigencia (2026-11-14).** Se analizó el build de integración (main `9b8ba42` + `ws2/season-compare`, 18:43 UTC). El campo publicado en `main` por #17 (18:54 UTC) tiene **los mismos 40 frames y PNG idénticos bit a bit** (md5), así que este registro vale para el campo publicado. Única diferencia: #17 ya publica `wavelength_um`/`bandwidth_um` en el centro del campo en los 40 frames, así que lo que abajo se dice de «λ nula en `field.json`» quedó resuelto en el producto. Sigue abierto que la *selección* de frames no ordena por λ: las filas SIA no traen λ y la selección de #17 es idéntica.
 >
-> Los scripts y la caché del análisis quedaron en el scratch local de la sesión de Claude y no se versionan («scratch local» abajo). Las figuras sí están en el repo, en [`figures/r-draconis/`](figures/r-draconis/). Revisión humana pendiente.
+> Los scripts y la caché del análisis quedaron en el scratch local de la sesión de Claude y no se versionan («scratch local» abajo). Las figuras sí están en el repo, en [`figures/r-draconis/`](figures/r-draconis/). Revisión humana: DankoLiv, 2026-11-15 (guiada; los análisis no se volvieron a correr).
 
 **Resultado: `success`, en el alcance que se indica.** R Draconis (Mira, Gaia DR3 1648328016354496384) está saturada (bit `OVERFLOW` en el núcleo) en el **100 %** de los 2488 frames SPHEREx donde cae dentro del detector, sobre un total de 2493 entre dr1, qr3, dr1_deep y qr3_deep (MJD 60790–61310, 520 d). `NONLINEAR` no aparece nunca. Por eso no hay fotometría de núcleo posible. Medí su brillo **relativo** en el ala no saturada de la PSF, comparando solo frames del **mismo detector y con λ dentro de bins de 1–1,5 %**:
 - **Análisis original:** anillo de 10–16 px menos 45–60 px.
@@ -159,7 +159,7 @@ Además, la serie SPHEREx **sigue a la curva V contemporánea de AAVSO** (818 ob
     - [fig_review_periodogram.png](figures/r-draconis/fig_review_periodogram.png): Revisión: periodograma
     - [fig_review_cutouts.png](figures/r-draconis/fig_review_cutouts.png): Revisión: posición predicha y píxeles OVERFLOW en D1 y D6 a λ fija
 
-- Reviewer / date: Claude (WS1) con revisión adversarial independiente / 2026-11-14; revisión humana pendiente
+- Reviewer / date: Claude (WS1) con revisión adversarial independiente / 2026-11-14; revisión humana: DankoLiv / 2026-11-15 (revisión guiada de resultado, evidencia, figuras y limitaciones con la hoja de V5; los análisis no se volvieron a correr)
 
 ## Detalle de la medición
 
