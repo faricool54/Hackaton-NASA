@@ -1,0 +1,118 @@
+/* FE-5 object card: catalog context of the chosen position (never SPHEREx measurements). Prefix .oc- only.
+   Tokens come from FE-1 (styles.css :root); fallbacks keep the card readable without them. */
+.oc-card {
+  display: grid;
+  gap: var(--sp-2, 8px);
+  min-width: 0;
+  margin-top: var(--sp-1, 4px);
+  font-size: var(--fs-sm, 0.8125rem);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+/* Dock: <= 480 px for Barnard's Star with details folded (446 px at 420 px with its live partial answer). */
+.oc-card--dock { gap: 6px; }
+.oc-card p, .oc-summary p { margin: 0; }
+
+/* Header: <= 64 px (name + "Catalog · not SPHEREx" on one line, match badge + type on the next). */
+.oc-head { display: grid; gap: 2px; min-width: 0; }
+.oc-title { display: flex; align-items: center; gap: var(--sp-2, 8px); min-width: 0; }
+.oc-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--fs-lg, 1.0625rem);
+  font-weight: var(--fw-bold, 650);
+  line-height: var(--lh-tight, 1.2);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.oc-badge { flex: none; white-space: nowrap; }
+.oc-type, .oc-clip { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.oc-type { color: var(--text-2, #b4bdd1); font-size: var(--fs-xs, 0.75rem); }
+.oc-sub { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.oc-sub .oc-type { flex: 1 1 auto; min-width: 0; }
+/* Match badge: tone colour AND a text label (colour is never the only signal). */
+.oc-match-badge { flex: none; padding: 0 6px; font-size: var(--fs-2xs, 0.6875rem); line-height: 1.35; white-space: nowrap; }
+.oc-match-badge--ok { --badge-color: var(--ok, #4ade80); }
+.oc-match-badge--warn { --badge-color: var(--warn, #fbbf24); }
+.oc-note { color: var(--src-catalog, #f5c26b); font-size: var(--fs-xs, 0.75rem); }
+.oc-muted { color: var(--muted, #8e97ad); font-size: var(--fs-xs, 0.75rem); }
+.oc-error { color: var(--error, #f87171); font-size: var(--fs-xs, 0.75rem); }
+
+/* Match and the two honesty alerts ("Identity not secure", "Partial") stay visible, never folded. */
+.oc-match, .oc-alert {
+  padding: var(--sp-1, 4px) var(--sp-2, 8px);
+  border-inline-start: 3px solid var(--line-control, #626d88);
+  border-radius: var(--r-xs, 4px);
+  background: var(--surface-2, #171e31);
+  color: var(--text-2, #b4bdd1);
+  font-size: var(--fs-xs, 0.75rem);
+}
+.oc-match strong { color: var(--text, #e6e9f2); }
+.oc-match--ok { border-inline-start-color: var(--ok, #4ade80); }
+.oc-match--warn, .oc-alert { border-inline-start-color: var(--warn, #fbbf24); }
+.oc-alert { color: var(--warn, #fbbf24); }
+
+/* Key facts: two columns, one row per value (value + status on one line, 11 px source note under it). */
+.oc-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 5px var(--sp-3, 12px);
+  margin: 0;
+}
+.oc-row { display: contents; }
+.oc-facts dt { padding-top: 1px; color: var(--text-2, #b4bdd1); font-size: var(--fs-xs, 0.75rem); }
+.oc-facts dd { display: grid; min-width: 0; margin: 0; }
+.oc-value-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; min-width: 0; }
+.oc-value { color: var(--text, #e6e9f2); font-weight: 600; font-variant-numeric: tabular-nums; }
+.oc-value--unknown { color: var(--muted, #8e97ad); font-weight: 400; }
+.oc-status {
+  padding: 0 6px;
+  border: 1px solid currentColor;
+  border-radius: var(--r-pill, 999px);
+  font-size: var(--fs-2xs, 0.6875rem);
+  line-height: 1.35;
+  white-space: nowrap;
+}
+.oc-status--verified { color: var(--ok, #4ade80); }
+.oc-status--not-verified, .oc-status--caveat { color: var(--warn, #fbbf24); }
+.oc-hint { color: var(--muted, #8e97ad); font-size: var(--fs-2xs, 0.6875rem); }
+.oc-src { display: block; min-width: 0; color: var(--muted, #8e97ad); font-size: var(--fs-2xs, 0.6875rem); line-height: 1.3; }
+a.oc-src { color: var(--muted, #8e97ad); text-decoration-color: var(--line-control, #626d88); }
+a.oc-src:hover { color: var(--accent, #7cc4ff); }
+/* The dock clips each source note to one line; the full text is in `title` and in "All … parameters with sources". */
+.oc-src--clip { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+.oc-list { margin: var(--sp-1, 4px) 0; padding-inline-start: 18px; font-size: var(--fs-xs, 0.75rem); }
+.oc-list li { margin: 2px 0; }
+.oc-warnings { color: var(--warn, #fbbf24); }
+.oc-mission { margin-top: var(--sp-2, 8px); font-size: var(--fs-xs, 0.75rem); }
+.oc-tone-ok { color: var(--ok, #4ade80); }
+.oc-tone-warn { color: var(--warn, #fbbf24); }
+
+/* Folded details (photometry, every parameter, warnings, services): one 12 px line each until opened. */
+.oc-folds { display: grid; gap: 2px; }
+.oc-details > summary {
+  cursor: pointer;
+  padding: 2px 0;
+  color: var(--accent, #7cc4ff);
+  font-size: var(--fs-xs, 0.75rem);
+}
+.oc-details--warn > summary { color: var(--warn, #fbbf24); }
+.oc-details--inline > summary { padding: 0; color: var(--muted, #8e97ad); }
+.oc-details--inline > summary .oc-src { display: inline; }
+.oc-details[open] { padding-bottom: var(--sp-1, 4px); }
+
+/* Pinned-popup summary (<ObjectSummary>): six short lines at most. */
+.oc-summary { display: grid; gap: 2px; min-width: 0; max-width: 320px; font-size: var(--fs-xs, 0.75rem); color: var(--text-2, #b4bdd1); }
+.oc-summary-title { display: flex; align-items: center; gap: var(--sp-2, 8px); min-width: 0; color: var(--text, #e6e9f2); font-size: var(--fs-sm, 0.8125rem); }
+.oc-summary-title strong { flex: 1 1 auto; min-width: 0; }
+
+@media (max-width: 900px) {
+  .oc-facts { grid-template-columns: minmax(0, 42%) minmax(0, 1fr); }
+}
+@media (max-width: 400px) {
+  .oc-title { flex-wrap: wrap; row-gap: 2px; }
+  .oc-name { white-space: normal; }
+}

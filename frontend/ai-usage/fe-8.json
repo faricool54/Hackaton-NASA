@@ -1,0 +1,22 @@
+{
+  "updated_on": "2026-11-15",
+  "tool": "Anthropic Claude Code",
+  "package": "FE-8 (docs/FRONTEND_PLAN.md): science panels, chart-first position spectrum and inline light-curve variant",
+  "scope": "PositionSpectrum: chart-first layout in the home dock (compact prop, defaults to inline): the measured-spectrum plot comes first with a narrower viewBox (400x232, CSS max-height 240 px) so 11 px labels stay legible, then the one-line summary ('N usable / M measured points · K failed inputs', plus the SYNTHETIC badge when the response says synthetic), then the source legend kept visible next to the plot ('Static surface brightness (MJy/sr)...' for the DR1 cube, '...do not interpret a mixed-epoch curve as a simultaneous spectrum' for L2 exposures, with the DR1/L2 source label), the server notes and the measurement table in folded sections with visible labels, and the controls in a collapsed 'Options' details; quick look stays automatic and, when no quick look ran (URL load), a visible 'Extract spectrum' button starts the same request. The non-inline FieldPage panel keeps its details wrapper with the options open until a result arrives. Shared glass hover tooltip (SciencePlot.tsx) on spectrum and light-curve points (wavelength/date, value, error, flags); grid lines, SPHEREx-coloured points and text-2 error bars in a new prefixed stylesheet (styles/science.css, .sci-). LightCurvePanel: optional variant 'panel' (default, same details/summary 'Light curve' wrapper and lazy load on open, same plot geometry and element counts) or 'inline' (loads on mount, no details wrapper, headline with the period text and first-to-last change from lightcurve.ts, plot first, every limit, period evidence, data selection, exclusions and provenance kept in a 'Limits and method (N limits stated by this product)' details). api/science.ts: added SPECTRUM_SOURCE_LABELS, spectrumCaveat and spectrumSummary (no existing export changed). Checked with tsc, vitest (existing lightcurve expectations untouched; new server-render tests for the inline/panel variants, the tooltip and the legend texts), vite build, and in headless Chrome against the local API at 1366x650: dock Spectrum tab after the Barnard's Star chip (plot 367x213 px, summary and source legend visible without scrolling, no horizontal overflow) and the R Draconis field page (Light curve summary opens and its plot is an svg role=img, 40 .blink-frame images, detector select value 'all'). The inline light-curve variant is not used by any page yet and was only checked by server-render tests.",
+  "affected_paths": [
+    "frontend/src/components/PositionSpectrum.tsx",
+    "frontend/src/components/LightCurvePanel.tsx",
+    "frontend/src/components/SciencePlot.tsx",
+    "frontend/src/components/SciencePlot.test.tsx",
+    "frontend/src/api/science.ts",
+    "frontend/src/api/science.test.ts",
+    "frontend/src/api/lightcurve.test.ts",
+    "frontend/src/styles/science.css",
+    "frontend/ai-usage/fe-8.json"
+  ],
+  "external_assets": [],
+  "generated_media": [],
+  "scientific_R05_validation": false,
+  "human_review": "pending",
+  "repository_disclosure": "AI_USAGE.md"
+}

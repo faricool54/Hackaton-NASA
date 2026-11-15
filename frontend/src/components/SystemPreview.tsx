@@ -27,7 +27,8 @@ export function SystemPreview({ systemId }: { systemId: string }) {
     </h3>
     <p className="muted small">Illustrative model based on catalog data. {model.representation_note}</p>
     <ErrorBoundary what="The 3D view">
-      <SystemViewer system={model} selectedId={selectedId} onSelect={setSelectedId} fieldExists />
+      <SystemViewer system={model} selectedId={selectedId} onSelect={setSelectedId} fieldExists compact
+        fullViewHref={`#/system/${model.id}${selectedId ? `/${selectedId}` : ''}`} />
     </ErrorBoundary>
     <p><a href={`#/system/${model.id}${selectedId ? `/${selectedId}` : ''}`}>Open model and source details →</a></p>
   </>;

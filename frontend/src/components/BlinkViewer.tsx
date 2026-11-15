@@ -3,6 +3,8 @@
 // toggled; overlays use an SVG whose viewBox is the grid size in pixels, so the
 // contract's x/y (PNG convention) can be drawn directly. In the color modes the
 // same stage blinks one false-color composite per season (same grid, no markers).
+// FE-7: compact player. The root is a CSS container (.pl-root): below 520 px of width (the home dock) the
+// stage is capped to the free height and the transport packs into two short rows; `compact` forces that layout.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Candidate, Composite, Field, Frame, KnownObject } from '../api/types';
 import { DETECTOR_BANDS, formatMjd } from '../api/format';
@@ -11,6 +13,7 @@ import type { TrackAstrometry } from '../three/skyTrack';
 import { predictedFramePixel } from './framePrediction';
 // WS7 (V3 for all five targets): label, shift, predicted track and static field stars for WS5's reticle.
 import { predictFromAstrometry } from '../three/blinkTarget';
+import '../styles/player.css';
 
 /** Colour of WS5's prediction reticle (styles.css .blink-prediction-reticle), reused by the WS7 track. */
 const PREDICTION_TRACK_COLOR = '#6ff4f1';
@@ -26,6 +29,8 @@ interface Props {
   prediction?: TrackAstrometry | null;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
+  /** FE-7: force the compact layout (it also applies on its own when the player is under 520 px wide). */
+  compact?: boolean;
 }
 
 const STATUS_COLOR: Record<string, string> = {
@@ -37,7 +42,7 @@ const STATUS_COLOR: Record<string, string> = {
 
 const ZOOM_LEVELS = [1, 2, 4] as const;
 
-export function BlinkViewer({ field, frames, composites, imageUrl, candidates, known, prediction, selectedId, onSelect }: Props) {
+export function BlinkViewer({ field, frames, composites, imageUrl, candidates, known, prediction, selectedId, onSelect, compact = false }: Props) {
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [intervalMs, setIntervalMs] = useState(700);
@@ -116,36 +121,19 @@ export function BlinkViewer({ field, frames, composites, imageUrl, candidates, k
   const stepDate = composite ? seasonRange(composite) : current ? formatMjd(current.mjd) : '';
   const predictedPixel = current && prediction ? predictedFramePixel(field.grid, prediction, current.mjd) : null;
 
+  const loadedCount = n - remaining;
+
   return (
-    <div className="blink" tabIndex={0} aria-label="Time sequence player" onKeyDown={(e) => {
+    <div className={`blink pl-root${compact ? ' pl-compact' : ''}${current && prediction ? ' pl-has-note' : ''}`} tabIndex={0} aria-label="Time sequence player" onKeyDown={(e) => {
       const target = e.target as HTMLElement;
-      if (target.closest('input, select, textarea, button, [contenteditable="true"], [role="slider"]')) return;
+      if (target.closest('input, select, textarea, button, summary, [contenteditable="true"], [role="slider"]')) return;
       if (e.key === ' ') { e.preventDefault(); setPlaying((p) => !p); }
       else if (e.key === 'ArrowRight') { e.preventDefault(); setPlaying(false); setIndex((i) => (i + 1) % n); }
       else if (e.key === 'ArrowLeft') { e.preventDefault(); setPlaying(false); setIndex((i) => (i - 1 + n) % n); }
     }}>
-      {remaining > 0 && <p role="status" className="muted small">Loading sequence images… {n - remaining}/{n}</p>}
-      {failed > 0 && <p role="alert" className="error">{failed} image(s) could not load. Playback is paused.
+      {failed > 0 && <p role="alert" className="error pl-alert">{failed} image(s) could not load. Playback is paused.
         {' '}<button onClick={() => { setLoaded({}); setRetry((r) => r + 1); }}>Retry images</button></p>}
-      <div className="blink-view-controls">
-        <div className="blink-zoom-control" role="group" aria-label="Image zoom">
-          <span aria-hidden="true">Zoom</span>
-          <div className="segmented">
-            {ZOOM_LEVELS.map((level) => (
-              <button key={level} type="button" aria-pressed={zoom === level} onClick={() => setZoom(level)}>
-                {level}×
-              </button>
-            ))}
-          </div>
-        </div>
-        {current && prediction && <button className={`overlay-toggle${showPrediction ? ' is-on' : ''}`}
-          type="button" aria-pressed={showPrediction} onClick={() => setShowPrediction((on) => !on)}
-          title={prediction.source}>
-          <span className="blink-prediction-dot" aria-hidden="true" />
-          {summary?.toggleLabel ?? 'Gaia prediction'}
-        </button>}
-      </div>
-      <div className="blink-stage" style={{ aspectRatio: `${w} / ${h}` }}>
+      <div className="blink-stage pl-stage" style={{ aspectRatio: `${w} / ${h}` }}>
         <div className="blink-zoom-layer" style={{ transform: zoom === 1 ? undefined : `scale(${zoom})` }}>
           {stack.map((f, i) => (
             <img
@@ -235,7 +223,22 @@ export function BlinkViewer({ field, frames, composites, imageUrl, candidates, k
               transform: `translate(-50%, -50%) scale(${1 / zoom})`,
             }}><i /><i /><i /><i /></span>}
         </div>
-        <div className="blink-caption">
+        {remaining > 0 && <div className="pl-loading">
+          <p role="status" className="small">Loading sequence images… {loadedCount}/{n}</p>
+          <span className="pl-loading-bar" aria-hidden="true"><i style={{ width: `${n ? (100 * loadedCount) / n : 0}%` }} /></span>
+        </div>}
+        {/* Zoom floats over the image (top right), outside the scaled layer. */}
+        <div className="pl-zoom" role="group" aria-label="Image zoom">
+          <span className="pl-zoom-label" aria-hidden="true">Zoom</span>
+          <div className="segmented">
+            {ZOOM_LEVELS.map((level) => (
+              <button key={level} type="button" aria-pressed={zoom === level} onClick={() => setZoom(level)}>
+                {level}×
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="blink-caption pl-caption">
           {composite ? (
             <>
               <strong>{stepDate}</strong> · <span title={composite.notes.join('\n')}>False color (infrared)</span> ·{' '}
@@ -254,80 +257,71 @@ export function BlinkViewer({ field, frames, composites, imageUrl, candidates, k
           )}
         </div>
       </div>
-      {current && prediction && showPrediction && <p className="blink-prediction-note muted small">
+      {/* The crosshair caveat sits right under the image, where the crosshair is drawn (space reserved by .pl-has-note). */}
+      {current && prediction && showPrediction && <p className="blink-prediction-note pl-note pl-note--crosshair muted small">
         {predictedPixel ? `Crosshair shows the position predicted from ${summary?.catalogName ?? 'the Gaia catalog'}, not a measurement.` : 'No catalog position is available on this frame.'}
       </p>}
-      {current && showPrediction && summary && (
-        // WS7: target, honest label, shift over the frames shown and track legend; source and method on demand.
-        <details className="blink-prediction-note muted small" onKeyDown={(e) => e.stopPropagation()}>
-          <summary style={{ cursor: 'pointer' }}>
-            {summary.caption} <span style={{ color: 'var(--accent)' }}>Source and method</span>
-          </summary>
-          {summary.details.map((d) => (
-            <p key={d} style={{ margin: '4px 0 0' }}>{d}</p>
-          ))}
-        </details>
-      )}
 
-      {/* Scrubber */}
-      <div className="scrubber-wrap">
-        <div className="scrubber-meta">
-          <span className="scrubber-date">{stepDate}</span>
-          <span className="scrubber-count">{composite ? 'SEASON' : 'FRAME'} {String(shown + 1).padStart(2, '0')} <span>/ {String(n).padStart(2, '0')}</span></span>
-        </div>
-        <div
-          className="scrubber-track-wrap"
-          ref={trackRef}
-          onPointerDown={onTrackPointerDown}
-          onPointerMove={onTrackPointerMove}
-          role="slider"
-          aria-label={composite ? 'Season' : 'Frame'}
-          aria-valuemin={0}
-          aria-valuemax={n - 1}
-          aria-valuenow={shown}
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === 'ArrowRight') { e.preventDefault(); setPlaying(false); setIndex((i) => Math.min(i + 1, n - 1)); }
-            if (e.key === 'ArrowLeft')  { e.preventDefault(); setPlaying(false); setIndex((i) => Math.max(i - 1, 0)); }
-            if (e.key === 'Home' || e.key === 'End') {
-              e.preventDefault();
-              setPlaying(false);
-              setIndex(e.key === 'Home' ? 0 : n - 1);
-            }
-          }}
-        >
-          <div className="scrubber-track">
-            <div className="scrubber-fill" style={{ width: `${fillPct}%` }} />
-            <div className="scrubber-ticks">
-              {ticks.map((pct, i) => (
-                <div
-                  key={i}
-                  className={`scrubber-tick${i === shown ? ' scrubber-tick--active' : ''}`}
-                  style={{ left: `${pct}%` }}
-                />
-              ))}
+      {/* Transport: buttons + scrubber on one row, options on the second. */}
+      <div className="pl-transport">
+        <div className="pl-row pl-row--main">
+          <div className="pl-btns">
+            <button className="transport-btn" onClick={() => { setPlaying(false); setIndex((i) => Math.max(0, i - 1)); }} aria-label="Previous frame" title="Previous frame (←)">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v14M19 6l-9 6 9 6V6Z" /></svg>
+            </button>
+            <button className="transport-btn transport-btn--primary" onClick={() => setPlaying((p) => !p)} aria-label={playing ? 'Pause' : 'Play'} title={playing ? 'Pause playback (Space)' : 'Play sequence (Space)'}>
+              {playing ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14" /></svg> : <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 12 7-12 7V5Z" /></svg>}
+            </button>
+            <button className="transport-btn" onClick={() => { setPlaying(false); setIndex((i) => Math.min(n - 1, i + 1)); }} aria-label="Next frame" title="Next frame (→)">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 5v14M5 6l9 6-9 6V6Z" /></svg>
+            </button>
+          </div>
+          <div className="pl-scrubber">
+            <div className="scrubber-meta">
+              <span className="scrubber-date">{stepDate}</span>
+              <span className="scrubber-count">{composite ? 'SEASON' : 'FRAME'} {String(shown + 1).padStart(2, '0')} <span>/ {String(n).padStart(2, '0')}</span></span>
+            </div>
+            <div
+              className="scrubber-track-wrap"
+              ref={trackRef}
+              onPointerDown={onTrackPointerDown}
+              onPointerMove={onTrackPointerMove}
+              role="slider"
+              aria-label={composite ? 'Season' : 'Frame'}
+              aria-valuemin={0}
+              aria-valuemax={n - 1}
+              aria-valuenow={shown}
+              aria-valuetext={`${shown + 1} of ${n}, ${stepDate}`}
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowRight') { e.preventDefault(); setPlaying(false); setIndex((i) => Math.min(i + 1, n - 1)); }
+                if (e.key === 'ArrowLeft')  { e.preventDefault(); setPlaying(false); setIndex((i) => Math.max(i - 1, 0)); }
+                if (e.key === 'Home' || e.key === 'End') {
+                  e.preventDefault();
+                  setPlaying(false);
+                  setIndex(e.key === 'Home' ? 0 : n - 1);
+                }
+              }}
+            >
+              <div className="scrubber-track">
+                <div className="scrubber-fill" style={{ width: `${fillPct}%` }} />
+                <div className="scrubber-ticks">
+                  {ticks.map((pct, i) => (
+                    <div
+                      key={i}
+                      className={`scrubber-tick${i === shown ? ' scrubber-tick--active' : ''}`}
+                      style={{ left: `${pct}%` }}
+                    />
+                  ))}
+                </div>
+              </div>
+              <div className="scrubber-thumb" style={{ left: `${fillPct}%` }} />
             </div>
           </div>
-          <div className="scrubber-thumb" style={{ left: `${fillPct}%` }} />
         </div>
-      </div>
-
-      {/* Playback controls */}
-      <div className="blink-playback">
-        <div className="blink-playback-btns">
-          <button className="transport-btn" onClick={() => { setPlaying(false); setIndex((i) => Math.max(0, i - 1)); }} aria-label="Previous frame" title="Previous frame">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v14M19 6l-9 6 9 6V6Z" /></svg>
-          </button>
-          <button className="transport-btn transport-btn--primary" onClick={() => setPlaying((p) => !p)} aria-label={playing ? 'Pause' : 'Play'} title={playing ? 'Pause playback' : 'Play sequence'}>
-            {playing ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14" /></svg> : <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 12 7-12 7V5Z" /></svg>}
-          </button>
-          <button className="transport-btn" onClick={() => { setPlaying(false); setIndex((i) => Math.min(n - 1, i + 1)); }} aria-label="Next frame" title="Next frame">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 5v14M5 6l9 6-9 6V6Z" /></svg>
-          </button>
-        </div>
-        <div className="blink-playback-secondary">
-          <label className="speed-control">
-            <span>Playback speed</span>
+        <div className="pl-row pl-row--opts">
+          <label className="speed-control pl-speed" title="Playback speed">
+            <span className="pl-speed-label">Playback speed</span>
             <input
               type="range"
               min={150}
@@ -350,8 +344,34 @@ export function BlinkViewer({ field, frames, composites, imageUrl, candidates, k
             <span className="toggle-indicator" aria-hidden="true" />
             Markers
           </button>
+          {current && prediction && <button className={`overlay-toggle${showPrediction ? ' is-on' : ''}`}
+            type="button" aria-pressed={showPrediction} onClick={() => setShowPrediction((on) => !on)}
+            title={prediction.source}>
+            <span className="blink-prediction-dot" aria-hidden="true" />
+            {summary?.toggleLabel ?? 'Gaia prediction'}
+          </button>}
+          <details className="pl-help" onKeyDown={(e) => e.stopPropagation()}>
+            <summary aria-label="Player keyboard help" title="Keyboard help">i</summary>
+            <div className="pl-pop small">
+              <p><kbd>Space</kbd> play / pause · <kbd>←</kbd> <kbd>→</kbd> step one frame</p>
+              <p>Drag the bar to scrub; on the bar, <kbd>Home</kbd> / <kbd>End</kbd> jump to the first / last frame.</p>
+              <p>Zoom enlarges the pixels of the same image; it adds no detail.</p>
+            </div>
+          </details>
         </div>
       </div>
+
+      {current && showPrediction && summary && (
+        // WS7: target, honest label, shift over the frames shown and track legend; source and method on demand.
+        <details className="blink-prediction-note pl-note muted small" onKeyDown={(e) => e.stopPropagation()}>
+          <summary style={{ cursor: 'pointer' }}>
+            {summary.caption} <span style={{ color: 'var(--accent)' }}>Source and method</span>
+          </summary>
+          {summary.details.map((d) => (
+            <p key={d} style={{ margin: '4px 0 0' }}>{d}</p>
+          ))}
+        </details>
+      )}
       {/* TODO(WS5): difference-image layer, pan, RA/Dec readout and GIF/MP4 export. */}
     </div>
   );
