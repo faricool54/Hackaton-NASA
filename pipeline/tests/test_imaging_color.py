@@ -164,7 +164,7 @@ def test_jhk_skips_the_season_when_a_band_has_nothing_within_the_fallback_and_sa
     assert "jhk_S0" in comps and "jhk_S1" not in comps
     assert "detectors_S1" in comps  # the other mode is not affected
     reason = next(s for s in plan.skipped if s.startswith("jhk S1: "))
-    assert "green (H 1.65 um)" in reason and "0.12" in reason
+    assert "green (H 1.65 µm)" in reason and "0.12" in reason
 
 
 def test_jhk_channel_may_mix_detectors_and_then_has_no_single_detector():
@@ -256,8 +256,10 @@ def test_the_sky_stays_neutral_when_one_channel_is_much_noisier():
     assert balance.noise[(comp.id, "red")] > color.NOISY_FRACTION > balance.noise[(comp.id, "green")]
     noisy = [n for n in balance.notes[comp.id] if "noisy" in n]
     assert noisy == [
-        f"The red channel (D6) is noisy here (pixel noise {100 * balance.noise[(comp.id, 'red')]:.0f}% of its "
-        "range): isolated red specks are mostly noise, not red objects."
+        f"The red channel (D6, 1 frame(s)) is noisy here (pixel noise {100 * balance.noise[(comp.id, 'red')]:.0f}% "
+        "of its colour-balanced range), so its black point is raised to 2 sigma of that noise above the sky: most "
+        "noise specks are black, but faint red light is hidden too (faint field stars look cyan), and isolated red "
+        "specks that remain are mostly noise, not red objects."
     ]
 
 

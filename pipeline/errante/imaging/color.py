@@ -39,8 +39,16 @@ limit and turned every field star cyan. Limits are shared by every season with
 the same three detectors, so blinking seasons does not flicker. The asinh curve
 is applied to the mean of the three normalised channels and scales all three
 by the same factor (Lupton et al. 2004, PASP 116, 133), so a bright star keeps
-its colour instead of clipping to white. Pixels with no colour information are
-drawn neutral: a pixel that is bad in every frame of a channel (a saturated core,
+its colour instead of clipping to white. A noisy channel (pixel noise above
+``NOISY_FRACTION`` of its balanced range, e.g. D6 from two frames) gets its black
+point raised to its sky + ``NOISY_BLACK_SIGMAS`` x its pixel noise, so its speckle
+goes black instead of covering the picture in coloured dots; if the target is not
+detected in that channel (aperture S/N below ``TARGET_MIN_SNR``) the composite
+says so. Detector composites say when the field's seasons use different detectors
+(fallbacks): their colours then differ for instrumental reasons. Exposures listed
+in ``CURATED_FRAME_CAVEATS`` (artifacts checked by eye, not an automatic test) add
+their caveat to every composite that uses them. Pixels with no colour information
+are drawn neutral: a pixel that is bad in every frame of a channel (a saturated core,
 a detector defect, a ramp-fit error) takes the brightest channel's value, so a
 saturated core is white, and pixels that only some channels cover are grey.
 Pixels without data in all three channels are transparent.
@@ -50,7 +58,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import numpy as np
@@ -58,8 +66,9 @@ from PIL import Image
 
 from ..detect.difference import StarScale, star_flux_scale
 from ..models import Composite, CompositeChannel, Stretch
-from .compare import GridFrame, Stack, target_exclusion, weighted_stack
+from .compare import Coadd, GridFrame, Stack, target_exclusion, weighted_stack
 from .render import field_stretches
+from .snrcheck import blank_noise, blank_positions, measure
 
 COLOR_DIR = "color"
 COLORS = ("red", "green", "blue")  # contract order
@@ -71,11 +80,37 @@ JHK_FALLBACK_UM = 0.12
 SOFTENING = 0.1  # asinh softening, the same as the grey frames (render.to_uint8)
 _EPS_UM = 1e-9  # float slack on the wavelength windows
 MAD_TO_SIGMA = 1.4826
-# A channel whose pixel noise exceeds this fraction of its display range gets a "noisy" note: a 2-sigma
-# speckle then reaches ~25 % brightness. Measured 2026-11-14 on the real golden fields (pixel-difference
-# noise / range): D6 0.015 (Barnard, RW Aur), 0.034-0.049 (eps Indi B, R Dra D5), 0.10-0.11 (WISE 0855);
-# every green and blue channel <= 0.01.
+# A channel whose pixel noise exceeds this fraction of its colour-balanced range is NOISY: a 2-sigma speckle
+# would reach ~25 % brightness, so its black point is raised (``NOISY_BLACK_SIGMAS``) and it gets a note.
+# Measured 2026-11-14 on the real golden fields (pixel-difference noise / range): D6 0.015 (Barnard, RW Aur),
+# 0.034-0.049 (eps Indi B, R Dra D5), 0.10-0.11 (WISE 0855); every green and blue channel <= 0.01. Rebuilt 2026-11-15:
+# only the D6 channels of eps Indi B (0.04-0.05) and WISE 0855 (0.10-0.11) are NOISY.
 NOISY_FRACTION = 0.03
+# A noisy channel's black point: its sky + this many pixel sigmas, so its noise speckle goes black. Before
+# (black point ~0.3 sigma below the sky), WISE 0855's D6 made ~28 % of all pixels red-dominant.
+NOISY_BLACK_SIGMAS = 2.0
+# In a noisy channel the target counts as not detected below this aperture S/N (5x5 px at the field centre
+# over the scatter of the same aperture on blank sky); the composite then says it cannot be seen there.
+TARGET_MIN_SNR = 3.0
+TARGET_SEARCH_PX = 1.5  # aperture centres this close to the field centre are tried (pointing and motion slack)
+COMPLEMENT = {"red": "cyan", "green": "magenta", "blue": "yellow"}  # what a star missing that colour looks like
+
+# CURATED caveats, checked by eye (NOT an automatic test): exposure id -> note for every composite that uses it.
+# eps Indi B, 2026-11-15: both S1 D6 exposures show a band from the target that runs along the detector rows in
+# the original cutouts (~35 px toward the lower right on the grid); S0, S2 and S3 (S3 has S1's patch orientation)
+# show none, and no FLAGS bit (GHOST*, STREAK) marks it. A generic check (extended residual present in every
+# frame of one season, absent in the others) also flagged real glows and star residuals on the other golden
+# fields, so no automatic test is used.
+_EPS_INDI_B_D6_BAND = (
+    "Curated caveat (checked by eye on 2026-11-15, not an automatic test): both D6 exposures of this season "
+    "(2025W40_1A_0559_1D6, 2025W44_2B_0494_1D6) show a red band about 35 px long from the target toward the lower "
+    "right that no other season shows. In the original detector images it runs along the detector rows, and no "
+    "SPHEREx flag marks it: an instrumental artifact, not motion of the target or light from it."
+)
+CURATED_FRAME_CAVEATS: dict[str, str] = {
+    "2025W40_1A_0559_1D6": _EPS_INDI_B_D6_BAND,
+    "2025W44_2B_0494_1D6": _EPS_INDI_B_D6_BAND,
+}
 
 FALSE_COLOR_NOTE = "False color: SPHEREx infrared wavelengths mapped to red, green and blue (infrared, not true color)."
 RELATIVE_NOTE = (
@@ -163,11 +198,15 @@ def _channel(color: str, frames: Sequence[GridFrame]) -> Channel | None:
     return Channel(color, stack, np.where(np.isfinite(stack.data), stack.data, shown).astype(np.float32))
 
 
+def _source(ch: Channel) -> str:
+    """'D6', or 'D2+D3' for a channel that mixes detectors."""
+    return f"D{ch.detector}" if ch.detector is not None else "D" + "+D".join(str(d) for d in _detectors(ch))
+
+
 def _describe(ch: Channel) -> str:
     lam = ch.wavelength_um
-    where = f"{lam:.2f} um" if lam is not None else "wavelength unknown"
-    source = f"D{ch.detector}" if ch.detector is not None else "D" + "+D".join(str(d) for d in _detectors(ch))
-    return f"{ch.color} = {source} {where}"
+    where = f"{lam:.2f} µm" if lam is not None else "wavelength unknown"
+    return f"{ch.color} = {_source(ch)} {where}"
 
 
 def _detectors(ch: Channel) -> list[int]:
@@ -204,7 +243,7 @@ def _jhk_composite(season: int, frames: Sequence[GridFrame]) -> SeasonComposite 
     fallbacks: list[str] = []
     for color in COLORS:
         band, target = JHK_BANDS[color]
-        label = f"{color} ({band} {target:g} um)"
+        label = f"{color} ({band} {target:g} µm)"
 
         def distance(f: GridFrame, target: float = target) -> float:
             return abs(f.wavelength_um - target)
@@ -213,12 +252,12 @@ def _jhk_composite(season: int, frames: Sequence[GridFrame]) -> SeasonComposite 
         if not near:
             nearest = min(known, key=lambda f: (distance(f), f.frame_id), default=None)
             if nearest is None or distance(nearest) > JHK_FALLBACK_UM + _EPS_UM:
-                closest = f"; nearest {nearest.wavelength_um:.3f} um" if nearest is not None else ""
-                return f"jhk S{season}: no exposure within {JHK_FALLBACK_UM:g} um of {label}{closest}"
+                closest = f"; nearest {nearest.wavelength_um:.3f} µm" if nearest is not None else ""
+                return f"jhk S{season}: no exposure within {JHK_FALLBACK_UM:g} µm of {label}{closest}"
             near = [nearest]
             fallbacks.append(
-                f"{label} uses the nearest exposure, {nearest.wavelength_um:.3f} um "
-                f"({distance(nearest):.3f} um away): none within {JHK_TOLERANCE_UM:g} um."
+                f"{label} uses the nearest exposure, {nearest.wavelength_um:.3f} µm "
+                f"({distance(nearest):.3f} µm away): none within {JHK_TOLERANCE_UM:g} µm."
             )
         found = _channel(color, near)
         if found is None:
@@ -253,6 +292,39 @@ def _seasons(final: Sequence[GridFrame], pool: Sequence[GridFrame]) -> tuple[dic
     return final_by, pool_by
 
 
+def _with_note(comp: SeasonComposite, note: str) -> SeasonComposite:
+    """``comp`` with ``note`` added before its last note (the closing 'colours are relative' note)."""
+    return replace(comp, notes=(*comp.notes[:-1], note, comp.notes[-1]))
+
+
+def _mixed_detectors(composites: Sequence[SeasonComposite]) -> list[SeasonComposite]:
+    """Detector composites, when the field's seasons use different detectors, say that colour changes between
+    them are instrumental: on the real R Draconis field S0 is D6/D3/D1 and S1, S4 are D5/D4/D1 (fallbacks),
+    so the Mira turns from yellow-green to orange between seasons only because the wavelengths change."""
+    assignment = {
+        c.season: "/".join(f"D{ch.detector}" for ch in c.channels) for c in composites if c.mode == "detectors"
+    }
+    if len(set(assignment.values())) < 2:
+        return list(composites)
+    seasons: dict[str, list[int]] = defaultdict(list)
+    for season, detectors in sorted(assignment.items()):
+        seasons[detectors].append(season)
+    listing = "; ".join(f"{', '.join(f'S{s}' for s in ss)}: {dets}" for dets, ss in seasons.items())
+    note = (
+        f"Seasons use different detectors (red/green/blue = {listing}): colour differences between them are "
+        "instrumental (other wavelengths), not evidence of a colour change of the object."
+    )
+    return [_with_note(c, note) if c.mode == "detectors" else c for c in composites]
+
+
+def _curated(comp: SeasonComposite) -> SeasonComposite:
+    """``comp`` with the ``CURATED_FRAME_CAVEATS`` of the exposures it uses (each caveat once)."""
+    used = [fid for ch in comp.channels for fid in ch.frame_ids]
+    for note in dict.fromkeys(CURATED_FRAME_CAVEATS[fid] for fid in used if fid in CURATED_FRAME_CAVEATS):
+        comp = _with_note(comp, note)
+    return comp
+
+
 def plan_composites(final: Sequence[GridFrame], pool: Sequence[GridFrame]) -> ColorPlan:
     """Composites of both modes for every season of ``final`` that has all three channels."""
     if not final:
@@ -267,7 +339,7 @@ def plan_composites(final: Sequence[GridFrame], pool: Sequence[GridFrame]) -> Co
                 skipped.append(result)
             else:
                 composites.append(result)
-    return ColorPlan(composites, skipped)
+    return ColorPlan([_curated(c) for c in _mixed_detectors(composites)], skipped)
 
 
 @dataclass(frozen=True)
@@ -276,8 +348,10 @@ class Balance:
 
     stretches: dict[tuple[str, str], Stretch]  # (composite id, colour) -> limits in MJy/sr
     ratios: dict[tuple[str, str], float | None]  # (composite id, red|blue) -> field-star flux ratio to green used
-    noise: dict[tuple[str, str], float]  # (composite id, colour) -> pixel noise / display range
+    noise: dict[tuple[str, str], float]  # (composite id, colour) -> pixel noise / colour-balanced range
     notes: dict[str, list[str]]  # composite id -> plain-language colour-balance notes
+    # (composite id, colour) of a NOISY channel -> target aperture S/N at the field centre (None: not measurable)
+    target_snr: dict[tuple[str, str], float | None]
 
 
 def _config(comp: SeasonComposite) -> tuple:
@@ -320,6 +394,43 @@ def _pixel_noise(img: np.ndarray, skip: np.ndarray) -> float:
     diff = img[:, 1:] - img[:, :-1]
     ok = np.isfinite(diff) & ~skip[:, 1:] & ~skip[:, :-1]
     return _robust_sigma(diff[ok]) / np.sqrt(2.0)
+
+
+def _is_noisy(fraction: float) -> bool:
+    return bool(np.isfinite(fraction) and fraction > NOISY_FRACTION)
+
+
+def _speckle_black_point(stretch: Stretch, sky: float, sigma: float) -> Stretch:
+    """``stretch`` with its black point raised to sky + ``NOISY_BLACK_SIGMAS`` x ``sigma``; the white point stays
+    (pushed up only if it would not stay ``sigma`` above the new black point)."""
+    vmin = sky + NOISY_BLACK_SIGMAS * sigma
+    return stretch.model_copy(update={"vmin": vmin, "vmax": max(stretch.vmax, vmin + sigma)})
+
+
+def _target_snr(ch: Channel, disc: tuple[float, float, float]) -> float | None:
+    """Aperture S/N of the target in ``ch``: the brightest 5x5 aperture (above its 4-7 px sky ring) centred within
+    ``TARGET_SEARCH_PX`` of the field centre, over the robust scatter of the same aperture on blank sky outside
+    ``disc`` (``snrcheck``; that scatter includes correlated noise). None when it cannot be measured: an
+    aperture pixel without data (e.g. a saturated core) or too few blank apertures."""
+    data = ch.stack.data.astype(np.float64)
+    ny, nx = data.shape
+    cx, cy = (nx - 1) / 2, (ny - 1) / 2
+    r = TARGET_SEARCH_PX
+    centres = [
+        (x, y)
+        for y in range(int(np.floor(cy - r)), int(np.ceil(cy + r)) + 1)
+        for x in range(int(np.floor(cx - r)), int(np.ceil(cx + r)) + 1)
+        if np.hypot(x - cx, y - cy) <= r
+    ]
+    found = [measure(data, None, x, y) for x, y in centres]
+    if not found or any(m is None for m in found):
+        return None
+    stack = ch.stack
+    as_coadd = Coadd(ch.detector or 0, 0, ch.frame_ids, ch.mjds, stack.data, stack.variance, stack.coverage)
+    sigma, _ = blank_noise(data, blank_positions(as_coadd, stack.frames, disc))
+    if not (np.isfinite(sigma) and sigma > 0):
+        return None
+    return max(m.flux for m in found) / sigma
 
 
 def _field_star_ratio(ch: Channel, green: Channel, disc: tuple[float, float, float]) -> StarScale:
@@ -369,9 +480,12 @@ def color_balance(composites: Sequence[SeasonComposite]) -> Balance:
        sits the same fraction of that span below their sky as green's 2 sigma. A typical field star and
        the mean sky then have the same normalised value in all three channels, i.e. look white / neutral
        grey. (A per-channel 2 sigma black point tinted the real eps Indi B and WISE 0855 skies purple: D6
-       noise is 4-9 % of its balanced span, green's 0.4-0.7 %.) The noisier channel still shows as
-       coloured speckle, and gets a note above ``NOISY_FRACTION``. A colour without any fitted season
+       noise is 4-9 % of its balanced span, green's 0.4-0.7 %.) A colour without any fitted season
        (fewer than ``MIN_STARS`` usable stars) keeps step 1's limits.
+    3. A channel whose pixel noise exceeds ``NOISY_FRACTION`` of that range gets its black point raised to
+       its sky + ``NOISY_BLACK_SIGMAS`` x its pixel noise (white point kept), so its speckle goes black
+       (the sky there loses that colour; faint sources too), and a note. Its target S/N is measured: a
+       target not detected there (``TARGET_MIN_SNR``) gets a note saying it cannot be seen in that channel.
     """
     discs = {c.id: _target_disc(c) for c in composites}
     base, skips = _base_limits(composites, discs)
@@ -390,12 +504,17 @@ def color_balance(composites: Sequence[SeasonComposite]) -> Balance:
                 sky, span = _sky_level(ch.stack.data, skips[key]), ratio * green_span
                 stretches[key] = Stretch(vmin=sky - below * span, vmax=sky + span, method="asinh")
     noise: dict[tuple[str, str], float] = {}
+    target_snr: dict[tuple[str, str], float | None] = {}
     for comp in composites:
         for ch in comp.channels:
             key = (comp.id, ch.color)
-            noise[key] = _pixel_noise(ch.stack.data, skips[key]) / (stretches[key].vmax - stretches[key].vmin)
-    notes = {c.id: _balance_notes(c, ratios, noise, n_fits) for c in composites}
-    return Balance(stretches, ratios, noise, notes)
+            sigma = _pixel_noise(ch.stack.data, skips[key])
+            noise[key] = sigma / (stretches[key].vmax - stretches[key].vmin)
+            if _is_noisy(noise[key]):
+                stretches[key] = _speckle_black_point(stretches[key], _sky_level(ch.stack.data, skips[key]), sigma)
+                target_snr[key] = _target_snr(ch, discs[comp.id])
+    notes = {c.id: _balance_notes(c, ratios, noise, n_fits, target_snr) for c in composites}
+    return Balance(stretches, ratios, noise, notes, target_snr)
 
 
 def _balance_notes(
@@ -403,6 +522,7 @@ def _balance_notes(
     ratios: Mapping[tuple[str, str], float | None],
     noise: Mapping[tuple[str, str], float],
     n_fits: Mapping[tuple[tuple, str], int],
+    target_snr: Mapping[tuple[str, str], float | None],
 ) -> list[str]:
     done = [c for c in ("red", "blue") if ratios[(comp.id, c)] is not None]
     if not done:
@@ -422,13 +542,26 @@ def _balance_notes(
             text += f" {missing[0].capitalize()} could not be balanced (too few field stars); it uses its own limits."
         notes = [text]
     for ch in comp.channels:
-        fraction = noise[(comp.id, ch.color)]
-        if np.isfinite(fraction) and fraction > NOISY_FRACTION:
-            source = f"D{ch.detector}" if ch.detector is not None else "mixed detectors"
-            notes.append(
-                f"The {ch.color} channel ({source}) is noisy here (pixel noise {100 * fraction:.0f}% of its range): "
-                f"isolated {ch.color} specks are mostly noise, not {ch.color} objects."
-            )
+        key = (comp.id, ch.color)
+        if _is_noisy(noise[key]):
+            notes.extend(_noisy_notes(ch, noise[key], target_snr.get(key)))
+    return notes
+
+
+def _noisy_notes(ch: Channel, fraction: float, snr: float | None) -> list[str]:
+    c, source = ch.color, _source(ch)
+    notes = [
+        f"The {c} channel ({source}, {len(ch.frame_ids)} frame(s)) is noisy here (pixel noise {100 * fraction:.0f}% "
+        f"of its colour-balanced range), so its black point is raised to {NOISY_BLACK_SIGMAS:g} sigma of that noise "
+        f"above the sky: most noise specks are black, but faint {c} light is hidden too (faint field stars look "
+        f"{COMPLEMENT[c]}), and isolated {c} specks that remain are mostly noise, not {c} objects."
+    ]
+    if snr is not None and snr < TARGET_MIN_SNR:
+        notes.append(
+            f"The target is not detected in the {c} channel ({source} aperture S/N {snr:.1f} at the field centre, "
+            f"below {TARGET_MIN_SNR:g}): it cannot be seen in this single-season {source} coadd, and {c} specks "
+            "near the centre are noise."
+        )
     return notes
 
 
@@ -498,14 +631,15 @@ def provenance_note(plan: ColorPlan) -> str:
         f"False-color composites: {count['detectors']} 'detectors' and {count['jhk']} 'jhk' season composite(s) "
         "(infrared, not true color). detectors = full range: blue = D1 (fallback D2), green = D3 (D4), "
         "red = D6 (D5), coadds of the season's published frames. jhk = 2MASS-like: blue / green / red = coadd of "
-        f"the season's downloaded exposures (including unpublished candidates) within {JHK_TOLERANCE_UM:g} um of "
-        f"J 1.25 / H 1.65 / Ks 2.17 um at the field centre, else the nearest one within {JHK_FALLBACK_UM:g} um. "
+        f"the season's downloaded exposures (including unpublished candidates) within {JHK_TOLERANCE_UM:g} µm of "
+        f"J 1.25 / H 1.65 / Ks 2.17 µm at the field centre, else the nearest one within {JHK_FALLBACK_UM:g} µm. "
         "Each channel: one weight per frame, sky removed, bad pixels left out; a pixel bad in every frame of a "
         "channel (saturated core, detector defect, ramp-fit error) is drawn neutral at the brightest channel's "
         "level, so saturated cores look white (display only). Green spans 2 sigma below the sky to the bright end of its usable pixels; red and blue are "
         "scaled to green by the median field-star flux ratio (target halo excluded), so typical field stars look "
-        "white; limits shared by every season with the same detectors; colour-preserving asinh (Lupton et al. "
-        f"2004).{skipped}"
+        "white; limits shared by every season with the same detectors; a noisy channel (pixel noise above "
+        f"{100 * NOISY_FRACTION:g}% of its range) has its black point raised to the sky + {NOISY_BLACK_SIGMAS:g} sigma, "
+        f"so its speckle goes black; colour-preserving asinh (Lupton et al. 2004).{skipped}"
     )
 
 
