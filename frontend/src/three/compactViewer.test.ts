@@ -83,10 +83,13 @@ describe('SystemViewer compact (FE-12)', () => {
     expect(kids[5]).toBe('<details class="s3d-options">');
     expect(html).toContain('⤢ Whole system');
     expect(html).toContain('<summary>View options</summary>');
-    expect(html).toContain('<summary>Legend and model time</summary>');
+    expect(html).toContain('<summary>Colour and phase legend</summary>');
     const options = html.slice(html.indexOf('<summary>View options</summary>'));
     for (const t of ['Distances', 'Colour', 'orbits', 'labels']) expect(options.indexOf(t), t).toBeGreaterThan(0);
-    expect(html.indexOf('drag to rotate')).toBeGreaterThan(html.indexOf('<summary>Legend and model time</summary>'));
+    // The model-time line (free-running, arbitrary phase, not a prediction) stays visible above the folded legend
+    // (AGENTS.md rule 3); only the long colour and phase-cloud paragraphs fold.
+    expect(html.indexOf('drag to rotate')).toBeGreaterThan(0);
+    expect(html.indexOf('drag to rotate')).toBeLessThan(html.indexOf('<summary>Colour and phase legend</summary>'));
   });
 });
 

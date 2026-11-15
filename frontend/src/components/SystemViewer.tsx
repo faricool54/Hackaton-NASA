@@ -285,22 +285,10 @@ export function SystemViewer(props: Props) {
     </button>
   );
 
-  const legends = (
+  // Orbit quality and model-time caveats stay visible in compact mode too (AGENTS.md rule 3): only the long
+  // colour and phase-cloud paragraphs fold into "Colour and phase legend".
+  const orbitLegend = (
     <>
-      <div className="muted small s3d-legend" aria-live="polite">
-        {kit && modeChip && colorMode && kit.isInfraredMode(colorMode) && (
-          <p>
-            <strong className="s3d-false-text">{modeChip}</strong> (not what the eye would see, and not SPHEREx data).
-          </p>
-        )}
-        {colourLines.map((line, i) => (
-          <p key={`c${i}`}>{line}</p>
-        ))}
-        {surfaceLines.map((line, i) => (
-          <p key={`s${i}`}>{line}</p>
-        ))}
-        {spinLine && <p>{spinLine}</p>}
-      </div>
       {kit && notFitted && (notFitted.assumed.length > 0 || notFitted.hypothetical.length > 0) && (
         // Explained here too, not only inside the body panel: the whole-system view shows these orbits.
         <p className="muted small orbit-legend">
@@ -326,6 +314,43 @@ export function SystemViewer(props: Props) {
           )}
         </p>
       )}
+    </>
+  );
+  const timeLine = (
+      <p className="muted small">
+        {dataset && mjd !== null ? (
+          <>
+            Dataset date: {formatMjd(mjd)} · {statusLine}
+          </>
+        ) : (
+          <>
+            Model time:{' '}
+            {mjd === null || startMjd === null
+              ? '—'
+              : `${formatElapsed(mjd - startMjd)} (free-running${arbitraryPhase ? ', arbitrary starting phase' : ''}: not a prediction for a real date${datasetAvailable ? '; use Dataset time for the SPHEREx dates' : ''})`}
+          </>
+        )}{' '}
+        · drag to rotate, scroll to zoom, click a body to enter it
+      </p>
+  );
+
+  const legends = (
+    <>
+      <div className="muted small s3d-legend" aria-live="polite">
+        {kit && modeChip && colorMode && kit.isInfraredMode(colorMode) && (
+          <p>
+            <strong className="s3d-false-text">{modeChip}</strong> (not what the eye would see, and not SPHEREx data).
+          </p>
+        )}
+        {colourLines.map((line, i) => (
+          <p key={`c${i}`}>{line}</p>
+        ))}
+        {surfaceLines.map((line, i) => (
+          <p key={`s${i}`}>{line}</p>
+        ))}
+        {spinLine && <p>{spinLine}</p>}
+      </div>
+      {!compact && orbitLegend}
       {kit && dataset && cloudLegend && (
         <div className="muted small s3d-legend">
           {dateLines.length > 0 && (
@@ -375,21 +400,7 @@ export function SystemViewer(props: Props) {
           )}
         </div>
       )}
-      <p className="muted small">
-        {dataset && mjd !== null ? (
-          <>
-            Dataset date: {formatMjd(mjd)} · {statusLine}
-          </>
-        ) : (
-          <>
-            Model time:{' '}
-            {mjd === null || startMjd === null
-              ? '—'
-              : `${formatElapsed(mjd - startMjd)} (free-running${arbitraryPhase ? ', arbitrary starting phase' : ''}: not a prediction for a real date${datasetAvailable ? '; use Dataset time for the SPHEREx dates' : ''})`}
-          </>
-        )}{' '}
-        · drag to rotate, scroll to zoom, click a body to enter it
-      </p>
+      {!compact && timeLine}
     </>
   );
 
@@ -502,10 +513,14 @@ export function SystemViewer(props: Props) {
         )}
       </div>
       {compact ? (
-        <details className="s3d-disclosure s3d-legend-details">
-          <summary>Legend and model time</summary>
-          {legends}
-        </details>
+        <>
+          {orbitLegend}
+          {timeLine}
+          <details className="s3d-disclosure s3d-legend-details">
+            <summary>Colour and phase legend</summary>
+            {legends}
+          </details>
+        </>
       ) : (
         <div className="s3d-legends">{legends}</div>
       )}
