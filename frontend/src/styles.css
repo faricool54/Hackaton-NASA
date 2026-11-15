@@ -59,6 +59,34 @@ button:disabled { opacity: .55; cursor: default; }
 .job-status { border-top: 1px solid var(--border); padding-top: 16px; margin-top: 16px; }
 .mode-note { padding: 10px; background: #172235; border-radius: 6px; font-size: .85rem; }
 .explorer-result { border-top: 1px solid var(--border); padding-top: 20px; margin-bottom: 30px; }
+/* object card: catalog context of the chosen position (never SPHEREx measurements) */
+.object-card { border-top: 1px solid var(--border); padding-top: 14px; margin-top: 16px; min-width: 0; overflow-wrap: break-word; }
+.object-card h3 { margin: 0 0 4px; font-size: 1rem; }
+.object-note { margin: 0 0 8px; color: var(--unconfirmed); }
+.object-name { margin: 6px 0 2px; font-size: 1.15rem; font-weight: 650; }
+.object-match { padding: 8px 10px; border-radius: 6px; border-left: 3px solid var(--border); background: #141a2a; margin: 8px 0; }
+.object-match.tone-ok { border-left-color: var(--known); }
+.object-match.tone-warn { border-left-color: var(--unconfirmed); }
+.object-match.tone-none { border-left-color: var(--artifact); }
+span.tone-ok { color: var(--known); }
+span.tone-warn { color: var(--unconfirmed); }
+.object-facts { list-style: none; padding: 0; margin: 4px 0 10px; }
+.object-facts li { padding: 6px 0; border-bottom: 1px solid var(--border); }
+.fact-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; font-size: .85rem; }
+.fact-label { flex: 1 1 9em; color: var(--muted); }
+.fact-value { font-weight: 600; }
+.fact-status { font-size: .7rem; border: 1px solid currentColor; border-radius: 999px; padding: 0 6px; white-space: nowrap; }
+.object-mission { margin: 8px 0 2px; }
+.fact-verified { color: var(--known); }
+.fact-not-verified { color: var(--unconfirmed); }
+.fact-unknown { color: var(--muted); }
+.object-source { font-size: .72rem; color: var(--muted); }
+.object-list { padding-left: 18px; margin: 6px 0; }
+.object-list li { margin: 3px 0; }
+.object-warnings { color: var(--unconfirmed); }
+.object-details { margin: 8px 0; }
+.object-details > summary { cursor: pointer; color: var(--accent); font-size: .85rem; }
+.link-button { background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; cursor: pointer; font: inherit; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 @media (max-width: 850px) {
   .explorer-layout { grid-template-columns: minmax(0, 1fr); }
