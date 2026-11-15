@@ -59,23 +59,10 @@
   brillante ahora, cian = antes, damero = sin datos) y `compare/compare.json` **provisional** (fuera del contrato).
   En el campo real de Barnard la resta de un año muestra el dipolo norte en los 6 detectores. Falta: contrato aditivo
   (`contract:`, WS3) y la capa en la UI (WS5); restas por frame individual y λ emparejada (`wavelength_at` ya está en main, #23/#25).
-- [~] **WS2-8 (P0, R05) Validación visual/astrométrica entre pasadas.** Ayudar a WS3 con Barnard,
+- [ ] **WS2-8 (P0, R05) Validación visual/astrométrica entre pasadas.** Ayudar a WS3 con Barnard,
   Epsilon Indi B y WISE 0855; comprobar registro de fondo, épocas y desplazamiento/incertidumbre.
   Para RW Aurigae/R Draconis, garantizar render consistente; el brillo científico se mide desde FITS.
   No depende de implementar `link_tracks`. Evidencia según `docs/VALIDATION.md`.
-  🟡 Hecho (2026-11-15): chequeo versionado de los productos PUBLICADOS,
-  `python -m errante.imaging.productcheck --products data/products --out <dir>` → `report.md`, `report.json`
-  y figuras. Lee solo `field.json` + PNG (invierte el Stretch asinh y el roll-off, `imaging/invert.py`) y el
-  movimiento propio de los comentarios de `fields.toml`; nivel de display, no fotometría/astrometría científica.
-  Movimiento: centroides por temporada × detector, desplazamiento por detector promediado (incertidumbre =
-  dispersión entre detectores), registro re-medido en los PNG, paralaje ignorado. Variables: núcleo por frame,
-  núcleos blancos, pares a λ emparejada (≤ 1 %) con estrellas de control. Cada blanco abre con sus advertencias
-  (`caveats` en `report.json`, `productcheck_caveats.py`), generadas con los mismos números de las tablas: incertidumbre
-  de pocos frames (WISE 0855 S1→S2), temporadas sin posición y blink que no puede mostrar el movimiento (WISE 0855 S0),
-  largo frente a PA (ε Ind B S0→S3), pares por orientación del parche, offset de S1 de Barnard sin afirmar dirección
-  (el registro FITS da ambos signos), frames de la misma secuencia que uno rechazado por registro (RW Aur
-  2026W38_1A_0162) y las cifras FITS de todos los frames de cada registro. Falta: que WS3/coordinación lleve
-  los números a `docs/validation/*.md` (los registros son del build de #17).
 - [ ] **WS2-9 (P2) Shift-and-stack** a lo largo de velocidades hipotéticas para objetos lentos y débiles
   (demo educativa del método de búsqueda del Planeta X).
 - [ ] **WS2-10 (P1, C02/C03) Sumas y coadds por detector.** Alinear y combinar por detector y visita,
