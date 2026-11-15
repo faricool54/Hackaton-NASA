@@ -20,5 +20,21 @@
     "arbitrary_coordinate_job": "4 frames plus manifest and images served over HTTP",
     "scientific_R05_validation": false
   },
-  "cache_revision": "display-mask-v4 with source/dependency fingerprint and queued-version fencing; transitive detect modules and products.py included with job/science cache regressions (Codex-assisted)"
+  "cache_revision": "display-mask-v4 with source/dependency fingerprint and queued-version fencing; transitive detect modules and products.py included with job/science cache regressions (Codex-assisted)",
+  "other_tools": [
+    {
+      "tool": "Anthropic Claude Code",
+      "updated_on": "2026-11-15",
+      "scope": "GET /api/object (object card): bounded ObjectService over the WS3 object context, deadline + offline partial replay, settings, route, tests and README section",
+      "affected_paths": [
+        "backend/errante_api/object_service.py",
+        "backend/errante_api/routes/objects.py",
+        "backend/errante_api/settings.py",
+        "backend/errante_api/main.py",
+        "backend/tests/test_object.py",
+        "backend/README.md"
+      ],
+      "human_review": "pending"
+    }
+  ]
 }

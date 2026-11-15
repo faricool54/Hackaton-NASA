@@ -29,21 +29,32 @@ class Settings:
     live_cache_entries: int = 128
     enable_jobs: bool = False
     jobs_dir: Path = field(default_factory=lambda: core.CACHE_DIR / "jobs")
+    # GET /api/object (catalog context): None = derived from live_timeout_s (see ObjectService)
+    object_deadline_s: float | None = None
+    object_service_timeout_s: float | None = None
+    object_max_concurrent: int = 4
+    context_cache_dir: Path = field(default_factory=lambda: core.CACHE_DIR / "context")
 
     def __post_init__(self) -> None:
         self.data_dir = Path(self.data_dir).resolve()
         self.live_cache_dir = Path(self.live_cache_dir).resolve()
         self.jobs_dir = Path(self.jobs_dir).resolve()
+        self.context_cache_dir = Path(self.context_cache_dir).resolve()
         if self.live_cache_dir.is_relative_to(self.data_dir):
             raise ValueError("API cache must be outside the public data directory")
+        if self.context_cache_dir.is_relative_to(self.data_dir):
+            raise ValueError("Catalog context cache must be outside the public data directory")
         if self.enable_jobs and self.jobs_dir.is_relative_to(self.data_dir):
             raise ValueError("Job state must be outside the public data directory")
         self.cors_origins = [origin.strip() for origin in self.cors_origins if origin.strip()]
         for value in (self.live_timeout_s, self.live_cache_ttl_s):
             if not math.isfinite(value) or value <= 0:
                 raise ValueError("Live timeout and cache TTL must be finite and positive")
-        if self.live_max_concurrent < 1 or self.live_cache_entries < 1:
+        if self.live_max_concurrent < 1 or self.live_cache_entries < 1 or self.object_max_concurrent < 1:
             raise ValueError("Live concurrency and cache capacity must be positive")
+        for value in (self.object_deadline_s, self.object_service_timeout_s):
+            if value is not None and (not math.isfinite(value) or value <= 0):
+                raise ValueError("Object context deadline and service timeout must be finite and positive")
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -66,4 +77,13 @@ class Settings:
             live_cache_entries=int(os.environ.get("ERRANTE_API_CACHE_ENTRIES", "128")),
             enable_jobs=enabled,
             jobs_dir=Path(os.environ.get("ERRANTE_JOBS_DIR", core.CACHE_DIR / "jobs")),
+            object_deadline_s=_optional_float("ERRANTE_OBJECT_DEADLINE_S"),
+            object_service_timeout_s=_optional_float("ERRANTE_OBJECT_SERVICE_TIMEOUT_S"),
+            object_max_concurrent=int(os.environ.get("ERRANTE_OBJECT_MAX_CONCURRENT", "4")),
+            context_cache_dir=Path(os.environ.get("ERRANTE_CONTEXT_CACHE_DIR", core.CACHE_DIR / "context")),
         )
+
+
+def _optional_float(name: str) -> float | None:
+    value = os.environ.get(name, "").strip()
+    return float(value) if value else None
