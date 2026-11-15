@@ -28,13 +28,17 @@ deploy público y formulario de Space Apps completo y a tiempo.
   No equivale a haber evaluado oficialmente el proyecto ni verificado inscripción/nominación.
 - [ ] **WS6-2 (P0) Nombre e identidad**: confirmar o cambiar "Errante" (historia: *planḗtēs* = errante), tagline,
   logo propio simple; no generar/incorporar/modificar elementos de marca NASA mediante SI.
-- [ ] **WS6-3 (P0) Deploy público del frontend** (GitHub Pages/Vercel/Netlify, con WS4) — URL estable desde H+24.
+- [x] **WS6-3 (P0) Deploy público del frontend**, con WS4: web/API en Google Compute Engine,
+  https://errante.34-148-242-13.sslip.io; aceptación técnica #84/#95/#96. Demo y formulario no quedan enviados por esto.
 - [ ] **WS6-4 (P0) Texto de la entrega** en `docs/submission/PROJECT.md` (en inglés): problema, solución, cómo
   funciona, datos NASA usados, beneficios, límites honestos, herramientas y uso de IA, equipo.
   Actualizado 15/11 por pedido del usuario: URL pública, cinco campos reales, jobs, espectros/comparaciones,
   curvas de luz y resultados offline revisados por WS3. About y créditos actualizados en la misma entrega.
   Faltan enlace de demo, datos de integrantes y revisión final del inventario/autoría por el equipo;
   no se marca el formulario como enviado ni revisión humana completada.
+- [x] **WS6-4a (P0) README y documentos de estado.** Actualizados contra main 3ed5c91 (#97); publicación verificada 3ed5c91 (#97): hosting,
+  contrato 0.7.0, funciones reales y pendientes. Se conservan fuentes/evidencias históricas como tales.
+  Alcance pedido: documentación, sin producir demo, completar integrantes/formulario ni certificar revisión humana.
 - [ ] **WS6-5 (P0, S02/S04) Demo obligatoria:** video **<= 30 s** o presentación **<= 7 slides**, contando
   portada/introducción. Guion actualizado en PITCH.md. Inglés; voz en otro idioma con subtítulos ingleses.
   Mostrar el estado real: si solo hay simulaciones, declararlo; nunca presentarlas como SPHEREx real.

@@ -1,7 +1,8 @@
 # Validación de los cinco objetos del enunciado (R05)
 
 Responsable: **WS3**, con WS1 (cobertura), WS2 (imágenes), WS5 (recorrido público) y WS6 (evidencia).
-Estado inicial: **pendiente en los cinco casos**. Los datos sintéticos no cuentan como validación SPHEREx.
+Estado al 15/11/2026: **cinco registros offline `success`; revisión humana pendiente**. Los datos
+sintéticos, las predicciones de catálogo y los checks técnicos de despliegue no sustituyen esos ensayos.
 Esta evidencia sostiene **Validity** y **Relevance** de la rúbrica 1–5 del proyecto; ver
 [JUDGING_GUIDE.md](JUDGING_GUIDE.md). No sustituir observaciones por tests con mocks ni asignar notas de
 jurado desde `Candidate.score`. La revisión interna queda separada en `submission/JUDGING_REVIEW.md`.
@@ -23,8 +24,9 @@ Barnard's Star se midió el 15/11 sobre las 358 exposiciones (no solo los 40 fra
 No rellenar coordenadas faltantes a partir de la memoria ni tomar una posición antigua como posición actual.
 `config/fields.toml` contiene presets de desarrollo; no es un registro de validaciones aprobadas.
 ✅ 2026-11-14: los cinco presets están en `fields.toml` con astrometría de Sesame/SIMBAD (CfA) propagada a la
-época media de los datos SPHEREx ([`SCIENCE.md`](SCIENCE.md) §0). Siguen siendo presets: la validación con
-imágenes reales está pendiente.
+época media de los datos SPHEREx ([`SCIENCE.md`](SCIENCE.md) §0). Los ensayos con imágenes reales están
+documentados arriba; falta su aprobación humana y el cierre del paso 6 en cada registro. #95 comprobó
+técnicamente 200 frames PNG + 196 comparaciones y las dos curvas en la URL pública, sin sustituir ese cierre.
 Los cinco SystemModel de WS7 son modelos ilustrativos de esos nombres, no registros de ensayo.
 No copiar posiciones, períodos u órbitas de `systems/catalog.py` como datos verificados para esta validación.
 

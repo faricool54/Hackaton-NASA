@@ -68,6 +68,12 @@ con síntesis en [JUDGING_GUIDE.md](../JUDGING_GUIDE.md) y [revisión interna](J
 
 ## Evidencia del reto (R01-R05)
 
+Estado técnico al 15/11, main 3ed5c91 (#97); publicación verificada 3ed5c91 (#97): app/API públicas, cinco campos reales, jobs por coordenadas,
+espectros/comparaciones y curvas verificados; #95 comprobó 396 PNG y persistencia de un job en iframe.
+Los cinco registros FITS ya existen. Las casillas de aceptación final se conservan para revisión del
+equipo: no significan que falten esos módulos, ni autorizan cerrar R05 sin revisión humana/paso 6.
+Ver [matriz actualizada](../REQUIREMENTS.md) y [estado de integración](../WS4_INTEGRATION.md).
+
 - [x] Enunciado íntegro y recursos incorporados en CHALLENGE.md.
 - [x] R01-R05 y C01-C08 asignados a tareas en REQUIREMENTS.md (planificación, no implementación).
 - [x] PDF leído, preservado y reglas S01-S10 integradas con referencia de página.
@@ -82,7 +88,7 @@ con síntesis en [JUDGING_GUIDE.md](../JUDGING_GUIDE.md) y [revisión interna](J
 - [ ] R05: registro de RW Aurigae, con comparación fotométrica compatible.
 - [ ] R05: registro de R Draconis, con comparación fotométrica compatible.
 - [ ] Tabla distingue ensayos de resultados positivos; simulaciones etiquetadas y límites honestos.
-- [ ] Modelos 3D identificados como modelos y parámetros no verificados; no contarlos como cinco ensayos reales.
+- [ ] Modelos 3D identificados como modelos, con fuentes/estado de verificación por valor; no contarlos como cinco ensayos reales.
 
 ## Consideraciones opcionales: estado al entregar
 

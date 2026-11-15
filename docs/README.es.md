@@ -7,16 +7,18 @@ reales de **NASA SPHEREx** de la misma región en distintas fechas, reconociendo
 Validación exigida: **Barnard's Star, Epsilon Indi B, WISE 0855, RW Aurigae y R Draconis**.
 Detección automática y Planeta X son extensiones posteriores al explorador temporal.
 
-> Estado: **esqueleto funcional**. La web ya corre de punta a punta con **datos sintéticos** (etiquetados como tales).
-> El trabajo del equipo es reemplazar cada stub por la versión real. Ver [`tasks/`](../tasks/).
-> Todavía faltan imágenes reales, ingreso público RA/Dec, construcción bajo demanda y los cinco ensayos.
-> El build básico ya se separó del análisis opcional: `errante build <id>` / `errante build <id> --analyze`.
+> Estado al **15/11/2026, main 3ed5c91 (#97); publicación verificada 3ed5c91 (#97)**: [app pública con datos reales](https://errante.34-148-242-13.sslip.io),
+> API y jobs persistentes, cinco campos de 40 imágenes, espectros, comparaciones y dos curvas de luz.
+> Hay cinco registros FITS offline; la revisión humana R05 sigue pendiente. Contrato **0.7.0**.
+> #96 agregó zoom y predicción de catálogo de Barnard; #95 verificó 396 PNG y jobs en iframe externo.
+> El README público vigente está en [README.md](../README.md); pendientes y responsables en [PARALLEL_PLAN.md](PARALLEL_PLAN.md).
 
 ## Alcance y orden de implementación
 
 1. **P0:** imágenes reales alineadas → RA/Dec → animación pública → cinco ensayos documentados.
 2. **P1:** releases actualizables, bandas/coadds/espectros, sumas/restas, FOV, Gaia/WISE, URL/embebido,
-   metadatos/flags y herramientas públicas. Son consideraciones opcionales del enunciado, todas planificadas.
+   metadatos/flags y herramientas públicas; además 3D desde mediciones según VISION.md. Las consideraciones
+   del enunciado tienen estado explícito en la matriz, no todas están terminadas.
 3. **P2:** detección, catálogos de asteroides, distancia, límites de detección y Planeta X.
 
 La [matriz de cobertura](../docs/REQUIREMENTS.md) asigna cada punto a tareas y criterios de aceptación.
@@ -28,10 +30,12 @@ de construcción de WS4-5 (o un equivalente probado). Consultar archivos sin gen
 ```bash
 git clone https://github.com/faricool54/Hackaton-NASA && cd Hackaton-NASA
 python scripts/dev.py setup        # Python venv + pipeline + backend + frontend
-python scripts/dev.py web          # http://localhost:5173  (datos demo, sin backend)
+python scripts/dev.py web          # Vite local: demo estático por defecto; ?dataset=real abre los cinco campos reales
 ```
 
-Opcional: `python scripts/dev.py api` (backend en http://localhost:8000/docs) y abrir la web con `?mode=api`.
+Para jobs: `python scripts/dev.py setup-science`, habilitar `ERRANTE_ENABLE_JOBS=1`, ejecutar
+`python scripts/dev.py api` en otra terminal y abrir `?mode=api&dataset=real`. El runner usa una copia privada
+en `data/cache/local/`, sin escribir en los productos versionados. En Windows se puede usar `py`.
 
 <details><summary>Sin <code>make</code> (Windows)</summary>
 
@@ -54,7 +58,7 @@ cd frontend; npm ci; npm run dev
 | WS4 | Backend API | `backend/` | [tasks/WS4-backend.md](../tasks/WS4-backend.md) |
 | WS5 | Frontend (blink comparator, mapa, reportes) | `frontend/` | [tasks/WS5-frontend.md](../tasks/WS5-frontend.md) |
 | WS6 | Producto, narrativa, deploy y entrega | `docs/submission/` | [tasks/WS6-product-submission.md](../tasks/WS6-product-submission.md) |
-| WS7 | Modelos 3D opcionales, valores sin verificar | `pipeline/errante/systems/`, `frontend/src/three/` | [tasks/WS7-3d-systems.md](../tasks/WS7-3d-systems.md) |
+| WS7 | 3D de catálogo y fuentes; migración a mediciones P1, PR #90 abierto | `pipeline/errante/systems/`, `frontend/src/three/` | [tasks/WS7-3d-systems.md](../tasks/WS7-3d-systems.md) |
 
 Con 5 personas: WS6 se reparte entre WS4 y WS5 (ver [docs/TEAM.md](../docs/TEAM.md)).
 Cada persona trabaja con su agente (Claude Code / Codex) usando el prompt que está al final de su archivo de tareas.
@@ -93,5 +97,7 @@ docs/ tasks/ notebooks/
 
 ## Créditos de datos
 
-SPHEREx: NASA / JPL-Caltech / IPAC, vía NASA/IPAC Infrared Science Archive (IRSA). Efemérides: JPL Solar System
-Dynamics, IMCCE SkyBoT.
+SPHEREx DR1/QR3: NASA/JPL-Caltech/IPAC, vía IRSA. Aladin Lite, AllWISE, Gaia y catálogos aportan el contexto
+identificado por fuente; créditos completos en [About](https://errante.34-148-242-13.sslip.io/#/about).
+JPL/SkyBoT para cruce automático siguen pendientes. No se presenta un modelo 3D ni una predicción Gaia
+como imagen o medición SPHEREx. Demo final, integrantes, inventario/IA y envío requieren cierre por el equipo.

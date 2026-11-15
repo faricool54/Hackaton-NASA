@@ -2,28 +2,39 @@
 
 NASA Space Apps Challenge 2026, "Planet X and SPHEREx". Working project name.
 
-Errante is being built as a public tool where users enter right ascension and declination and play images
-of the same sky region from different dates. The required validation targets are Barnard's Star, Epsilon
-Indi B, WISE 0855, RW Aurigae and R Draconis. Automatic detection and Planet X education are later extensions.
+Errante lets users search by name or sky coordinates, click an infrared map and play real NASA SPHEREx
+images of the same region from different dates.
+
+**[Open the public application](https://errante.34-148-242-13.sslip.io)** ·
+[About, science and credits](https://errante.34-148-242-13.sslip.io/#/about).
 
 ## Current status
 
-**Real SPHEREx fields and the local map → coordinate/name → time-sequence workflow are implemented.**
+Updated **November 15, 2026**, against `main` **3ed5c91** (#97), also verified on the public deployment.
 
 The home displays the SPHEREx DR1 sky through Aladin Lite/IRSA. Its wavelength selector and optional AllWISE
 context layer do not represent time. In live API mode, a map click or form submission builds real exposures
 through bounded background jobs; the viewer shows dates, wavelength, release and provenance. Five prebuilt
-real challenge fields are available with `?mode=static&dataset=real`; the default synthetic examples remain
-explicitly labelled. Shared contract: **0.3.0**.
+real challenge fields contain 40 frames each. Local static mode can open them with
+`?mode=static&dataset=real`; separate synthetic development fixtures remain labelled. The public app
+defaults to real data and the live API. Shared contract: **0.7.0**.
 
 The image build runs without automatic analysis; `--analyze` opts into detection/catalog matching. Empty
-candidate lists without analysis are not evidence that nothing was detected. Scientific validation of all
-five targets (R05) and a verified public deployment are still pending.
+candidate lists without analysis are not evidence that nothing was detected. All
+five targets (R05) have offline FITS records and separate agent re-measurements. **Human review remains
+pending**; image playback and deployment tests do not certify those scientific results.
 
-The existing 3D gallery contains illustrative, unverified models and a synthetic system. Migrating it to
-models supported by measured spectra/catalog constraints is P1; the gallery is not a measured 3D result.
-Comparisons and forced photometry from WS2 are available in the pipeline; their API/UI contracts remain
-separate work. No discovery or sensitivity result is claimed from synthetic examples.
+Implemented features include position spectra, catalog object cards, season comparisons (196 precomputed
+PNG products), two real precomputed light curves, and image zoom. Barnard's reticle predicts catalog
+position; it is not a position measurement from the displayed image. The catalog-based 3D gallery cites
+sources and representation limits; SPHEREx-derived temperature/radius and physical reconstruction are
+not implemented. WS7's further model corrections are in open PR #90, not in this release.
+
+Remaining work includes the compact view, additional curve views, quality/map enhancements, human validation and final
+submission materials. #97 adds visible curve warnings/floors/data selection and loading of exported
+static curves when their JSON has been exported. Its limits and data-selection blocks were checked
+on the public app. Static comparison UI remains separate work. Automatic detection, detection limits and
+Planet X remain extensions. See [the current plan](docs/PARALLEL_PLAN.md) for dependencies and owners.
 
 ## Run the demonstration
 
@@ -34,12 +45,17 @@ python scripts/dev.py setup
 python scripts/dev.py web
 ```
 
-The frontend opens at `http://localhost:5173` and uses synthetic products without a backend.
-Optionally run `python scripts/dev.py api` and use `?mode=api`; API documentation is at `http://localhost:8000/docs`.
-Static mode serves prebuilt fields. For arbitrary coordinates, install `python scripts/dev.py setup-science`,
-set `ERRANTE_ENABLE_JOBS=1` (PowerShell: `$env:ERRANTE_ENABLE_JOBS='1'`), start the API, and open `?mode=api`.
+Local Vite defaults to static synthetic fixtures. Open `http://localhost:5173/?mode=static&dataset=real#/`
+for the five curated real fields. For coordinate builds, first run `python scripts/dev.py setup-science`,
+set `ERRANTE_ENABLE_JOBS=1` (`export ERRANTE_ENABLE_JOBS=1` in Bash or `$env:ERRANTE_ENABLE_JOBS='1'`
+in PowerShell), and run `python scripts/dev.py api` in another terminal. Open
+`http://localhost:5173/?mode=api&dataset=real#/`; API docs are at `http://localhost:8000/docs`.
+The runner seeds a private runtime copy under `data/cache/local/` and preserves existing jobs/products.
+On Windows, use `py` instead of `python` if needed. No cloud account is needed for local use.
 See [backend/README.md](backend/README.md) and [frontend/README.md](frontend/README.md) for roots, limits,
-CORS, shareable coordinates/job links and local configuration. Public hosting has not been selected.
+CORS, shareable links and local configuration. Public hosting is Google Compute Engine with web/API on
+one HTTPS origin and persistent storage. [Team redeploy instructions](backend/deploy/README.md) use each
+operator's own Google account. Merging a PR does not deploy it automatically; the custom domain is optional.
 
 `scripts/dev.py` works the same on Windows, macOS and Linux (on Windows you can type `py` instead of `python`;
 `make <task>` still works where `make` exists). Run `python scripts/dev.py` to list all tasks.
@@ -52,7 +68,7 @@ errante demo                               # regenerate labelled numerical simul
 errante search --ra 269.4463 --dec 4.7665   # real archive search
 errante build barnards-star                 # real image build without optional analysis
 errante build barnards-star --analyze       # opt into optional analysis after saving image products
-errante systems                            # write illustrative 3D models; currently unverified parameters
+errante systems                            # catalog-based 3D context; sources/representation limits apply
 errante validate --dir data/demo
 python scripts/dev.py check
 ```
@@ -67,7 +83,7 @@ setup-science` for work on real-data processing. Downloads and FITS files belong
 | `pipeline/` | Archive/cutout access, FITS/WCS, aligned images and optional scientific analysis |
 | `backend/` | FastAPI product service and persistent coordinate-build jobs |
 | `frontend/` | React/TypeScript temporal viewer |
-| `pipeline/errante/systems/`, `frontend/src/three/` | Optional 3D models and procedural rendering, with verification caveats |
+| `pipeline/errante/systems/`, `frontend/src/three/` | Catalog-based 3D models, sources and representation limits |
 | `shared/schema/` | Generated JSON contracts shared by pipeline, API and frontend |
 | `data/demo/` | Committed numerical simulations, explicitly labelled as synthetic |
 | `data/products/` | Five curated real SPHEREx challenge fields (40 frames each) |
@@ -111,14 +127,16 @@ English drafts and provenance:
 
 ## Sources and acknowledgments
 
-NASA/IPAC Infrared Science Archive [SPHEREx resources](https://irsa.ipac.caltech.edu/Missions/spherex.html)
-and the [IRSA tutorial notebooks](https://caltech-ipac.github.io/irsa-tutorials/spherex/) informed development.
-Real SPHEREx observations have not yet been integrated into the committed demonstration. Catalog services,
-WISE/Gaia context and other partner datasets are planned; listing them as planned does not claim they
-were processed. A complete inventory of sources, licenses, contributors and acknowledgments remains a
-submission task.
+Real SPHEREx DR1/QR3 observations, the DR1 spectral cube and HiPS come from
+[NASA/IPAC IRSA](https://irsa.ipac.caltech.edu/Missions/spherex.html).
+[IRSA tutorial notebooks](https://caltech-ipac.github.io/irsa-tutorials/spherex/) informed development.
+Aladin Lite 3.8.2 (CDS, GPL-3) displays the sky; AllWISE provides separate-mission context through ESA's
+mirror. Gaia DR3, Sesame/SIMBAD/VizieR, 2MASS/CatWISE2020, the NASA Exoplanet Archive and AAVSO provide
+catalog or validation context; they are not SPHEREx detections of planets or resolved 3D surfaces.
+Full SPHEREx/Gaia/Exoplanet Archive acknowledgments are visible on the
+[public About page](https://errante.34-148-242-13.sslip.io/#/about). A complete license/contributor/media
+inventory and team review remain submission tasks.
 
-OpenAI Codex assisted with source review, documentation, technical planning, code changes and tests.
-The imported 3D contribution declares Claude assistance in its commit metadata; its parameters and full
-provenance still require team review.
+OpenAI Codex and Anthropic Claude Code assisted contributors with documentation, implementation,
+integration, tests, deployment and scientific analysis/review. Agent re-measurements are not human review.
 See [AI_USAGE.md](AI_USAGE.md) for the verified scope and pending team review.

@@ -1,5 +1,5 @@
 {
-  "document_version": "1.3",
+  "document_version": "1.4",
   "updated_on": "2026-11-15",
   "status": "draft_requires_team_review",
   "scope": "Verified assistance in the current Codex session; not a complete repository authorship audit",
@@ -11,7 +11,8 @@
     "Optional-analysis build and CLI implementation with regression tests",
     "Draft submission text, demo outline and public attribution text",
     "Processing cache invalidation, shared spectrum/comparison contract, supervised API and frontend scientific panels with real-data integration checks",
-    "Updated PROJECT.md and the public About page to describe deployed real SPHEREx data, five offline validation records, reviewed light-curve limitations, sources and remaining human/submission tasks"
+    "Updated PROJECT.md and the public About page to describe deployed real SPHEREx data, five offline validation records, reviewed light-curve limitations, sources and remaining human/submission tasks",
+    "User-authorized WS6 documentation-only refresh of README and status/architecture/contract/requirement/coordination documents against merged/published main 3ed5c91 (#97) and public acceptance; no demo creation, human scientific approval or submission completed"
   ],
   "known_affected_code": [
     "pipeline/errante/build.py",
