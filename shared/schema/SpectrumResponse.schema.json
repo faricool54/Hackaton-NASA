@@ -1,0 +1,379 @@
+{
+  "$defs": {
+    "MeasurementFailure": {
+      "additionalProperties": false,
+      "properties": {
+        "frame_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Frame Id"
+        },
+        "reason": {
+          "enum": [
+            "download_failed",
+            "measurement_failed",
+            "no_overlap",
+            "invalid_pixels"
+          ],
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "reason"
+      ],
+      "title": "MeasurementFailure",
+      "type": "object"
+    },
+    "SkyCoord": {
+      "additionalProperties": false,
+      "properties": {
+        "dec": {
+          "description": "ICRS declination [deg]",
+          "maximum": 90,
+          "minimum": -90,
+          "title": "Dec",
+          "type": "number"
+        },
+        "ra": {
+          "description": "ICRS right ascension [deg]",
+          "exclusiveMaximum": 360,
+          "minimum": 0,
+          "title": "Ra",
+          "type": "number"
+        }
+      },
+      "required": [
+        "ra",
+        "dec"
+      ],
+      "title": "SkyCoord",
+      "type": "object"
+    },
+    "SpectralMeasurement": {
+      "additionalProperties": false,
+      "properties": {
+        "aperture_correction": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Aperture Correction"
+        },
+        "bandwidth_um": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bandwidth Um"
+        },
+        "detector": {
+          "maximum": 6,
+          "minimum": 1,
+          "title": "Detector",
+          "type": "integer"
+        },
+        "flags": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Flags",
+          "type": "array"
+        },
+        "flux": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Flux"
+        },
+        "flux_err": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Flux Err"
+        },
+        "frame_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Frame Id"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "mjd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mjd"
+        },
+        "n_used": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "N Used"
+        },
+        "nhits": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Nhits"
+        },
+        "release": {
+          "default": "dr1",
+          "enum": [
+            "dr1",
+            "qr2",
+            "qr3",
+            "synthetic"
+          ],
+          "title": "Release",
+          "type": "string"
+        },
+        "source_uri": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Uri"
+        },
+        "usable": {
+          "title": "Usable",
+          "type": "boolean"
+        },
+        "wavelength_um": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Wavelength Um"
+        }
+      },
+      "required": [
+        "id",
+        "detector",
+        "usable"
+      ],
+      "title": "SpectralMeasurement",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "aperture_px": {
+      "title": "Aperture Px",
+      "type": "number"
+    },
+    "background_subtracted": {
+      "title": "Background Subtracted",
+      "type": "boolean"
+    },
+    "built_at": {
+      "format": "date-time",
+      "title": "Built At",
+      "type": "string"
+    },
+    "center": {
+      "$ref": "#/$defs/SkyCoord"
+    },
+    "failures": {
+      "items": {
+        "$ref": "#/$defs/MeasurementFailure"
+      },
+      "title": "Failures",
+      "type": "array"
+    },
+    "field_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Field Id"
+    },
+    "mjd_range": {
+      "default": [
+        null,
+        null
+      ],
+      "maxItems": 2,
+      "minItems": 2,
+      "prefixItems": [
+        {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      ],
+      "title": "Mjd Range",
+      "type": "array"
+    },
+    "notes": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Notes",
+      "type": "array"
+    },
+    "pixel_scale_arcsec": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Pixel Scale Arcsec"
+    },
+    "points": {
+      "items": {
+        "$ref": "#/$defs/SpectralMeasurement"
+      },
+      "title": "Points",
+      "type": "array"
+    },
+    "schema_version": {
+      "default": "0.4.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source": {
+      "enum": [
+        "dr1_cube",
+        "l2_exposures"
+      ],
+      "title": "Source",
+      "type": "string"
+    },
+    "stale": {
+      "default": false,
+      "title": "Stale",
+      "type": "boolean"
+    },
+    "static_coadd": {
+      "title": "Static Coadd",
+      "type": "boolean"
+    },
+    "synthetic": {
+      "const": false,
+      "default": false,
+      "title": "Synthetic",
+      "type": "boolean"
+    },
+    "truncated": {
+      "default": false,
+      "title": "Truncated",
+      "type": "boolean"
+    },
+    "unit": {
+      "enum": [
+        "MJy/sr",
+        "mJy"
+      ],
+      "title": "Unit",
+      "type": "string"
+    }
+  },
+  "required": [
+    "center",
+    "source",
+    "unit",
+    "static_coadd",
+    "points",
+    "built_at",
+    "aperture_px",
+    "background_subtracted"
+  ],
+  "title": "SpectrumResponse",
+  "type": "object"
+}

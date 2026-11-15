@@ -23,9 +23,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, field_validator, model_validator
 
-SCHEMA_VERSION = "0.3.1"
+SCHEMA_VERSION = "0.4.0"
 
 Release = Literal["dr1", "qr2", "qr3", "synthetic"]
 """SPHEREx data release a frame comes from (see docs/DATA.md)."""
@@ -508,6 +508,171 @@ class ResolvedRegion(SkyCoord):
     source: str
 
 
+class SpectrumRequest(SkyCoord):
+    """Bounded extraction at a fixed ICRS position; independent of detected candidates."""
+
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+    source: Literal["dr1_cube", "l2_exposures"] = "dr1_cube"
+    detectors: list[Annotated[int, Field(ge=1, le=6)]] = Field(default_factory=list)
+    mjd_min: FiniteFloat | None = None
+    mjd_max: FiniteFloat | None = None
+    field_id: str | None = Field(default=None, pattern=r"^[a-z0-9][a-z0-9-]*$")
+    aperture_px: int = Field(default=0, ge=0, le=3, description="Cube aperture radius; L2 uses WS2's native aperture")
+    max_frames: int = Field(default=24, ge=2, le=60)
+
+    @model_validator(mode="after")
+    def compatible_selection(self):
+        if self.mjd_min is not None and self.mjd_max is not None and self.mjd_min > self.mjd_max:
+            raise ValueError("mjd_min must not exceed mjd_max")
+        if self.source == "dr1_cube" and (self.mjd_min is not None or self.mjd_max is not None):
+            raise ValueError("A static cube cannot be filtered by observation date")
+        if self.source == "l2_exposures" and self.aperture_px:
+            raise ValueError("aperture_px selects a cube aperture; L2 uses WS2's native aperture")
+        return self
+
+
+class MeasurementFailure(_Model):
+    frame_id: str | None = None
+    reason: Literal["download_failed", "measurement_failed", "no_overlap", "invalid_pixels"]
+
+
+class SpectralMeasurement(_Model):
+    id: str
+    detector: int = Field(ge=1, le=6)
+    wavelength_um: FiniteFloat | None = Field(default=None, gt=0)
+    bandwidth_um: FiniteFloat | None = Field(default=None, gt=0)
+    flux: FiniteFloat | None = None
+    flux_err: FiniteFloat | None = Field(default=None, ge=0)
+    usable: bool
+    flags: list[str] = Field(default_factory=list)
+    frame_id: str | None = None
+    mjd: FiniteFloat | None = None
+    release: Release = "dr1"
+    source_uri: str | None = None
+    nhits: int | None = Field(default=None, ge=0)
+    n_used: int | None = Field(default=None, ge=0)
+    aperture_correction: FiniteFloat | None = None
+
+    @model_validator(mode="after")
+    def valid_measurement(self):
+        if self.usable and (self.flux is None or self.wavelength_um is None):
+            raise ValueError("Usable measurements need finite flux and wavelength")
+        return self
+
+
+class SpectrumResponse(_Model):
+    schema_version: str = SCHEMA_VERSION
+    center: SkyCoord
+    source: Literal["dr1_cube", "l2_exposures"]
+    unit: Literal["MJy/sr", "mJy"]
+    static_coadd: bool
+    points: list[SpectralMeasurement]
+    built_at: datetime
+    field_id: str | None = None
+    mjd_range: tuple[FiniteFloat | None, FiniteFloat | None] = (None, None)
+    pixel_scale_arcsec: FiniteFloat | None = None
+    aperture_px: FiniteFloat
+    background_subtracted: bool
+    synthetic: Literal[False] = False
+    truncated: bool = False
+    stale: bool = False
+    notes: list[str] = Field(default_factory=list)
+    failures: list[MeasurementFailure] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def consistent_units(self):
+        if (self.source == "dr1_cube") != (self.unit == "MJy/sr" and self.static_coadd):
+            raise ValueError("Cube spectra are static surface brightness; exposure spectra are mJy")
+        if self.source == "l2_exposures" and (self.unit != "mJy" or self.static_coadd):
+            raise ValueError("Exposure photometry must retain its mJy and time interpretation")
+        return self
+
+
+class ComparisonRequest(_Model):
+    detectors: list[Annotated[int, Field(ge=1, le=6)]] = Field(default_factory=list)
+    frame_ids: list[str] | None = Field(default=None, min_length=2, max_length=60)
+
+    @field_validator("frame_ids")
+    @classmethod
+    def unique_frames(cls, ids):
+        if ids is not None and len(ids) != len(set(ids)):
+            raise ValueError("Frame IDs must be unique")
+        return ids
+
+
+class ComparisonImage(_Model):
+    id: str
+    kind: Literal["weighted_mean", "scaled_difference"]
+    detector: int = Field(ge=1, le=6)
+    image: str = Field(description="PNG relative to the API /data root")
+    frame_ids: list[str] = Field(min_length=1)
+    mjd_min: FiniteFloat
+    mjd_max: FiniteFloat
+    wavelength_range_um: tuple[FiniteFloat, FiniteFloat] | None = None
+    season: int | None = None
+    earlier: str | None = None
+    later: str | None = None
+    valid_fraction: FiniteFloat | None = Field(default=None, ge=0, le=1)
+    flux_scale: FiniteFloat | None = None
+    flux_scale_fitted: bool | None = None
+    flux_scale_stars: int | None = Field(default=None, ge=0)
+    noise_mjy_sr: FiniteFloat | None = Field(default=None, ge=0)
+    display_limit_mjy_sr: FiniteFloat | None = Field(default=None, ge=0)
+    target_exclude_px: FiniteFloat | None = Field(default=None, ge=0)
+    weights: list[FiniteFloat] | None = Field(default=None, description="Null: individual weights not exported by WS2")
+    notes: list[str] = Field(default_factory=list)
+
+    @field_validator("image")
+    @classmethod
+    def contained_png(cls, value):
+        import re
+
+        if not re.fullmatch(r"analyses/[a-f0-9]{64}/compare/[a-zA-Z0-9_-]+\.png", value):
+            raise ValueError("Expected a contained analysis PNG path")
+        return value
+
+    @model_validator(mode="after")
+    def ordered_epochs(self):
+        if self.mjd_min > self.mjd_max:
+            raise ValueError("Reversed comparison epochs")
+        if self.kind == "scaled_difference" and not (self.earlier and self.later and self.flux_scale is not None):
+            raise ValueError("Differences need both inputs and the applied flux scale")
+        return self
+
+
+class ComparisonResponse(_Model):
+    schema_version: str = SCHEMA_VERSION
+    id: str = Field(pattern=r"^[a-f0-9]{64}$")
+    field_id: str
+    field_built_at: datetime
+    built_at: datetime
+    unit: Literal["MJy/sr"] = "MJy/sr"
+    method: str
+    input_frames: list[Frame] = Field(min_length=2, max_length=60)
+    images: list[ComparisonImage]
+    failures: list[MeasurementFailure] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+    synthetic: Literal[False] = False
+
+    @model_validator(mode="after")
+    def referenced_inputs(self):
+        frames = {frame.id: frame for frame in self.input_frames}
+        if len(frames) != len(self.input_frames):
+            raise ValueError("Input frame IDs must be unique")
+        if len({image.id for image in self.images}) != len(self.images):
+            raise ValueError("Image IDs must be unique")
+        for image in self.images:
+            if any(fid not in frames or frames[fid].detector != image.detector for fid in image.frame_ids):
+                raise ValueError("Comparison references unknown or cross-detector frames")
+            if image.image.split("/")[1] != self.id:
+                raise ValueError("Image identity differs from its analysis")
+            if image.kind == "scaled_difference":
+                known = {i.id for i in self.images if i.kind == "weighted_mean" and i.detector == image.detector}
+                if image.earlier not in known or image.later not in known:
+                    raise ValueError("Differences must reference published coadds")
+        return self
+
+
 ALL_MODELS: dict[str, type[BaseModel]] = {
     "Manifest": Manifest,
     "Field": SkyField,
@@ -518,5 +683,9 @@ ALL_MODELS: dict[str, type[BaseModel]] = {
     "JobSubmitRequest": JobSubmitRequest,
     "JobStatusResponse": JobStatusResponse,
     "ResolvedRegion": ResolvedRegion,
+    "SpectrumRequest": SpectrumRequest,
+    "SpectrumResponse": SpectrumResponse,
+    "ComparisonRequest": ComparisonRequest,
+    "ComparisonResponse": ComparisonResponse,
 }
 """Top-level documents, one JSON Schema file each in shared/schema/."""

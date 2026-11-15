@@ -4,7 +4,7 @@
 // Pixel convention for every x/y: PNG convention — origin at the TOP-LEFT pixel,
 // 0-based, x → right, y → DOWN, on the field's common north-up grid (east left).
 
-export const SCHEMA_VERSION = '0.3.1';
+export const SCHEMA_VERSION = '0.4.0';
 
 export type Release = 'dr1' | 'qr2' | 'qr3' | 'synthetic';
 export type ObjectType =
@@ -364,4 +364,46 @@ export interface ResolvedRegion extends SkyCoord {
   object_type: ObjectType;
   resolved_name: string;
   source: string;
+}
+
+
+export interface SpectrumRequest extends SkyCoord {
+  source?: 'dr1_cube' | 'l2_exposures';
+  field_id?: string | null;
+  detectors?: number[];
+  mjd_min?: number | null;
+  mjd_max?: number | null;
+  aperture_px?: number;
+  max_frames?: number;
+}
+export interface MeasurementFailure {
+  frame_id: string | null;
+  reason: 'download_failed' | 'measurement_failed' | 'no_overlap' | 'invalid_pixels';
+}
+export interface SpectralMeasurement {
+  id: string; detector: number; wavelength_um: number | null; bandwidth_um: number | null;
+  flux: number | null; flux_err: number | null; usable: boolean; flags: string[];
+  frame_id: string | null; mjd: number | null; release: Release; source_uri: string | null;
+  nhits: number | null; n_used: number | null; aperture_correction: number | null;
+}
+export interface SpectrumResponse {
+  schema_version: string; center: SkyCoord; source: 'dr1_cube' | 'l2_exposures'; unit: 'MJy/sr' | 'mJy';
+  static_coadd: boolean; points: SpectralMeasurement[]; built_at: string; field_id: string | null;
+  mjd_range: [number | null, number | null]; pixel_scale_arcsec: number | null; aperture_px: number;
+  background_subtracted: boolean; synthetic: boolean; truncated: boolean; stale: boolean;
+  notes: string[]; failures: MeasurementFailure[];
+}
+export interface ComparisonRequest { detectors?: number[]; frame_ids?: string[] | null; }
+export interface ComparisonImage {
+  id: string; kind: 'weighted_mean' | 'scaled_difference'; detector: number; image: string;
+  frame_ids: string[]; mjd_min: number; mjd_max: number; wavelength_range_um: [number, number] | null;
+  season: number | null; earlier: string | null; later: string | null; valid_fraction: number | null;
+  flux_scale: number | null; flux_scale_fitted: boolean | null; flux_scale_stars: number | null;
+  noise_mjy_sr: number | null; display_limit_mjy_sr: number | null; target_exclude_px: number | null;
+  weights: number[] | null; notes: string[];
+}
+export interface ComparisonResponse {
+  schema_version: string; id: string; field_id: string; field_built_at: string; built_at: string;
+  unit: 'MJy/sr'; method: string; input_frames: Frame[]; images: ComparisonImage[];
+  failures: MeasurementFailure[]; notes: string[]; synthetic: boolean;
 }
