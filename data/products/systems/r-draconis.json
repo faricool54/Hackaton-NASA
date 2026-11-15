@@ -25,9 +25,9 @@
       "name": "R Draconis",
       "kind": "star",
       "description": "A Mira variable: an old red giant whose visible brightness changes by hundreds of times.",
-      "radius_km": 173925000.0,
-      "mass_kg": 1.989e+30,
-      "teff_k": 3000.0,
+      "radius_km": null,
+      "mass_kg": null,
+      "teff_k": null,
       "spectral_type": "M5e–M9eIII",
       "rotation_period_hours": null,
       "orbit": null,
@@ -87,33 +87,63 @@
           "verified": true
         },
         {
-          "label": "Radius (illustrative)",
-          "value": "~250",
-          "unit": "solar radii",
-          "source": "drawing value: published sizes depend strongly on the assumed distance and the pulsation phase",
-          "verified": false
+          "label": "Cycle seen by SPHEREx",
+          "value": "~260 (95 %: 255–265)",
+          "unit": "days",
+          "source": "SPHEREx DR1+QR3+deep, offline PSF-wing photometry; docs/validation/r-draconis.md",
+          "verified": true
         },
         {
-          "label": "Mass (class-typical)",
-          "value": "~1",
-          "unit": "solar masses",
-          "source": "Feast 2009, AGB Stars and Related Phenomena (Tokyo 2008), arXiv:0812.0250, Sect. 3: O-rich Miras with log P ~2.3 have initial masses < 1 M_sun, those with log P ~2.5 are ~7 Gyr old, and C-Miras at log P ~2.7 have ~1.8 M_sun; R Dra has log P = 2.39. Class-typical initial mass for its period, not a measurement of this star (its present mass is lower after mass loss); used only to size the drawn convection cells",
-          "verified": false
+          "label": "Brightness range seen by SPHEREx (0.74–5.0 µm, by detector)",
+          "value": "0.5–1.3",
+          "unit": "mag peak-to-peak",
+          "source": "SPHEREx DR1+QR3+deep, offline PSF-wing photometry; docs/validation/r-draconis.md",
+          "verified": true
+        },
+        {
+          "label": "Distance",
+          "value": "792 (750-832)",
+          "unit": "pc",
+          "source": "Gaia DR3 1648328016354496384, external.gaiaedr3_distance (ESA Gaia archive, retrieved 2026-11-15) | Bailer-Jones et al. (2021) geometric distance from the Gaia parallax, 16th-84th percentiles (via WS3 object context; catalog, not measured by SPHEREx)",
+          "verified": true
+        },
+        {
+          "label": "Spectral type",
+          "value": "M4.5-6+e",
+          "unit": null,
+          "source": "SIMBAD via Sesame (CfA mirror, vizier.cfa.harvard.edu), retrieved 2026-11-15 (via WS3 object context; catalog, not measured by SPHEREx)",
+          "verified": true
+        },
+        {
+          "label": "Variability type",
+          "value": "M (V 6.7-13.2)",
+          "unit": null,
+          "source": "AAVSO VSX R Dra (B/vsx, VizieR CfA, retrieved 2026-11-15) (via WS3 object context; catalog, not measured by SPHEREx)",
+          "verified": true
+        },
+        {
+          "label": "Variability period",
+          "value": "246.1",
+          "unit": "days",
+          "source": "AAVSO VSX R Dra (B/vsx, VizieR CfA, retrieved 2026-11-15) | Caveat: Gaia DR3 long-period-variable period: 247.2 +/- 6.0 d. (via WS3 object context; catalog, not measured by SPHEREx)",
+          "verified": true
         }
       ],
       "candidate_id": null
     }
   ],
-  "representation_note": "3D model drawn from published catalog and literature values (each fact shows its source) - not an image. Sizes and distances may be exaggerated for visibility.",
+  "representation_note": "3D model drawn from published catalog and literature values, not measured by SPHEREx unless a fact says 'seen by SPHEREx' (each fact shows its source) - not an image. What no source gives is not drawn: an unknown temperature is drawn grey and an unknown size at a fixed marker size, not to scale. Sizes and distances may be exaggerated for visibility.",
   "provenance": {
     "pipeline_version": "0.1.0",
-    "built_at": "2026-11-15T05:12:09.454672Z",
+    "built_at": "2026-11-15T14:38:50.162416Z",
     "synthetic": false,
     "data_releases": [],
     "notes": [
-      "Values checked on 2026-11-14 against the NASA Exoplanet Archive, SIMBAD (CfA mirror), Gaia DR3, VizieR and the cited papers (tasks/WS7-3d-systems.md, WS7-2). Facts still marked 'unverified' are estimates no source states.",
-      "The pulsation is drawn on two clocks. Free-running: the size/brightness animation is a sine wave at the GCVS period (245.6 d) spanning the V-band range, with an arbitrary phase (no epoch): it is not a prediction for a real date. Dataset time: R Dra is drawn at the phase predicted by the AAVSO VSX ephemeris (epoch of maximum HJD 2457370.00, P = 246.12 d) on an asymmetric curve that rises in 45 % of the cycle, with the timing band of the WS7 table frontend/src/three/ephemerides.ts (from the O−C of observed maxima against that ephemeris). Both are V-band drawings, not a measured or SPHEREx light curve: real Mira cycles change from cycle to cycle, the infrared amplitude SPHEREx sees is much smaller and infrared maxima lag the visual ones. The size change is drawn in phase with the light for display only.",
-      "Radial velocity −132.8 km/s from SIMBAD (Wilson 1953); optical lines of a Mira move with the pulsation."
+      "Values checked on 2026-11-14 against the NASA Exoplanet Archive, SIMBAD (CfA mirror), Gaia DR3, VizieR and the cited papers (tasks/WS7-3d-systems.md, WS7-2). Facts still marked 'unverified' are estimates no source states. The 'seen by SPHEREx' facts were copied from the validation records (docs/validation/; AI analysis with an independent second analysis, human review pending), not from that catalog cross-check.",
+      "The pulsation is drawn as a brightness change only: the radius is drawn constant, because its size change is not measured. It runs on two clocks. Free-running: the brightness animation is a sine wave at the GCVS period (245.6 d) spanning the V-band range, with an arbitrary phase (no epoch): it is not a prediction for a real date. Dataset time: R Dra is drawn at the phase predicted by the AAVSO VSX ephemeris (epoch of maximum HJD 2457370.00, P = 246.12 d) on an asymmetric curve that rises in 45 % of the cycle, with the timing band of the WS7 table frontend/src/three/ephemerides.ts (from the O−C of observed maxima against that ephemeris). Both are catalog V-band drawings, not measured by SPHEREx: real Mira cycles change from cycle to cycle, and the amplitude is much smaller in the infrared: offline measurements on the SPHEREx FITS files give 0.5–1.3 mag peak-to-peak at 0.74–5.0 µm and a ~260-day cycle in 2025–2026 (docs/validation/r-draconis.md). The animation is not that light curve, and the SPHEREx images in this app do not show it. The R Draconis field page shows the precomputed SPHEREx light curve (WS3/WS4 product) in live API mode.",
+      "Radial velocity −132.8 km/s from SIMBAD (Wilson 1953); optical lines of a Mira move with the pulsation.",
+      "Catalog values from the frozen WS3 object-context snapshot 'r-draconis' (query 'R Dra'; services answered 2026-11-15T03:44:49Z to 2026-11-15T04:21:35Z; replayed offline from the WS3 fixtures), pipeline/errante/systems/inputs/objects/: not measured by SPHEREx, and not queried when the site is built.",
+      "Not measured, so not drawn (shown as unknown): R Draconis: temperature (it changes with the pulsation: the literature gives ~2000–3300 K (van Belle et al. 2002; McDonald et al. 2012), and one drawn value would be a pick inside that range; WS3 object context: Gaia DR3 has no temperature for this source; no temperature fit to the SPHEREx spectrum yet, WS3 V18), radius (published sizes depend on the assumed distance and the pulsation phase; no measured angular diameter is adopted here; WS3 object context: Gaia DR3 FLAME gives no radius for this source; no radius from the SPHEREx flux and the distance yet, WS7-8), mass (no dynamical mass is published for R Dra; WS3 object context: Gaia DR3 FLAME gives no mass for this source)."
     ]
   }
 }

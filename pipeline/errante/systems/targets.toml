@@ -1,0 +1,110 @@
+# WS7 measurement registry (V13). Read by errante.systems.measured at build time; data only.
+#
+# - [snapshots]: slug -> the WS3 object_context(name=...) query. The frozen answer is inputs/objects/<slug>.json,
+#   written by `errante systems --record <slug|all>` (dev only; WS3 cache keys depend on the exact query text).
+# - [[system]] / [[system.body]]: which snapshot describes a body, which of its WS3 parameters are attached to the
+#   body as catalog cross-check facts (only verified values; the drawn value never changes), the facts measured by
+#   SPHEREx (verbatim from docs/SCIENCE.md, block A5; their source starts with "SPHEREx") and, for every drawn field
+#   that stays unknown (teff, radius, mass), why. The build fails if a field is unknown and no reason is given.
+# - system-level `snapshot`: a context that cannot be given to one body (an unresolved blend, or the RW Aur A/B
+#   identity swap, V15): its verified values go into a provenance note only.
+# - WS3 parameter keys: teff, radius, luminosity, mass, distance, spectral_type, variability_type,
+#   variability_period (errante.science.context.derive_parameters).
+schema = 1
+
+[snapshots]
+barnards-star = "Barnard's Star"
+eps-indi-b = "eps Ind B"
+wise-0855 = "WISE J085510.83-071442.5"
+r-draconis = "R Dra"
+rw-aurigae = "RW Aur"
+
+# --- Barnard's Star -----------------------------------------------------------------------------------------
+[[system]]
+id = "barnards-star"
+
+[[system.body]]
+id = "barnards-star"
+snapshot = "barnards-star"
+cross_check = ["teff", "radius", "luminosity", "distance", "variability_type", "variability_period"]
+
+[[system.body.spherex_fact]]
+label = "Motion seen by SPHEREx"
+value = "10.2″ (1.66 px) between the Aug 2025 and Aug 2026 seasons, PA 354–355°"
+source = "SPHEREx DR1+QR3, 358 exposures, offline FITS analysis; docs/validation/barnards-star.md (saturated core: wing astrometry)"
+
+# --- Epsilon Indi -------------------------------------------------------------------------------------------
+# No WS3 snapshot of eps Ind A yet (not in the WS3 fixtures; record it with --live while the ESA Gaia archive
+# answers). eps Ind B is one unresolved Gaia DR3 source: its context is a system note, never a Ba or Bb fact.
+[[system]]
+id = "epsilon-indi"
+snapshot = "eps-indi-b"
+snapshot_keys = ["teff", "distance", "spectral_type", "variability_type"]
+snapshot_note = "Not attached to Ba or Bb: Gaia DR3 and SPHEREx see Ba+Bb as one unresolved source (RUWE 4.30)."
+
+[[system.body]]
+id = "eps-indi-ba"
+unknown = { radius = "no published radius for Ba" }
+
+[[system.body.spherex_fact]]
+label = "Motion seen by SPHEREx (Ba+Bb as one source)"
+value = "1.03 px (6.3″) between May 2025 and Sep 2026"
+source = "SPHEREx DR1+QR3, offline FITS analysis; docs/validation/eps-indi-b.md"
+
+[[system.body]]
+id = "eps-indi-bb"
+unknown = { radius = "no published radius for Bb" }
+
+# --- WISE 0855-0714 -----------------------------------------------------------------------------------------
+[[system]]
+id = "wise-0855"
+
+[[system.body]]
+id = "wise-0855"
+snapshot = "wise-0855"
+cross_check = ["distance", "spectral_type"]
+unknown = { mass = "only a 3–10 Jupiter-mass range from evolutionary models for ages of 1–10 Gyr is published (Luhman et al. 2024); a single value would be a pick inside it" }
+
+[[system.body.spherex_fact]]
+label = "Seen by SPHEREx"
+value = "only at 3.8–5.0 µm: ~0.3 mJy at 3.8–4.4 µm, ~0.5 mJy at 4.4–5.0 µm"
+source = "SPHEREx DR1, 258 frames, offline FITS analysis; docs/validation/wise-0855.md (fluxes depend on the PSF model, ~11 %)"
+
+# --- R Draconis ---------------------------------------------------------------------------------------------
+[[system]]
+id = "r-draconis"
+
+[[system.body]]
+id = "r-draconis"
+snapshot = "r-draconis"
+cross_check = ["distance", "spectral_type", "variability_type", "variability_period"]
+unknown = { teff = "it changes with the pulsation: the literature gives ~2000–3300 K (van Belle et al. 2002; McDonald et al. 2012), and one drawn value would be a pick inside that range", radius = "published sizes depend on the assumed distance and the pulsation phase; no measured angular diameter is adopted here", mass = "no dynamical mass is published for R Dra" }
+
+[[system.body.spherex_fact]]
+label = "Cycle seen by SPHEREx"
+value = "~260 (95 %: 255–265)"
+unit = "days"
+source = "SPHEREx DR1+QR3+deep, offline PSF-wing photometry; docs/validation/r-draconis.md"
+
+[[system.body.spherex_fact]]
+label = "Brightness range seen by SPHEREx (0.74–5.0 µm, by detector)"
+value = "0.5–1.3"
+unit = "mag peak-to-peak"
+source = "SPHEREx DR1+QR3+deep, offline PSF-wing photometry; docs/validation/r-draconis.md"
+
+# --- RW Aurigae ---------------------------------------------------------------------------------------------
+# The WS3 context of "RW Aur" is the unresolved A+B pair, and SIMBAD's A/B names are swapped against the WDS
+# (V15, open): its values go into a system note, never onto A or B.
+[[system]]
+id = "rw-aurigae"
+snapshot = "rw-aurigae"
+snapshot_keys = ["distance", "spectral_type", "variability_type", "variability_period"]
+snapshot_note = "Not attached to A or B: the context describes the unresolved A+B pair, and SIMBAD's A/B names are swapped against the WDS (V15, open)."
+
+[[system.body]]
+id = "rw-aur-a"
+
+[[system.body.spherex_fact]]
+label = "Brightness change seen by SPHEREx (A+B)"
+value = "about 1.0 mag brighter at 0.75–0.77 µm, Sep 2025 → Sep 2026"
+source = "SPHEREx DR1+QR3, unsaturated D1 exposures, offline FITS analysis; docs/validation/rw-aurigae.md"

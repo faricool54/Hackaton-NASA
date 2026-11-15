@@ -7,9 +7,12 @@ import {
   CLOUD_POINTS,
   CONJUNCTION_MEAN_ANOMALY_DEG,
   formatTimingDays,
+  IRREGULAR_TEXT,
+  irregularText,
   isLineOfSightOrbit,
   jdToMjd,
   MIRA_EPHEMERIDES,
+  MIRA_PREDICTION_CAVEAT,
   minimumPhase,
   miraEphemerisFor,
   miraPhase,
@@ -182,17 +185,22 @@ describe('Mira ephemeris of R Dra (S3)', () => {
     expect(RDRA.periodDays).toBe(246.12);
     expect(miraPhase(RDRA, DR1_START_MJD)).toBeCloseTo(0.897, 3);
     expect(miraPhase(RDRA, QR3_LAST_MJD)).toBeCloseTo(0.043, 3);
-    // ε not sourced: the O−C band alone. Centre = VSX dates (not shifted), so 1σ = RMS of O−C about VSX.
+    // ε not sourced: the O−C band alone. Centre = VSX dates (not shifted), so 1σ = RMS of O−C about VSX:
+    // the 2025–2026 AAVSO maxima came −3.8, −14.8 and −3.1 d from VSX (SCIENCE.md 3D review V12a, fallback).
     expect(RDRA.ocMeanDays).toBe(-4.7);
     expect(RDRA.ocSdDays).toBe(4.6);
-    expect(miraTimingSigmaDays(RDRA, 61000)).toBeCloseTo(Math.sqrt(4.7 ** 2 + 4.6 ** 2), 12);
-    expect(miraTimingSigmaDays(RDRA, 61000)).toBe(Math.hypot(RDRA.ocMeanDays, RDRA.ocSdDays));
-    expect(formatTimingDays(miraTimingSigmaDays(RDRA, 61000))).toBe('6.6');
-    // The band covers the mean offset: an observed maximum 4.7 d early is within 1σ.
+    const oc = [-3.8, -14.8, -3.1];
+    expect(Math.sqrt(oc.reduce((s, x) => s + x * x, 0) / oc.length)).toBeCloseTo(9.0, 1);
+    expect(miraTimingSigmaDays(RDRA, 61000)).toBe(9.0);
+    expect(formatTimingDays(miraTimingSigmaDays(RDRA, 61000))).toBe('9.0');
+    // The band covers the earlier mean offset too: a maximum 4.7 d early is within 1σ.
     expect(Math.abs(RDRA.ocMeanDays)).toBeLessThan(miraTimingSigmaDays(RDRA, 61000));
-    expect(RDRA.note).toMatch(/±6\.6 d band \(1σ\) is the RMS of the O−C about VSX/);
+    expect(RDRA.note).toMatch(/±9\.0 d band \(1σ\) is the RMS of that O−C about VSX/);
     expect(RDRA.note).toMatch(/not shifted/);
-    expect(RDRA.timingSource).toMatch(/√\(4\.7² \+ 4\.6²\) ≈ 6\.6 d/);
+    expect(RDRA.note).toMatch(/the radius is drawn constant/);
+    expect(RDRA.timingSource).toBe(
+      'RMS of the O−C of the 2025–2026 AAVSO maxima about VSX: −3.8, −14.8 and −3.1 d (offline WS3 analysis, docs/validation/r-draconis.md)',
+    );
   });
 
   it('predicts the 2025–2026 maxima of research item 3b', () => {
@@ -216,21 +224,22 @@ describe('Mira ephemeris of R Dra (S3)', () => {
     expect(miraState(RDRA, 0.75)).toBe('rising');
   });
 
-  it("spans the catalog's V range and the class-typical ±10 % radius", () => {
+  it("spans the catalog's V range on the glow only: no radius factor (the size change is not measured)", () => {
     const rdra = bodyOf('r-draconis', 'r-draconis');
     const atMax = predictedPulsation(RDRA, rdra, isoDateToMjd('2026-01-21') + 0.3);
     const atMin = predictedPulsation(RDRA, rdra, isoDateToMjd('2026-01-21') + 0.3 + 0.55 * 246.12);
     expect(atMax.factor / atMin.factor).toBeCloseTo(Math.pow(10, 0.4 * 6.5), 0);
-    expect(atMax.radiusScale).toBeCloseTo(1.1, 3);
-    expect(atMin.radiusScale).toBeCloseTo(0.9, 3);
+    expect(Object.keys(atMax).sort()).toEqual(['factor', 'phase', 'phaseSigma', 'shape']);
+    expect(MIRA_PREDICTION_CAVEAT).toMatch(/^V-band prediction from a catalogue ephemeris, not a SPHEREx light curve\. Measured offline/);
+    expect(MIRA_PREDICTION_CAVEAT).not.toMatch(/\.$/); // callers end the sentence
   });
 
   it('summarises the predicted phase of each SPHEREx pass', () => {
     expect(passPhaseSummary(RDRA, 60790, 60879)).toBe(
-      'predicted V phase 0.90 → 0.26 (±0.03); predicted maximum 2025-05-20 ± 6.6 d',
+      'predicted V phase 0.90 → 0.26 (±0.04); predicted maximum 2025-05-20 ± 9.0 d',
     );
     expect(passPhaseSummary(RDRA, 60916, 61310)).toBe(
-      'predicted V phase 0.41 → 0.01 (±0.03); 1.6 cycles; predicted maxima 2026-01-21 ± 6.6 d, 2026-09-24 ± 6.6 d',
+      'predicted V phase 0.41 → 0.01 (±0.04); 1.6 cycles; predicted maxima 2026-01-21 ± 9.0 d, 2026-09-24 ± 9.0 d',
     );
   });
 
@@ -241,10 +250,19 @@ describe('Mira ephemeris of R Dra (S3)', () => {
     expect(variabilityTracks(other).map((t) => t.kind)).toEqual(['unknown']);
     const rw = onThisDate(system('rw-aurigae'), 61000);
     expect(rw.filter((l) => l.kind === 'irregular').map((l) => l.bodyId)).toEqual(['rw-aur-a', 'rw-aur-b']);
+    // V12c: no "look at the frames"; RW Aur says what was measured offline and that image brightness is not a measurement.
+    expect(IRREGULAR_TEXT).toBe('irregular: cannot be predicted');
+    for (const l of rw.filter((x) => x.kind === 'irregular')) {
+      expect(l.text).toBe(irregularText('rw-aurigae'));
+      expect(l.text).toMatch(/^irregular: cannot be predicted\. Measured offline on unsaturated SPHEREx D1 exposures at matched wavelength, RW Aur \(A\+B\) was about 1 mag brighter/);
+      expect(l.text).toMatch(/image brightness here is not a measurement\.$/);
+      expect(l.text).not.toMatch(/look at the frames/);
+    }
+    expect(irregularText('some-other-system')).toBe(IRREGULAR_TEXT);
     expect(rw.find((l) => l.bodyId === 'rw-aur-b' && l.kind === 'arbitrary')?.source).toMatch(/Kurtovic/);
     const line = onThisDate(system('r-draconis'), DR1_START_MJD)[0];
     expect(line.text).toBe(
-      'predicted V phase 0.90 ± 0.03 (VSX ephemeris, ±6.6 d 1σ timing band about the VSX dates) · rising · next predicted maximum 2025-05-20',
+      'predicted V phase 0.90 ± 0.04 (VSX ephemeris, ±9.0 d 1σ timing band about the VSX dates) · rising · next predicted maximum 2025-05-20',
     );
   });
 

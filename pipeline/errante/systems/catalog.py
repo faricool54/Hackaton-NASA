@@ -5,10 +5,15 @@ Archive, SIMBAD (CfA mirror), Gaia DR3, VizieR and the cited papers. The
 fetchers in ``systems.sources`` reproduce the archive queries and the
 ``network`` tests in ``tests/test_systems.py`` re-run them. A ``Fact`` is
 ``verified=True`` only when its value was found in the cited source; model
-estimates and illustrative drawing values say so in their label and source.
-Where the drawing needs a number no source gives (e.g. the radius of a brown
-dwarf in the Epsilon Indi B pair), it is set on the body without a Fact and the
-provenance notes say it is illustrative.
+estimates and derived values say so in their label and source.
+
+Rule (WS7 V13, docs/VISION.md): a value published for this object (measured or
+model, labelled as such) is drawn; a value no source gives is not. Such a field
+stays ``None`` (the viewer shows it as unknown: grey colour, fixed marker size)
+and ``systems.measured`` adds a provenance note saying why. Facts measured by
+SPHEREx and the WS3 object-context cross-checks are attached by
+``systems.measured`` from ``targets.toml`` and the frozen snapshots in
+``inputs/objects/``.
 
 The one fully *synthetic* system (``demo-ecliptic-orbits``) belongs to the
 synthetic demo field and is labelled as such.
@@ -45,12 +50,16 @@ PHASE_NOTE = "Orbital and pulsation phases are arbitrary (no epoch): positions a
 
 VERIFIED_NOTE = (
     "Values checked on 2026-11-14 against the NASA Exoplanet Archive, SIMBAD (CfA mirror), Gaia DR3, VizieR and the "
-    "cited papers (tasks/WS7-3d-systems.md, WS7-2). Facts still marked 'unverified' are estimates no source states."
+    "cited papers (tasks/WS7-3d-systems.md, WS7-2). Facts still marked 'unverified' are estimates no source states. "
+    "The 'seen by SPHEREx' facts were copied from the validation records (docs/validation/; AI analysis with an "
+    "independent second analysis, human review pending), not from that catalog cross-check."
 )
 
 REAL_REPRESENTATION = (
-    "3D model drawn from published catalog and literature values (each fact shows its source) - not an image. "
-    "Sizes and distances may be exaggerated for visibility."
+    "3D model drawn from published catalog and literature values, not measured by SPHEREx unless a fact says "
+    "'seen by SPHEREx' (each fact shows its source) - not an image. What no source gives is not drawn: an unknown "
+    "temperature is drawn grey and an unknown size at a fixed marker size, not to scale. Sizes and distances may be "
+    "exaggerated for visibility."
 )
 
 GAIA_DR3 = "Gaia DR3"
@@ -186,8 +195,10 @@ def barnards_star() -> SystemModel:
                     mean_anomaly_deg=CONJUNCTION_MEAN_ANOMALY_DEG,
                     epoch_mjd=t0_mjd,
                     note=(
-                        "Drawn circular: the fitted eccentricities are consistent with zero (Basant et al. 2025 "
-                        "favour e < 0.02). Orbit inclination unknown (radial-velocity detection). "
+                        "Drawn circular: the fitted eccentricities (d 0.04, b 0.03, c 0.08, e 0.04; Basant et al. "
+                        "2025 via the NASA Exoplanet Archive) are consistent with zero within 2σ. A circular drawing "
+                        "can misplace the planet along its orbit by up to 2e rad (3–9°); the phase arc does not "
+                        "include that. Orbit inclination unknown (radial-velocity detection). "
                         f"Phase: the planet is drawn in front of the star (on the 'toward Earth' arrow) at "
                         f"t0 = BJD {t0_bjd:.2f} {t0_text} (Basant et al. 2025, Table 3), read as the time of "
                         "inferior conjunction as used by juliet/RadVel (tc); the paper text says periastron. "
@@ -261,7 +272,7 @@ def epsilon_indi() -> SystemModel:
     return SystemModel(
         id="epsilon-indi",
         name="Epsilon Indi system",
-        description="Challenge test target: a Sun-like star, a cold giant planet and a pair of brown dwarfs.",
+        description="Challenge test target: an orange dwarf star, a cold giant planet and a pair of brown dwarfs.",
         tags=["test-target", "brown-dwarf", "binary", "exoplanets"],
         center=SkyCoord(ra=330.8724078795965, dec=-56.79725466122902),  # Eps Ind A
         motion=SpaceMotion(
@@ -331,7 +342,7 @@ def epsilon_indi() -> SystemModel:
                 name="Epsilon Indi Ba",
                 kind="brown_dwarf",
                 description="A brown dwarf: too heavy to be a planet, too light to shine like a star.",
-                radius_km=0.9 * R_JUP_KM,  # illustrative: no published radius
+                radius_km=None,  # no published radius: size unknown, not drawn to scale
                 mass_kg=m_ba * M_SUN_KG,
                 teff_k=1300,
                 spectral_type="T1",
@@ -366,7 +377,7 @@ def epsilon_indi() -> SystemModel:
                 name="Epsilon Indi Bb",
                 kind="brown_dwarf",
                 description="The colder twin of Ba; the two orbit each other every ~11 years.",
-                radius_km=0.9 * R_JUP_KM,  # illustrative: no published radius
+                radius_km=None,  # no published radius: size unknown, not drawn to scale
                 mass_kg=m_bb * M_SUN_KG,
                 teff_k=900,
                 spectral_type="T6",
@@ -400,9 +411,11 @@ def epsilon_indi() -> SystemModel:
                 VERIFIED_NOTE,
                 PHASE_NOTE,
                 "Simplified hierarchy: Ba orbits A and Bb orbits Ba (no barycenters).",
-                "Ba and Bb are drawn with an illustrative radius of 0.9 Jupiter radii (no published radius); the "
-                "radius of Ab is the archive's estimate from its mass.",
-                "Gaia DR3 measures Ba+Bb as one unresolved source (RUWE 4.3): its parallax is not used for distance.",
+                "Ba and Bb have no published radius: their size is unknown and they are drawn at a fixed marker "
+                "size, not to scale. The radius of Ab is the archive's estimate from its mass.",
+                "Gaia DR3 measures Ba+Bb as one unresolved source (RUWE 4.3): its parallax is not used for distance. "
+                "SPHEREx also sees Ba+Bb as one source: they are never more than about 1″ apart (orbit semi-major "
+                "axis 2.4 AU, 0.66″ at 3.64 pc; eccentricity 0.54), and a SPHEREx pixel is 6.15″.",
             ],
         ),
     )
@@ -436,12 +449,12 @@ def wise_0855() -> SystemModel:
                 kind="brown_dwarf",
                 description="A free-floating brown dwarf so cold that water could condense in its atmosphere.",
                 radius_km=1.0 * R_JUP_KM,
-                mass_kg=5.0 * M_JUP_KG,  # illustrative value inside the 3-10 M_Jup model range
+                mass_kg=None,  # only a 3-10 M_Jup model range is published: no single value is drawn
                 teff_k=285,
                 spectral_type="Y4 (approx.)",
                 appearance=Appearance(model="brown_dwarf"),
                 facts=[
-                    _vfact("Spectral type", "~Y4", None, f"{k21}; {l24}"),
+                    _vfact("Spectral type", "~Y4 (Kirkpatrick et al. 2021); SIMBAD lists Y2", None, f"{k21}; {l24}"),
                     _vfact("Temperature", "~250–300 (best fit 285)", "K", f"{l24}; model dependent"),
                     _vfact("Distance", "~2.28", "pc", f"{k21} (parallax 439.0 ± 2.4 mas)"),
                     _vfact("Proper motion", "~8.15", "arcsec/yr", k21),
@@ -457,7 +470,6 @@ def wise_0855() -> SystemModel:
                 VERIFIED_NOTE,
                 "The challenge gives 133.79513, −7.24515: the WISE All-Sky position at epoch 2010.34 (MJD 55320.4). "
                 "The object moves ~8.2 arcsec per year, so positions must be propagated to the date of each image.",
-                "The model is drawn with 5 Jupiter masses, an illustrative value inside the published 3–10 range.",
             ],
         ),
     )
@@ -474,30 +486,26 @@ RDRA_VSX_EPOCH_HJD = 2457370.00  # epoch of maximum light (V)
 RDRA_VSX_PERIOD_DAYS = 246.12
 RDRA_VSX_RISE_PERCENT = 45  # rise from minimum to maximum, % of the period
 RDRA_PULSATION_NOTE = (
-    "The pulsation is drawn on two clocks. Free-running: the size/brightness animation is a sine wave at "
-    f"the GCVS period ({RDRA_GCVS_PERIOD_DAYS} d) spanning the V-band range, with an arbitrary phase (no "
-    "epoch): it is not a prediction for a real date. Dataset time: R Dra is drawn at the phase predicted "
-    f"by the AAVSO VSX ephemeris (epoch of maximum HJD {RDRA_VSX_EPOCH_HJD:.2f}, P = {RDRA_VSX_PERIOD_DAYS} d) "
-    f"on an asymmetric curve that rises in {RDRA_VSX_RISE_PERCENT} % of the cycle, with the timing band "
-    "of the WS7 table frontend/src/three/ephemerides.ts (from the O−C of observed maxima against that "
-    "ephemeris). Both are V-band drawings, not a measured or SPHEREx light curve: real Mira cycles change "
-    "from cycle to cycle, the infrared amplitude SPHEREx sees is much smaller and infrared maxima lag the "
-    "visual ones. The size change is drawn in phase with the light for display only."
+    "The pulsation is drawn as a brightness change only: the radius is drawn constant, because its size change "
+    "is not measured. It runs on two clocks. Free-running: the brightness animation is a sine wave at the GCVS "
+    f"period ({RDRA_GCVS_PERIOD_DAYS} d) spanning the V-band range, with an arbitrary phase (no epoch): it is not "
+    "a prediction for a real date. Dataset time: R Dra is drawn at the phase predicted by the AAVSO VSX "
+    f"ephemeris (epoch of maximum HJD {RDRA_VSX_EPOCH_HJD:.2f}, P = {RDRA_VSX_PERIOD_DAYS} d) on an asymmetric "
+    f"curve that rises in {RDRA_VSX_RISE_PERCENT} % of the cycle, with the timing band of the WS7 table "
+    "frontend/src/three/ephemerides.ts (from the O−C of observed maxima against that ephemeris). Both are "
+    "catalog V-band drawings, not measured by SPHEREx: real Mira cycles change from cycle to cycle, and the "
+    "amplitude is much smaller in the infrared: offline measurements on the SPHEREx FITS files give 0.5–1.3 mag "
+    "peak-to-peak at 0.74–5.0 µm and a ~260-day cycle in 2025–2026 (docs/validation/r-draconis.md). The "
+    "animation is not that light curve, and the SPHEREx images in this app do not show it. The R Draconis field "
+    "page shows the precomputed SPHEREx light curve (WS3/WS4 product) in live API mode."
 )
 
 
 def r_draconis() -> SystemModel:
     gcvs = "GCVS 5.1 (Samus et al. 2017)"
-    # No dynamical mass exists for R Dra. Feast (2009) ties the initial mass of a Mira to its period:
-    # O-rich Miras of log P ~ 2.3 have initial masses < 1 M_sun, the bulk (log P ~ 2.5) are ~7 Gyr old,
-    # and C-Miras at log P ~ 2.7 have ~1.8 M_sun. R Dra (P = 245.6 d) has log P = 2.39, so a class-typical
-    # mass of ~1 M_sun. It is an INITIAL mass and only sizes the drawn convection cells.
-    feast = (
-        "Feast 2009, AGB Stars and Related Phenomena (Tokyo 2008), arXiv:0812.0250, Sect. 3: O-rich Miras with "
-        "log P ~2.3 have initial masses < 1 M_sun, those with log P ~2.5 are ~7 Gyr old, and C-Miras at log P ~2.7 "
-        "have ~1.8 M_sun; R Dra has log P = 2.39. Class-typical initial mass for its period, not a measurement of "
-        "this star (its present mass is lower after mass loss); used only to size the drawn convection cells"
-    )
+    # Not drawn (V13): no dynamical mass and no single radius are published for R Dra, and its temperature
+    # changes with the pulsation (a single value would be a pick inside ~2000-3300 K). The fields stay None;
+    # systems.measured explains them in a provenance note.
     return SystemModel(
         id="r-draconis",
         name="R Draconis",
@@ -519,9 +527,9 @@ def r_draconis() -> SystemModel:
                 name="R Draconis",
                 kind="star",
                 description="A Mira variable: an old red giant whose visible brightness changes by hundreds of times.",
-                radius_km=250 * R_SUN_KM,  # illustrative; varies during the cycle
-                mass_kg=1.0 * M_SUN_KG,  # class-typical Mira mass for P = 245.6 d (Feast 2009); unverified
-                teff_k=3000,  # representative drawing value inside the published range
+                radius_km=None,  # not measured: size unknown, not drawn to scale
+                mass_kg=None,  # no dynamical mass
+                teff_k=None,  # changes with the pulsation: colour unknown
                 spectral_type="M5e–M9eIII",
                 variability=Variability(
                     kind="pulsation", period_days=RDRA_GCVS_PERIOD_DAYS, amplitude_mag=6.5, band="V"
@@ -540,13 +548,6 @@ def r_draconis() -> SystemModel:
                         "McDonald et al. 2012, MNRAS 427, 343 (3336 K, SED fit)",
                     ),
                     _vfact("Distance", "~790", "pc", "Bailer-Jones et al. 2021 (Gaia EDR3)"),
-                    _fact(
-                        "Radius (illustrative)",
-                        "~250",
-                        "solar radii",
-                        "drawing value: published sizes depend strongly on the assumed distance and the pulsation phase",
-                    ),
-                    _fact("Mass (class-typical)", "~1", "solar masses", feast),
                 ],
             )
         ],
@@ -614,10 +615,14 @@ def rw_aurigae() -> SystemModel:
                         "Rodriguez et al. 2013, AJ 146, 112; 2016, AJ 151, 29; Dodin et al. 2019, MNRAS 482, 5524",
                     ),
                     _fact(
-                        "Radius (estimate)",
+                        "Radius (derived from the catalog luminosity)",
                         "~1.3",
                         "solar radii",
-                        "Herczeg & Hillenbrand 2014 (1.20 at 140 pc) rescaled to the Gaia distance; uncertain",
+                        "derived by WS7: Herczeg & Hillenbrand 2014, ApJ 786, 97 list 1.20 solar radii at their "
+                        "assumed 140 pc; a radius from the luminosity at a fixed temperature scales with the distance "
+                        "(L scales as d², and by Stefan–Boltzmann R as the square root of L), so at the Gaia DR3 "
+                        "distance of 156.1 pc it is "
+                        "1.20 × 156.1 / 140 = 1.34. Catalog, not measured by SPHEREx; uncertain",
                     ),
                 ],
             ),
@@ -792,9 +797,16 @@ def demo_ecliptic_orbits() -> SystemModel:
     )
 
 
-def curated_systems() -> list[SystemModel]:
-    """Real objects — the challenge test targets (values checked in WS7-2)."""
+def literature_systems() -> list[SystemModel]:
+    """The literature layer of the challenge test targets (values checked in WS7-2), before ``measured``."""
     return [barnards_star(), epsilon_indi(), wise_0855(), r_draconis(), rw_aurigae()]
+
+
+def curated_systems() -> list[SystemModel]:
+    """Real objects — the challenge test targets: literature layer + measurement layer (``targets.toml``)."""
+    from .measured import apply_registry  # lazy: measured imports nothing from here, but keep the layers apart
+
+    return apply_registry(literature_systems())
 
 
 def demo_systems() -> list[SystemModel]:

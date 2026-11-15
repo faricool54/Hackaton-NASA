@@ -1,0 +1,291 @@
+{
+ "schema": 1,
+ "slug": "rw-aurigae",
+ "query": {
+  "name": "RW Aur",
+  "epoch_mjd": 61000.0,
+  "radius_arcsec": 8.0
+ },
+ "recorded_utc": "2026-11-15T14:31:36Z",
+ "origin": {
+  "kind": "ws3-fixtures",
+  "how": "offline replay of the WS3 fixtures: errante.science.context.object_context(name='RW Aur', offline=True)",
+  "cache_dir": "pipeline/tests/fixtures/ws3/context",
+  "retrieved_utc": [
+   "2026-11-15T03:44:42Z",
+   "2026-11-15T04:21:31Z"
+  ],
+  "files": {
+   "2mass-58b67923bf1b08e7.json": "211baa99e97ef1fe9e087a3f02497aa6be0a16a34bc12fbd83a16c1d399a5d88",
+   "allwise-a5ba39c172dce200.json": "19d18b52a6cad1255d32d536824e6df4c7012c00f932ba23fd741e380506b3df",
+   "exoplanets-b2f653b1dca640f2.json": "52501a8817dab1b51ef86b50e2f8a942f5b90a8b48060a8b431754b02bc486d8",
+   "gaia-esa-54f8f7373c7c886e.json": "170e1600a48a626a0c312fe2267dfac1bc4d51448f9f0f0639013fd7d288f5d3",
+   "gaia-esa-55cd09883910d5c6.json": "dfea211fa31ae051ce9b97c7f6afc77a90713b04bcdcb7012873605c6ca24c01",
+   "sesame-749d2b9ab1c29aea.json": "4d446880b6bf4cb58a0858a0efc09a7dc103933749e629a6965bebfc1b21b4a9",
+   "vsx-13a44f33c6dadf58.json": "ccaa0211a1ca30f02a91ab8c9cda6ba2259e2550adf1474e8251e83878582298"
+  },
+  "services": [
+   {
+    "service": "sesame",
+    "catalog": "SIMBAD via Sesame (CfA mirror, vizier.cfa.harvard.edu)",
+    "status": "ok",
+    "retrieved_utc": "2026-11-15T03:44:42Z",
+    "cached": true,
+    "note": null
+   },
+   {
+    "service": "gaia-esa",
+    "catalog": "Gaia DR3 gaiadr3.gaia_source (ESA Gaia archive TAP)",
+    "status": "ok",
+    "retrieved_utc": "2026-11-15T03:44:45Z",
+    "cached": true,
+    "note": null
+   },
+   {
+    "service": "gaia-esa",
+    "catalog": "Gaia DR3 astrophysical_parameters + external.gaiaedr3_distance + vari_long_period_variable (ESA Gaia archive TAP)",
+    "status": "ok",
+    "retrieved_utc": "2026-11-15T04:21:31Z",
+    "cached": true,
+    "note": null
+   },
+   {
+    "service": "vsx",
+    "catalog": "AAVSO VSX B/vsx/vsx (VizieR CfA)",
+    "status": "ok",
+    "retrieved_utc": "2026-11-15T03:44:46Z",
+    "cached": true,
+    "note": null
+   },
+   {
+    "service": "2mass",
+    "catalog": "2MASS All-Sky PSC II/246/out (VizieR CfA)",
+    "status": "ok",
+    "retrieved_utc": "2026-11-15T03:44:46Z",
+    "cached": true,
+    "note": null
+   },
+   {
+    "service": "allwise",
+    "catalog": "AllWISE II/328/allwise (VizieR CfA)",
+    "status": "ok",
+    "retrieved_utc": "2026-11-15T03:44:46Z",
+    "cached": true,
+    "note": "AllWISE epoch is nominal (2010.56): see match radius"
+   },
+   {
+    "service": "exoplanets",
+    "catalog": "NASA Exoplanet Archive pscomppars (confirmed planets, TAP)",
+    "status": "no_match",
+    "retrieved_utc": "2026-11-15T03:44:46Z",
+    "cached": true,
+    "note": null
+   }
+  ],
+  "note": "Catalog values (Gaia DR3, SIMBAD, AAVSO VSX, NASA Exoplanet Archive): not measured by SPHEREx."
+ },
+ "identity": {
+  "display_name": "RW Aur",
+  "main_id": "V* RW Aur",
+  "object_type": "TT*",
+  "object_type_label": "T Tauri star",
+  "spectral_type": "K1/5e+K5e",
+  "match": "ambiguous",
+  "identity_uncertain": true,
+  "gaia_source_id": "156430817820015232",
+  "gaia_method": "nearest_after_propagation",
+  "gaia_ambiguous": true,
+  "gaia_loose": false
+ },
+ "gaia": {
+  "source_id": "156430817820015232",
+  "ra": 76.9565443110343,
+  "dec": 30.401316149887936,
+  "ref_epoch": 2016.0,
+  "pmra": 4.90603392110511,
+  "pmra_error": 0.32915834,
+  "pmdec": -24.577534567492915,
+  "pmdec_error": 0.25464907,
+  "parallax": 5.454096456582266,
+  "parallax_error": 0.33244956,
+  "radial_velocity": null,
+  "radial_velocity_error": null,
+  "ruwe": 16.422132,
+  "phot_g_mean_mag": 13.035076,
+  "details_from": "Gaia DR3 astrophysical_parameters + external.gaiaedr3_distance + vari_long_period_variable (ESA Gaia archive TAP)"
+ },
+ "variability": {
+  "name": "RW Aur",
+  "oid": 3777,
+  "var_type": "CTTS/ROT+CTTS",
+  "mag_max": 9.2,
+  "mag_min": 13.6,
+  "min_is_amplitude": false,
+  "passband": "V",
+  "period_d": 2.64,
+  "epoch_hjd": null,
+  "spectral_type": "K1-K4+K5",
+  "sep_arcsec": 0.08371535454707976,
+  "url": "https://www.aavso.org/vsx/index.php?view=detail.top&oid=3777"
+ },
+ "planets": [],
+ "nearby_planet_hosts": [],
+ "warnings": [
+  "1 other Gaia DR3 source(s) of similar brightness within 8.0\" at the epoch, including a BRIGHTER one (Gaia DR3 156430822114424576, G = 12.18, 1.6\" away): the identification is ambiguous.",
+  "Gaia DR3 156430817820015232 has RUWE 16.42 > 1.4: its astrometric solution may be perturbed (e.g. an unresolved companion)."
+ ],
+ "facts": [
+  {
+   "label": "Effective temperature",
+   "value": "unknown",
+   "unit": null,
+   "source": "Gaia DR3 has no temperature for this source.",
+   "verified": false
+  },
+  {
+   "label": "Radius",
+   "value": "unknown",
+   "unit": null,
+   "source": "Gaia DR3 FLAME gives no radius for this source.",
+   "verified": false
+  },
+  {
+   "label": "Luminosity",
+   "value": "unknown",
+   "unit": null,
+   "source": "Gaia DR3 FLAME gives no luminosity for this source.",
+   "verified": false
+  },
+  {
+   "label": "Mass",
+   "value": "unknown",
+   "unit": null,
+   "source": "Gaia DR3 FLAME gives no mass for this source.",
+   "verified": false
+  },
+  {
+   "label": "Distance",
+   "value": "185 (175-195)",
+   "unit": "pc",
+   "source": "Gaia DR3 156430817820015232, external.gaiaedr3_distance (ESA Gaia archive, retrieved 2026-11-15) | Bailer-Jones et al. (2021) geometric distance from the Gaia parallax, 16th-84th percentiles | Caveat: Ambiguous Gaia match (several sources within the radius): not verified. RUWE 16.42 > 1.4: possibly an unresolved multiple system. SIMBAD's spectral type (K1/5e+K5e) is composite: the Gaia value may describe a blend or a single component.",
+   "verified": false
+  },
+  {
+   "label": "Spectral type",
+   "value": "K1/5e+K5e",
+   "unit": null,
+   "source": "SIMBAD via Sesame (CfA mirror, vizier.cfa.harvard.edu), retrieved 2026-11-15",
+   "verified": true
+  },
+  {
+   "label": "Variability type",
+   "value": "CTTS/ROT+CTTS (V 9.2-13.6)",
+   "unit": null,
+   "source": "AAVSO VSX RW Aur (B/vsx, VizieR CfA, retrieved 2026-11-15)",
+   "verified": true
+  },
+  {
+   "label": "Variability period",
+   "value": "2.64",
+   "unit": "days",
+   "source": "AAVSO VSX RW Aur (B/vsx, VizieR CfA, retrieved 2026-11-15) | Caveat: VSX type includes ROT: a rotation period, not a pulsation.",
+   "verified": true
+  }
+ ],
+ "parameters": {
+  "teff": {
+   "label": "Effective temperature",
+   "value": null,
+   "unit": "K",
+   "lower": null,
+   "upper": null,
+   "method": "Gaia DR3 has no temperature for this source.",
+   "source": null,
+   "caveats": [],
+   "verified": false
+  },
+  "radius": {
+   "label": "Radius",
+   "value": null,
+   "unit": "R_sun",
+   "lower": null,
+   "upper": null,
+   "method": "Gaia DR3 FLAME gives no radius for this source.",
+   "source": null,
+   "caveats": [],
+   "verified": false
+  },
+  "luminosity": {
+   "label": "Luminosity",
+   "value": null,
+   "unit": "L_sun",
+   "lower": null,
+   "upper": null,
+   "method": "Gaia DR3 FLAME gives no luminosity for this source.",
+   "source": null,
+   "caveats": [],
+   "verified": false
+  },
+  "mass": {
+   "label": "Mass",
+   "value": null,
+   "unit": "M_sun",
+   "lower": null,
+   "upper": null,
+   "method": "Gaia DR3 FLAME gives no mass for this source.",
+   "source": null,
+   "caveats": [],
+   "verified": false
+  },
+  "distance": {
+   "label": "Distance",
+   "value": 185.41841,
+   "unit": "pc",
+   "lower": 174.68132,
+   "upper": 194.67397,
+   "method": "Bailer-Jones et al. (2021) geometric distance from the Gaia parallax, 16th-84th percentiles",
+   "source": "Gaia DR3 156430817820015232, external.gaiaedr3_distance (ESA Gaia archive, retrieved 2026-11-15)",
+   "caveats": [
+    "Ambiguous Gaia match (several sources within the radius): not verified.",
+    "RUWE 16.42 > 1.4: possibly an unresolved multiple system.",
+    "SIMBAD's spectral type (K1/5e+K5e) is composite: the Gaia value may describe a blend or a single component."
+   ],
+   "verified": false
+  },
+  "spectral_type": {
+   "label": "Spectral type",
+   "value": "K1/5e+K5e",
+   "unit": null,
+   "lower": null,
+   "upper": null,
+   "method": null,
+   "source": "SIMBAD via Sesame (CfA mirror, vizier.cfa.harvard.edu), retrieved 2026-11-15",
+   "caveats": [],
+   "verified": true
+  },
+  "variability_type": {
+   "label": "Variability type",
+   "value": "CTTS/ROT+CTTS (V 9.2-13.6)",
+   "unit": null,
+   "lower": null,
+   "upper": null,
+   "method": null,
+   "source": "AAVSO VSX RW Aur (B/vsx, VizieR CfA, retrieved 2026-11-15)",
+   "caveats": [],
+   "verified": true
+  },
+  "variability_period": {
+   "label": "Variability period",
+   "value": 2.64,
+   "unit": "days",
+   "lower": null,
+   "upper": null,
+   "method": null,
+   "source": "AAVSO VSX RW Aur (B/vsx, VizieR CfA, retrieved 2026-11-15)",
+   "caveats": [
+    "VSX type includes ROT: a rotation period, not a pulsation."
+   ],
+   "verified": true
+  }
+ }
+}

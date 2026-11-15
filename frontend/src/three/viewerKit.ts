@@ -5,7 +5,6 @@ import type { Body, OrbitQuality, SystemModel } from '../api/types';
 import { isLineOfSightOrbit } from './ephemerides';
 
 export {
-  CLASS_TYPICAL_CHIP,
   COLOR_MODE_LABEL,
   COLOR_MODES,
   colorLegend,

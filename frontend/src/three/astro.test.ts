@@ -18,6 +18,7 @@ import {
   blackbodyChromaticity,
   blackbodyColor,
   bodyColor,
+  IR_EXCESS_CITE,
   bodyLimbDarkening,
   deriveBody,
   derivedTier,
@@ -80,10 +81,16 @@ const barnard = bodyIn('barnards-star', 'barnards-star');
 const epsA = bodyIn('epsilon-indi', 'eps-indi-a');
 
 /**
- * R Dra as the catalog ships it (its unverified Fact 'Mass (class-typical)' ~1 M_sun, from Feast 2009),
- * with the mass set to exactly 1 M_sun in PHYS units so the reference values below are exact.
+ * R Dra with TEST INPUTS for the formula fixtures below: 3000 K, 250 R_sun and exactly 1 M_sun in PHYS
+ * units. These are not catalog values: the catalog ships R Dra with Teff, radius and mass unknown (V13),
+ * because none of them is measured (a Teff range, an illustrative size and a class-typical mass were removed).
  */
-const rDraWithMass: Body = { ...bodyIn('r-draconis', 'r-draconis'), mass_kg: PHYS.GMSun / PHYS.G };
+const rDraTestGiant: Body = {
+  ...bodyIn('r-draconis', 'r-draconis'),
+  teff_k: 3000,
+  radius_km: 250 * (PHYS.RSun / 1e3),
+  mass_kg: PHYS.GMSun / PHYS.G,
+};
 
 /** The IAU 2015 B3 nominal Sun. */
 const SUN: Body = {
@@ -228,16 +235,23 @@ describe('judge fixtures (mu = 1.3), at the precision they were quoted', () => {
     );
   });
 
-  it('R Draconis (R 250 R_sun, M 1 M_sun, both illustrative)', () => {
-    const massFact = rDraWithMass.facts.find((f) => /^mass\b/i.test(f.label));
-    expect(massFact).toMatchObject({ label: 'Mass (class-typical)', value: '~1', unit: 'solar masses', verified: false });
-    expect(massFact?.source).toMatch(/^Feast 2009, .*arXiv:0812\.0250/);
-    const L = luminosity(rDraWithMass);
+  it('R Draconis: no measured Teff, radius or mass, so nothing is computed from them', () => {
+    const rdra = bodyIn('r-draconis', 'r-draconis');
+    expect([rdra.teff_k, rdra.radius_km, rdra.mass_kg]).toEqual([null, null, null]);
+    expect(rdra.facts.some((f) => /^(radius|mass)\b/i.test(f.label))).toBe(false);
+    for (const d of [luminosity(rdra), surfaceGravity(rdra), pressureScaleHeight(rdra), granulationParams(rdra)]) {
+      expect(d.value).toBeNull();
+      expect(d.flags).toContain('missing-input');
+    }
+  });
+
+  it('a giant at 3000 K, 250 R_sun and 1 M_sun (test inputs, formula check)', () => {
+    const L = luminosity(rDraTestGiant);
     expect(rel(num(L), 4560)).toBeLessThan(0.005);
-    expect(L.tier).toBe('illustrative');
-    expect(Math.abs(num(surfaceGravity(rDraWithMass)) + 0.36)).toBeLessThan(0.005);
-    expect(rel(num(pressureScaleHeight(rDraWithMass)), 4.3e6)).toBeLessThan(0.015);
-    const gran = granulationParams(rDraWithMass);
+    expect(L.tier).toBe('illustrative'); // no Fact backs the test inputs
+    expect(Math.abs(num(surfaceGravity(rDraTestGiant)) + 0.36)).toBeLessThan(0.005);
+    expect(rel(num(pressureScaleHeight(rDraTestGiant)), 4.3e6)).toBeLessThan(0.015);
+    const gran = granulationParams(rDraTestGiant);
     expect(Math.abs(num(gran) - 8)).toBeLessThan(0.2);
     expect(gran.draw).toBe(true);
     expect(gran.tier).toBe('illustrative');
@@ -394,18 +408,24 @@ describe('reliability of the SPHEREx numbers', () => {
     // A and B are 1.49″ apart, inside one SPHEREx PSF: compare the blended A+B photosphere.
     const blend = (ab: (s: Body) => number) => -2.5 * Math.log10(10 ** (-0.4 * ab(a)) + 10 ** (-0.4 * ab(b)));
     const band = (i: number) => blend((s) => num(blackbodyBandAbMag(s.teff_k!, s.radius_km!, d, SPHEREX_DETECTORS[i])));
-    // SPHEREx, 2025-09 to 2026-09 (docs/RECON_SPHEREX.md §4.4): D5 7.92-8.65 AB, D6 7.63-8.38 AB.
-    expect(band(4) - 8.65).toBeGreaterThan(2);
-    expect(band(5) - 8.38).toBeGreaterThan(2);
-    // 2MASS Ks = 7.020 (Vega), VizieR II/246; K_AB - K_Vega = 1.85 (Blanton & Roweis 2007).
-    const ks = blend((s) => num(blackbodyAbMag(s.teff_k!, s.radius_km!, d, 2.159)));
-    expect(ks - (7.02 + 1.85)).toBeGreaterThan(1);
+    // The photosphere is drawn in every SPHEREx band (no SPHEREx flux of RW Aur is usable: SCIENCE.md V4).
+    for (let i = 0; i < 6; i++) expect(Number.isFinite(band(i)), SPHEREX_DETECTORS[i].id).toBe(true);
+    // V4: 2MASS Ks = 8.87 AB (VizieR II/246) and AllWISE W1 = 8.95, W2 = 8.57 AB (VizieR II/328) are
+    // 1.4, 1.9 and 2.8 mag brighter than the A+B photosphere blackbody (catalog Teff and radii, 156.1 pc).
+    const excess = (um: number, ab: number) => blend((s) => num(blackbodyAbMag(s.teff_k!, s.radius_km!, d, um))) - ab;
+    expect(excess(2.159, 7.02 + 1.85)).toBeGreaterThan(1);
+    expect(excess(3.353, 8.95)).toBeGreaterThan(excess(2.159, 7.02 + 1.85));
+    expect(excess(4.603, 8.57)).toBeGreaterThan(excess(3.353, 8.95));
     for (const s of [a, b]) {
       const r = spherexReliability(s, RWAUR);
       expect(r.tier, s.id).toBe('model');
       expect(r.flags, s.id).toEqual(['not-modelled']);
-      expect(r.citation, s.id).toMatch(/RECON_SPHEREX\.md §4\.4/);
+      expect(r.citation, s.id).toContain(IR_EXCESS_CITE);
       expect(r.citation, s.id).toMatch(/II\/246/);
+      expect(r.citation, s.id).toMatch(/II\/328/);
+      expect(r.citation, s.id).toMatch(/are 1\.4, 1\.9 and 2\.8 mag brighter than the A\+B photosphere blackbody \(catalog Teff and radii, 156\.1 pc\)/);
+      expect(r.citation, s.id).toMatch(/0 of 279 are clean \(OVERFLOW in 304 of 335 exposures overall; offline FITS analysis, docs\/validation\/rw-aurigae\.md\), so no SPHEREx flux is quoted here$/);
+      expect(r.citation, s.id).not.toMatch(/SPHEREx measured|RECON_SPHEREX\.md §4\.4/);
       const p = spherexPrediction(s, RWAUR);
       expect(p.reliability).toBe('photosphere only - IR excess not modelled');
       for (const est of p.value) {
@@ -424,7 +444,9 @@ describe('reliability of the SPHEREx numbers', () => {
     expect(r.flags).toEqual(['not-modelled']);
     expect(r.method).toMatch(/Mira \/ AGB variable \('Variable type: Mira'\)/);
     expect(r.method).toMatch(/H₂O and CO/);
-    expect(r.method).toMatch(/OVERFLOW\/NONLINEAR/); // even the bare photosphere is above the onset
+    // Its Teff, radius and mass are not measured: the Mira reason still comes first (not 'not modelled').
+    expect(r.method).toMatch(/no Teff is measured for this star/);
+    expect(r.method).not.toMatch(/OVERFLOW/); // no photosphere to compare with the onset
     expect(r.citation).toMatch(/Höfner & Olofsson 2018, A&ARv 26, 1/);
     expect(r.citation).toMatch(/Lançon & Wood 2000, A&AS 146, 217/);
     const p = spherexPrediction(rdra, RDRA);
@@ -433,16 +455,21 @@ describe('reliability of the SPHEREx numbers', () => {
     for (const est of p.value) {
       expect(est.abMag.value, est.detector.id).toBeNull();
       expect(est.abMag.flags, est.detector.id).toContain('not-modelled');
-      // The band fractions stay as a labelled blackbody diagnostic.
+      // No Teff: no band fractions either.
+      expect(est.fraction.value, est.detector.id).toBeNull();
+    }
+    // With test inputs (Teff, R, M) the same reason, and the bare photosphere is above the onset.
+    const giant = spherexReliability(rDraTestGiant, RDRA);
+    expect(giant.value).toBe(r.value);
+    expect(giant.method).toMatch(/OVERFLOW\/NONLINEAR/);
+    for (const est of spherexPrediction(rDraTestGiant, RDRA).value) {
       expect(est.fraction.value, est.detector.id).not.toBeNull();
       expect(est.fraction.method, est.detector.id).toMatch(/molecular bands and dust are not modelled/);
     }
-    // Still true with the illustrative 1 M_sun of M2.
-    expect(spherexReliability(rDraWithMass, RDRA).value).toBe(r.value);
   });
 
   it('the Mira rule: a Mira / AGB type Fact, or a pulsating M giant; never an M dwarf or a non-pulsating giant', () => {
-    const rdra = bodyIn('r-draconis', 'r-draconis');
+    const rdra = rDraTestGiant;
     expect(miraReason(rdra)).toMatch(/^Mira \/ AGB variable/);
     // Without the 'Variable type' Fact the pulsation + M giant spectral type still catches it.
     const noType: Body = { ...rdra, facts: rdra.facts.filter((f) => !/type/i.test(f.label)) };
@@ -496,8 +523,9 @@ describe('input tiers from Facts', () => {
     // Ba/Bb Teff: the catalog labels them 'Temperature (model-dependent)' (evolutionary models).
     'eps-indi-ba': { teff: 'model', radius: 'illustrative', mass: 'measured', semiMajorAxis: 'illustrative', eccentricity: 'illustrative' },
     'eps-indi-bb': { teff: 'model', radius: 'illustrative', mass: 'measured', semiMajorAxis: 'measured', eccentricity: 'measured' },
-    'wise-0855': { teff: 'model', radius: 'model', mass: 'range-pick' },
-    'r-draconis': { teff: 'range-pick', radius: 'illustrative', mass: 'illustrative' },
+    // WISE 0855 mass and R Dra Teff/radius/mass are unknown (V13): no value on the body, so no tier above illustrative.
+    'wise-0855': { teff: 'model', radius: 'model', mass: 'illustrative' },
+    'r-draconis': { teff: 'illustrative', radius: 'illustrative', mass: 'illustrative' },
     'rw-aur-a': { teff: 'measured', radius: 'illustrative', mass: 'measured' },
     'rw-aur-a-disk': { radius: 'measured' },
     'rw-aur-b': { teff: 'range-pick', radius: 'measured', mass: 'measured', semiMajorAxis: 'illustrative', eccentricity: 'measured' },
@@ -613,7 +641,7 @@ describe('classifiers', () => {
   it('classifies masses after Chen & Kipping 2017', () => {
     expect(massClass(bodyIn('epsilon-indi', 'eps-indi-ab')).value).toBe('Jovian');
     expect(massClass(bodyIn('epsilon-indi', 'eps-indi-ba')).value).toBe('Jovian'); // brown dwarfs are Jovian here
-    expect(massClass(bodyIn('wise-0855', 'wise-0855')).tier).toBe('range-pick');
+    expect(massClass(bodyIn('wise-0855', 'wise-0855')).value).toBeNull(); // mass unknown (3–10 M_Jup is only a range)
     expect(massClass(barnard).value).toBe('Stellar');
     expect(massClass({ ...barnard, mass_kg: 5 * 5.972e24 }).value).toBe('Neptunian');
   });
@@ -639,9 +667,10 @@ describe('star shader inputs (M2, pure parts)', () => {
 
   it('body-level limb darkening carries the tier of the drawn Teff', () => {
     const rdra = bodyIn('r-draconis', 'r-draconis');
-    const ld = bodyLimbDarkening(rdra);
-    expect(ld.tier).toBe('range-pick'); // Teff picked inside ~2000-3300 K
+    expect(bodyLimbDarkening(rdra).value).toBeNull(); // no Teff measured: no limb darkening
+    const ld = bodyLimbDarkening(rDraTestGiant);
     expect(ld.value).toEqual(limbDarkeningLut(3000).value);
+    expect(ld.tier).toBe('range-pick'); // the 3000 K test input lies inside the published ~2000–3300 K Fact
     expect(ld.method).toMatch(/Teff range-pick/);
     expect(bodyLimbDarkening(barnard).tier).toBe('model'); // measured Teff, grey-atmosphere floor
     expect(bodyLimbDarkening(bodyIn('rw-aurigae', 'rw-aur-b')).tier).toBe('range-pick');
@@ -649,7 +678,7 @@ describe('star shader inputs (M2, pure parts)', () => {
     expect(w.value).toBeNull();
     expect(w.flags).toContain('blackbody-unreliable');
     expect(bodyLimbDarkening(bodyIn('barnards-star', 'barnard-b')).flags).toContain('not-modelled');
-    expect(deriveBody(rdra, RDRA).limbDarkening.tier).toBe('range-pick');
+    expect(deriveBody(rdra, RDRA).limbDarkening.value).toBeNull();
   });
 
   it('the grey model gives I(0)/I(1) about 0.33 for the Sun at 550 nm', () => {

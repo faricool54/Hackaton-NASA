@@ -1,0 +1,247 @@
+{
+ "schema": 1,
+ "slug": "wise-0855",
+ "query": {
+  "name": "WISE J085510.83-071442.5",
+  "epoch_mjd": 61000.0,
+  "radius_arcsec": 8.0
+ },
+ "recorded_utc": "2026-11-15T14:31:36Z",
+ "origin": {
+  "kind": "ws3-fixtures",
+  "how": "offline replay of the WS3 fixtures: errante.science.context.object_context(name='WISE J085510.83-071442.5', offline=True)",
+  "cache_dir": "pipeline/tests/fixtures/ws3/context",
+  "retrieved_utc": [
+   "2026-11-15T03:44:36Z",
+   "2026-11-15T03:44:41Z"
+  ],
+  "files": {
+   "2mass-44e85918e02a74a7.json": "863d9bc26768518a9bbb91796ed8bc779683facc1c49456617ac8a41c250fa83",
+   "allwise-0cc0799140f0214a.json": "66ac5ebe5fc036afc0074e0686041fde62e37429496ae5441479a05260fa145f",
+   "exoplanets-d6477fa66898a638.json": "e9d8b44ef5bddbfa9edf823ef5192a94f8d7c26e1857ca95383f9f10a9f51eb9",
+   "gaia-esa-e98eb9141c23a106.json": "3bca1765257cf20e77e1d88a0027ec369452dc764301b14f240a2b001872e692",
+   "sesame-22dd2c75157d85b9.json": "bd57d227ae8fb317f58e1087c6f83cd879bb8574cc02aa20df71cb7b1e9ad5f7",
+   "vsx-bdfe8b12d83747d6.json": "c2ff52a7c64278ba7902536937298b89bcf95fd28ac9666bf809d1b2f02f128c"
+  },
+  "services": [
+   {
+    "service": "sesame",
+    "catalog": "SIMBAD via Sesame (CfA mirror, vizier.cfa.harvard.edu)",
+    "status": "ok",
+    "retrieved_utc": "2026-11-15T03:44:36Z",
+    "cached": true,
+    "note": null
+   },
+   {
+    "service": "gaia-esa",
+    "catalog": "Gaia DR3 gaiadr3.gaia_source (ESA Gaia archive TAP)",
+    "status": "ok",
+    "retrieved_utc": "2026-11-15T03:44:39Z",
+    "cached": true,
+    "note": null
+   },
+   {
+    "service": "vsx",
+    "catalog": "AAVSO VSX B/vsx/vsx (VizieR CfA)",
+    "status": "no_match",
+    "retrieved_utc": "2026-11-15T03:44:40Z",
+    "cached": true,
+    "note": "no VSX entry within 5.0\" of the track"
+   },
+   {
+    "service": "2mass",
+    "catalog": "2MASS All-Sky PSC II/246/out (VizieR CfA)",
+    "status": "no_match",
+    "retrieved_utc": "2026-11-15T03:44:41Z",
+    "cached": true,
+    "note": "no 2MASS source within 3.0\""
+   },
+   {
+    "service": "allwise",
+    "catalog": "AllWISE II/328/allwise (VizieR CfA)",
+    "status": "ok",
+    "retrieved_utc": "2026-11-15T03:44:41Z",
+    "cached": true,
+    "note": "AllWISE epoch is nominal (2010.56): see match radius"
+   },
+   {
+    "service": "exoplanets",
+    "catalog": "NASA Exoplanet Archive pscomppars (confirmed planets, TAP)",
+    "status": "no_match",
+    "retrieved_utc": "2026-11-15T03:44:41Z",
+    "cached": true,
+    "note": null
+   }
+  ],
+  "note": "Catalog values (Gaia DR3, SIMBAD, AAVSO VSX, NASA Exoplanet Archive): not measured by SPHEREx."
+ },
+ "identity": {
+  "display_name": "WISEA J085510.74-071442.5",
+  "main_id": "WISEA J085510.74-071442.5",
+  "object_type": "BD*",
+  "object_type_label": "brown dwarf",
+  "spectral_type": "Y2",
+  "match": "name",
+  "identity_uncertain": false,
+  "gaia_source_id": null,
+  "gaia_method": null,
+  "gaia_ambiguous": false,
+  "gaia_loose": false
+ },
+ "gaia": null,
+ "variability": null,
+ "planets": [],
+ "nearby_planet_hosts": [],
+ "warnings": [
+  "No Gaia DR3 counterpart with a compatible proper motion within the match radius.",
+  "Gaia DR3 5756956644387831296 (G = 16.314917) is 7.6\" away at the epoch but its proper motion disagrees with SIMBAD's: a different object, not used."
+ ],
+ "facts": [
+  {
+   "label": "Effective temperature",
+   "value": "unknown",
+   "unit": null,
+   "source": "No Gaia DR3 counterpart.",
+   "verified": false
+  },
+  {
+   "label": "Radius",
+   "value": "unknown",
+   "unit": null,
+   "source": "No Gaia DR3 counterpart.",
+   "verified": false
+  },
+  {
+   "label": "Luminosity",
+   "value": "unknown",
+   "unit": null,
+   "source": "No Gaia DR3 counterpart.",
+   "verified": false
+  },
+  {
+   "label": "Mass",
+   "value": "unknown",
+   "unit": null,
+   "source": "No Gaia DR3 counterpart.",
+   "verified": false
+  },
+  {
+   "label": "Distance",
+   "value": "2.278 (2.266-2.29)",
+   "unit": "pc",
+   "source": "SIMBAD via Sesame (CfA mirror, vizier.cfa.harvard.edu), retrieved 2026-11-15 | 1/parallax (SIMBAD parallax 439.0 +/- 2.4 mas, ref 2021ApJS..253....7K)",
+   "verified": true
+  },
+  {
+   "label": "Spectral type",
+   "value": "Y2",
+   "unit": null,
+   "source": "SIMBAD via Sesame (CfA mirror, vizier.cfa.harvard.edu), retrieved 2026-11-15",
+   "verified": true
+  },
+  {
+   "label": "Variability type",
+   "value": "unknown",
+   "unit": null,
+   "source": "No AAVSO VSX entry matched (not catalogued as variable; this does not prove it is constant).",
+   "verified": false
+  },
+  {
+   "label": "Variability period",
+   "value": "unknown",
+   "unit": null,
+   "source": "No period in AAVSO VSX; no Gaia DR3 source.",
+   "verified": false
+  }
+ ],
+ "parameters": {
+  "teff": {
+   "label": "Effective temperature",
+   "value": null,
+   "unit": "K",
+   "lower": null,
+   "upper": null,
+   "method": "No Gaia DR3 counterpart.",
+   "source": null,
+   "caveats": [],
+   "verified": false
+  },
+  "radius": {
+   "label": "Radius",
+   "value": null,
+   "unit": "R_sun",
+   "lower": null,
+   "upper": null,
+   "method": "No Gaia DR3 counterpart.",
+   "source": null,
+   "caveats": [],
+   "verified": false
+  },
+  "luminosity": {
+   "label": "Luminosity",
+   "value": null,
+   "unit": "L_sun",
+   "lower": null,
+   "upper": null,
+   "method": "No Gaia DR3 counterpart.",
+   "source": null,
+   "caveats": [],
+   "verified": false
+  },
+  "mass": {
+   "label": "Mass",
+   "value": null,
+   "unit": "M_sun",
+   "lower": null,
+   "upper": null,
+   "method": "No Gaia DR3 counterpart.",
+   "source": null,
+   "caveats": [],
+   "verified": false
+  },
+  "distance": {
+   "label": "Distance",
+   "value": 2.277904328018223,
+   "unit": "pc",
+   "lower": 2.2655188038060716,
+   "upper": 2.2904260192395784,
+   "method": "1/parallax (SIMBAD parallax 439.0 +/- 2.4 mas, ref 2021ApJS..253....7K)",
+   "source": "SIMBAD via Sesame (CfA mirror, vizier.cfa.harvard.edu), retrieved 2026-11-15",
+   "caveats": [],
+   "verified": true
+  },
+  "spectral_type": {
+   "label": "Spectral type",
+   "value": "Y2",
+   "unit": null,
+   "lower": null,
+   "upper": null,
+   "method": null,
+   "source": "SIMBAD via Sesame (CfA mirror, vizier.cfa.harvard.edu), retrieved 2026-11-15",
+   "caveats": [],
+   "verified": true
+  },
+  "variability_type": {
+   "label": "Variability type",
+   "value": null,
+   "unit": null,
+   "lower": null,
+   "upper": null,
+   "method": "No AAVSO VSX entry matched (not catalogued as variable; this does not prove it is constant).",
+   "source": null,
+   "caveats": [],
+   "verified": false
+  },
+  "variability_period": {
+   "label": "Variability period",
+   "value": null,
+   "unit": "days",
+   "lower": null,
+   "upper": null,
+   "method": "No period in AAVSO VSX; no Gaia DR3 source.",
+   "source": null,
+   "caveats": [],
+   "verified": false
+  }
+ }
+}

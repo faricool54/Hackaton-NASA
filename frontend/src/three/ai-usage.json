@@ -1,0 +1,133 @@
+{
+  "updated_on": "2026-11-15",
+  "tool": "Anthropic Claude Code",
+  "scope": "WS7 3D systems, frontend side (DankoLiv with Claude Code): the lazily loaded three.js scene and its pure modules in frontend/src/three/ (Kepler orbits, blackbody and CIE 1931 colour, SPHEREx IR and D1-D6 colour modes, limb darkening, glow, layout, Dataset time on the SPHEREx pass dates, ephemerides, SPHEREx coverage windows, predicted sky track, 'How this body is drawn' notes) with their vitest tests, and the 3D viewer, body panel and system pages; plus, on branch ws7/measured-3d (V13, with V4 and V12; not merged when this record was written, so it has no pull request entry), the removal of the class-typical toggle and its invented surface features on real targets, the 'colour unknown' and 'size unknown · not to scale' rendering, R Dra drawn at constant radius, the fact-origin chips (factOrigin.ts) and the V4/V12 texts of the WS3 review in docs/SCIENCE.md. The pipeline side of the same work is recorded in pipeline/errante/systems/ai-usage.json",
+  "affected_paths": [
+    "frontend/src/three/",
+    "frontend/src/components/SystemViewer.tsx",
+    "frontend/src/components/BodyPanel.tsx",
+    "frontend/src/components/ErrorBoundary.tsx",
+    "frontend/src/pages/SystemsPage.tsx",
+    "frontend/src/pages/SystemPage.tsx",
+    "frontend/src/pages/FieldPage.tsx",
+    "frontend/src/App.tsx",
+    "frontend/src/api/types.ts",
+    "frontend/src/api/client.ts",
+    "frontend/src/api/format.ts",
+    "frontend/scripts/sync-data.mjs",
+    "docs/VISION_3D.md",
+    "tasks/WS7-3d-systems.md"
+  ],
+  "generated_media": [],
+  "real_target_validation": false,
+  "real_target_validation_basis": "A 3D model of a target is not an R05 validation (AGENTS.md rule 3). The formal per-target validation records are the coordinator's (docs/validation/) and their human review is pending (docs/VALIDATION.md); the 3D views draw catalog values and show the 'seen by SPHEREx' facts copied from those records, not new measurements",
+  "human_review": "DankoLiv directs the WS7 work done with Claude Code, chooses its design decisions and reviews the changes, including in the browser; that review is in progress and is not claimed complete, and a line-by-line human review of the code or tests is not claimed",
+  "repository_disclosure": "AI_USAGE.md",
+  "integration_validation": {
+    "source": "systems JSON built from catalog and literature values (pipeline/errante/systems); no SPHEREx pixel is drawn in 3D, and the SPHEREx light curves are shown by WS5's LightCurvePanel, not by the 3D",
+    "arbitrary_coordinate_job": "not part of WS7: there is no 3D for an arbitrary click yet (V14, future work)",
+    "golden_fields": "the five published systems open at #/system/<id> in the real dataset and link to and from their real SPHEREx fields (#64; checked in the browser, tasks/WS7-3d-systems.md)",
+    "checks_reported_in_pull_requests": [
+      "#47: astro tests check the Kim et al. 2002 locus, the IAU nominal Sun, Earth Teq 278.3 K, the 2MASS Ks of Barnard's Star and the AllWISE W2 of WISE 0855 (blackbody flagged unreliable)",
+      "#47: skyTrack tests reproduce the RECON §4.1 geocentric 2026.0 vectors (astropy) to < 0.01″, and the Earth position matches ERFA epv00 to 0.0003 AU (docs/VISION_3D.md)",
+      "#47: three.js and the viewer helpers stay out of the main chunk (295 to 213 kB)",
+      "#64: the system page names its field's target in the SPHEREx link (fieldLink.ts, vitest)"
+    ],
+    "checks_basis": "Run with AI assistance and reported in the pull request bodies (squash commit messages); not independently verified by a human",
+    "scientific_R05_validation": false
+  },
+  "cache_revision": "Not applicable: the 3D is drawn in the browser from the published systems JSON; no WS7 frontend code touches the processing cache or WS4's processing fingerprint",
+  "workstream": "WS7",
+  "developer": "DankoLiv",
+  "provider": "Anthropic",
+  "model": "Claude Opus 5.5",
+  "model_basis": "Co-Authored-By trailers of the WS7 commits name Claude Opus 5.5 (the cloud-session squash commits also carry a generic 'Claude' trailer); subagents ran inside Claude Code and their individual models were not recorded",
+  "other_ai_tools": [
+    "OpenAI Codex: rpccp integrated the imported WS7 cloud-session branch with the challenge and submission guides in #1 (AI_USAGE.md, 'Imported 3D contribution'); that use is recorded by its author",
+    "OpenAI Codex: #30 (system detail cards in SystemPage.tsx, a teammate's pull request) carries an OpenAI Codex co-author trailer; that use is recorded by its author"
+  ],
+  "other_ai_tools_basis": "The commit trailers of the WS7 pull requests listed here name only Claude; #1's integration is described as done with Codex in AI_USAGE.md, #30 carries a Codex trailer and #27 (playback speed slider, a teammate's pull request) carries no AI trailer. No other AI model, provider or coding tool, and no PRC-origin one, is known to have been used for this work",
+  "ai_review": "The #8 and #9 commit messages report an independent review of the 3D skeleton (16 confirmed issues) and #47 reports stage-1 and stage-3 review checks; on ws7/measured-3d an AI critic pass checked the V13 plan before implementation. These ran as AI agents in Claude Code: they are AI reviews, not human reviews. WS3's scientific review of the merged 3D (#65, docs/SCIENCE.md) is WS3's record, not this one",
+  "line_by_line_human_review": false,
+  "idea_origin": "Not covered by this record: the product vision, including the rule that the 3D is built only from measurements, was stated by the team (docs/VISION.md; AI_USAGE.md, 'Origin of the product vision'). DankoLiv chose the WS7 design decisions recorded in docs/VISION_3D.md (SPHEREx IR false colour by default, smooth spheres, no contract change, removing the class-typical toggle) from options proposed in Claude Code sessions",
+  "nasa_branding_generated": false,
+  "rendered_products": {
+    "paths": "#/systems and #/system/<id>[/<body>]: three.js scenes drawn in the browser by frontend/src/three/ from <root>/systems/<id>.json",
+    "fields": [
+      "barnards-star",
+      "eps-indi-b",
+      "r-draconis",
+      "rw-aurigae",
+      "wise-0855"
+    ],
+    "systems": [
+      "barnards-star",
+      "epsilon-indi",
+      "r-draconis",
+      "rw-aurigae",
+      "wise-0855"
+    ],
+    "origin": "Client-side renders of model values computed by the AI-assisted WS7 code from the systems JSON (blackbody colour, grey-atmosphere limb darkening, Kepler orbits, display scaling); not AI-generated imagery and not SPHEREx images. 'fields' lists the real SPHEREx fields the systems link to through field_id",
+    "ai_generated_imagery": false,
+    "synthetic": false,
+    "labels": "Every view shows '3D MODEL · NOT AN IMAGE' and the representation_note; the SPHEREx colour modes carry a FALSE COLOUR · BLACKBODY MODEL chip; values no source gives are drawn as 'colour unknown' or 'size unknown · not to scale'; the synthetic demo system keeps its procedural textures and the SYNTHETIC DATA badge",
+    "nasa_branding": "No NASA logo, flag or mission identifier was generated, added or modified"
+  },
+  "pull_requests": [
+    {
+      "number": 1,
+      "title": "contract: integrate 3D systems with challenge and submission guides",
+      "merged_at": "2026-11-14T15:17:32Z",
+      "ai_generated": [
+        "UI code: #/systems and #/system/<id>[/<body>] with a lazily loaded three.js scene (SystemScene.ts), SystemViewer.tsx, BodyPanel.tsx, SystemPage.tsx, SystemsPage.tsx and the field-system links",
+        "Contract mirror: SystemModel types in frontend/src/api/types.ts",
+        "Tests: orbital math and appearance helpers"
+      ],
+      "humans": "DankoLiv directed the WS7 cloud session that wrote the imported branch; rpccp integrated it with the guides (with OpenAI Codex, per AI_USAGE.md); it was squash-merged into main"
+    },
+    {
+      "number": 8,
+      "title": "contract: WS7 3D review fixes (Orbit.quality/note, schema 0.2.1)",
+      "merged_at": "2026-11-14T16:39:41Z",
+      "ai_generated": [
+        "UI code: bounded model time, error boundaries (ErrorBoundary.tsx), elapsed model time instead of calendar dates for arbitrary phases, true-proportion scaling and disposal fixes",
+        "Contract mirror: Orbit.quality and Orbit.note in frontend/src/api/types.ts",
+        "Tests: format.test.ts"
+      ],
+      "humans": "DankoLiv directed the work; it was squash-merged into main"
+    },
+    {
+      "number": 9,
+      "title": "ws7: verify the 3D catalog of the five targets against archives + second 3D review round",
+      "merged_at": "2026-11-14T16:45:18Z",
+      "ai_generated": [
+        "UI code: second review round of the viewer, body panel and system pages",
+        "Code: frontend/src/three/ scene and helpers"
+      ],
+      "humans": "DankoLiv directed the work; it was squash-merged into main"
+    },
+    {
+      "number": 47,
+      "title": "ws7: procedural 3D from physics, SPHEREx dataset-time mode and sky track",
+      "merged_at": "2026-11-15T05:08:32Z",
+      "ai_generated": [
+        "Code: astro.ts physics core, colour modes, shaders (starMaterial.ts), layout, ephemerides, SPHEREx coverage, sky track, 'How this body is drawn' notes, DatasetTimeline.tsx and SkyTrackPanel.tsx",
+        "UI code: SystemViewer.tsx, BodyPanel.tsx, SystemPage.tsx and SystemsPage.tsx",
+        "Tests: vitest suites next to each frontend/src/three/ module",
+        "Docs: docs/VISION_3D.md, tasks/WS7-3d-systems.md"
+      ],
+      "humans": "DankoLiv directed the work and opened the pull request; it was squash-merged into main"
+    },
+    {
+      "number": 64,
+      "title": "ws7: publish the five challenge systems in the real dataset",
+      "merged_at": "2026-11-15T05:53:00Z",
+      "ai_generated": [
+        "Code: three/fieldLink.ts (the system page names its field's target), SystemPage.tsx and SystemsPage.tsx (the synthetic example is mentioned only when the dataset lists one)",
+        "Tests: fieldLink.test.ts"
+      ],
+      "humans": "DankoLiv directed the work; it was squash-merged into main"
+    }
+  ],
+  "trailer_note": "Squash commits keep the Co-Authored-By trailers of every commit on the branch, so some list Claude more than once; the squash-commit author that git shows is not always the WS7 developer. Teammates' code in these files (#27 speed slider in SystemViewer.tsx, #30 cards in SystemPage.tsx and the UNVERIFIED VALUES badge in SystemPage.tsx) is kept verbatim and is not covered by this record"
+}

@@ -220,7 +220,7 @@ export const SPHEREX_COVERAGE: Readonly<Record<SpherexTargetId, TargetCoverage>>
       },
       {
         startMjd: 60916, endMjd: 61310, nImages: 2253, dates: null, detectors: null, nImagesLongWave: null,
-        note: 'Near-continuous, monthly visits: R Dra lies in the NEP deep field. The largest gap (37.8 d) is the one before this pass.',
+        note: 'Near-continuous, monthly visits: R Dra is 8.6° from the north ecliptic pole, inside the footprint of the SPHEREx deep collections (1,954 of its 2,493 frames). The largest gap (37.8 d) is the one before this pass.',
       },
     ],
   },

@@ -11,12 +11,13 @@
 //                     N = (t - t0) / P (linear propagation; covariance not published, ignored).
 //   Mira (S3)         R Dra: AAVSO VSX epoch of maximum HJD 2457370.00, P = 246.12 d, rise 45 %. Predicted
 //                     maxima stay on the VSX dates; their 1-sigma timing band is the RMS of the O-C of
-//                     observed maxima 2015-2024 about VSX, sqrt(4.7^2 + 4.6^2) = 6.6 d (mean -4.7 d,
-//                     s.d. 4.6 d, Karlsson list), so the band also covers the mean offset.
+//                     the 2025-2026 AAVSO maxima about VSX (-3.8, -14.8, -3.1 d): 9.0 d (SCIENCE.md 3D
+//                     review V12a, fallback; the measured maxima themselves are not used yet).
+//                     Only the glow follows this V curve: the radius is constant (size change not measured).
 //   Unknown phases    Why the other orbits stay arbitrary (Eps Ind Ab, Bb, RW Aur B), with sources.
 import type { Body, Orbit, OrbitQuality, SystemModel, VariabilityKind } from '../api/types';
 import { mjdToDate } from '../api/format';
-import { drawsPulsation, ORBIT_COLOR, PULSATION_RADIUS_AMPLITUDE } from './sceneLayout';
+import { drawsPulsation, ORBIT_COLOR } from './sceneLayout';
 
 /** MJD = JD - 2400000.5 (BJD_TDB/HJD vs UTC differ by ~69 s and minutes: negligible at day precision). */
 export const JD_MINUS_MJD = 2400000.5;
@@ -257,8 +258,9 @@ export interface MiraEphemeris {
   note: string;
 }
 
+/** SCIENCE.md 3D review A13, without its final full stop (callers end the sentence). */
 export const MIRA_PREDICTION_CAVEAT =
-  'V-band prediction from a catalogue ephemeris; IR amplitude is smaller and IR maxima lag the visual ones; not a SPHEREx light curve';
+  'V-band prediction from a catalogue ephemeris, not a SPHEREx light curve. Measured offline on the SPHEREx FITS files, the infrared cycle is 0.5–1.3 mag peak-to-peak (6.5 mag in V), with maxima from 1 day before (0.74–1.1 µm) to 47 days after (2.4–3.8 µm) the visual ones (docs/validation/r-draconis.md)';
 
 export const MIRA_EPHEMERIDES: readonly MiraEphemeris[] = [
   {
@@ -270,12 +272,11 @@ export const MIRA_EPHEMERIDES: readonly MiraEphemeris[] = [
     band: 'V',
     ocMeanDays: -4.7,
     ocSdDays: 4.6,
-    timingSigmaDays: Math.hypot(4.7, 4.6), // 6.58 d: RMS of the O−C about VSX
+    timingSigmaDays: 9.0, // RMS of the O−C of the 2025–2026 AAVSO maxima about VSX (SCIENCE.md 3D review V12a)
     epsDays: null,
     source: 'AAVSO VSX R Dra (oid 13673, revision 4, 2024-01-18): epoch of maximum HJD 2457370.00, P = 246.12 d, rise 45 %',
-    timingSource:
-      'O−C of observed maxima 2015–2024 against the VSX ephemeris (T. Karlsson, Maxima of Mira stars, var.saaf.se): s.d. 4.6 d, mean −4.7 d; band = RMS about VSX, √(4.7² + 4.6²) ≈ 6.6 d',
-    note: 'VSX gives no epoch or period errors. The predicted maxima are the VSX dates, not shifted: observed maxima came on average 4.7 d before them, so the ±6.6 d band (1σ) is the RMS of the O−C about VSX, which includes that offset, not only the 4.6 d scatter. It is not a formal error and still underestimates the uncertainty: no cycle-to-cycle (Eddington–Plakidis) term is sourced and the period wanders over decades. The catalog period (GCVS 245.6 d) drives the free-running animation; dataset time uses the VSX epoch and period together.',
+    timingSource: 'RMS of the O−C of the 2025–2026 AAVSO maxima about VSX: −3.8, −14.8 and −3.1 d (offline WS3 analysis, docs/validation/r-draconis.md)',
+    note: 'VSX gives no epoch or period errors. The predicted maxima are the VSX dates, not shifted: the V maxima measured in 2025–2026 (AAVSO) came 3.1–14.8 d before them, so the ±9.0 d band (1σ) is the RMS of that O−C about VSX, which includes the offset. It is not a formal error and still underestimates the uncertainty: no cycle-to-cycle (Eddington–Plakidis) term is sourced and the period wanders over decades. Earlier maxima (2015–2024, T. Karlsson, Maxima of Mira stars) gave a mean O−C of −4.7 d and a s.d. of 4.6 d. The catalog period (GCVS 245.6 d) drives the free-running animation; dataset time uses the VSX epoch and period together. Only the glow follows this V curve: the radius is drawn constant.',
   },
 ];
 
@@ -351,10 +352,8 @@ export interface PredictedPulsation {
   phaseSigma: number;
   /** Shape in [−1, 1] (+1 at maximum). */
   shape: number;
-  /** V brightness factor (linear flux ratio, 1 = mean), over the catalog's full V range. */
+  /** V brightness factor (linear flux ratio, 1 = mean), over the catalog's full V range (the glow only; the radius is constant). */
   factor: number;
-  /** Radius factor: 1 ± the class-typical 10 %, drawn in phase with the light (display convention). */
-  radiusScale: number;
 }
 
 /** The drawn pulsation of a body at `mjd` from its Mira ephemeris (dataset time). */
@@ -367,7 +366,6 @@ export function predictedPulsation(eph: MiraEphemeris, body: Body, mjd: number):
     phaseSigma: miraPhaseSigma(eph, mjd),
     shape,
     factor: Math.pow(10, 0.2 * amp * shape), // dmag = −(A/2)·shape
-    radiusScale: drawsPulsation(body) ? 1 + PULSATION_RADIUS_AMPLITUDE * shape : 1,
   };
 }
 
@@ -420,7 +418,22 @@ export function variabilityTracks(system: Pick<SystemModel, 'id' | 'bodies'>): V
   return out;
 }
 
-export const IRREGULAR_TEXT = 'irregular: cannot be predicted - look at the frames';
+export const IRREGULAR_TEXT = 'irregular: cannot be predicted';
+
+/**
+ * What was measured offline about an irregular variable, per system (SCIENCE.md 3D review V12c):
+ * shown after IRREGULAR_TEXT so nobody reads the image brightness as a measurement.
+ */
+export const IRREGULAR_MEASURED_NOTES: Readonly<Record<string, string>> = {
+  'rw-aurigae':
+    'Measured offline on unsaturated SPHEREx D1 exposures at matched wavelength, RW Aur (A+B) was about 1 mag brighter at 0.75–0.77 µm in Sep 2026 than in Sep 2025 (docs/validation/rw-aurigae.md). In the same offline analysis no D2–D6 exposure is clean (0 of 279; OVERFLOW in 304 of 335 overall): image brightness here is not a measurement.',
+};
+
+/** IRREGULAR_TEXT, plus the system's offline measurement note when there is one. */
+export function irregularText(systemId: string): string {
+  const note = IRREGULAR_MEASURED_NOTES[systemId];
+  return note ? `${IRREGULAR_TEXT}. ${note}` : IRREGULAR_TEXT;
+}
 
 /** Predicted phase over one pass, e.g. "phase 0.90 → 0.26 (±0.03); predicted maximum 2025-05-20 ± 6.6 d". */
 export function passPhaseSummary(eph: MiraEphemeris, startMjd: number, endMjd: number): string {
@@ -482,7 +495,7 @@ export function onThisDate(system: Pick<SystemModel, 'id' | 'bodies'>, mjd: numb
         source: e.source,
       });
     } else if (t.kind === 'irregular') {
-      lines.push({ bodyId: t.bodyId, name: t.name, kind: 'irregular', text: IRREGULAR_TEXT, source: null });
+      lines.push({ bodyId: t.bodyId, name: t.name, kind: 'irregular', text: irregularText(system.id), source: null });
     } else {
       lines.push({ bodyId: t.bodyId, name: t.name, kind: 'frozen', text: `${phaseUnknownLabel(t.variabilityKind)}: drawn at mean brightness`, source: null });
     }

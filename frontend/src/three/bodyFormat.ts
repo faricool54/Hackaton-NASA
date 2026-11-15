@@ -69,7 +69,7 @@ export function variabilityText(v: Variability): string {
 export function variabilityAnimationNote(v: Variability): string | null {
   if (!v.amplitude_mag) return null;
   return v.period_days
-    ? 'Free-running, the 3D view animates it as a simple sinusoid with an arbitrary phase (not a prediction for a date). In Dataset time it follows a catalogue ephemeris where one is tabulated (see How this body is drawn), otherwise it is held at the mean.'
+    ? 'Free-running, the 3D view animates its glow as a simple sinusoid with an arbitrary phase (not a prediction for a date); the radius stays constant, because no size change is measured. In Dataset time it follows a catalogue ephemeris where one is tabulated (see How this body is drawn), otherwise it is held at the mean.'
     : 'Not animated in the 3D view (no periodic model).';
 }
 
