@@ -214,7 +214,7 @@ export function SkyExplorer({ sequences, systems }: { sequences: SearchSequence[
     {(lookup || job) && <div ref={resultRef} className="position-result-anchor" tabIndex={-1}>
       <PositionResults key={`${center.ra}/${center.dec}/${selectedFieldId ?? ''}/${quickLook}`}
         position={center} sequences={sequences} systems={systems} selectedFieldId={selectedFieldId}
-        job={job} building={busy} buildError={error} quickLook={quickLook} />
+        job={job} building={busy} buildError={error} quickLook={quickLook} lookup={lookup} />
     </div>}
   </section>;
 }
