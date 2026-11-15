@@ -67,6 +67,13 @@ El camino crítico termina en imágenes visibles; catálogos y detección no son
 - [x] **WS1-11 (P1) Espectro rápido de cualquier punto.** ✅ #42 (`cube_spectrum`, `errante cube-spectrum`).
 - [x] **WS1-12 (P0) La demo sobrevive a una caída de IRSA.** ✅ #43 (snapshots de los cinco blancos y fallback
   antes del timeout de la API). Sin fallback, un punto arbitrario sigue dependiendo de IRSA (timeout del backend: WS4).
+- [x] **WS1-13 (P0/P1) Notas de deploy y fixtures de espectro.** ✅ PR `ws1/deploy-spectra-facts`
+  ([`DATA.md`](../docs/DATA.md) §3.3). Los snapshots no entran en la imagen actual (simulado; `TODO(WS4)`:
+  `COPY data/index` o `ERRANTE_SEARCH_SNAPSHOTS`). También: variables que acotan búsqueda, cubo y serie por debajo de
+  los 30 s de la API, escrituras obligatorias en disco (patches S3/IBE de los builds, caché propia por job) y 14
+  espectros reales del cubo como fixtures para WS4/WS5 (cinco blancos + cielo vacío + un hueco de cobertura del
+  centro galáctico, apertura 0 y 2). Incluye la propuesta de campos para un PR `contract:` (núcleo vacío ≠ saturado:
+  `saturated` necesita FLAGS) y los hechos de Barnard de #46 (saturación, frame `0431_2D6`, `GJ 699`).
 
 **C04/C07:** `fetch_cutouts` debe recibir el FOV validado por WS4, preservar WCS, flags, VARIANCE y ZODI,
 y devolver una asociación inequívoca frame→resultado. Saltar descargas no puede desalinear `refs` y `paths`;
