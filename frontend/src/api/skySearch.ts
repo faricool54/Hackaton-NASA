@@ -1,5 +1,5 @@
 import { parseCoordinate } from './jobs';
-import { SHOWCASE_TARGETS } from './showcase';
+import { SHOWCASE_TARGETS, type ShowcaseTarget } from './showcase';
 import type { FieldSummary, SkyCoord } from './types';
 import { separationArcsec } from '../three/skyTrack';
 
@@ -18,6 +18,14 @@ export function localTargetSequences(entries: SearchSequence[], position: SkyCoo
 export function searchKey(text: string): string {
   return text.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f'’]/g, '')
     .replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+export function showcaseSequence(entries: SearchSequence[], target: ShowcaseTarget): SearchSequence | undefined {
+  const names = [target.name, target.catalogName].map(searchKey);
+  const matches = entries.filter(({ field }) => field.id === target.fieldId || names.includes(searchKey(field.name)));
+  return matches.find(({ field }) => !field.synthetic && field.id === target.fieldId)
+    ?? matches.find(({ field }) => !field.synthetic)
+    ?? matches[0];
 }
 
 /** A name returns null; a coordinate-shaped input is validated before any catalog call. */
@@ -46,8 +54,8 @@ export function searchSequences(entries: SearchSequence[], query: string, point?
   if (!key) return [];
   return entries.flatMap((entry) => {
     const { id, name } = entry.field;
-    const preset = SHOWCASE_TARGETS.find((target) => searchKey(target.name) === searchKey(name));
-    const names = [name, id, preset?.catalogName ?? ''].map(searchKey);
+    const preset = SHOWCASE_TARGETS.find((target) => target.fieldId === id || searchKey(target.name) === searchKey(name));
+    const names = [name, id, preset?.name ?? '', preset?.catalogName ?? ''].map(searchKey);
     const rank = names.includes(key) ? 0 : names.some((n) => n.includes(key)) ? 1 : -1;
     return rank < 0 ? [] : [{ entry, rank }];
   }).sort((a, b) => a.rank - b.rank || Number(a.entry.field.synthetic) - Number(b.entry.field.synthetic))
