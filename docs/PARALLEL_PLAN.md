@@ -2,9 +2,10 @@
 
 Guía viva del equipo, actualizada contra `main` **3ed5c91 (#97)**, también comprobado en la publicación pública del 15/11.
 Los PR #91 y #95 actualizaron textos/backend; #96 agregó zoom y predicción Gaia de Barnard.
-Los registros científicos siguen en [`validation/`](validation/): aprobación humana y cierre del paso 6 pendientes.
+Los registros científicos siguen en [`validation/`](validation/): revisión humana de DankoLiv hecha (#126); falta la prueba humana del paso 6 (incógnito y celular).
 Las referencias de línea del relevamiento anterior pueden haberse desplazado; usar los IDs y rutas.
 Esta edición actualiza estado y dependencias, sin preparar demo, completar el formulario ni declarar el envío.
+**Actualización parcial (15/11, después de #126, `main` 51982c2):** solo se cotejaron los estados de V3, V4, V5/E7, V7, V8, V12–V15, V17, V18, V21, A8, A9, D5, D9 (y las filas de §1, §5, §6 y §8 que los resumen), el reloj y el plan de frontend ([FRONTEND_PLAN.md](FRONTEND_PLAN.md), #123; anotarse en el issue #124). El resto sigue cotejado con #97.
 
 Visión: [VISION.md](VISION.md) · reglas: [COLLABORATION.md](COLLABORATION.md) · responsables: [TEAM.md](TEAM.md) ·
 integración WS4/WS5: [WS4_INTEGRATION.md](WS4_INTEGRATION.md) · protocolo R05: [VALIDATION.md](VALIDATION.md) ·
@@ -12,6 +13,7 @@ entrega: [SUBMISSION_GUIDE.md](SUBMISSION_GUIDE.md) y [submission/CHECKLIST.md](
 
 **Reloj (ART, UTC-3):** freeze **17:00** · envío interno **21:00** · cierre del portal **23:59** (sede UP Buenos
 Aires). Después del freeze solo entran textos, deploy y entrega. Save Progress no es envío.
+*(15/11, 16:20 ART, coordinación en #100: ya no hay freeze a las 17:00; merge continuo, cada deploy avisado antes en #100 y último deploy propuesto a las ~22:30.)*
 
 **Ficha del objeto: hecha (15/11, ~06:00 ART).** El contexto de catálogo de WS3 ya llega al panel del click: contrato `ObjectContextResponse` 0.5.0 (#73), adaptador `to_response` de WS3 (#74), tarjeta `ObjectCard` en «Explore a position» (WS5, #75) y `GET /api/object` (WS4, #76). Los atajos y la búsqueda por nombre consultan por nombre; el click y las coordenadas, por posición. Un servicio caído nunca se muestra como «no catalogado». La aceptación técnica pública está registrada en #84/#95.
 
@@ -28,18 +30,18 @@ Leyenda: **hecho** · **parcial** · **falta** · **en curso**.
 
 | Parte de la visión | Estado | Qué hay y qué falta | PRs | Quién |
 |---|---|---|---|---|
-| Mapa SPHEREx DR1: Aladin Lite + HiPS IRSA, λ y AllWISE | parcial | Mapa negro corregido y publicado en #86. Faltan capa Gaia y footprint | #34, #86 | WS5 |
+| Mapa SPHEREx DR1: Aladin Lite + HiPS IRSA, λ y AllWISE | hecho en `main` | Mapa negro corregido y publicado en #86. Capa Gaia DR3 y contorno de la secuencia en #111 (V17) | #34, #86, #111 | WS5 |
 | Búsqueda por nombre (Sesame/CfA) y por RA/Dec; presets de los cinco | hecho con API | En modo estático no hay búsqueda (`frontend/src/api/client.ts:113`, `:117`) | #11, #32, #33, #34 | BenjaminPondal, rpccp |
 | Coordenadas en la URL (C06) | parcial | RA/Dec/FOV/detector/job restaurables; iframe externo con imágenes y jobs probado (#95). Falta vista compacta | #34, #95 | WS5 + WS4 |
 | Click → job → hasta 40 frames reales → video | hecho, también en la URL pública | ~20-30 s por campo. En local requiere `ERRANTE_ENABLE_JOBS=1` y `?mode=api`; en la URL pública (#84) funciona sin parámetros. En un deploy estático (Pages) el click no construye nada | #18, #32, #33, #34, #84 (datos: #16, #21-#23, #35) | rpccp, faricool54, V0id47 |
-| Blink: reproducción, paso, velocidad, detector y color | parcial | Funciona con imágenes reales; zoom 1×/2×/4× y retícula Gaia de Barnard en #96. Predicción de los otros blancos y UI de calidad pendientes | #15, #39–#41, #96 | WS5, con WS7/WS3 para astrometría |
+| Blink: reproducción, paso, velocidad, detector y color | parcial | Funciona con imágenes reales; zoom 1×/2×/4× y retícula Gaia de Barnard en #96; predicción de catálogo de los cinco blancos en #99 (V3). Calidad por frame (V8) en curso: #116, #119 y #120 abiertos | #15, #39–#41, #96, #99 | WS5, con WS7/WS3 para astrometría |
 | Cinco campos reales curados (40 frames cada uno) sin backend | hecho | `?mode=static&dataset=real`. `data/products` pesa 2,4 MB | #17, #41 | V0id47 |
 | Espectro de un punto (cubo DR1 o fotometría forzada L2) | parcial | Panel plegado y manual. Desde #81/#82 (V9), L2 acepta movimiento propio de catálogo y reporta la posición predicha de cada exposición. En Barnard, las 8 medidas D2 salen saturadas | #31, #42, #45, #53, #54, #55, #81, #82 | V0id47, faricool54, rpccp |
 | Comparación de temporadas | parcial | API/UI live implementadas; 196 PNG y JSON congelados exportables (#82). La UI estática aún no consume esos snapshots | #19, #37, #53–#55, #69, #82 | WS2, WS4; UI estática WS5 |
 | Ficha del objeto: SIMBAD, Gaia DR3, VSX, planetas confirmados, 2MASS/AllWISE, como Facts con fuente | hecho | Tarjeta en el panel del click (por nombre o por posición) con `GET /api/object`; contexto de catálogo, no mediciones SPHEREx | #58, #73–#76 | faricool54 + Claude (WS3; contrato, WS4 y WS5 con aviso); rpccp revisa #76 |
-| Curva de luz de R Dra y RW Aur | hecho, mejoras adicionales pendientes | Productos actualizados #93–#95 y panel #97 publicados: límites, floors, selección y carga estática exportada. Vistas por detector/fase/pares pendientes | #79, #83, #85, #93–#97 | WS3, WS4, WS5 |
-| 3D de los cinco blancos | parcial | Contexto de catálogo con fuentes y estados por valor. V4/V12/V13 mínimo en PR #90 abierto; sin 3D físico desde SPHEREx ni para clicks arbitrarios | #47, #64; PR #90 abierto | WS7 + WS3 |
-| Validación R05 de los cinco | hecho, con salvedades | Cinco registros `success`. Falta la revisión humana. Analizan el build de #17, no el de #41. Los scripts originales no están versionados. El paso 6 ya se puede hacer en la URL pública de #84 (A9) | #36, #46, #62, #66, #70, #71 | faricool54 + Claude, V0id47 |
+| Curva de luz de R Dra y RW Aur | hecho, mejoras adicionales pendientes | Productos actualizados #93–#95 y panel #97 publicados: límites, floors, selección y carga estática exportada. Vistas por detector/fase/pares pendientes | #79, #83, #85, #93–#97, #106, #113 | WS3, WS4, WS5 |
+| 3D de los cinco blancos | parcial | Contexto de catálogo con fuentes y estados por valor. V4/V12/V13 mínimo integrado (#90); 3D de catálogo para un click arbitrario en modo API (#107, V14). Sin 3D físico desde SPHEREx | #47, #64, #90, #107 | WS7 + WS3 |
+| Validación R05 de los cinco | hecho, con salvedades | Cinco registros `success`; revisión humana guiada de DankoLiv (#126), sin volver a correr los análisis. Analizan el build de #17, no el de #41. Los scripts originales no están versionados. Paso 6: parte técnica hecha (#104); falta la prueba humana en incógnito y en celular (A9) | #36, #46, #62, #66, #70, #71, #104, #126 | faricool54 + Claude, V0id47 |
 | Deploy público | hecho | Google Compute Engine, HTTPS, datos reales y jobs. Publicación verificada 3ed5c91 (#97); repo privado y dominio propio opcional. El merge no despliega automáticamente | #84, #95–#97 | WS4 |
 | Materiales de entrega | parcial | About y PROJECT actualizados en #91; README/estado en esta edición. Demo final, integrantes, inventario completo, revisión y envío pendientes | #91; WS6-4a | WS6 + equipo |
 | Objetos conocidos (SkyBoT/JPL) | falta (P2) | `/api/known-objects` → 501 (`backend/errante_api/live_service.py:167-168`) | — | WS3 |
@@ -56,30 +58,30 @@ workstream en [TEAM.md](TEAM.md): reservalo antes de arrancar (§9). Citá el ID
 |---|---|---|---|---|---|---|
 | V1 | Arreglar el mapa negro: aplicar el plano inicial cuando la capa esté lista (o reintentar `setFrequency` hasta que cargue un tile). Probar recargando varias veces | WS5 (reserva formal pendiente) | 0,5 h | — | `frontend/public/sky-map.html:25`, `:28`, `:34`; `frontend/src/components/ExplorerMap.tsx:31-33` | hecho (#86), publicado/verificado |
 | V2 | Que el recorrido mapa → click → video se pueda probar en la URL pública | WS4 (rpccp) + WS6 | 1,5-4 h | D1, D2 | `.github/workflows/pages.yml:18`, `:38-39`; `frontend/src/api/client.ts:35-37`; `backend/Dockerfile:11-12` | hecho (#84) |
-| V3 | Retícula y posición predicha del blanco sobre el video, y zoom pixelado. Barnard se corre ~1,7 px en todo el baseline ([registro](validation/barnards-star.md)): sin retícula no se ve. Rotular «predicted from catalog, not a measurement» | WS5 (reserva formal pendiente), con la matemática de WS7 | 3 h | D5 | `frontend/src/components/BlinkViewer.tsx:266` (TODO); `field.json` ya trae `grid.wcs`; predicción con paralaje en `frontend/src/three/skyTrack.ts`; movimientos propios en los comentarios de `pipeline/errante/config/fields.toml` (para un click arbitrario, de la ficha del objeto, V6); `known.json` está vacío en los cinco campos | parcial (#96): zoom y retícula Barnard; otros blancos pendientes |
-| V4 | Fila «bloquea» del 3D: la ficha de RW Aur cita como «SPHEREx measured» magnitudes D5/D6 de núcleos saturados | WS7 (de facto DankoLiv, #47) | 0,25 h | — | `frontend/src/three/astro.ts:1150-1151`; texto listo en [SCIENCE.md](SCIENCE.md) (fila de `astro.ts:1150-1151`) | en PR #90 abierto, no integrado |
-| V5 | Cerrar R05: revisión humana de los cinco registros (E7) y párrafos del chequeo de productos publicados de #70 en cada registro (A8) | coordinación (sin reserva; registros de faricool54) + una persona que revise | 2 h | — | [`validation/`](validation/) | falta |
+| V3 | Retícula y posición predicha del blanco sobre el video, y zoom pixelado. Barnard se corre ~1,7 px en todo el baseline ([registro](validation/barnards-star.md)): sin retícula no se ve. Rotular «predicted from catalog, not a measurement» | WS5 (reserva formal pendiente), con la matemática de WS7 | 3 h | D5 | `frontend/src/components/BlinkViewer.tsx:266` (TODO); `field.json` ya trae `grid.wcs`; predicción con paralaje en `frontend/src/three/skyTrack.ts`; movimientos propios en los comentarios de `pipeline/errante/config/fields.toml` (para un click arbitrario, de la ficha del objeto, V6); `known.json` está vacío en los cinco campos | hecho (#96 + #99): zoom, retícula y trayectoria de catálogo en los cinco blancos |
+| V4 | Fila «bloquea» del 3D: la ficha de RW Aur cita como «SPHEREx measured» magnitudes D5/D6 de núcleos saturados | WS7 (de facto DankoLiv, #47) | 0,25 h | — | `frontend/src/three/astro.ts:1150-1151`; texto listo en [SCIENCE.md](SCIENCE.md) (fila de `astro.ts:1150-1151`) | hecho (#90) |
+| V5 | Cerrar R05: revisión humana de los cinco registros (E7) y párrafos del chequeo de productos publicados de #70 en cada registro (A8) | coordinación (sin reserva; registros de faricool54) + una persona que revise | 2 h | — | [`validation/`](validation/) | hecho: A8 en #104; E7 en #126 (revisión guiada de DankoLiv, sin volver a correr los análisis) |
 
 ### P1
 
 | ID | Tarea | Dueño | Esfuerzo | Depende de | Dónde | Estado |
 |---|---|---|---|---|---|---|
 | V6 | Ficha del objeto en el panel del click; caída de servicio no bloquea el video | WS3 + WS4 + WS5 | — | contrato 0.5.0, vigente en 0.7.0 | #73–#76 | hecho; aceptación pública #84/#95 |
-| V7 | Panel del click con tres vistas (Tiempo / Espectro / 3D). Abrir el panel al hacer click y lanzar el espectro del cubo (rápido) solo | WS5 (reserva formal pendiente) | 2 h | V6 | `frontend/src/components/SkyExplorer.tsx:168-171`; `PositionSpectrum.tsx:46` (`<details>` cerrado) y `:72` | falta |
-| V8 | Calidad por frame (C07): `valid_fraction` y origen del frame en el blink. Un flag ausente no es «limpio». Las fracciones de flags necesitan contrato | WS5 (WS5-10) + WS2 (WS2-11) + contrato (WS4-10) | 1,5 h solo UI; 5 h con flags | contrato, para los flags | `BlinkViewer.tsx:179-180`; `pipeline/errante/models.py:97` | falta |
+| V7 | Panel del click con tres vistas (Tiempo / Espectro / 3D). Abrir el panel al hacer click y lanzar el espectro del cubo (rápido) solo | WS5 (reserva formal pendiente) | 2 h | V6 | `frontend/src/components/SkyExplorer.tsx:168-171`; `PositionSpectrum.tsx:46` (`<details>` cerrado) y `:72` | hecho (#103) |
+| V8 | Calidad por frame (C07): `valid_fraction` y origen del frame en el blink. Un flag ausente no es «limpio». Las fracciones de flags necesitan contrato | WS5 (WS5-10) + WS2 (WS2-11) + contrato (WS4-10) | 1,5 h solo UI; 5 h con flags | contrato, para los flags | `BlinkViewer.tsx:179-180`; `pipeline/errante/models.py:97` | en curso: #116 (UI), #119 (contrato) y #120 (WS4), abiertos |
 | V9 | Espectro L2 con movimiento propio: `pm_ra`/`pm_dec`/época opcionales en `SpectrumRequest`, pasados a la fotometría. El pipeline ya lo sabe hacer (`photometry.propagate`, CLI `errante spectrum --pm-ra --pm-dec`, y `position_spectrum` de WS3); falta el contrato y la API | contrato + WS4 + WS3 | 2 h | V6 (pm del objeto) | `models.py:511`; `backend/errante_api/science_ops.py:184`; `pipeline/errante/imaging/photometry.py:319`; `pipeline/errante/science/spectra.py:380` | hecho (#81, #82) |
 | V10 | Curva de luz de R Dra y RW Aur en la app. Lo más barato: precomputarla con la CLI y publicarla como producto estático (necesita un modelo de contrato) | WS3 + contrato + WS4 + WS5 | 3-4 h | D6 | `pipeline/errante/science/variability.py:1098`; `pipeline/errante/cli.py:538` | hecho (#79/#83/#95/#97); vistas adicionales pendientes WS5 |
 | V11 | Comparaciones visibles sin backend: `ComparisonResponse` precomputado o los stills/GIF de #71 | WS2 + WS4 | 2 h | D1 | `data/products/fields/*/` (sin comparaciones) | datos/exportación hechos (#82); UI estática pendiente WS5 |
-| V12 | Las 5 filas «importante» de la revisión del 3D: máximos medidos de R Dra, radio de R Dra fijo por defecto, «look at the frames» en RW Aur, saturación de Barnard y S/N de WISE 0855 en el panel del cielo | WS7 (de facto DankoLiv) | 1,5 h | D3 | [SCIENCE.md](SCIENCE.md), tabla del 3D (filas de `ephemerides.ts`, `sceneLayout.ts`, `skyTrack.ts`) | en PR #90 abierto |
-| V13 | 3D alimentado por `physical_parameters` de WS3 (Teff, radio, distancia como Facts con fuente), rotulado «catalog, not measured by SPHEREx». Después: color, radio y pulsación desde SPHEREx (WS7-8) | WS7 + WS3 | 2 h el mínimo; 6 h completo | V6, V18 | `pipeline/errante/systems/catalog.py`; [VISION_3D.md](VISION_3D.md) («Diferencias con VISION.md que siguen abiertas») | mínimo en PR #90 abierto; parte SPHEREx depende de V18 |
-| V14 | 3D para un click arbitrario (cualquier estrella con Gaia). Sin dato: «unknown», nada inventado | WS7 + WS3 | 5 h | V6, V13 | `frontend/src/pages/FieldPage.tsx:38` (hoy solo enlaza si `manifest.systems` tiene el campo) | falta |
-| V15 | RW Aur: el contexto llama «V* RW Aur B» a Gaia DR3 156430817820015232, que según el WDS es A. Corregir o advertir antes de que la ficha lo muestre | WS3 (faricool54) | 1 h | — | `pipeline/errante/science/context.py`; `pipeline/tests/test_science_context.py:237`; [SCIENCE.md](SCIENCE.md) («Para WS3 (pendiente propio)») | falta (la ficha lo marca `ambiguous`) |
+| V12 | Las 5 filas «importante» de la revisión del 3D: máximos medidos de R Dra, radio de R Dra fijo por defecto, «look at the frames» en RW Aur, saturación de Barnard y S/N de WISE 0855 en el panel del cielo | WS7 (de facto DankoLiv) | 1,5 h | D3 | [SCIENCE.md](SCIENCE.md), tabla del 3D (filas de `ephemerides.ts`, `sceneLayout.ts`, `skyTrack.ts`) | hecho (#90) |
+| V13 | 3D alimentado por `physical_parameters` de WS3 (Teff, radio, distancia como Facts con fuente), rotulado «catalog, not measured by SPHEREx». Después: color, radio y pulsación desde SPHEREx (WS7-8) | WS7 + WS3 | 2 h el mínimo; 6 h completo | V6, V18 | `pipeline/errante/systems/catalog.py`; [VISION_3D.md](VISION_3D.md) («Diferencias con VISION.md que siguen abiertas») | mínimo hecho (#90); parte SPHEREx pendiente |
+| V14 | 3D para un click arbitrario (cualquier estrella con Gaia). Sin dato: «unknown», nada inventado | WS7 + WS3 | 5 h | V6, V13 | `frontend/src/pages/FieldPage.tsx:38` (hoy solo enlaza si `manifest.systems` tiene el campo) | hecho (#107): 3D de catálogo solo en modo API |
+| V15 | RW Aur: el contexto llama «V* RW Aur B» a Gaia DR3 156430817820015232, que según el WDS es A. Corregir o advertir antes de que la ficha lo muestre | WS3 (faricool54) | 1 h | — | `pipeline/errante/science/context.py`; `pipeline/tests/test_science_context.py:237`; [SCIENCE.md](SCIENCE.md) («Para WS3 (pendiente propio)») | hecho (#101) |
 | V16 | Textos de `fields.toml` de la revisión: RW Aur, R Dra, WISE 0855, Barnard, y A/B invertidos en los comentarios | WS3 | 1 h | — | [SCIENCE.md](SCIENCE.md), filas de `fields.toml` | hecho (#87/#88), publicado |
-| V17 | Capa Gaia DR3 propagada a la época y footprint en el mapa (C05, WS5-4) | WS5 (reserva formal pendiente) | 3 h | V6 | `ExplorerMap.tsx`; `sky-map.html` | falta |
-| V18 | Temperatura desde el espectro SPHEREx (ajuste) y `color_class` | WS3 | 4 h | — | `pipeline/errante/science/spectra.py:571` (stub) | falta |
+| V17 | Capa Gaia DR3 propagada a la época y footprint en el mapa (C05, WS5-4) | WS5 (reserva formal pendiente) | 3 h | V6 | `ExplorerMap.tsx`; `sky-map.html` | hecho en `main` (#111) |
+| V18 | Temperatura desde el espectro SPHEREx (ajuste) y `color_class` | WS3 | 4 h | — | `pipeline/errante/science/spectra.py:571` (stub) | hecho en pipeline/CLI (#102, WS3-12): temperatura de color condicional y clase IR descriptiva, no Teff; en las notas de la API por #113 |
 | V19 | Modo compacto/embebido y prueba en un iframe de otro origen (C06, WS5-11) | WS5 + WS4 | 2 h | V2 | `frontend/src/api/jobs.ts` | WS4 probado (#95); vista compacta pendiente WS5 |
 | V20 | Releases nuevos (C01, WS1-9): las colecciones ya se configuran con `ERRANTE_COLLECTIONS`, pero `Release` es un `Literal` fijo y no hay descubrimiento | WS1 + contrato | 3 h | PR `contract:` | `pipeline/errante/settings.py:40`; `models.py:30` | parcial |
-| V21 | Validar el cambio de SNR del coadd en una fuente estable (WS2-10) | WS2 (V0id47) | 2 h | — | `tasks/WS2-imaging-detection.md:91` | parcial |
+| V21 | Validar el cambio de SNR del coadd en una fuente estable (WS2-10) | WS2 (V0id47) | 2 h | — | `tasks/WS2-imaging-detection.md:91` | hecho (#115): ganancia 1,15 medida contra 1,41 esperada; con el ruido correlado entre frames, la mediana queda explicada (1,02). Es un chequeo de consistencia: 70 de 86 grupos tienen 2 frames |
 
 ### P2 (propuesta: congelar hasta después del envío, D10)
 
@@ -107,7 +109,7 @@ Todo esto es P0: sin ello no hay envío válido. Detalle de cada regla en [SUBMI
 | E4 | Leer Terms, privacidad y guía de marca. Volver a mirar la pestaña Resources del reto. Confirmar el horario de evaluación local con la organización (WS6-1b) | Team Owner / WS6 | antes del envío | [submission/CHECKLIST.md](submission/CHECKLIST.md) |
 | E5 | Confirmar nombre/identidad del equipo y formato final de demo: video ≤30 s o ≤7 slides con portada | equipo | antes de producir la demo | WS6-2/5, PROJECT.md |
 | E6 | Confirmar el origen de la idea y del scaffold para el registro de IA | equipo | antes del envío | `docs/submission/ai-usage.json:51` (`pending_team_confirmation`) |
-| E7 | Revisión humana de los cinco registros de validación y quién la firma (D9) | una persona del equipo | antes del freeze | línea «Reviewer / date» de cada [registro](validation/) |
+| E7 | ✅ **Hecho en #126** (DankoLiv, revisión guiada; los análisis no se volvieron a correr). Revisión humana de los cinco registros de validación y quién la firma (D9) | una persona del equipo | antes del freeze | línea «Reviewer / date» de cada [registro](validation/) |
 | E8 | Grabar la demo. Voz en otro idioma → subtítulos en inglés. Sin menores de 18. Sin marcas NASA generadas | quien grabe (WS6) | ~20:00 | S02, S04 |
 | E9 | Prueba con 3 personas ajenas, una en celular: no la reemplazan screenshots/checks automatizados | WS6 | antes del envío | WS6-7 |
 
@@ -122,8 +124,8 @@ Todo esto es P0: sin ello no hay envío válido. Detalle de cada regla en [SUBMI
 | A5 | Inventario completo de IA, aportes/scaffold y origen de idea: disclosures existentes no son auditoría completa. `demo_data` describe solo fixtures sintéticos, no la app real. Mantener metadatos de cada WS | coordinación + cada WS | 1,5 h | E6 | `AI_USAGE.md`, metadatos de componentes y entrega |
 | A6 | Inventario de fuentes, créditos y licencias (S06/S07): bloque A3 de SCIENCE.md más Aladin Lite 3.8.2 (GPL-3), three, scipy/photutils/reproject/astroquery/pyvo y httpx/psutil. Separar recursos consultados de procesados | WS6 + WS3 | 1,5 h | — | `docs/submission/PROJECT.md:106-111` (herramientas) y `:132-163` (datos y referencias) |
 | A7 | Cotejar las filas restantes de la revisión de textos: esta edición corrige estado, no completa PITCH, inventario, envío ni aprobación humana | WS6 / coordinación | según revisión | — | §6 y SCIENCE.md |
-| A8 | Llevar a cada registro el párrafo del chequeo de productos publicados de #70 y su «límite común». Hoy ningún registro cita `productcheck` | coordinación (sin reserva; registros de faricool54) | 1 h | — | cuerpo de #70; [`validation/`](validation/) |
-| A9 | Paso 6 de VALIDATION.md y revisión humana en cada registro: #95 aporta 396 PNG, curvas y job/iframe verificados técnicamente; no firma el cierre R05 ni reemplaza usuarios reales | WS6 + WS5 + persona revisora | 1 h | V2 hecho | `VALIDATION.md` paso 6 |
+| A8 | ✅ **Hecho en #104** (los cinco registros tienen el addendum). Llevar a cada registro el párrafo del chequeo de productos publicados de #70 y su «límite común» | coordinación (sin reserva; registros de faricool54) | 1 h | — | cuerpo de #70; [`validation/`](validation/) |
+| A9 | **Parcial:** parte técnica del paso 6 en cada registro (#104) y revisión humana (#126); falta la prueba humana en incógnito y en celular. Paso 6 de VALIDATION.md y revisión humana en cada registro: #95 aporta 396 PNG, curvas y job/iframe verificados técnicamente; no firma el cierre R05 ni reemplaza usuarios reales | WS6 + WS5 + persona revisora | 1 h | V2 hecho | `VALIDATION.md` paso 6 |
 | A10 | Onboarding, accesibilidad y Lighthouse. #96 corrigió layouts y se probaron home/Barnard a 390 px; no acredita prueba con 3 usuarios ni Lighthouse ≥90 | WS5 | por medir | V2 hecho | `tasks/WS5-frontend.md` |
 | A11 | CHECKLIST.md (R05: «registro hecho; revisión humana y paso 6 pendientes») y JUDGING_REVIEW.md con evidencia, sin notas oficiales | WS6 + WS3 + WS5 | 1,5 h | A3 | `docs/submission/CHECKLIST.md:79-85`; `docs/submission/JUDGING_REVIEW.md:14-22` |
 | A12 | ✅ **Hecho en #82.** Contenedor del backend con los cinco campos y los snapshots de búsqueda (`COPY data/products` y `data/index`, o `ERRANTE_SEARCH_SNAPSHOTS`) | WS4 (rpccp) | 0,5 h | D1 (si hay backend) | `backend/Dockerfile:11-12`; `tasks/WS1-data-access.md:71-72` |
@@ -137,11 +139,11 @@ Todo esto es P0: sin ello no hay envío válido. Detalle de cada regla en [SUBMI
 | D2 | Dataset por defecto | Resuelto #82: Docker público usa API/real; Pages preparado usa real. Vite local sin variables sigue static/demo | WS4 |
 | D3 | Radio de R Dra en el 3D | Constante por defecto, como pide la revisión de WS3, o mantener la pulsación ilustrativa (`frontend/src/three/sceneLayout.ts:25`) | WS7 + WS3 |
 | D4 | t0 de Barnard b–e (M5) | Aceptar la lectura de Basant et al. 2025 como conjunción inferior (WS3 lo recomienda, [SCIENCE.md](SCIENCE.md) «Decisiones de WS3») o revertir a `epoch_mjd = null` (`tasks/WS7-3d-systems.md:101`) | equipo |
-| D5 | V3 antes del freeze | Zoom y retícula de catálogo de Barnard ya entraron #96; extender a otros blancos es trabajo WS5/WS3, no detección medida | WS5 + WS3 |
+| D5 | V3 antes del freeze | Resuelto: zoom y retícula de catálogo de Barnard en #96 y de los cinco blancos en #99. Es predicción de catálogo, no detección medida | WS5 + WS3 |
 | D6 | Curvas de luz | Publicadas, con notas/floors/selección y carga estática #97; restan vistas adicionales | WS3 + WS4 + WS5 |
 | D7 | Alcance del 3D en la entrega | Aceptar el 3D de catálogo de los cinco, declarado como no medido por SPHEREx, más V13 mínimo; dejar WS7-8 y V14 como trabajo futuro | equipo + WS7 |
 | D8 | Responsables | WS5, WS6 (textos, demo, formulario), WS7 (DankoLiv de facto, sin reserva), coordinación, editor de envío y backup. En qué WS trabajan BenjaminPondal y mateoa007 | equipo |
-| D9 | Revisión humana de R05 | Quién firma los cinco registros (E7) | equipo |
+| D9 | Revisión humana de R05 | Resuelto: firmó DankoLiv (#126). Quién firma los cinco registros (E7) | equipo |
 | D10 | Congelar P2 | Detección, SkyBoT, Planeta X, WS7-3/5/6/7 y UI-1 hasta después del envío; presentarlos como trabajo futuro en README, About y pitch | equipo |
 | D11 | `tasks/region-search-plan.md` | Cerrarlo como superado por SkyExplorer (#34) o completar las sub-tareas 1, 4 y 5 | WS5 + coordinación |
 | D12 | Protección de main | Confirmar políticas efectivas con el administrador. El procedimiento del equipo exige PR y CI verde; esta actualización no modifica ni acredita la configuración de GitHub | administrador + coordinación |
@@ -158,7 +160,7 @@ Todo esto es P0: sin ello no hay envío válido. Detalle de cada regla en [SUBMI
 | El runner `scripts/dev.py api` ya inicializa una copia privada (#82); un uvicorn directo requiere revisar ERRANTE_DATA_DIR | Evitar escribir jobs/análisis en productos WS2 versionados | Runner recomendado (§7); directorio privado explícito en otros arranques | todos |
 | **Resuelto en #81/#82** (movimiento propio opcional): espectro L2 en posición fija, con apertura de 2 px (`pipeline/errante/imaging/photometry.py:36`) y Barnard se corre ~1,7 px | Flujo subestimado en las épocas extremas | V9; mientras tanto la nota de `science_ops.py:184` lo advierte | contrato + WS4 + WS3 |
 | Barnard, RW Aur y R Dra saturan | Brillo del PNG no es fotometría | Descripciones #87/#88, About #91, notas #95 y panel de límites/errores #97 publicados | WS5 + WS3 |
-| RW Aur A/B invertido en el contexto del objeto | La ficha mostraría el nombre equivocado | V15 | WS3 |
+| **Resuelto en #101:** RW Aur A/B invertido en el contexto del objeto | La ficha mostraría el nombre equivocado | V15 | WS3 |
 | Los números de validación son análisis offline de los FITS, con scripts no versionados, sobre el build de #17. En el repo se reproducen con `pipeline/tests/test_science_validation_network.py` (RW Aur, R Dra, ε Ind B, WISE 0855; tests `network`) y con `python -m errante.imaging.productcheck` (#70) | Un juez puede pedir reproducibilidad | Citar «offline FITS analysis»; A8 | coordinación |
 | Servicios externos: CDS Estrasburgo degradado (usar espejos de CfA/IRSA); fallback TAP de IRSA sin probar en vivo (WS1-2); snapshots solo para los cinco blancos (WS1-7); la duración de los jobs depende de la cobertura y de IRSA/S3 | Un punto arbitrario puede fallar en vivo durante la demo | Grabar la demo con un recorrido que ya funcionó; tener los cinco campos estáticos de respaldo | WS1 + WS4 |
 | El schema está en 0.7.0 (0.5.0 ficha del objeto #73; 0.6.0 curvas de luz #78; 0.7.0 movimiento propio #81) | Ramas viejas con `shared/schema/` desactualizado | `git pull origin main` y `python scripts/dev.py schema`; nunca resolver a mano los generados | todos |
@@ -175,8 +177,8 @@ La revisión original con sus textos y severidades está en [SCIENCE.md](SCIENCE
 | README, arquitectura, matriz y documentos de estado | Actualizados en esta edición WS6, sin preparar demo/formulario |
 | Descripciones de campos y comentarios RW Aur A/B | Corregidos #87/#88 y publicados |
 | Curvas de luz | Revisión #85; WS3 #93 y republish #94/#95. #97 publicó notas/floors/selección y carga estática; restantes vistas aún WS5 |
-| 3D V4/V12/V13 | PR #90 abierto, no integrado; no dar sus correcciones por publicadas |
-| R05 | Cinco registros offline; revisión humana y cierre formal del paso 6 pendientes |
+| 3D V4/V12/V13 | Integrado en `main` (#90; cotejado con 51982c2). Publicación no verificada aquí |
+| R05 | Cinco registros offline; revisión humana hecha (#126); falta la prueba humana del paso 6 (incógnito y celular) |
 | Otros textos/UI e inventario | Cada dueño debe cotejar las filas de SCIENCE.md; esta actualización no certifica auditoría completa |
 
 ## 7. Cómo correr todo en local
@@ -227,9 +229,9 @@ ajenas por inferencia ni confundir un PR abierto con una publicación.
 
 - WS4: entrega e integración actualizadas en #95; `/api/limits`, flags nuevos y releases esperan datos/contratos.
 - WS5: #96 publicó zoom/retícula Barnard y correcciones móviles. Límites/floors/selección y carga estática de curvas publicados #97. Compacto, vistas adicionales,
-  panel de tres vistas, Gaia/footprint, calidad y pruebas de usuarios/Lighthouse siguen pendientes.
-- WS3: #87 y #93 integrados. Temperatura/color y contexto RW Aur V15 siguen en su ámbito.
-- WS7: V4/V12/V13 mínimo en #90 abierto, con sus propias reservas/revisión.
+  panel de tres vistas, Gaia/footprint, calidad y pruebas de usuarios/Lighthouse siguen pendientes. *(15/11: panel de tres vistas en #103 y Gaia/footprint en #111; calidad en curso en #116/#119/#120; plan FE-0..FE-12 en [FRONTEND_PLAN.md](FRONTEND_PLAN.md), #123 e issue #124.)*
+- WS3: #87 y #93 integrados. Temperatura/color y contexto RW Aur V15 siguen en su ámbito. *(15/11: V15 en #101 y temperatura/color V18 en #102.)*
+- WS7: V4/V12/V13 mínimo en #90 abierto, con sus propias reservas/revisión. *(15/11: #90 integrado; V14 en #107.)*
 - WS6: documentación de estado actualizada aquí. No se completan demo, integrantes, formulario, inventario
   final ni revisión humana en esta tarea; consultar `docs/submission/CHECKLIST.md`.
 

@@ -36,6 +36,33 @@ def test_unknown_field_is_404(client):
     assert client.get("/api/fields/nope").status_code == 404
 
 
+def test_showcase_hides_job_fields_without_changing_the_persisted_catalog(tmp_path):
+    import shutil
+
+    from errante.products import ProductStore
+
+    products = tmp_path / "products"
+    shutil.copytree(core.DEMO_DIR, products)
+    store = ProductStore(products)
+    original = store.read_manifest()
+    visible = original.fields[0].model_copy(update={"synthetic": False})
+    job = visible.model_copy(update={"id": "job-smoke-test", "synthetic": True})
+    # Isolate the showcase flag from the synthetic systems in the demo fixture.
+    manifest = original.model_copy(update={"fields": [job, visible], "systems": [], "synthetic": True})
+    store.manifest_path.write_text(manifest.model_dump_json(), encoding="utf-8")
+    before = store.manifest_path.read_bytes()
+    config = Settings(data_dir=products, live_cache_dir=tmp_path / "cache")
+    with TestClient(create_app(config)) as api:
+        showcase = api.get("/api/manifest").json()
+        assert [field["id"] for field in showcase["fields"]] == [visible.id]
+        assert showcase["synthetic"] is False
+        complete = api.get("/api/manifest", params={"include_jobs": True}).json()
+        assert [field["id"] for field in complete["fields"]] == [job.id, visible.id]
+        assert complete["synthetic"] is True
+        assert api.get("/api/manifest", params={"include_jobs": "invalid"}).status_code == 422
+    assert store.manifest_path.read_bytes() == before
+
+
 def test_live_endpoints_report_not_implemented_cleanly(client, monkeypatch):
     def unavailable(*args, **kwargs):
         raise NotImplementedError("test stub")

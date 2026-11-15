@@ -33,20 +33,27 @@ function useHashRoute(): string[] {
 
 export function App() {
   const [page, arg, sub] = useHashRoute();
+  const currentPage = page === 'about' || page === 'systems' || (arg && (page === 'field' || page === 'system'))
+    ? page : 'home';
+
+  useEffect(() => {
+    document.documentElement.dataset.page = currentPage;
+  }, [currentPage]);
+
   return (
     <>
-      <header className="topbar">
-        <a href="#/" className="brand">
-          Errante <span className="muted">· SPHEREx sky explorer</span>
+      <header className="app-topbar">
+        <a href="#/" className="app-brand">
+          <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" width={24} height={24} />
+          <span>Errante</span>
+          <span className="app-brand-context">SPHEREx sky explorer</span>
         </a>
-        <nav>
-          <a href="#/">Fields</a>
-          <a href="#/systems">3D Systems</a>
-          <a href="#/about">About</a>
-          <span className="muted small">
-            {client.config.mode === 'api' ? 'live API' : 'static'} data
-          </span>
+        <nav className="app-nav" aria-label="Main navigation">
+          <a href="#/" aria-current={currentPage === 'home' ? 'page' : currentPage === 'field' ? 'location' : undefined}>Explore</a>
+          <a href="#/systems" aria-current={currentPage === 'systems' ? 'page' : currentPage === 'system' ? 'location' : undefined}>3D models</a>
+          <a href="#/about" aria-current={currentPage === 'about' ? 'page' : undefined}>About</a>
         </nav>
+        <span className="u-badge app-mode">{client.config.mode === 'api' ? 'Live API' : 'Static data'}</span>
       </header>
       <ErrorBoundary what="This page" key={`${page ?? ''}/${arg ?? ''}`}>
       {page === 'field' && arg ? (
@@ -61,9 +68,9 @@ export function App() {
         <HomePage />
       )}
       </ErrorBoundary>
-      <footer className="muted small">
+      {currentPage !== 'home' && <footer className="app-footer">
         NASA Space Apps Challenge 2026 · Planet X and SPHEREx · SPHEREx data: NASA/JPL-Caltech/IPAC IRSA
-      </footer>
+      </footer>}
     </>
   );
 }
