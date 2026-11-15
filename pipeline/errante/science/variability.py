@@ -713,7 +713,11 @@ def light_curve_from_exposures(
                     "rel_mag_err": None,
                 }
             )
-        _, cdropped = _relative(rows, lambda_bin_frac, min_bin_span_days)
+        ckept, cdropped = _relative(rows, lambda_bin_frac, min_bin_span_days)
+        for _det, members, _mean in ckept:
+            if len(members) < 3:  # same rule as the target's scatter summary (LC24): one difference, not two samples
+                for i in members:
+                    rows[i]["two_point_bin"] = True
         for i, why in cdropped.items():
             rows[i]["excluded"] = why
         for r in rows:
@@ -773,7 +777,7 @@ def light_curve_from_exposures(
     control: dict[int, dict] = {}
     for det in sorted({p.detector for p in points}):
         rows_det = [r for rows in comp_items for r in rows if r["detector"] == det]
-        stats = _robust([r["rel_mag"] for r in rows_det])
+        stats = _robust([r["rel_mag"] for r in rows_det if not r.get("two_point_bin")])
         stats["n_stars"] = sum(
             any(r["detector"] == det and r["rel_mag"] is not None for r in rows) for rows in comp_items
         )
@@ -901,8 +905,13 @@ def _notes(lc: LightCurve) -> list[str]:
     if n_two:
         notes.append(
             f"Scatter summaries exclude {n_two} endpoints in two-exposure wavelength bins: each pair is only one "
-            "independent difference. These exposures remain in the curve and matched-pair analysis. "
-            "Use the comparison-star matched-pair scatter as the aperture-pair noise floor."
+            "independent difference (the comparison-star control uses the same rule). These exposures remain in the "
+            "curve and matched-pair analysis."
+            + (
+                " Use the comparison-star matched-pair scatter as the aperture-pair noise floor."
+                if lc.method == "aperture" and lc.comparisons
+                else ""
+            )
         )
     if lc.excluded:
         notes.append("Excluded exposures: " + ", ".join(f"{k} {v}" for k, v in sorted(lc.excluded.items())) + ".")

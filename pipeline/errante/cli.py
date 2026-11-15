@@ -617,9 +617,14 @@ def cmd_lightcurve(args: argparse.Namespace) -> int:
         print(f"  {n}")
     for det, s in sorted(lc.summary.items()):
         ctl = lc.control.get(det, {})
+        scatter = (
+            f"robust scatter {s.get('robust_sigma_mag', 0):.3f} mag, p5-p95 {s.get('p5_to_p95_mag', 0):.2f} mag"
+            if s.get("n")
+            else "scatter not measured (only two-exposure bins)"
+        )
         print(
-            f"  D{det}: {s.get('n', 0)} points in {s['n_bins']} bins, robust scatter {s.get('robust_sigma_mag', 0):.3f} mag, "
-            f"p5-p95 {s.get('p5_to_p95_mag', 0):.2f} mag; control {ctl.get('robust_sigma_mag', float('nan')):.3f} mag "
+            f"  D{det}: {s.get('n', 0)} points in {s['n_bins']} bins, {scatter}; "
+            f"control {ctl.get('robust_sigma_mag', float('nan')):.3f} mag "
             f"({ctl.get('n_stars', 0)} stars); excluded {s['excluded'] or 'none'}"
         )
     pairs = doc["matched_pairs"]
