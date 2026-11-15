@@ -25,20 +25,35 @@ Comparison stars (control): bright, unsaturated, isolated field stars found in t
 (:func:`find_field_stars` on 5 exposures per detector spread in time, merged on the sky, kept when found at least
 twice; >= 10 px from the target, >= 30 px for ``wing`` so they are off its variable halo), fixed in RA/Dec, measured
 with the APERTURE method in the same exposures (also for ``wing``: a faint star's wing is noise, as the R Dra record
-shows) and binned at their own wavelength. Their scatter is the empirical systematic floor (``control``); their
-per-frame median relative magnitude is an optional zero point (``LightCurvePoint.zero_point_mag``, not applied).
-Each comparison is checked per exposure exactly like the target (saturation, bad pixels, edge).
+shows) and binned at their own wavelength. Their per-point scatter is the empirical systematic floor of single points
+(``control``, with their exclusions counted per detector); their per-frame median relative magnitude is an optional
+zero point (``LightCurvePoint.zero_point_mag``, not applied). Each comparison is checked per exposure exactly like the
+target (saturation, bad pixels, edge). Because the comparisons are measured with an aperture, ``scatter_over_control``
+is only given for the ``aperture`` method (WS3 review LC24).
 :func:`matched_pairs` reproduces the RW Aur method (same detector, |dlambda|/lambda < 1 %, frames far apart in time,
-with the comparison ensemble measured in the SAME two frames).
+with the comparison ensemble measured in the SAME two frames and, since the review's LC28, only from comparisons whose
+own two wavelengths also match). With the ``aperture`` method the floor for such pairs is not the per-point control
+but the comparisons' own matched-pair scatter (:func:`comparison_pair_scatter`, in the notes): 1.4-1.9x larger on the
+real products (LC26). With ``wing`` it is NOT a floor for the target's pairs: the comparisons are aperture
+measurements and the wing has its own floor (R Dra D1: ``floor_mag`` 0.35 mag per exposure against a comparison pair
+scatter of 0.030 mag).
+Known limits of the 1 % match (LC28, not corrected): where the spectrum is steep a 1 % bin is wide (in R Dra D1 the
+wavelength slope within a bin explains ~0.14 of the 0.29 mag residual), and in D5/D6 a 1 % bin is wider than the
+linear-variable-filter channel.
 
 Period: :func:`estimate_period` fits, on a frequency grid, per-bin offsets plus a sinusoid with free amplitude and
 phase per detector (weighted least squares with a per-detector error floor such that chi2/dof = 1, as in the R Dra
-review). The grid always has a best period, even for noise, so the estimate is tested like the R Dra record: the
-visit epochs are permuted (100 times by default), the grid refitted, and the period is ``significant`` only when
-<= 1 % of the permutations peak as high (``false_alarm``); otherwise it is labelled "no significant period". It is
-a quick estimate, not a periodogram analysis: Miras are not sinusoids, seasonal gaps make aliases (the returned
-``peaks`` list them; R Dra has one at ~144 d), and formal errors exclude model error. Confirm against an independent
-contemporaneous light curve (e.g. AAVSO) and catalog periods (Gaia DR3 ``vari_long_period_variable``).
+review; the floors are evaluated at the reported period). The grid always has a best period, even for noise, so the
+estimate is tested like the R Dra record: the visit epochs are permuted (100 times by default), the grid refitted, and
+the result is ``significant`` only when ``false_alarm`` = (1 + k) / (1 + n) <= 1 %, k being the permutations that
+peak as high. That establishes time-correlated variability, NOT a period: a trend or a step also beats shuffled
+epochs, at the long end of the grid (LC7). So the test is not run, and the best period stays an untested candidate,
+when it lies within one grid step of the search range's ends or covers fewer than 1.5 cycles of the baseline (see
+``MIN_PERIOD_CYCLES`` for why 1.5 and not the review's 2). The guard is partial: a weak trend or step can still pass
+at a shorter period, so 'significant' keeps meaning variability, not periodicity. It is a quick estimate, not a periodogram analysis: Miras are not sinusoids, seasonal gaps make aliases (the returned
+``peaks`` list them; R Dra has one at ~144 d), formal errors exclude model error and the bootstrap interval is
+conditional on the chosen peak. Confirm against an independent contemporaneous light curve (e.g. AAVSO) and catalog
+periods (Gaia DR3 ``vari_long_period_variable``).
 
 Data: WS1 ``data.point.point_series`` stamps (S3 Range reads of whole detector rows, so the cost grows with the box
 side: ~``box_px`` x 8 KB per plane). Defaults: ``aperture`` reads IMAGE + VARIANCE + FLAGS in an 81 px box (8.3',
@@ -93,11 +108,28 @@ COMPARISON_MATCH_PX = 1.5
 COMPARISON_REFS_PER_DETECTOR = 5
 COMPARISON_SNR = 30.0
 PIXEL_ARCSEC = photometry.PIXEL_ARCSEC
+MIN_PAIR_DT_DAYS = 30.0  # matched pairs: frames at least this far apart
 MIN_PERIOD_POINTS = 30
 PERIOD_RANGE_DAYS = (20.0, 800.0)
 OVERSAMPLE = 20
+MIN_PERIOD_CYCLES = 1.5  # a best period covering fewer cycles of the baseline is not tested (trend or partial cycle)
+# Deliberately 1.5, not the 2 cycles the WS3 review's LC7 row asks for. Measured 2026-11-15 on R Dra's real sampling
+# (450 points over 426 d, noise = its floors): no strong (0.5-1 mag) trend, parabola, fade, step or partial sinusoid
+# (600-3000 d) had its best period at 1.5-2 cycles; they peak at <= 1.22 cycles, mostly the 800 d edge, except a few
+# partial sinusoids caught near a turning point, which land on noise peaks beyond 2 cycles where neither value helps.
+# 2 would only add 2 of 30 weak (0.3 mag) partial sinusoids that came out significant at 1.5-2 cycles, and it would
+# leave untested R Dra's own catalog period (GCVS 245.6 d, Gaia DR3 247.2 d: 1.72-1.73 cycles; best here 261.9 d,
+# 1.63), which the review itself expects to read "variability significant". Weak trends also pass at > 2 cycles
+# (0.2 mag steps: 2 of 30 at 3.0-3.8), so no value makes 'significant' mean periodic: the caveat says so.
+FLOOR_ITERATIONS = 5  # extra floor evaluations at the refined period, until it moves by < 1 fine-grid step
+# (R Dra 2026-11-15: floors at 239.0 -> 259.1 -> 261.7 -> 261.9 d, settled after 3)
 N_PERMUTATIONS = 100  # visit permutations for the period's false-alarm probability
-PERIOD_FALSE_ALARM = 0.01  # significant when no more than 1 % of the permutations reach the observed peak
+# false_alarm = (1 + k) / (1 + n), k = permutations whose highest peak reaches the observed one; significant when it is
+# <= 1 %: with n = 100 only k = 0 passes, and 1/101 is then the smallest value 100 permutations can give, not a
+# measured probability nor an upper bound on it (the true one can be higher); n >= 99 is needed to pass at all
+PERIOD_FALSE_ALARM = 0.01
+SATURATION_SEASON_RANGE = 0.3  # spread of the saturated fraction between seasons that gets a censoring note
+SATURATION_SEASON_MIN = 5  # exposures a season needs to enter that comparison
 MAG = 2.5 / math.log(10.0)  # 1.0857: sigma_mag = MAG * sigma_F / F
 UNITS = {"aperture": "mJy (r = 3 px aperture, no aperture correction)", "wing": "MJy/sr (PSF wing - background)"}
 EXCLUDE_ORDER = (
@@ -114,10 +146,14 @@ QUALITY_REASONS = frozenset(EXCLUDE_ORDER)
 BIN_REASONS = frozenset({"lone_bin", "short_bin"})
 PERIOD_CAVEAT = (
     "Quick sinusoid-grid estimate (per-detector amplitude and phase, per-wavelength-bin offsets). The best grid period "
-    "of pure noise is still a number: read it only when 'significant' (visit-permutation false-alarm probability "
-    "<= 1 %). Seasonal gaps make aliases (see the other peaks), real light curves are not sinusoids and the formal "
-    "error ignores model error: confirm with an independent contemporaneous light curve and catalog periods before "
-    "quoting it."
+    "of pure noise is still a number. 'significant' (visit-permutation false-alarm probability <= 1 %) means "
+    "time-correlated variability: the sinusoid fits the data better than the same visits with shuffled epochs. It does "
+    "not by itself establish a period (a trend or a step also passes), so the test is not run when the best period is "
+    "at the edge of the search range or covers fewer than 1.5 cycles of the baseline (a weak trend can still pass at "
+    "a shorter period). Seasonal gaps make aliases (see "
+    "the other peaks), real light curves are not sinusoids, the formal error ignores model error and the bootstrap "
+    "interval is conditional on the chosen peak: confirm with an independent contemporaneous light curve and catalog "
+    "periods before quoting it."
 )
 
 
@@ -195,14 +231,21 @@ class PeriodEstimate:
     bootstrap_95_days: tuple[float, float] | None  # 2.5-97.5 % of the best period resampling visits
     peaks: list[tuple[float, float]]  # (period, delta_chi2) of the highest local maxima, best first
     amplitude_mag: dict[int, float]  # peak-to-peak of the fitted sinusoid per detector
-    floor_mag: dict[int, float]  # per-detector error floor added in quadrature (chi2/dof = 1)
+    floor_mag: dict[int, float]  # per-detector error floor added in quadrature (chi2/dof = 1 at period_days)
     n_points: int
     baseline_days: float
     period_range_days: tuple[float, float]
-    false_alarm: float | None = None  # visit-permutation probability that noise gives as high a peak (None: not run)
-    n_permutations: int = 0
-    significant: bool | None = None  # false_alarm <= PERIOD_FALSE_ALARM; None without permutations
+    false_alarm: float | None = None  # (1 + k) / (1 + n) of the visit permutations (None: not run)
+    n_permutations: int = 0  # permutations actually run (0 when the test was skipped)
+    significant: bool | None = None  # false_alarm <= PERIOD_FALSE_ALARM; None when untested
     caveat: str = PERIOD_CAVEAT
+    # Not serialised (the contract has no key for them; LightCurve.to_dict drops them): they reach the product
+    # through period_note() and the caveat.
+    untested_reason: str | None = None  # why the permutation test was skipped (edge of the grid, < 1.5 cycles)
+    amplitude_err_mag: dict[int, float] = field(default_factory=dict)  # 1 sigma of amplitude_mag (fit covariance)
+
+
+PERIOD_PRIVATE_FIELDS = ("untested_reason", "amplitude_err_mag")
 
 
 @dataclass
@@ -216,8 +259,8 @@ class LightCurve:
     points: list[LightCurvePoint]
     bins: list[WavelengthBin]
     comparisons: list[ComparisonStar]
-    control: dict[int, dict]  # per detector: comparison scatter (the empirical floor)
-    summary: dict[int, dict]  # per detector: target points, scatter, range, exclusions
+    control: dict[int, dict]  # per detector: comparison per-point scatter (the empirical floor) and exclusions
+    summary: dict[int, dict]  # per detector: target points, scatter, range, exclusions (scatter_over_control: aperture)
     excluded: dict[str, int]  # reason -> exposures
     period: PeriodEstimate | None = None
     notes: list[str] = field(default_factory=list)
@@ -230,8 +273,12 @@ class LightCurve:
         return [p for p in self.points if p.rel_mag is not None]
 
     def to_dict(self) -> dict:
-        """Strict-JSON dict (NaN/inf -> None, tuples -> lists, int keys -> str)."""
-        return _json_safe(asdict(self))
+        """Strict-JSON dict (NaN/inf -> None, tuples -> lists, int keys -> str) with exactly the contract's keys."""
+        d = asdict(self)
+        if d["period"] is not None:
+            for k in PERIOD_PRIVATE_FIELDS:
+                d["period"].pop(k, None)
+        return _json_safe(d)
 
 
 def _json_safe(v):
@@ -487,7 +534,9 @@ def wavelength_bins(wavelengths: Sequence[float], frac: float = LAMBDA_BIN_FRAC)
     """Bin label of each wavelength: sorted greedily, a bin holds wavelengths within ``(1 + frac)`` of its first.
 
     Two wavelengths less than ``frac`` apart can still land in neighbouring bins (fixed edges):
-    :func:`matched_pairs` compares exposures pairwise instead.
+    :func:`matched_pairs` compares exposures pairwise instead. The width is a compromise, not corrected for (WS3
+    review LC28): with 1 % the spectral slope inside a bin still adds scatter where the spectrum is steep (R Dra D1:
+    ~0.14 of its 0.29 mag residual), and in D5/D6 1 % is wider than the linear-variable-filter channel.
     """
     if not frac > 0:
         raise ValueError(f"lambda_bin_frac must be > 0, got {frac}")
@@ -579,7 +628,10 @@ def light_curve_from_exposures(
 
     ``comparison_stars`` (ra, dec) overrides the automatic choice (``n_comparison = 0`` disables them).
     ``period``: None = estimate when there are >= 30 points over >= 2 x the shortest period tried; the estimate is
-    always tested with ``n_permutations`` visit permutations and labelled ``significant`` or not (see the notes).
+    tested with ``n_permutations`` visit permutations and labelled ``significant`` or not, unless its best period is
+    at the edge of the grid or covers < 1.5 cycles (then untested; see :func:`estimate_period` and the notes).
+    The notes also carry what the contract has no field for: the comparisons' matched-pair scatter, the amplitude
+    errors and, when it changes between seasons, the saturated fraction per season.
     """
     if method not in METHODS:
         raise ValueError(f"method must be one of {METHODS}, got {method!r}")
@@ -720,11 +772,12 @@ def light_curve_from_exposures(
     excluded = dict(Counter(p.excluded for p in points if p.excluded))
     control: dict[int, dict] = {}
     for det in sorted({p.detector for p in points}):
-        vals = [rows[j]["rel_mag"] for rows in comp_items for j in range(len(rows)) if rows[j]["detector"] == det]
-        stats = _robust(vals)
+        rows_det = [r for rows in comp_items for r in rows if r["detector"] == det]
+        stats = _robust([r["rel_mag"] for r in rows_det])
         stats["n_stars"] = sum(
             any(r["detector"] == det and r["rel_mag"] is not None for r in rows) for rows in comp_items
         )
+        stats["excluded"] = dict(Counter(r["excluded"] for r in rows_det if r["excluded"]))  # comparison measurements
         control[det] = stats
     summary: dict[int, dict] = {}
     for det in sorted({p.detector for p in points}):
@@ -734,7 +787,9 @@ def light_curve_from_exposures(
         stats["n_bins"] = sum(1 for b in bins if b.detector == det)
         stats["excluded"] = dict(Counter(p.excluded for p in mine if p.excluded))
         floor = control.get(det, {}).get("robust_sigma_mag")
-        if floor and stats.get("robust_sigma_mag") is not None:
+        if method == "wing":  # wing scatter over aperture scatter: not a defined ratio (WS3 review LC24)
+            stats["scatter_over_control"] = None
+        elif floor and stats.get("robust_sigma_mag") is not None:
             stats["scatter_over_control"] = stats["robust_sigma_mag"] / floor if floor > 0 else None
         summary[det] = stats
 
@@ -767,19 +822,67 @@ def light_curve_from_exposures(
 
 
 def period_note(pe: PeriodEstimate) -> str:
-    """One line for the notes and the CLI: the period only when the permutation test says it is significant."""
+    """One line for the notes and the CLI: what the permutation test says, the best period as a candidate only, and
+    the fitted amplitudes with their 1 sigma errors (the contract has no field for those)."""
+    amps = ", ".join(
+        f"D{d} {a:.2f}" + (f"±{pe.amplitude_err_mag[d]:.2f}" if d in pe.amplitude_err_mag else "")
+        for d, a in sorted(pe.amplitude_mag.items())
+    )
+    amps = (
+        f" Fitted peak-to-peak amplitudes (mag, 1 sigma from the fit covariance at that period): {amps}."
+        if amps
+        else ""
+    )
     if pe.significant:
         return (
-            f"Period {pe.period_days:.1f} d: significant (visit-permutation false-alarm probability {pe.false_alarm:.3f}"
-            f", {pe.n_permutations} permutations); quick sinusoid estimate, check the aliases and the caveat."
+            f"Significant time-correlated variability; best period {pe.period_days:.1f} d. Visit-permutation "
+            f"false-alarm probability {false_alarm_text(pe)}. A candidate period from a quick sinusoid fit, not a "
+            f"confirmed one: check the aliases, the caveat and catalog periods.{amps}"
         )
     if pe.significant is False:
+        n = pe.n_permutations
+        min_n = math.ceil(1.0 / PERIOD_FALSE_ALARM) - 1  # 99: the fewest permutations whose 1/(n+1) can pass
+        if n < min_n and _exceedances(pe) == 0:  # not beaten by any permutation, but too few of them to pass
+            return (
+                f"No significant period: {n} visit permutations cannot reach a false-alarm probability <= "
+                f"{PERIOD_FALSE_ALARM:.0%} (the smallest value they can give is 1/{n + 1}; at least {min_n} are "
+                f"needed), although none of them reached the peak of the best sinusoid ({pe.period_days:.1f} d). "
+                f"Untested in practice: do not quote it as a period.{amps}"
+            )
+        few = f", which needs at least {min_n} permutations" if n < min_n else ""
         return (
-            f"No significant period: the best sinusoid ({pe.period_days:.1f} d) is matched by noise in "
-            f"{pe.false_alarm:.0%} of {pe.n_permutations} visit permutations (needs <= {PERIOD_FALSE_ALARM:.0%}); "
-            "do not quote it as a period."
+            f"No significant period: the best sinusoid ({pe.period_days:.1f} d) is matched by shuffled visit epochs. "
+            f"Visit-permutation false-alarm probability {false_alarm_text(pe)}; significant needs <= "
+            f"{PERIOD_FALSE_ALARM:.0%}{few}. Do not quote it as a period.{amps}"
         )
-    return f"Best sinusoid {pe.period_days:.1f} d, NOT tested for significance (no permutations): not a period."
+    why = pe.untested_reason or "no permutations run"
+    return f"Best sinusoid {pe.period_days:.1f} d, NOT tested for significance ({why}): not a period.{amps}"
+
+
+def _exceedances(pe: PeriodEstimate) -> int:
+    """k, the permutations that reached the observed peak, back from false_alarm = (1 + k) / (1 + n)."""
+    return max(int(round(pe.false_alarm * (pe.n_permutations + 1))) - 1, 0)
+
+
+def false_alarm_text(pe: PeriodEstimate) -> str:
+    """The permutation result with its counts. When no permutation reached the peak, (1 + 0) / (1 + n) = 1/(n+1) is
+    the smallest value n permutations can give: not a measured probability, nor an upper bound on it."""
+    if pe.false_alarm is None or pe.n_permutations <= 0:
+        return "not tested"
+    n = pe.n_permutations
+    k = _exceedances(pe)
+    if k == 0:
+        return f"1/{n + 1} (0 of {n} permutations reached the peak; the smallest value {n} permutations can give)"
+    return f"{pe.false_alarm:.3f} ({k} of {n} permutations reached the peak)"
+
+
+def _saturation_by_season(lc: LightCurve) -> dict[int, tuple[int, int]]:
+    """Season -> (saturated exposures, exposures), for seasons with >= SATURATION_SEASON_MIN exposures."""
+    counts: dict[int, list[int]] = defaultdict(lambda: [0, 0])
+    for p in lc.points:
+        counts[p.season][0] += p.excluded == "saturated"
+        counts[p.season][1] += 1
+    return {s: (a, n) for s, (a, n) in sorted(counts.items()) if n >= SATURATION_SEASON_MIN}
 
 
 def _notes(lc: LightCurve) -> list[str]:
@@ -798,6 +901,15 @@ def _notes(lc: LightCurve) -> list[str]:
             f"{sat} exposures are saturated (OVERFLOW in the aperture: lower limits) and excluded; for a star saturated "
             "everywhere use method='wing' (relative brightness of the unsaturated PSF wing)."
         )
+    seasons = _saturation_by_season(lc)
+    frac = [a / n for a, n in seasons.values()]
+    if sat and len(frac) >= 2 and max(frac) - min(frac) >= SATURATION_SEASON_RANGE:
+        notes.append(
+            "Saturated exposures by season: "
+            + ", ".join(f"S{s} {a}/{n}" for s, (a, n) in seasons.items())
+            + ". The saturated fraction changes strongly between seasons, so bright states may be preferentially "
+            "excluded: the light curve under-represents the brightest epochs."
+        )
     if lc.method == "wing":
         n_core = sum(1 for p in lc.points if "saturated_core" in p.flags)
         notes.append(
@@ -812,6 +924,28 @@ def _notes(lc: LightCurve) -> list[str]:
             f"Control: {len(lc.comparisons)} comparison stars measured with the aperture method in the same exposures; "
             f"robust scatter (mag) {ctl or 'not measurable'}."
         )
+        pairs = ", ".join(
+            f"D{d} {s['robust_sigma_mag']:.3f} mag ({s['n']} pairs)"
+            for d, s in comparison_pair_scatter(lc).items()
+            if s["n"] >= 2
+        )
+        rule = f"same detector, |dlambda|/lambda < {lc.lambda_bin_frac:.1%}, >= {MIN_PAIR_DT_DAYS:g} d apart"
+        if lc.method == "wing":  # aperture pairs of the comparisons say nothing about the wing's own floor (LC26)
+            notes.append(
+                f"Comparison-star matched-pair scatter (their own aperture pairs: {rule}): "
+                f"{pairs or 'no comparison pairs'}. It is NOT the floor of the target's wing pairs: wing photometry "
+                "has its own, separate per-exposure floor (the period's floor_mag when a period is fitted)."
+            )
+        else:
+            notes.append(
+                f"Comparison-star matched-pair scatter (the empirical floor for the target's matched-wavelength pairs: "
+                f"{rule}): {pairs or 'no comparison pairs'}."
+            )
+        if lc.method == "wing":
+            notes.append(
+                "scatter_over_control is not given for wing photometry: the comparison stars are measured with "
+                "aperture photometry, so the ratio of the target's wing scatter to theirs is not defined."
+            )
     else:
         notes.append("No comparison star available: the systematic floor of this light curve is not measured.")
     return notes
@@ -820,17 +954,39 @@ def _notes(lc: LightCurve) -> list[str]:
 # --- matched pairs (the RW Aurigae method) -------------------------------------------------------------------
 
 
-def matched_pairs(lc: LightCurve, *, max_frac: float = LAMBDA_BIN_FRAC, min_dt_days: float = 30.0) -> list[dict]:
+def _matched(lam_a: float, lam_b: float, frac: float) -> bool:
+    """|dlambda| / mean lambda < frac."""
+    return abs(lam_b - lam_a) / (0.5 * (lam_a + lam_b)) < frac
+
+
+def _usable(why: str | None, flux: float | None, lam: float | None) -> bool:
+    """Passed the quality cuts (bin drops allowed: pairs do not need a bin), positive flux, known wavelength."""
+    return (why is None or why in BIN_REASONS) and flux is not None and flux > 0 and lam is not None
+
+
+def matched_pairs(
+    lc: LightCurve, *, max_frac: float = LAMBDA_BIN_FRAC, min_dt_days: float = MIN_PAIR_DT_DAYS
+) -> list[dict]:
     """Same-detector exposure pairs at matched wavelength (|dlambda|/lambda < ``max_frac``) at least ``min_dt_days``
     apart, from every point that passed the quality cuts (whatever its bin). ``delta_mag`` = later - earlier
-    (negative = brighter later). ``ensemble_mag`` is the median change of the comparison stars measured in the SAME
-    two exposures (``n_ensemble`` stars); ``delta_mag_corrected`` = ``delta_mag`` - ``ensemble_mag``."""
-    pts = [p for p in lc.points if (p.excluded is None or p.excluded in BIN_REASONS) and p.flux and p.flux > 0]
+    (negative = brighter later); ``delta_mag_err`` is statistical only. With the ``aperture`` method the floor for a
+    pair is the comparisons' own matched-pair scatter (:func:`comparison_pair_scatter`, in the notes); with ``wing``
+    it is not (aperture comparisons): the wing has its own floor (R Dra: ``floor_mag`` 0.35-0.40 mag per exposure in
+    D1-D3 against 0.03-0.04 mag for the comparisons' pairs; comparable in D5/D6, where the comparisons are faint).
+
+    ``ensemble_mag`` is the median change of the comparison stars measured in the SAME two exposures whose own two
+    wavelengths also match (|dlambda|/lambda < ``max_frac``; ``n_ensemble`` stars, None when none qualifies): a
+    comparison sits elsewhere on the linear variable filter, so the target's match does not make its match (WS3 review
+    LC28: median 0.5-0.9 %, up to 2.3 %, before this cut). ``delta_mag_corrected`` = ``delta_mag`` - ``ensemble_mag``.
+    Limits of the 1 % match itself (LC28, not corrected): wide where the spectrum is steep (R Dra D1) and wider than
+    the linear-variable-filter channel in D5/D6.
+    """
+    pts = [p for p in lc.points if _usable(p.excluded, p.flux, p.wavelength_um)]
     comp = [
         {
-            fid: f
-            for fid, f, why in zip(c.frame_ids, c.flux_mjy, c.excluded, strict=True)
-            if f is not None and f > 0 and (why is None or why in BIN_REASONS)
+            fid: (f, lam)
+            for fid, f, lam, why in zip(c.frame_ids, c.flux_mjy, c.wavelength_um, c.excluded, strict=True)
+            if _usable(why, f, lam)
         }
         for c in lc.comparisons
     ]
@@ -842,17 +998,16 @@ def matched_pairs(lc: LightCurve, *, max_frac: float = LAMBDA_BIN_FRAC, min_dt_d
         mine = sorted(by_det[det], key=lambda p: p.mjd)
         for i, a in enumerate(mine):
             for b in mine[i + 1 :]:
-                if b.mjd - a.mjd < min_dt_days:
-                    continue
-                mean_lam = 0.5 * (a.wavelength_um + b.wavelength_um)
-                if abs(b.wavelength_um - a.wavelength_um) / mean_lam >= max_frac:
+                if b.mjd - a.mjd < min_dt_days or not _matched(a.wavelength_um, b.wavelength_um, max_frac):
                     continue
                 dm = -MAG * math.log(b.flux / a.flux)
                 err = None
                 if a.flux_err is not None and b.flux_err is not None:
                     err = MAG * math.hypot(a.flux_err / a.flux, b.flux_err / b.flux)
                 ens = [
-                    -MAG * math.log(c[b.frame_id] / c[a.frame_id]) for c in comp if a.frame_id in c and b.frame_id in c
+                    -MAG * math.log(c[b.frame_id][0] / c[a.frame_id][0])
+                    for c in comp
+                    if a.frame_id in c and b.frame_id in c and _matched(c[a.frame_id][1], c[b.frame_id][1], max_frac)
                 ]
                 ens_mag = float(np.median(ens)) if ens else None
                 out.append(
@@ -878,12 +1033,44 @@ def matched_pairs(lc: LightCurve, *, max_frac: float = LAMBDA_BIN_FRAC, min_dt_d
     return out
 
 
+def comparison_pair_scatter(
+    lc: LightCurve, *, max_frac: float | None = None, min_dt_days: float = MIN_PAIR_DT_DAYS
+) -> dict[int, dict]:
+    """Per detector, robust statistics (:func:`_robust`, ``n`` = pairs) of the comparison stars' OWN matched-pair
+    changes, with :func:`matched_pairs`' criteria: same star and detector, |dlambda|/lambda < ``max_frac`` (default
+    ``lc.lambda_bin_frac``) at the star's own wavelength, >= ``min_dt_days`` apart; ``delta`` = later - earlier.
+
+    For the ``aperture`` method this, not the per-point ``control``, is the empirical floor of a target pair: on the
+    real products it is 1.4-1.9x the per-point control (RW Aur D1: 0.033 against 0.018 mag; WS3 review LC26). It is
+    NOT the floor of ``wing`` pairs: the comparisons are always aperture measurements, and the wing has its own floor
+    (R Dra D1: ``floor_mag`` 0.35 mag per exposure against 0.030 mag here)."""
+    frac = lc.lambda_bin_frac if max_frac is None else max_frac
+    mjd = {p.frame_id: p.mjd for p in lc.points}
+    deltas: dict[int, list[float]] = defaultdict(list)
+    for c in lc.comparisons:
+        by_det: dict[int, list[tuple[float, float, float]]] = defaultdict(list)
+        for fid, det, lam, f, why in zip(
+            c.frame_ids, c.detectors, c.wavelength_um, c.flux_mjy, c.excluded, strict=True
+        ):
+            if fid in mjd and _usable(why, f, lam):
+                by_det[int(det)].append((mjd[fid], lam, f))
+        for det, ms in by_det.items():
+            ms.sort()
+            for i, (ta, la, fa) in enumerate(ms):
+                for tb, lb, fb in ms[i + 1 :]:
+                    if tb - ta >= min_dt_days and _matched(la, lb, frac):
+                        deltas[det].append(-MAG * math.log(fb / fa))
+    return {d: _robust(deltas[d]) for d in sorted(deltas)}
+
+
 # --- period --------------------------------------------------------------------------------------------------
 
 
-def _fit_grid(t, y, w, bins, dets, freqs, chunk: int = 256):
+def _fit_grid(t, y, w, bins, dets, freqs, chunk: int = 256, normal: bool = False):
     """Delta chi2 of per-detector sinusoids after per-bin offsets, for every frequency (Frisch-Waugh-Lovell:
-    residualise against bin means, then a 2x2 solve per detector). Returns (dchi2[nf], coefficients[nf, ndet, 2]).
+    residualise against bin means, then a 2x2 solve per detector). Returns (dchi2[nf], coefficients[nf, ndet, 2]),
+    plus with ``normal`` the 2x2 normal matrices (a11, a12, a22)[nf, ndet], whose inverse is the coefficients'
+    covariance (bins never span detectors, so the per-detector blocks are exact).
     Vectorised over frequencies in chunks of ``chunk`` (memory ~ chunk x points)."""
     n = len(t)
     nb = int(bins.max()) + 1
@@ -901,6 +1088,7 @@ def _fit_grid(t, y, w, bins, dets, freqs, chunk: int = 256):
     freqs = np.asarray(freqs, float)
     dchi2 = np.zeros(len(freqs))
     coef = np.zeros((len(freqs), len(udets), 2))
+    mats = np.zeros((3, len(freqs), len(udets)))
     for lo in range(0, len(freqs), chunk):
         f = freqs[lo : lo + chunk]
         ph = 2.0 * math.pi * f[:, None] * t[None, :]
@@ -915,7 +1103,26 @@ def _fit_grid(t, y, w, bins, dets, freqs, chunk: int = 256):
         q = np.where(ok, (a11 * b2 - a12 * b1) / safe, 0.0)
         dchi2[lo : lo + len(f)] = np.sum(p * b1 + q * b2, axis=1)
         coef[lo : lo + len(f), :, 0], coef[lo : lo + len(f), :, 1] = p, q
+        mats[:, lo : lo + len(f)] = a11, a12, a22
+    if normal:
+        return dchi2, coef, mats
     return dchi2, coef
+
+
+def _amplitudes(udets, coef, mats) -> tuple[dict[int, float], dict[int, float]]:
+    """Peak-to-peak amplitude 2 sqrt(p^2 + q^2) per detector and its 1 sigma error, propagated from the covariance
+    of (p, q) = inverse 2x2 normal matrix (the weights include the floors, so chi2/dof = 1: no rescaling)."""
+    amp, err = {}, {}
+    for j, d in enumerate(udets):
+        p, q = (float(v) for v in coef[j])
+        a11, a12, a22 = (float(m[j]) for m in mats)
+        r = math.hypot(p, q)
+        amp[int(d)] = 2.0 * r
+        det = a11 * a22 - a12 * a12
+        if r > 0 and det > 0:
+            var = (p * p * a22 - 2.0 * p * q * a12 + q * q * a11) / det / (r * r)
+            err[int(d)] = 2.0 * math.sqrt(max(var, 0.0))
+    return amp, err
 
 
 def _permutation_false_alarm(t, y, w, bins, dets, freqs, observed: float, n: int, rng) -> float:
@@ -982,9 +1189,20 @@ def estimate_period(
 ) -> PeriodEstimate | None:
     """Best sinusoid period of the light curve's points (see the module docstring); None with too few points.
 
-    ``n_permutations`` visit permutations give ``false_alarm`` (how often noise with the same visits, bins and errors
-    peaks as high) and ``significant`` (<= 1 %; at least 99 permutations are needed to reach it). Without them
-    (``n_permutations=0``) ``significant`` is None: the period is not tested."""
+    The per-detector floors (chi2/dof = 1) are first evaluated at the statistical-only best period, then again at
+    the refined best period until it moves by less than one fine-grid step (at most ``FLOOR_ITERATIONS`` times), so
+    the reported floors, amplitudes and delta chi2 refer to the reported period (WS3 review LC27). This can move the
+    period within its flat peak: R Dra's went from 259.1 to 261.9 d (delta chi2 0.3 apart; D6's floor fell from
+    0.091 to 0.075 mag and D6 alone prefers ~265 d).
+
+    ``n_permutations`` visit permutations give ``false_alarm`` = (1 + k) / (1 + n), k permutations peaking as high
+    (how often the same visits, bins and errors with shuffled epochs fit as well), and ``significant`` (<= 1 %; at
+    least 99 permutations are needed to reach it). That tests time-correlated variability, not periodicity: a trend
+    peaks at the long end of the grid and passes (LC7). So the test is skipped (``false_alarm`` None,
+    ``n_permutations`` 0, ``significant`` None, the reason in ``untested_reason``, the caveat and :func:`period_note`)
+    when the best period lies within one grid step of either end of ``period_range_days`` or covers fewer than
+    ``MIN_PERIOD_CYCLES`` cycles of the baseline; the period stays an untested candidate. Without permutations
+    (``n_permutations=0``) ``significant`` is None as well."""
     used = [p for p in lc.used() if p.rel_mag_err is not None and p.rel_mag_err > 0]
     if len(used) < 10:
         return None
@@ -1004,33 +1222,40 @@ def estimate_period(
 
     w = 1.0 / sig**2
     d0, _ = _fit_grid(t, y, w, bins, dets, freqs)
-    f_best = float(freqs[int(np.argmax(d0))])
-    floor = _floors(t, y, sig, bins, dets, f_best)
-    sig_t = np.sqrt(sig**2 + np.array([floor[int(d)] for d in dets]) ** 2)
-    w = 1.0 / sig_t**2
-    dchi2, coef = _fit_grid(t, y, w, bins, dets, freqs)
-    k = int(np.argmax(dchi2))
-    fap = None
-    if n_permutations > 0:
-        rng_perm = np.random.default_rng([seed, 1])
-        fap = _permutation_false_alarm(t, y, w, bins, dets, freqs, float(dchi2[k]), n_permutations, rng_perm)
-    # refine around the peak
-    fine = np.linspace(freqs[max(k - 1, 0)], freqs[min(k + 1, len(freqs) - 1)], 201)
-    dfine, cfine = _fit_grid(t, y, w, bins, dets, fine)
-    kb = int(np.argmax(dfine))
-    f_best, best = float(fine[kb]), float(dfine[kb])
+    f_floor = float(freqs[int(np.argmax(d0))])  # statistical-only best: the first guess for the floors
+    for _ in range(1 + FLOOR_ITERATIONS):
+        floor = _floors(t, y, sig, bins, dets, f_floor)
+        w = 1.0 / (sig**2 + np.array([floor[int(d)] for d in dets]) ** 2)
+        dchi2, _ = _fit_grid(t, y, w, bins, dets, freqs)
+        k = int(np.argmax(dchi2))
+        # refine around the peak
+        fine = np.linspace(freqs[max(k - 1, 0)], freqs[min(k + 1, len(freqs) - 1)], 201)
+        dfine, _ = _fit_grid(t, y, w, bins, dets, fine)
+        kb = int(np.argmax(dfine))
+        f_best = float(fine[kb])
+        settled = abs(f_best - f_floor) <= abs(float(fine[1] - fine[0]))
+        f_floor = f_best
+        if settled:  # the floors were evaluated at the reported period
+            break
+    best = float(dfine[kb])
     within = fine[dfine >= best - 1.0]
     err = None
     if within.size >= 2 and 0 < kb < len(fine) - 1:
         err = 0.5 * (1.0 / within.min() - 1.0 / within.max())
-    udets = np.unique(dets)
-    amp = {int(d): float(2.0 * math.hypot(*cfine[kb, j])) for j, d in enumerate(udets)}
+    _, coef, mats = _fit_grid(t, y, w, bins, dets, np.array([f_best]), normal=True)
+    amp, amp_err = _amplitudes(np.unique(dets), coef[0], mats[:, 0])
     peaks = []
     for i in range(1, len(dchi2) - 1):
         if dchi2[i] >= dchi2[i - 1] and dchi2[i] >= dchi2[i + 1]:
             peaks.append((float(1.0 / freqs[i]), float(dchi2[i])))
     peaks.sort(key=lambda p: -p[1])
     peaks = [(1.0 / f_best, best)] + [p for p in peaks if abs(p[0] - 1.0 / f_best) > 0.02 / f_best][: n_peaks - 1]
+
+    untested = _period_guard(f_best, df, baseline, pmin, pmax)
+    fap = None
+    if n_permutations > 0 and untested is None:
+        rng_perm = np.random.default_rng([seed, 1])
+        fap = _permutation_false_alarm(t, y, w, bins, dets, freqs, float(dchi2[k]), n_permutations, rng_perm)
 
     boot = None
     if n_bootstrap > 0:
@@ -1059,9 +1284,28 @@ def estimate_period(
         baseline_days=baseline,
         period_range_days=(float(pmin), float(pmax)),
         false_alarm=fap,
-        n_permutations=max(int(n_permutations), 0),
+        n_permutations=max(int(n_permutations), 0) if fap is not None else 0,
         significant=None if fap is None else fap <= PERIOD_FALSE_ALARM,
+        caveat=PERIOD_CAVEAT if untested is None else f"Not tested for significance: {untested}. {PERIOD_CAVEAT}",
+        untested_reason=untested,
+        amplitude_err_mag=amp_err,
     )
+
+
+def _period_guard(f_best: float, df: float, baseline: float, pmin: float, pmax: float) -> str | None:
+    """Why a best period must not be tested (None: it may): within one grid step of either end of the search range,
+    or fewer than MIN_PERIOD_CYCLES cycles over the baseline (WS3 review LC7: a 0.6 mag trend on R Dra's sampling
+    peaked at the 800 d edge with false alarm 1/101)."""
+    reasons = []
+    tol = df * (1.0 + 1e-9)
+    if f_best - 1.0 / pmax <= tol or 1.0 / pmin - f_best <= tol:
+        reasons.append(f"best period at the edge of the {pmin:g}-{pmax:g} d search range")
+    if 1.0 / f_best > baseline / MIN_PERIOD_CYCLES:
+        reasons.append(
+            f"it covers fewer than {MIN_PERIOD_CYCLES:g} cycles of the {baseline:.0f} d baseline: consistent with a "
+            "trend or an incomplete cycle, not a measured period"
+        )
+    return "; ".join(reasons) or None
 
 
 def _visit_groups(t: np.ndarray, gap_days: float = VISIT_GAP_HOURS / 24.0) -> list[np.ndarray]:
