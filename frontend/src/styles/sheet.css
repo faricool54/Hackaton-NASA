@@ -1,0 +1,88 @@
+/* FE-10 · bottom sheet (BottomSheet). Prefix: .sh-. The sheet sits at the bottom of its positioned container and
+   covers what is under it; it never hides or unmounts it (the map iframe stays, FRONTEND_PLAN §4.8). The container
+   can set --sh-peek (the peek height); half is 50 % and full 100 % of the container. */
+
+.sh-root {
+  position: absolute;
+  inset: auto 0 0;
+  z-index: var(--z-sheet, 50);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: var(--sh-peek, min(30dvh, 184px));
+  max-height: 100%;
+  overflow: hidden;
+  background: var(--surface-1, var(--panel));
+  border-top: 1px solid var(--line-strong, var(--border));
+  border-radius: var(--r-lg, 14px) var(--r-lg, 14px) 0 0;
+  box-shadow: 0 -8px 24px rgb(0 0 0 / 0.45);
+  transition: height var(--dur, 200ms) var(--ease-out, cubic-bezier(0.2, 0.8, 0.2, 1));
+}
+.sh-root[data-snap='half'] { height: 50%; }
+.sh-root[data-snap='full'] { height: 100%; border-radius: 0; }
+/* While a finger drags the handle, the height follows it without easing. */
+.sh-root[data-dragging] { transition: none; }
+
+.sh-bar {
+  position: relative;
+  flex: none;
+  height: var(--touch-min, 44px);
+}
+.sh-root .sh-handle {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  min-height: var(--touch-min, 44px);
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-lg, 14px) var(--r-lg, 14px) 0 0;
+  cursor: grab;
+  /* The handle owns vertical drags; the page must not scroll or zoom under them. */
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.sh-root[data-dragging] .sh-handle { cursor: grabbing; }
+.sh-grip {
+  display: block;
+  width: 40px;
+  height: 5px;
+  border-radius: var(--r-pill, 999px);
+  background: var(--line-control, #626d88);
+}
+.sh-root .sh-handle:hover .sh-grip { background: var(--accent, #7cc4ff); }
+.sh-root .sh-close {
+  position: absolute;
+  top: 0;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: var(--touch-min, 44px);
+  height: var(--touch-min, 44px);
+  min-height: var(--touch-min, 44px);
+  margin: 0;
+  padding: 0;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--text, #e6e9f2);
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-sm, 6px);
+}
+.sh-root .sh-handle:focus-visible, .sh-root .sh-close:focus-visible {
+  outline: 2px solid var(--accent-strong, #a6e0ff);
+  outline-offset: -3px;
+}
+
+/* The content fills the rest; whatever is inside scrolls on its own (the sheet itself never scrolls). */
+.sh-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.sh-body > * { flex: 1 1 auto; min-width: 0; min-height: 0; }

@@ -39,10 +39,10 @@ export function PositionResults({
   const nearby = selected && !timeFieldId ? searchSequences(sequences, '', position) : [];
   const header = <>
     <h1>{label || field?.name || (selected ? 'Selected sky position' : 'Watch the infrared sky change')}</h1>
-    {selected ? <p className="small">{formatRaDec(position.ra, position.dec)}</p>
-      : <p className="small">Pick a challenge target, search a name, or click any star.</p>}
+    {selected ? <p className="small xp-coords">{formatRaDec(position.ra, position.dec)}</p>
+      : <p className="small xp-coords">Pick a challenge target, search a name, or click any star.</p>}
     {note && <p className="muted small xp-note">{note}</p>}
-    {synthetic && <p className="small">SYNTHETIC DATA · NOT SPHEREx</p>}
+    {synthetic && <p className="small xp-synthetic">SYNTHETIC DATA · NOT SPHEREx</p>}
     {selected && <div className="xp-dock-links small">
       <button type="button" className="link-button" onClick={onCopyLink}>Copy link</button>
       {timeFieldId && <a href={`#/field/${timeFieldId}`}>Open field page →</a>}

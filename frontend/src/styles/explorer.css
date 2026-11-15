@@ -60,14 +60,112 @@ main.xp-app {
 .xp-build-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .xp-dock-body .field-layout { grid-template-columns: minmax(0, 1fr); }
 
+/* FE-10 · phones and narrow tablets (same query as PHONE_QUERY in SkyExplorer.tsx). The map fills the screen under
+   the topbar, the search and the chips float over its top, and the dock lives in a BottomSheet (sheet.css). The page
+   never scrolls: only the chips (sideways) and the dock body (inside the sheet) do. */
 @media (max-width: 900px) {
-  .xp-explorer { grid-template-columns: minmax(0, 1fr); height: auto; }
-  /* Phones: the search and the target chips sit above the map instead of covering it (until FE-10). */
-  .xp-map { display: flex; flex-direction: column; overflow: visible; }
-  .xp-map > .mp-root.mp-fill { flex: none; height: max(50dvh, 310px); }
-  .xp-search { position: relative; inset: auto; order: -1; width: auto; border-width: 0 0 1px; border-radius: 0; }
-  .xp-dock { border-inline-start: 0; border-block-start: 1px solid var(--border); }
-  .xp-dock-body { overflow: visible; }
+  .xp-explorer {
+    /* Peek: the sheet's handle, the name and coordinates, and the tabs. */
+    --sh-peek: min(30dvh, 184px);
+    --xp-float: 8px;
+    position: relative;
+    display: block;
+    overflow: hidden;
+  }
+  /* The map ends where the peek starts, so its credits strip and Aladin's zoom bar stay in view; half and full cover
+     it without hiding or unmounting it (§4.8), and its size never changes with the sheet. */
+  .xp-map { position: absolute; inset: 0 0 var(--sh-peek); }
+  .xp-search {
+    inset: var(--xp-float) var(--xp-float) auto;
+    width: auto;
+    gap: 6px;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    pointer-events: none;
+  }
+  .xp-search > * { pointer-events: auto; }
+  /* The search row leaves the top right corner to the map's Layers button. */
+  .xp-search > .sx-search { margin-inline-end: 96px; }
+  .xp-search .sx-form { height: var(--touch-min, 44px); }
+  .xp-search .sx-form input, .xp-search .sx-form button { height: var(--touch-min, 44px); }
+  .xp-search .sx-form input { box-shadow: var(--shadow-2, 0 6px 20px rgb(0 0 0 / 0.45)); }
+  /* One row of chips that scrolls sideways under the thumb. */
+  .xp-search .sx-targets {
+    display: flex;
+    gap: 6px;
+    margin: -3px;
+    padding: 3px;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+  }
+  .xp-search .sx-targets::-webkit-scrollbar { display: none; }
+  .xp-search .sx-target {
+    flex: 0 0 auto;
+    min-height: var(--touch-min, 44px);
+    max-width: 75vw;
+    overflow-wrap: normal;
+    white-space: nowrap;
+    box-shadow: var(--shadow-1, 0 1px 2px rgb(0 0 0 / 0.35));
+  }
+  .xp-search > .error {
+    margin: 0;
+    padding: 6px 10px;
+    background: var(--surface-1, var(--panel));
+    border-radius: var(--r-md, 10px);
+  }
+  /* FE-4's status notes sit under the Layers button; on phones the chips row runs under it, so they move below. */
+  .xp-map .mp-root .mp-zone--status { top: calc(2 * var(--xp-float) + 2 * var(--touch-min, 44px) + 12px); }
+  /* An open Layers menu drops over the chips row: the chips step aside until it closes. */
+  .xp-map:has(.mp-layers-button[aria-expanded='true']) .xp-search .sx-targets { visibility: hidden; }
+  /* A half sheet covers the bottom of the map, so the credits strip and its legend ("Static coadd · not a video",
+     NASA/SPHEREx · Caltech/IPAC, the gold-squares note) rise to just above it: §4.4 keeps them visible over any visible
+     map. The map is the explorer minus the peek and the half sheet's top is half the explorer above its bottom, which
+     in the map's own height is 50 % − peek / 2 above the map's bottom. The open Layers menu still stops above them.
+     Peek keeps map.css's place; full hides the whole map, credits included. */
+  .xp-explorer[data-sheet] .xp-map .mp-root .mp-zone--credits {
+    transition: bottom var(--dur, 200ms) var(--ease-out, cubic-bezier(0.2, 0.8, 0.2, 1));
+  }
+  .xp-explorer[data-sheet='half'] .xp-map .mp-root .mp-zone--credits { bottom: calc(50% - var(--sh-peek) / 2 + 8px); }
+  .xp-explorer[data-sheet='half'] .xp-map .mp-root .mp-zone--layers { bottom: calc(50% - var(--sh-peek) / 2 + 104px); }
+
+  /* The dock inside the sheet scrolls as one piece: the header (name, coordinates, provenance) scrolls away and the
+     tab bar sticks to the top, so half height still leaves room for the panel. */
+  .sh-root .xp-dock {
+    display: block;
+    overflow: hidden auto;
+    overscroll-behavior: contain;
+    border: 0;
+    background: transparent;
+  }
+  .sh-root[data-snap='peek'] .xp-dock { overflow: hidden; }
+  .sh-root .xp-dock-body { overflow: visible; }
+  .sh-root .xp-dock-header { padding: 0 16px 6px; }
+  .sh-root .xp-dock-header h1 { font-size: 1.2rem; }
+  .sh-root .xp-tabs {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    width: auto;
+    max-width: none;
+    margin: 0 0 8px;
+    padding: 4px 12px 6px;
+    background: var(--surface-1, var(--panel));
+    border-width: 0 0 1px;
+    border-color: var(--line, var(--border));
+    border-radius: 0;
+  }
+  .sh-root .xp-tabs button { flex: 1 1 0; min-width: 0; min-height: var(--touch-min, 44px); padding-inline: 6px; }
+  .sh-root .xp-dock-links > * { display: inline-flex; align-items: center; min-height: var(--touch-min, 44px); }
+  /* Peek shows the name, the coordinates (and SYNTHETIC when it applies) and the tabs; the provenance note, links
+     and notices are one tap away at half height, where every selection raises the sheet. */
+  .sh-root[data-snap='peek'] .xp-dock-header > :not(h1, .xp-coords, .xp-synthetic) { display: none; }
+  .sh-root[data-snap='peek'] .xp-dock-header > * { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  /* No half-cut first line of the panel under the tabs (the panel stays mounted, only unseen). */
+  .sh-root[data-snap='peek'] .xp-dock-body { visibility: hidden; }
 }
 
 /* Empty dock: three short steps instead of a blank panel. */
