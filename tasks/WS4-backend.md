@@ -137,6 +137,13 @@ ahora se adapta a un contrato compartido antes de exponerla. Tener la función p
 
 ## Verificación de caché y ciencia (15/11/2026)
 
+- [x] **WS4-16 (V18/C02 y LC24): integración de la interpretación WS3 #102.** Temperatura de color
+  condicional y categorías IR en las notas existentes, rechazo explícito de cubos sin fondo/errores,
+  caché con huella de `science/`, dos curvas reconstruidas desde FITS/SIA con el resumen corregido.
+  Puntos/pares/período idénticos; API real y avisos comprobados en navegador. Registro:
+  [WS3_SCIENCE_ACCEPTANCE.md](../backend/deploy/WS3_SCIENCE_ACCEPTANCE.md). Publicación coordinada en #100;
+  no equivale a Teff medida ni aprobación humana R05.
+
 Cache `display-mask-v4` + huella de código/dependencias: nuevos cambios WS2 invalidan jobs previos.
 Regresiones de flags SOURCE/HOT, huecos del cubo, fotometría firmada/saturación, PNG corrupto, singleflight,
 cancelación local, errores sanitizados y terminación real del hijo por disco/deadline.

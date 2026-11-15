@@ -248,10 +248,14 @@ SPHEREx.** La ciencia está en WS3 (`errante.science.context.object_context` + `
 ## Precomputed light curves (R05/C04, contract 0.6.0)
 
 The additive **[contract #78](https://github.com/faricool54/Hackaton-NASA/pull/78)** was prepared for
-**WS3 / faricool54** and integrated following the user's explicit merge instruction. Independent WS3 review
-of units, relative-magnitude interpretation, comparison controls, period significance and completeness
-remains pending. Integration does not certify that review or scientific R05 validation.
-No WS3 algorithm or threshold has been changed.
+**WS3 / faricool54** and integrated following the user's explicit merge instruction. WS3 reviewed the units, relative magnitudes, comparison controls, period interpretation and completeness
+in #85; #93 applied the scientific fixes and #94/#95 republished the products. Human R05 approval
+remains pending. The remaining two-exposure-bin scatter correction is implemented by WS3; both packaged products
+were rebuilt from the same real FITS exposures. RW Aur used fresh SIA (complete selection); R Dra used
+a declared archived search snapshot after IRSA timed out and remains partial/stale, without truncation.
+Points, matched pairs and period are unchanged. RW Aur keeps its 10 usable points but has no independent
+exposure-scatter sample (`summary.n=0`, `scatter_over_control=null`). R Dra retains 450 usable points;
+its scatter summary excludes two-point bins, without changing the period or measured pairs.
 
 `GET /api/lightcurves` lists target IDs, method, build date, point/usable counts, readiness and partial status.
 `GET /api/lightcurves/rw-aurigae` and `/api/lightcurves/r-draconis` return validated `LightCurveProduct` JSON.
@@ -396,3 +400,22 @@ products or the GET route; its visual panels remain a separate workstream.
 separate private cache/jobs; explicitly configured paths are respected. This avoids writing jobs/analyses
 into WS2's versioned golden fields. See [deploy/README.md](deploy/README.md) and
 [deploy/acceptance.json](deploy/acceptance.json) for the concrete delivery and outstanding external steps.
+
+
+## Conditional spectral interpretation (WS3 V18)
+
+Spectrum responses retain contract 0.7.0. Their existing `notes` now carry WS3's per-season
+blackbody colour-temperature diagnostics and descriptive IR-colour categories. The frontend already
+renders these notes; no WS5 code or shared-model change is needed. This is not stellar effective
+temperature, an atmosphere fit, a radius measurement or a physical 3D reconstruction.
+
+Only quality-screened, background-subtracted L2 source fluxes with finite uncertainties, sufficient
+wavelength coverage and aperture correction can support a fit. Saturated/censored data, poor blackbody
+fits, open temperature intervals and unknown epochs produce explicit unknown states. Static raw-cube
+surface brightness remains `unsupported_product`. Diagnostics never pool different seasons.
+See `docs/SCIENCE.md` (V18/V15/LC24 addendum) for thresholds and model limits.
+
+Science-result cache keys also hash `science/` transitively; changes to the fitting/matching helpers
+cannot reuse earlier scientific interpretations. Image-job identities retain their existing dependencies.
+`GET /api/object` carries Farid's #101 RW Aur component-conflict warning; its existing module hash
+invalidates earlier object-card results. Raw SIMBAD IDs remain provenance, not a resolved component claim.
