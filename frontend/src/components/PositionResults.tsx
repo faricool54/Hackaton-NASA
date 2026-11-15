@@ -53,7 +53,7 @@ export function PositionResults({
   return <ExplorerDock view={view} onView={onView} header={header} timeReady={job?.status === 'ready'}>
     <ExplorerPanel name="Object" active={view === 'Object'}>
       {lookup && <p className="muted small">Catalog information</p>}
-      {lookup ? object : <p className="muted">Select a position to see its catalog information.</p>}
+      {lookup ? object : <Welcome />}
     </ExplorerPanel>
     <ExplorerPanel name="Time" active={view === 'Time'}>
       {timeFieldId && !synthetic && !field?.synthetic && <p className="muted small">SPHEREx observations</p>}
@@ -73,4 +73,19 @@ export function PositionResults({
           : <p className="muted">Select a catalog object. <a href="#/systems">Browse catalog models →</a></p>)}
     </ExplorerPanel>
   </ExplorerDock>;
+}
+
+/** What the empty dock shows before any selection: how to use the explorer and how its labels read. */
+export function Welcome() {
+  return <section className="xp-welcome" aria-label="How to use the explorer">
+    <ol className="xp-steps">
+      <li><strong>Pick</strong> a challenge target above the map, search a name or RA Dec, or click any star.</li>
+      <li><strong>Time</strong> plays the real SPHEREx exposures of that spot, date by date.</li>
+      <li><strong>Spectrum</strong>, <strong>Object</strong> and <strong>3D</strong> add its SPHEREx spectrum, its catalog
+        data and a model built from catalog values.</li>
+    </ol>
+    <p className="muted small">Hover a star on the map for its Gaia DR3 values. Every panel says what it shows: a
+      SPHEREx measurement, a catalog value or a model.</p>
+    <p className="muted small">Real SPHEREx DR1 and QR3 images from NASA/IPAC IRSA.</p>
+  </section>;
 }
