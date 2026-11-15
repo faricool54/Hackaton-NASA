@@ -80,7 +80,8 @@ class Recorder:
         "?ra=nan&dec=0",
         "?ra=10&dec=inf",
         "?ra=10&dec=20&radius_arcsec=0",
-        "?ra=10&dec=20&radius_arcsec=61",
+        "?ra=10&dec=20&radius_arcsec=12.5",  # > ~2 SPHEREx pixels: the pixel-dominance rule would not hold
+        "?ra=10&dec=20&radius_arcsec=60",
         "?ra=10&dec=20&epoch_mjd=1",
         "?name=" + "x" * 201,
     ],
@@ -109,6 +110,15 @@ def test_lookup_gets_bounded_timeouts_cache_dir_and_defaults(config, monkeypatch
     assert call["timeout_s"] == service and call["cache_dir"] == config.context_cache_dir
     assert call["epoch_mjd"] == C.DEFAULT_EPOCH_MJD and call["radius_arcsec"] == C.DEFAULT_RADIUS_ARCSEC
     assert call["name"] is None and not call["offline"]
+
+
+def test_the_largest_accepted_radius_reaches_the_lookup(config, monkeypatch):
+    lookup = Recorder()
+    monkeypatch.setattr(C, "object_context", lookup)
+    with TestClient(create_app(config)) as client:
+        response = client.get("/api/object", params={"ra": 200.0, "dec": 40.1, "radius_arcsec": 12})
+    assert response.status_code == 200 and response.json()["query"]["radius_arcsec"] == 12.0
+    assert [c["radius_arcsec"] for c in lookup.calls] == [12.0]
 
 
 def test_results_are_cached_and_concurrent_requests_share_one_lookup(config, monkeypatch):

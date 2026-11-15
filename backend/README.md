@@ -218,10 +218,11 @@ servicio y archivar/eliminar análisis viejos; nunca limpiar los campos original
 
 `GET /api/object?name=Barnard%27s%20Star` o `GET /api/object?ra=331.09665&dec=-56.80066` (exactamente uno de
 `name` o `ra`+`dec`; opcionales `epoch_mjd` de la posición, default MJD 61000 = era SPHEREx, y `radius_arcsec`
-0–60, default 8). Devuelve `ObjectContextResponse` (contrato 0.5.0): identidad SIMBAD/Gaia DR3 con estado de
-match (`name`, `matched`, `ambiguous`, `loose`, `none`, `unavailable`), `facts` (`Fact`, `unknown` si no se
-midió), variabilidad VSX, planetas confirmados, huéspedes cercanos que NO son el objeto, fotometría 2MASS/AllWISE
-marcada `other_mission: true`, advertencias y procedencia por servicio. **Contexto de catálogo, no mediciones
+0–12, default 8 ≈ 1.3 píxeles SPHEREx; WS3 adopta una fuente mucho más brillante del radio porque "domina el
+píxel", lo que deja de valer con radios grandes). Devuelve `ObjectContextResponse` (contrato 0.5.0): identidad
+SIMBAD/Gaia DR3 con estado de match (`name`, `matched`, `ambiguous`, `loose`, `none`, `unavailable`), `facts`
+(`Fact`, `unknown` si no se midió), variabilidad VSX, planetas confirmados, huéspedes cercanos que NO son el
+objeto, fotometría 2MASS/AllWISE marcada `other_mission: true`, advertencias y procedencia por servicio. **Contexto de catálogo, no mediciones
 SPHEREx.** La ciencia está en WS3 (`errante.science.context.object_context` + `to_response`); el backend solo la acota.
 
 - Fuera del event loop, en un `LiveService` propio: `ERRANTE_OBJECT_MAX_CONCURRENT` (4) llamadas activas,
