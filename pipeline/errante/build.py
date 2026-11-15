@@ -8,6 +8,7 @@ to opt into those stages; the image products survive an analysis failure.
 from __future__ import annotations
 
 import dataclasses
+import logging
 import shutil
 import tomllib
 from collections import Counter, defaultdict
@@ -21,8 +22,10 @@ from typing import Any, TypeVar
 import numpy as np
 
 from . import __version__, settings
-from .models import CandidateList, Frame, FrameRef, KnownObjectList, Provenance, SkyCoord, SkyField
+from .models import CandidateList, Composite, Frame, FrameRef, KnownObjectList, Provenance, SkyCoord, SkyField
 from .products import ProductStore
+
+log = logging.getLogger(__name__)
 
 FIELDS_TOML = Path(__file__).parent / "config" / "fields.toml"
 
@@ -54,6 +57,14 @@ MAD_TO_SIGMA = 1.4826
 DOWNLOAD_FAILED = "download failed"
 OUTSIDE_CUTOUT = "target outside the cutout"
 BAD_FRAME = "bad frame"
+# A frame whose field stars sit more than imaging.register.MAX_OFFSET_PX (0.5 px) from their consensus position
+# over the field's frames has a wrong archive WCS: the blink would show a false jump of the whole field.
+# Measured 2026-11-14 on the 1460 vetted candidates of the seven configured fields (1205 checkable): good
+# frames median 0.03 px, 99th percentile 0.12 px, max 0.32 px (one D6 frame of WISE 0855 with 4 stars); the
+# one outlier is 2026W38_1A_0162_3D6 (RW Aurigae) at 1.32 px, the WCS error that docs/validation/rw-aurigae.md
+# found against Gaia (-1.21 to -1.36 px in x). Synthetic shifts of real frames: 0.3 px kept, 0.7-20 px rejected
+# (or left unchecked when too few field stars remain, e.g. around R Draconis).
+MISREGISTERED = "misregistered frame"
 
 GroupKey = tuple[int, int]  # (season, detector)
 _T = TypeVar("_T")
@@ -240,6 +251,7 @@ class _Projected:
     bad: np.ndarray
     wavelength_um: float | None = None
     bandwidth_um: float | None = None
+    variance: np.ndarray | None = None  # VARIANCE on the grid (false-color coadd weights)
 
 
 def _wavelength_at_centre(img, cfg: FieldConfig) -> tuple[float | None, float | None]:
@@ -314,6 +326,7 @@ def _project(refs: list[FrameRef], cfg: FieldConfig, grid) -> tuple[list[_Projec
             continue
         obs_id = img.obs_id or ref.obs_id
         wavelength, bandwidth = _wavelength_at_centre(img, cfg)
+        variance = reproject.reproject_variance(img, grid) if getattr(img, "variance", None) is not None else None
         projected.append(
             _Projected(
                 ref,
@@ -326,6 +339,7 @@ def _project(refs: list[FrameRef], cfg: FieldConfig, grid) -> tuple[list[_Projec
                 bad,
                 wavelength if wavelength is not None else ref.wavelength_um,
                 bandwidth,
+                variance,
             )  # fmt: skip
         )
     return projected, skipped
@@ -337,6 +351,130 @@ class _Selection:
     skipped: list[tuple[FrameRef, str]]
     n_downloaded: int  # candidate cutouts obtained (pool + replacements)
     reference_um: dict[int, float | None]  # per-detector reference wavelength
+    pool: list[_Projected] = field(default_factory=list)  # every vetted, projected candidate (final included)
+    n_topup: int = 0  # extra D2/D3 cutouts obtained for the J/H/Ks composites only
+    topup_note: str = ""  # why the J/H/Ks top-up did not run, if it failed
+    registration_note: str = ""  # what the per-frame registration check measured and rejected
+
+
+@dataclass
+class _Judged:
+    state: str  # "ok", "rejected" or "unchecked"
+    offset: float | None  # registration error [px] when measured
+    topup: bool  # a J/H/Ks top-up frame (false-color composites only), not a blink candidate
+    ref: FrameRef | None = None
+
+
+@dataclass
+class _RegistrationCheck:
+    """Latest verdict of the per-frame registration check (``imaging.register``) for every frame it judged."""
+
+    frames: dict[str, _Judged] = field(default_factory=dict)
+    inconsistent: bool = False  # some pass would have rejected too many frames and rejected none
+    errors: list[str] = field(default_factory=list)  # passes that raised; their frames stay unchecked
+
+    def ids(self, state: str) -> set[str]:
+        return {fid for fid, j in self.frames.items() if j.state == state}
+
+    def note(self) -> str:
+        from .imaging.register import MAX_ERROR_PX, MAX_OFFSET_PX, MIN_STARS
+
+        def counted(topup: bool) -> tuple[int, int]:
+            group = [j for j in self.frames.values() if j.topup == topup]
+            return sum(j.state != "unchecked" for j in group), len(group)
+
+        (c_blink, n_blink), (c_topup, n_topup) = counted(False), counted(True)
+        unchecked = (n_blink - c_blink) + (n_topup - c_topup)
+        kept = [j.offset for j in self.frames.values() if j.state == "ok" and j.offset is not None]
+        text = (
+            "Registration check: every frame's field stars were compared with their median position over the "
+            "field's candidate frames (all detectors: a correct WCS puts a star at the same grid position at "
+            f"every wavelength); {c_blink} of {n_blink} blink candidate frame(s)"
+            + (f" and {c_topup} of {n_topup} J/H/Ks top-up frame(s)" if n_topup else "")
+            + " checked"
+            + (f" (kept: median {float(np.median(kept)):.2f} px, max {max(kept):.2f} px)" if kept else "")
+        )
+        if unchecked and not self.errors:
+            text += (
+                f"; the other {unchecked} had fewer than {MIN_STARS} field stars measurable to {MAX_ERROR_PX:g} px "
+                "(e.g. around a saturated target) or too few frames for a consensus, and were kept unchecked"
+            )
+        text += "."
+        if self.errors:
+            text += (
+                f" The check failed in {len(self.errors)} pass(es) ({self.errors[0]}); the {unchecked} frame(s) "
+                "it could not judge were kept unchecked."
+            )
+        if self.inconsistent:
+            text += (
+                " In at least one pass the check would have rejected over a third of the checked frames; its "
+                "consensus was then not trusted and it rejected nothing."
+            )
+        rejected = [(fid, j) for fid, j in self.frames.items() if j.state == "rejected"]
+        if rejected:
+            listed = ", ".join(
+                f"{fid} ({j.offset:.2f} px{', J/H/Ks top-up' if j.topup else ''})" for fid, j in rejected
+            )
+            text += (
+                f" Rejected {len(rejected)} misregistered frame(s) whose stars are off by more than "
+                f"{MAX_OFFSET_PX:g} px (archive WCS error; they would fake a jump of the whole field), "
+                f"also from the false-color composites: {listed}."
+            )
+        return text
+
+
+def _drop_misregistered(
+    frames: list[_Projected], check: _RegistrationCheck, judged: set[str] | None = None, *, topup: bool = False
+) -> list[_Projected]:
+    """``frames`` without the misregistered ones among ``judged`` (default: all), see ``imaging.register``.
+
+    Every frame of ``frames`` serves as reference (the consensus star positions), but only the ``judged``
+    ones get a (new) verdict in ``check`` and may be dropped: later passes judge their new frames, and the
+    frames earlier passes could not check, against the larger pool without touching the others.
+    """
+    from .imaging import register
+
+    try:
+        report = register.registrations(frames)
+    except Exception as e:  # a safety check: if it cannot run (e.g. memory on a huge job), keep the frames unchecked
+        log.warning("Registration check failed on %d frame(s): %r", len(frames), e)
+        check.errors.append(f"{type(e).__name__}: {e}"[:200])
+        report = register.Report({p.frame_id: None for p in frames})
+    check.inconsistent = check.inconsistent or report.inconsistent
+    bad = report.misregistered()
+    out = []
+    for p in frames:
+        if judged is not None and p.frame_id not in judged:
+            out.append(p)
+            continue
+        previous = check.frames.get(p.frame_id)
+        is_topup = previous.topup if previous is not None else topup
+        r = report.frames.get(p.frame_id)
+        if r is None:
+            check.frames[p.frame_id] = _Judged("unchecked", None, is_topup, p.ref)
+        elif p.frame_id in bad:
+            check.frames[p.frame_id] = _Judged("rejected", r.offset, is_topup, p.ref)
+            continue
+        else:
+            check.frames[p.frame_id] = _Judged("ok", r.offset, is_topup, p.ref)
+        out.append(p)
+    return out
+
+
+def _unique(projected: list[_Projected]) -> list[_Projected]:
+    """One entry per frame id, by time (a frame can be downloaded under two references)."""
+    unique: dict[str, _Projected] = {}
+    for p in sorted(projected, key=lambda p: (p.mjd, p.detector)):
+        unique.setdefault(p.frame_id, p)
+    return list(unique.values())
+
+
+def _misregistered_skips(check: _RegistrationCheck, already: set[str]) -> list[tuple[FrameRef, str]]:
+    return [
+        (j.ref, f"{MISREGISTERED}: field stars {j.offset:.2f} px off their consensus position")
+        for fid, j in check.frames.items()
+        if j.state == "rejected" and fid not in already and j.ref is not None
+    ]
 
 
 def _key_of(ranked: Mapping[GroupKey, list[FrameRef]]) -> dict[tuple[str, int], GroupKey]:
@@ -396,7 +534,53 @@ def _pick_final(
     return sorted(final, key=lambda p: (p.mjd, p.detector)), references
 
 
-def _select_and_project(cfg: FieldConfig, grid, refs: list[FrameRef]) -> _Selection:
+JHK_TOPUP_PER_SEASON = 24  # extra D2/D3 cutouts per season at most, to find J/H/Ks wavelengths
+
+
+def _jhk_topup(
+    cfg: FieldConfig,
+    grid,
+    ranked: Mapping[GroupKey, list[FrameRef]],
+    vetted: list[_Projected],
+    final: list[_Projected],
+    tried: set[tuple[str, int]],
+) -> tuple[list[_Projected], list[tuple[FrameRef, str]], int]:
+    """Download more D2/D3 frames of the seasons whose pool misses J, H or Ks (2MASS-like composites).
+
+    The pool is ranked toward each detector's reference wavelength, so the J (1.25), H (1.65) and
+    Ks (2.17 um) wavelengths the ``jhk`` composite needs are often never downloaded (real fields:
+    3 of 17 seasons had them). A wavelength is only known after download, so the untried frames of the
+    relevant (season, D2/D3) groups are fetched, at most ``JHK_TOPUP_PER_SEASON`` per season. They join
+    the pool for the composites only: the blink frames do not change. Seasons without a final frame are
+    skipped, since composites are only made for the seasons the blink shows.
+    """
+    from .imaging.color import JHK_BANDS, JHK_TOLERANCE_UM
+
+    key_of = _key_of(ranked)
+    seasons = sorted({key_of[(p.ref.obs_id, p.ref.detector)][0] for p in final})
+    wanted_detectors = {"J": (2,), "H": (2, 3), "Ks": (3,)}
+    extra: list[FrameRef] = []
+    for season in seasons:
+        have = [
+            p.wavelength_um
+            for p in vetted
+            if p.wavelength_um is not None and key_of[(p.ref.obs_id, p.ref.detector)][0] == season
+        ]
+        missing = [
+            band for band, target in JHK_BANDS.values() if not any(abs(w - target) <= JHK_TOLERANCE_UM for w in have)
+        ]
+        if not missing:
+            continue
+        detectors = sorted({d for band in missing for d in wanted_detectors[band]})
+        candidates = [r for d in detectors for r in ranked.get((season, d), []) if (r.obs_id, r.detector) not in tried]
+        extra += candidates[:JHK_TOPUP_PER_SEASON]
+    if not extra:
+        return [], [], 0
+    more, skipped = _project(extra, cfg, grid)
+    return more, skipped, len(extra)
+
+
+def _select_and_project(cfg: FieldConfig, grid, refs: list[FrameRef], *, jhk_topup: bool = False) -> _Selection:
     """Plan, download a candidate pool (one replacement round), reject bad frames, pick the final frames."""
     ranked, order = plan_frames(refs)
     available = sum(len(members) for members in ranked.values())
@@ -404,22 +588,45 @@ def _select_and_project(cfg: FieldConfig, grid, refs: list[FrameRef]) -> _Select
     if not pool:
         raise ValueError(f"No usable SPHEREx frames for field '{cfg.id}'; no products were published.")
 
-    # WS1 cutouts + WS2 common grid. One retry round: a skipped frame is
-    # replaced by the next-ranked frame of its (season, detector) group.
+    # WS1 cutouts + WS2 common grid, then the registration check. One retry round: a skipped or
+    # misregistered frame is replaced by the next-ranked frame of its (season, detector) group, and the
+    # replacements (with the frames the first pass could not check) are judged against the whole pool.
     projected, skipped = _project(pool, cfg, grid)
     n_tried = len(pool)
+    check = _RegistrationCheck()
+    projected = _drop_misregistered(_unique(projected), check)
+    skipped += _misregistered_skips(check, already=set())
     spares = _spares(ranked, pool, skipped) if skipped else []
     if spares:
         more, still_skipped = _project(spares, cfg, grid)
-        projected += more
         skipped += still_skipped
         n_tried += len(spares)
-    unique: dict[str, _Projected] = {}
-    for p in sorted(projected, key=lambda p: (p.mjd, p.detector)):
-        unique.setdefault(p.frame_id, p)
-    final, references = _pick_final(list(unique.values()), ranked, cfg.max_frames)
+        known = {p.frame_id for p in projected}
+        new = [p for p in _unique(more) if p.frame_id not in known]
+        rejected_before = check.ids("rejected")
+        judged = {p.frame_id for p in new} | check.ids("unchecked")
+        projected = _drop_misregistered(projected + new, check, judged)
+        skipped += _misregistered_skips(check, already=rejected_before)
+    vetted = _unique(projected)
+    final, references = _pick_final(vetted, ranked, cfg.max_frames)
     n_downloaded = n_tried - sum(why == DOWNLOAD_FAILED for _, why in skipped)
-    return _Selection(final, skipped, n_downloaded, references)
+    n_topup, topup_note = 0, ""
+    if jhk_topup:
+        tried = {(r.obs_id, r.detector) for r in [*pool, *spares]}
+        try:
+            more, more_skipped, n_more = _jhk_topup(cfg, grid, ranked, vetted, final, tried)
+        except Exception as e:  # a colour extra: never lose the blink frames over it
+            log.warning("J/H/Ks top-up failed for %s: %r", cfg.id, e)
+            topup_note = f"J/H/Ks top-up: not run ({type(e).__name__}: {e})."
+        else:
+            known = {p.frame_id for p in vetted}
+            new = [p for p in _unique(more) if p.frame_id not in known]
+            # Composites only; the final frames are unchanged. The new frames, and the non-final frames the
+            # earlier passes could not check, are judged against the whole pool.
+            judged = {p.frame_id for p in new} | (check.ids("unchecked") - {p.frame_id for p in final})
+            vetted = _unique(_drop_misregistered(vetted + new, check, judged, topup=True))
+            n_topup = n_more - sum(why == DOWNLOAD_FAILED for _, why in more_skipped)
+    return _Selection(final, skipped, n_downloaded, references, vetted, n_topup, topup_note, check.note())
 
 
 def _skip_reasons(skipped: list[tuple[FrameRef, str]]) -> str:
@@ -451,6 +658,13 @@ def _selection_note(sel: _Selection, max_frames: int) -> str:
         f"middle; frames without a known wavelength rank last. Rejected {n_bad} bad frame(s) whose "
         f"IMAGE - ZODI robust scatter exceeds {MAX_NOISE_RATIO:g}x the noise of their VARIANCE plane "
         "(background steps)."
+        + (
+            f" Downloaded {sel.n_topup} more D2/D3 frame(s) only to find J/H/Ks wavelengths for the "
+            "false-color composites; they are not blink frames."
+            if sel.n_topup
+            else ""
+        )
+        + (f" {sel.topup_note}" if sel.topup_note else "")
     )
 
 
@@ -523,17 +737,42 @@ def _display_note(rendered: _Rendered) -> str:
     return text
 
 
+def _grid_frame(p: _Projected):
+    from .imaging.compare import GridFrame
+
+    return GridFrame(p.frame_id, p.detector, p.mjd, p.data, p.bad, p.variance, p.wavelength_um)
+
+
+def _composites(field_dir: Path, sel: _Selection) -> tuple[list[Composite], str]:
+    """WS2: false-color season composites (``color/``) of the final frames and the vetted pool.
+
+    A display extra: if it fails, the field is still published without composites and the
+    reason is recorded in the provenance notes.
+    """
+    from .imaging import color
+
+    try:
+        return color.write_composites(
+            field_dir, [_grid_frame(p) for p in sel.frames], [_grid_frame(p) for p in sel.pool]
+        )
+    except Exception as e:  # the frames are already rendered; never lose them over a colour picture
+        log.warning("False-color composites failed for %s: %r", field_dir.name, e)
+        return [], f"False-color composites: not built ({type(e).__name__}: {e})."
+
+
 def build_field(
     cfg: FieldConfig,
     out: Path = settings.PRODUCTS_DIR,
     *,
     analyze: bool = False,
     overrides: Mapping[str, Any] | None = None,
+    jhk_topup: bool = False,
 ) -> SkyField:
     """Search, select, download, vet, reproject and render a field; optionally analyse it.
 
     ``overrides`` replaces FieldConfig values (``errante build --max-frames/--detectors``) and is
-    recorded in the provenance notes.
+    recorded in the provenance notes. ``jhk_topup`` downloads extra D2/D3 frames so the J/H/Ks
+    false-color composite exists in more seasons (on for ``errante build``, off for API jobs).
     """
     from .data import irsa
     from .imaging import grid as grid_mod
@@ -545,19 +784,22 @@ def build_field(
     # 1. WS1: which frames cover the field? WS2: spread a candidate pool over seasons x detectors,
     # download and vet it, then keep the frames that match in wavelength across seasons.
     result = irsa.search_frames(cfg.ra, cfg.dec, detectors=cfg.detectors, mjd_min=cfg.mjd_min, mjd_max=cfg.mjd_max)
-    sel = _select_and_project(cfg, grid, result.frames)
+    sel = _select_and_project(cfg, grid, result.frames, jhk_topup=jhk_topup)
     if not sel.frames:
         _raise_nothing_usable(cfg, sel.skipped)
 
-    # 2. WS2: PNGs of the final frames only.
+    # 2. WS2: PNGs of the final frames only, then the false-color season composites.
     rendered = _render(cfg, store, sel.frames)
     frames = rendered.frames
+    composites, color_note = _composites(store.field_dir(cfg.id), sel)
     notes = [
         "Automatic analysis has not completed."
         if analyze
         else "Automatic detection and catalog matching were not run.",
         _display_note(rendered),
         _selection_note(sel, cfg.max_frames),
+        *([sel.registration_note] if sel.registration_note else []),
+        color_note,
     ]
     if sel.skipped:
         notes.append(f"Skipped {len(sel.skipped)} frame(s): {_skip_reasons(sel.skipped)}")
@@ -572,6 +814,7 @@ def build_field(
         size_deg=cfg.size_deg,
         grid=grid,
         frames=frames,
+        composites=composites,
         provenance=Provenance(
             pipeline_version=__version__,
             built_at=datetime.now(UTC),
