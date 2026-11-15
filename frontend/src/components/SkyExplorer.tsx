@@ -239,6 +239,7 @@ export function SkyExplorer({ sequences, systems, synthetic, manifestError }: Pr
   return <section className="xp-explorer" aria-label="SPHEREx sky explorer">
     <div className="xp-map">
       <ExplorerMap layout="fill" center={mapCenter} footprintFieldId={footprintFieldId} recenterKey={recenter}
+        autoZoomKey={recenter > 0 || initial.linked ? recenter : undefined}
         onSelect={(point: MapSelection) => {
           // A challenge-target marker opens its saved sequence like its chip (no job); a Gaia star keeps its id.
           const target = SHOWCASE_TARGETS.find((t) => t.fieldId === point.targetId);
