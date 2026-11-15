@@ -1,6 +1,7 @@
 """3D system models (WS7): physics helpers, catalog integrity and catalog sources."""
 
 import os
+import re
 
 import pytest
 
@@ -57,6 +58,131 @@ def test_committed_demo_systems_match_the_catalog():
     for system in demo_systems():
         committed = store.read_system(system.id)
         assert committed.model_dump(exclude={"provenance"}) == system.model_dump(exclude={"provenance"}), system.id
+
+
+# --- M5: Barnard b-e at their published phase (Basant et al. 2025, Table 3) ----
+
+# Independent copy of Table 3 (t0 in BJD, P in days, 1-sigma; asymmetric t0 errors: the larger side).
+BASANT_T3 = {
+    "barnard-b": (2460243.38, 0.09, 3.1542, 0.0004),
+    "barnard-c": (2460242.92, 0.10, 4.1244, 0.0006),
+    "barnard-d": (2460243.70, 0.08, 2.3402, 0.0003),
+    "barnard-e": (2460245.30, 0.37, 6.7392, 0.0028),
+}
+
+
+def _barnard_planets():
+    return {b.id: b for b in _system_by_id("barnards-star").bodies if b.orbit}
+
+
+def _ephemeris_mjd(pid):
+    t0, s_t0, period, s_p = BASANT_T3[pid]
+    return t0 - 2400000.5, s_t0, period, s_p
+
+
+def test_barnard_planets_are_dated_at_conjunction():
+    """epoch_mjd = t0(BJD) - 2400000.5 and M = 270 deg (planet toward Earth in the WS7 frame)."""
+    from errante.systems.catalog import CONJUNCTION_MEAN_ANOMALY_DEG
+
+    planets = _barnard_planets()
+    assert set(planets) == set(BASANT_T3)
+    assert CONJUNCTION_MEAN_ANOMALY_DEG == 270.0
+    for pid, (t0, _, period, _) in BASANT_T3.items():
+        orbit = planets[pid].orbit
+        assert orbit.epoch_mjd == pytest.approx(t0 - 2400000.5, abs=1e-6), pid
+        assert orbit.mean_anomaly_deg == 270.0
+        assert orbit.period_days == period
+        # The 'toward Earth' convention needs a circle in the reference plane (i = Omega = omega = 0).
+        shape = (orbit.eccentricity, orbit.inclination_deg, orbit.ascending_node_deg, orbit.arg_periapsis_deg)
+        assert shape == (0, 0, 0, 0)
+        assert "inferior conjunction" in orbit.note and "periastron" in orbit.note
+        t0_fact = next(f for f in planets[pid].facts if f.label == "Reference time t0")
+        assert t0_fact.verified and t0_fact.unit == "BJD" and t0_fact.value.startswith(f"{t0:.2f} ")
+        assert "Table 3" in t0_fact.source and "value only" in t0_fact.source
+
+
+def test_basant_b_ephemeris_reaches_the_gonzalez_hernandez_2024_conjunction():
+    """GH24 Table 6: Tc = BJD 2460139.204 +/- 0.149 (P 3.1533 d). Basant's b, 33 cycles earlier, must agree."""
+    t0, _, period, _ = BASANT_T3["barnard-b"]
+    cycles = (2460139.204 - t0) / period
+    assert round(cycles) == -33
+    assert abs(cycles - round(cycles)) < 0.05  # 0.028 cycles; a periastron reading would be ~0.23 off
+    orbit = _barnard_planets()["barnard-b"].orbit  # the same with the catalog's own epoch
+    cycles = ((2460139.204 - 2400000.5) - orbit.epoch_mjd) / orbit.period_days
+    assert abs(cycles - round(cycles)) < 0.05
+
+
+def test_barnard_phase_spread_matches_the_orbit_notes():
+    """sigma_phi = sqrt(sigma_t0^2 + N^2 sigma_P^2) / P (M5): b 13.0 deg at DR1 start, 18.6 deg at QR3 end."""
+    from errante.systems.catalog import phase_sigma_deg
+
+    assert phase_sigma_deg(60789.75, *_ephemeris_mjd("barnard-b")) == pytest.approx(13.0, abs=0.05)
+    assert phase_sigma_deg(61318.0, *_ephemeris_mjd("barnard-b")) == pytest.approx(18.6, abs=0.06)
+    planets = _barnard_planets()
+    for pid in BASANT_T3:
+        for mjd, iso in ((60789.75, "2025-04-24"), (61318.0, "2026-10-05")):
+            deg = phase_sigma_deg(mjd, *_ephemeris_mjd(pid))
+            assert f"±{deg:.0f}° on {iso}" in planets[pid].orbit.note, pid
+    # The spread widens with time, and e (largest t0 error) is the least well pinned down.
+    assert phase_sigma_deg(61318.0, *_ephemeris_mjd("barnard-b")) > phase_sigma_deg(
+        60789.75, *_ephemeris_mjd("barnard-b")
+    )
+    assert phase_sigma_deg(61318.0, *_ephemeris_mjd("barnard-e")) > phase_sigma_deg(
+        61318.0, *_ephemeris_mjd("barnard-b")
+    )
+
+
+# --- R Dra: two clocks (free-running sine, Dataset time on the VSX ephemeris) ----
+
+
+def test_r_draconis_notes_describe_both_clocks():
+    """The old 'phases are arbitrary' and 'sine wave' notes contradicted Dataset time, which dates R Dra's phase."""
+    from errante import settings
+    from errante.systems.catalog import PHASE_NOTE, RDRA_GCVS_PERIOD_DAYS, RDRA_PULSATION_NOTE
+
+    rdra = _system_by_id("r-draconis")
+    assert PHASE_NOTE not in rdra.provenance.notes
+    assert rdra.provenance.notes.count(RDRA_PULSATION_NOTE) == 1
+    assert not any("sine wave" in n and "Dataset time" not in n for n in rdra.provenance.notes)
+    assert rdra.bodies[0].variability.period_days == RDRA_GCVS_PERIOD_DAYS
+    for text in (
+        f"GCVS period ({RDRA_GCVS_PERIOD_DAYS} d)",
+        "arbitrary phase",
+        "Dataset time",
+        "HJD 2457370.00, P = 246.12 d",
+        "rises in 45 % of the cycle",
+        "frontend/src/three/ephemerides.ts",
+        "not a measured or SPHEREx light curve",
+        "in phase with the light for display only",
+    ):
+        assert text in RDRA_PULSATION_NOTE, text
+    # The shipped JSON carries the new note (regenerate data/demo after editing catalog.py).
+    committed = ProductStore(settings.DEMO_DIR).read_system("r-draconis")
+    assert RDRA_PULSATION_NOTE in committed.provenance.notes
+    assert PHASE_NOTE not in committed.provenance.notes
+    # Systems whose phases are all arbitrary keep the generic note; Barnard's planets are dated (M5).
+    assert PHASE_NOTE in _system_by_id("epsilon-indi").provenance.notes
+    assert PHASE_NOTE in _system_by_id("rw-aurigae").provenance.notes
+    assert PHASE_NOTE not in _system_by_id("barnards-star").provenance.notes
+
+
+def test_r_draconis_note_matches_the_frontend_ephemeris_table():
+    """Dataset time reads MIRA_EPHEMERIDES in frontend/src/three/ephemerides.ts: the note must quote the same values."""
+    from errante import settings
+    from errante.systems.catalog import RDRA_VSX_EPOCH_HJD, RDRA_VSX_PERIOD_DAYS, RDRA_VSX_RISE_PERCENT
+
+    table = settings.REPO_ROOT / "frontend" / "src" / "three" / "ephemerides.ts"
+    if not table.exists():
+        pytest.skip("frontend sources not present")
+    src = table.read_text(encoding="utf-8")
+    block = src[src.index("MIRA_EPHEMERIDES") :]
+    m = re.search(
+        r"bodyId: 'r-draconis',\s*epochHjd: ([\d.]+),\s*periodDays: ([\d.]+),\s*riseFraction: ([\d.]+),", block
+    )
+    assert m, "R Dra entry of MIRA_EPHEMERIDES not found"
+    assert float(m[1]) == RDRA_VSX_EPOCH_HJD
+    assert float(m[2]) == RDRA_VSX_PERIOD_DAYS
+    assert round(float(m[3]) * 100) == RDRA_VSX_RISE_PERCENT
 
 
 def _system(bodies):

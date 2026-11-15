@@ -1,0 +1,12 @@
+{
+ "service": "gaia-esa",
+ "url": "https://gea.esac.esa.int/tap-server/tap/sync",
+ "params": {
+  "REQUEST": "doQuery",
+  "LANG": "ADQL",
+  "FORMAT": "csv",
+  "QUERY": "SELECT TOP 2000 source_id, ra, dec, ref_epoch, pmra, pmra_error, pmdec, pmdec_error, parallax, parallax_error, phot_g_mean_mag, phot_bp_mean_mag, phot_rp_mean_mag, ruwe, radial_velocity, radial_velocity_error, phot_variable_flag FROM gaiadr3.gaia_source WHERE 1 = CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', 248.1672347, 66.7550236, 0.0313393)) AND (pm >= 100.0 OR DISTANCE(POINT('ICRS', ra, dec), POINT('ICRS', 248.1672347, 66.7550236)) <= 0.0027747)"
+ },
+ "retrieved_utc": "2026-11-15T03:44:53Z",
+ "text": "source_id,ra,dec,ref_epoch,pmra,pmra_error,pmdec,pmdec_error,parallax,parallax_error,phot_g_mean_mag,phot_bp_mean_mag,phot_rp_mean_mag,ruwe,radial_velocity,radial_velocity_error,phot_variable_flag\n1648328016354496384,248.1673783672889,66.75500674547219,2016.0,-20.642811719160797,0.08512829,6.148818852711324,0.091321476,1.2509180143740992,0.0647879,6.374379,9.502542,6.2200594,1.297982,,,VARIABLE\n1648328016354500352,248.1697998174761,66.75556346743242,2016.0,,,,,,,19.244064,,,,,,NOT_AVAILABLE\n1648328016354504064,248.16793204915024,66.75617372604613,2016.0,,,,,,,19.443266,,,,,,NOT_AVAILABLE\n"
+}

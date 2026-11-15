@@ -20,11 +20,18 @@ export function solveKepler(meanAnomaly: number, e: number): number {
   return E;
 }
 
-/** Position (AU) of a body relative to its parent at time `mjd`. */
-export function orbitalPosition(orbit: Orbit, mjd: number): Vec3 {
+/**
+ * Mean anomaly (rad, not reduced) at time `mjd`. Without an epoch (epoch_mjd null) the phase is
+ * arbitrary: mean_anomaly_deg is taken at J2000, which is a drawing convention, not a prediction.
+ */
+export function meanAnomalyAt(orbit: Orbit, mjd: number): number {
   const epoch = orbit.epoch_mjd ?? J2000_MJD;
   const n = (2 * Math.PI) / orbit.period_days; // rad/day
-  const M = orbit.mean_anomaly_deg * DEG + n * (mjd - epoch);
+  return orbit.mean_anomaly_deg * DEG + n * (mjd - epoch);
+}
+
+/** Position (AU, relative to the parent) at mean anomaly `M` (rad). */
+export function positionAtMeanAnomaly(orbit: Orbit, M: number): Vec3 {
   const e = orbit.eccentricity;
   const E = solveKepler(M, e);
   const a = orbit.semi_major_axis_au;
@@ -32,6 +39,11 @@ export function orbitalPosition(orbit: Orbit, mjd: number): Vec3 {
   const xp = a * (Math.cos(E) - e);
   const yp = a * Math.sqrt(1 - e * e) * Math.sin(E);
   return rotateToReference(xp, yp, orbit);
+}
+
+/** Position (AU) of a body relative to its parent at time `mjd`. */
+export function orbitalPosition(orbit: Orbit, mjd: number): Vec3 {
+  return positionAtMeanAnomaly(orbit, meanAnomalyAt(orbit, mjd));
 }
 
 /** Rotate orbital-plane coordinates by ω, i, Ω (standard 3-1-3 rotation). */

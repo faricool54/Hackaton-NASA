@@ -5,50 +5,164 @@
 //
 // What you see is a MODEL REPRESENTATION built from catalog parameters (radius, Teff,
 // orbital elements). Sizes are exaggerated and distances optionally compressed.
+// How each body is drawn (no invented features on real targets):
+//   stars        starMaterial: limb darkening + reddening (grey atmosphere, MODEL), colour from
+//                the colour mode, convection cells only where resolvable (R Dra), glow from L_vis
+//   planets      uniform 18 % grey sphere lit by the host star's colour (visible); an outline in
+//                the SPHEREx modes (emission not modelled)
+//   brown dwarfs self-luminous at their display brightness (visible: neutral, nearly black for
+//                the coldest) or SPHEREx-band brightness (IR), plus a rim outline (DISPLAY): a thin
+//                dashed line on the silhouette while the IR level is only qualitative
+//   disks        a translucent neutral ring
+//   synthetic    the demo system keeps its palette and procedural textures in EVERY colour mode;
+//                only its stars follow the mode
+// Colour modes (colorModes.COLOR_MODES: false colour, visible, one SPHEREx detector in grey) swap
+// uniforms and material colours only; geometry is never rebuilt. Class-typical patterns (toggle,
+// S5 list only) multiply the mean brightness by 1 ± c. Bodies spin only from a rotation period or
+// the tidal-lock rule (sceneLayout.spinModel), in model time.
+// Dataset time (setDatasetMode, M4/M5/S2/S3): the clock runs on real SPHEREx dates inside the window.
+//   - orbits with a published epoch are drawn at their predicted phase, with an arc of 64 points over
+//     ±2σ of phase (ephemerides.ts); a dated circle in the reference plane gets a 'toward Earth' arrow;
+//   - orbits without an epoch: the body is dimmed (0.35), labelled '(phase unknown)', and a ring of
+//     64 points uniform in mean anomaly is drawn: on a fitted orbit it shows where the body could be;
+//     on an assumed or hypothetical orbit neither the orbit nor the phase is known;
+//   - variability follows ephemerides.variabilityPhase: a periodic variable with a catalogue ephemeris
+//     (R Dra, VSX) follows the predicted phase; 'unknown' ones are frozen at mean brightness and
+//     labelled; irregular variables never get a curve.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import type { Body, SystemModel } from '../api/types';
-import { bodyColor, compressDistance, displayRadius } from './appearance';
-import { orbitalPosition, orbitPath, topoOrder, variabilityFactor, type Vec3 } from './orbits';
+import {
+  bodyColor,
+  CLASS_TYPICAL_CONTRAST,
+  compressDistance,
+  displayRadius,
+  NEUTRAL_ALBEDO,
+  surfacePattern,
+  type SurfacePattern,
+} from './appearance';
+import { granulationParams } from './astro';
+import {
+  bodyLook,
+  COLOR_MODES,
+  DEFAULT_COLOR_MODE,
+  glowOpacity,
+  glowPulse,
+  IR_SPAN_TEXT,
+  isInfraredMode,
+  srgbDecode,
+  starLimbDarkening,
+  systemGlowFactors,
+  type BodyLook,
+  type ColorMode,
+} from './colorModes';
+import {
+  ARC_ALPHA,
+  CLOUD_POINTS,
+  isLineOfSightOrbit,
+  LINE_OF_SIGHT_LABEL,
+  miraEphemerisFor,
+  orbitEphemerisFor,
+  phaseCloud,
+  phaseUnknownLabel,
+  predictedPulsation,
+  RING_ALPHA,
+  UNCERTAINTY_COLOR,
+  undatedOrbitTitle,
+  variabilityPhase,
+  type MiraEphemeris,
+  type OrbitEphemeris,
+} from './ephemerides';
+import {
+  meanAnomalyAt,
+  orbitalPosition,
+  orbitPath,
+  positionAtMeanAnomaly,
+  topoOrder,
+  variabilityFactor,
+  type Vec3,
+} from './orbits';
+import { PHASE_UNKNOWN_SUFFIX } from './spherexCoverage';
 import {
   advanceModelTime,
   AU_PER_KM,
   capRadii,
   distanceMapper,
+  drawsPulsation,
   fitDistance,
   focusDistance,
   linearScale,
   ORBIT_COLOR,
-  pulsationScale,
+  orbitalPhaseAngle,
+  pulsationRadiusScale,
   referenceAu,
+  rotationAngle,
+  spinAliased,
+  spinModel,
+  suggestedSpeed,
   type DistanceMode,
+  type SpinModel,
 } from './sceneLayout';
+import { createRimMaterial, createStarMaterial, RIM_DASHES, setRimDashes, setStarLook, setStarPhase, type StarLook } from './starMaterial';
 
 export type { DistanceMode } from './sceneLayout';
+export type { ColorMode } from './colorModes';
 
 export interface SceneOptions {
   distanceMode: DistanceMode;
   showOrbits: boolean;
   showLabels: boolean;
+  /** 'ir' = SPHEREx false colour (default), 'visible' = CIE 1931 blackbody colours, 'D1'…'D6' = one detector in grey. */
+  colorMode: ColorMode;
+  /** Show illustrative class-typical surface features on real planets and brown dwarfs (S5). */
+  classTypical: boolean;
 }
 
 export interface SceneCallbacks {
   onSelect: (bodyId: string | null) => void;
   onTick?: (mjd: number) => void;
+  /** The dataset clock reached the end of its window and paused itself. */
+  onClockStop?: () => void;
 }
 
-const DEFAULT_OPTIONS: SceneOptions = { distanceMode: 'compressed', showOrbits: true, showLabels: true };
+/** Opacity (or brightness factor, for stars) of a body without a published epoch on a real date. */
+const DIM_FACTOR = 0.35;
+/** 'toward Earth' arrow colour (DISPLAY). */
+const LOS_HEX = '#7dd3fc';
+/** Pixel size of the phase-cloud points. */
+const CLOUD_POINT_PX = 4;
+
+const DEFAULT_OPTIONS: SceneOptions = {
+  distanceMode: 'compressed',
+  showOrbits: true,
+  showLabels: true,
+  colorMode: DEFAULT_COLOR_MODE,
+  classTypical: false,
+};
+
+/** Rim (outline) strength and colour: a display aid, not emitted light. */
+const RIM_HEX = '#9aa4b8';
+const RIM_STRENGTH = 0.55;
+/** Albedo a planet is drawn with in the SPHEREx modes: its SPHEREx-band light is not modelled, so a black silhouette with an outline. */
+const IR_SILHOUETTE_ALBEDO = 0;
+/** Pattern contrast of the synthetic demo's brown dwarfs (decoration). */
+const SYNTHETIC_PATTERN_CONTRAST = 0.25;
+
+/** One value per colour mode. */
+function perMode<T>(f: (mode: ColorMode) => T): Record<ColorMode, T> {
+  return Object.fromEntries(COLOR_MODES.map((m) => [m, f(m)])) as Record<ColorMode, T>;
+}
+
+/** Contrast c of a pattern texture (the drawn intensity is the mean × (1 ± c)). */
+function patternContrast(pattern: SurfacePattern): number {
+  if (pattern === 'procedural') return SYNTHETIC_PATTERN_CONTRAST;
+  if (pattern === 'bands' || pattern === 'mottling') return CLASS_TYPICAL_CONTRAST[pattern];
+  return 0;
+}
 
 export function nowMjd(): number {
   return Date.now() / 86400000 + 40587;
-}
-
-/** Suggested animation speed (days per real second) so the fastest motion is easy to follow. */
-export function suggestedSpeed(system: SystemModel): number {
-  const periods = system.bodies.flatMap((b) => [b.orbit?.period_days, b.variability?.period_days]);
-  const valid = periods.filter((p): p is number => typeof p === 'number' && p > 0);
-  return valid.length ? Math.min(...valid) / 8 : 1;
 }
 
 // --- tiny seeded PRNG so procedural textures are stable per body ---------------------
@@ -70,6 +184,7 @@ function shade(hex: string, factor: number): string {
   return `#${c.getHexString()}`;
 }
 
+/** Synthetic demo system only (hasSurfacePattern gate): seeded bands or blotches and craters. */
 function proceduralTexture(body: Body, base: string): THREE.Texture | null {
   if (typeof document === 'undefined') return null;
   const rand = seeded(body.id);
@@ -107,6 +222,36 @@ function proceduralTexture(body: Body, base: string): THREE.Texture | null {
   return tex;
 }
 
+/**
+ * Zonal-band pattern (class-typical toggle, ILLUSTRATIVE; also the synthetic demo's brown dwarfs):
+ * a greyscale multiplier (linear, no colour space), seeded per body. Each band has the value
+ * (1 + c·u) / (1 + c) with u uniform in [−1, 1], so material colour × (1 + c) × texture is the mean
+ * brightness × (1 ± c): the ±c of the legend is exactly what is drawn.
+ */
+function bandTexture(body: Body, contrast: number): THREE.Texture | null {
+  if (typeof document === 'undefined') return null;
+  const rand = seeded(`${body.id}:class-typical`);
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  const grey = (u: number) => {
+    const g = Math.round(255 * Math.min(1, Math.max(0, (1 + contrast * u) / (1 + contrast))));
+    return `rgb(${g},${g},${g})`;
+  };
+  ctx.fillStyle = grey(0);
+  ctx.fillRect(0, 0, 256, 128);
+  let y = 0;
+  while (y < 128) {
+    const h = 4 + rand() * 14;
+    ctx.fillStyle = grey(2 * rand() - 1);
+    ctx.fillRect(0, y, 256, h);
+    y += h;
+  }
+  return new THREE.CanvasTexture(canvas); // NoColorSpace: a linear multiplier
+}
+
 function glowTexture(): THREE.Texture | null {
   if (typeof document === 'undefined') return null;
   const canvas = document.createElement('canvas');
@@ -127,17 +272,68 @@ function toScene([x, y, z]: Vec3): THREE.Vector3 {
   return new THREE.Vector3(x, z, -y);
 }
 
+/** Display colour (sRGB-encoded hue × level) → a three.js colour in the linear working space. */
+function setDisplayColor(target: THREE.Color, look: BodyLook, scale = 1): THREE.Color {
+  const l = look.level;
+  target.setRGB(look.hue[0] * l, look.hue[1] * l, look.hue[2] * l, THREE.SRGBColorSpace);
+  return target.multiplyScalar(scale);
+}
+
+/** How the body's mesh is drawn. */
+type Role = 'star' | 'disk' | 'emitter' | 'lit';
+
 interface BodyNode {
   body: Body;
+  role: Role;
   group: THREE.Group; // positioned each frame
-  mesh: THREE.Object3D;
+  mesh: THREE.Mesh;
   baseRadius: number; // radius the geometry was built with (compressed mode)
   radiusByMode: Record<DistanceMode, number>;
   radius: number; // current display radius
   focusRadius: number; // what the camera frames when entering this body
+  looks: Record<ColorMode, BodyLook>;
+  spin: SpinModel;
+  /** Star: limb-darkening tables per colour mode. */
+  ld?: Record<ColorMode, Float32Array>;
+  /**
+   * Star: convection cells across the disc when astro.granulationParams finds them resolvable. Not
+   * observed on any real target, so they are shown only with the class-typical toggle (VISION.md).
+   */
+  granCells?: number;
+  /** Star: convective turnover time (days) when cells are drawn. */
+  turnoverDays?: number;
+  /** Glow size in display radii, per colour mode (DISPLAY). */
+  glowFactor: Record<ColorMode, number>;
   glow?: THREE.Sprite;
+  light?: THREE.PointLight;
+  rim?: THREE.Mesh;
+  /** Synthetic procedural or class-typical pattern texture of this body (built on first use). */
+  patternTex?: THREE.Texture | null;
+  /** The pattern that texture was built for. */
+  patternKind?: SurfacePattern;
   label?: CSS2DObject;
   orbitLine?: THREE.Line;
+  /** Orbit ephemeris with 1-sigma (WS7 table), when the orbit is dated and tabulated. */
+  orbitEph: OrbitEphemeris | null;
+  /** Catalogue pulsation ephemeris (WS7 table), when the body has one. */
+  mira: MiraEphemeris | null;
+  /** Dataset time: 64 points of phase uncertainty (arc) or of unknown phase (ring). */
+  cloud?: THREE.Points;
+  cloudKind?: 'arc' | 'ring' | null;
+  /** Distance mode the ring positions were computed for (rings do not move along the orbit). */
+  ringMode?: DistanceMode | null;
+  /** Dataset time: drawn dimmed (orbit without a published epoch). */
+  dim: boolean;
+  /** Dataset time: variability 'unknown' (ephemerides.variabilityPhase), frozen at mean brightness. */
+  frozen: boolean;
+}
+
+/** A 'toward Earth' arrow from a parent whose dated circular orbits use the line-of-sight convention (M5). */
+interface LosArrow {
+  parentId: string;
+  group: THREE.Group;
+  arrow: THREE.ArrowHelper;
+  label?: CSS2DObject;
 }
 
 export class SystemScene {
@@ -167,6 +363,9 @@ export class SystemScene {
   private disposables: { dispose: () => void }[] = [];
   private pointerDown: { x: number; y: number } | null = null;
   private userMovedCamera = false;
+  private datasetMode = false;
+  private timeBounds: [number, number] | null = null;
+  private losArrows: LosArrow[] = [];
 
   constructor(
     private container: HTMLElement,
@@ -182,10 +381,6 @@ export class SystemScene {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     const canvas = this.renderer.domElement;
     canvas.setAttribute('role', 'img');
-    canvas.setAttribute(
-      'aria-label',
-      `3D model of ${system.name}, drawn from catalog parameters (not a telescope image)`,
-    );
     container.appendChild(canvas);
 
     this.labelRenderer = new CSS2DRenderer();
@@ -199,9 +394,11 @@ export class SystemScene {
     this.controls.addEventListener('start', this.onControlsStart);
 
     this.scene.background = new THREE.Color('#03050a');
+    // Faint fill light so night sides are not pure black (DISPLAY).
     this.scene.add(new THREE.AmbientLight(0xffffff, 0.25));
     this.addStarfield();
     this.buildBodies();
+    this.applyLooks();
     this.rebuildOrbits();
     this.updatePositions();
     this.resize(); // real aspect ratio first, then frame the whole system for it
@@ -235,10 +432,26 @@ export class SystemScene {
   getStartTime() {
     return this.startMjd;
   }
+  /**
+   * Dataset time on or off. On: the clock stays inside `bounds` (MJD; playing stops at the end),
+   * undated bodies are dimmed and labelled, phase clouds are drawn and variability follows a
+   * catalogue ephemeris or is frozen. Off: the free-running animation, as before.
+   */
+  setDatasetMode(on: boolean, bounds: readonly [number, number] | null = null) {
+    const changed = on !== this.datasetMode;
+    this.datasetMode = on;
+    this.timeBounds = on && bounds ? [bounds[0], bounds[1]] : null;
+    if (!changed) return;
+    this.applyDatasetLook();
+    this.updatePositions();
+  }
+  isDatasetMode() {
+    return this.datasetMode;
+  }
   setOptions(partial: Partial<SceneOptions>) {
-    const modeChanged = partial.distanceMode && partial.distanceMode !== this.options.distanceMode;
-    this.options = { ...this.options, ...partial };
-    if (modeChanged) {
+    const prev = this.options;
+    this.options = { ...prev, ...partial };
+    if (this.options.distanceMode !== prev.distanceMode) {
       this.applyModeRadii();
       this.rebuildOrbits();
       this.updatePositions();
@@ -246,10 +459,16 @@ export class SystemScene {
       if (this.focusId) this.focus(this.focusId);
       else this.fitCamera();
     }
+    if (this.options.colorMode !== prev.colorMode || this.options.classTypical !== prev.classTypical) {
+      this.applyLooks();
+      this.updatePositions();
+    }
     for (const n of this.nodes.values()) {
       if (n.orbitLine) n.orbitLine.visible = this.options.showOrbits;
       if (n.label) n.label.visible = this.options.showLabels;
     }
+    for (const a of this.losArrows) a.group.visible = this.options.showOrbits;
+    if (this.options.showOrbits !== prev.showOrbits) this.updatePositions(); // phase clouds follow the orbits toggle
   }
   /** Fly to a body and follow it (null = back to the whole system). */
   focus(bodyId: string | null) {
@@ -291,6 +510,7 @@ export class SystemScene {
         n.orbitLine = undefined;
       }
     }
+    this.clearArrows();
     this.disposables.forEach((d) => d.dispose());
     this.renderer.dispose();
     this.renderer.forceContextLoss(); // free the WebGL context now, not at garbage collection
@@ -320,6 +540,20 @@ export class SystemScene {
     this.scene.add(new THREE.Points(geo, mat));
   }
 
+  private static starLook(looks: Record<ColorMode, BodyLook>, ld: Record<ColorMode, Float32Array>, mode: ColorMode): StarLook {
+    const look = looks[mode];
+    return { ld: ld[mode], hue: look.hue, brightness: srgbDecode(look.level) };
+  }
+
+  /** A Fresnel outline drawn over the body (shares its geometry; not raycast). */
+  private addRim(mesh: THREE.Mesh): THREE.Mesh {
+    const rim = new THREE.Mesh(mesh.geometry, this.track(createRimMaterial(RIM_HEX, RIM_STRENGTH)));
+    rim.raycast = () => {};
+    rim.renderOrder = 1;
+    mesh.add(rim);
+    return rim;
+  }
+
   private buildBodies() {
     const glowTex = glowTexture();
     if (glowTex) this.track(glowTex);
@@ -328,96 +562,285 @@ export class SystemScene {
     const toUnits = (mode: DistanceMode) => distanceMapper(mode, this.refAu, this.linearScale);
     const compressed = capRadii(bodies, 'compressed', base, toUnits('compressed'));
     const linear = capRadii(bodies, 'linear', compressed, toUnits('linear'));
+    const glowFactors = perMode((m) => systemGlowFactors(this.system, m));
     for (const body of this.order) {
       const group = new THREE.Group();
       const radius = compressed.get(body.id) ?? displayRadius(body);
       let focusRadius = radius;
-      const color = bodyColor(body);
-      let mesh: THREE.Object3D;
+      const looks = perMode((m) => bodyLook(body, this.system, m));
+      let role: Role;
+      let mesh: THREE.Mesh;
+      let ld: Record<ColorMode, Float32Array> | undefined;
+      let turnoverDays: number | undefined;
+      let granCells: number | undefined;
       let glow: THREE.Sprite | undefined;
+      let light: THREE.PointLight | undefined;
+      let rim: THREE.Mesh | undefined;
 
       if (body.kind === 'disk') {
+        role = 'disk';
         const host = body.orbit ? undefined : this.order.find((b) => !b.orbit && b.kind !== 'disk');
         const inner = (host ? displayRadius(host) : 0.5) * 1.4;
         const outerAu = (body.radius_km ?? 1.5e9) * AU_PER_KM;
         const outer = Math.max(compressDistance(outerAu, this.refAu), inner * 2.5);
         const geo = this.track(new THREE.RingGeometry(inner, outer, 96, 4));
-        const mat = this.track(
-          new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.35, side: THREE.DoubleSide }),
-        );
+        const mat = this.track(new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false }));
         mesh = new THREE.Mesh(geo, mat);
         mesh.rotation.x = -Math.PI / 2;
         mesh.userData.labelOffset = new THREE.Vector3(outer, 0.15, 0);
         mesh.userData.diskOuter = { compressed: outer, linear: Math.max(outerAu * this.linearScale, inner * 1.2) };
         focusRadius = outer;
-      } else if (body.appearance.model === 'star') {
-        const geo = this.track(new THREE.SphereGeometry(radius, 48, 24));
-        const mat = this.track(new THREE.MeshBasicMaterial({ color }));
+      } else if (body.kind === 'star' || body.appearance.model === 'star') {
+        role = 'star';
+        ld = perMode((m) => starLimbDarkening(body, m)); // one table per mode, copied into the uniform
+        // Convection cells only where astro.granulationParams finds them resolvable (< 64 across).
+        const g = granulationParams(body);
+        const tau = g.turnoverDays.value;
+        const gran = g.draw && g.value !== null && tau !== null && tau > 0 ? { cells: g.value, contrast: g.contrast.value, seed: g.seed } : null;
+        if (gran) {
+          turnoverDays = tau!;
+          granCells = gran.cells; // applyLooks switches them on only with the class-typical toggle
+        }
+        const geo = this.track(new THREE.SphereGeometry(radius, 64, 32));
+        const mat = this.track(createStarMaterial(SystemScene.starLook(looks, ld, this.options.colorMode), gran));
         mesh = new THREE.Mesh(geo, mat);
         if (glowTex) {
           const gmat = this.track(
-            new THREE.SpriteMaterial({
-              map: glowTex,
-              color,
-              transparent: true,
-              blending: THREE.AdditiveBlending,
-              depthWrite: false,
-            }),
+            new THREE.SpriteMaterial({ map: glowTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
           );
           glow = new THREE.Sprite(gmat);
-          glow.scale.setScalar(radius * 5);
           group.add(glow);
         }
-        const light = new THREE.PointLight(color, 2.5, 0, 0);
+        light = new THREE.PointLight(0xffffff, 2.5, 0, 0); // display-normalised: no 1/r² fall-off
         group.add(light);
+      } else if (body.kind === 'brown_dwarf') {
+        role = 'emitter';
+        const geo = this.track(new THREE.SphereGeometry(radius, 40, 20));
+        mesh = new THREE.Mesh(geo, this.track(new THREE.MeshBasicMaterial()));
+        rim = this.addRim(mesh);
       } else {
         // TODO(WS7-6): load appearance.mesh_url (glTF) for real asteroid shape models.
+        role = 'lit';
         const geo = this.track(new THREE.SphereGeometry(radius, 40, 20));
-        const tex = proceduralTexture(body, color);
-        if (tex) this.track(tex);
-        const warm = body.kind === 'brown_dwarf' && body.teff_k ? Math.min(Math.max((body.teff_k - 300) / 1500, 0.08), 0.7) : 0;
-        const mat = this.track(
-          new THREE.MeshStandardMaterial({
-            color: tex ? 0xffffff : color,
-            map: tex,
-            roughness: 0.9,
-            metalness: 0,
-            emissive: new THREE.Color(color),
-            emissiveIntensity: warm,
-          }),
-        );
-        mesh = new THREE.Mesh(geo, mat);
+        const roughness = this.system.provenance.synthetic ? 0.9 : 1;
+        mesh = new THREE.Mesh(geo, this.track(new THREE.MeshStandardMaterial({ roughness, metalness: 0 })));
+        rim = this.addRim(mesh);
       }
       mesh.userData.bodyId = body.id;
       group.add(mesh);
-
-      let label: CSS2DObject | undefined;
-      if (typeof document !== 'undefined') {
-        const div = document.createElement('button');
-        div.type = 'button';
-        div.className = 'body-label';
-        div.textContent = body.name;
-        div.addEventListener('click', () => this.callbacks.onSelect(body.id));
-        label = new CSS2DObject(div);
-        const offset = mesh.userData.labelOffset as THREE.Vector3 | undefined;
-        if (offset) label.position.copy(offset);
-        else label.position.set(0, radius * 1.25 + 0.15, 0);
-        group.add(label);
-      }
-
-      this.scene.add(group);
-      this.nodes.set(body.id, {
+      const node: BodyNode = {
         body,
+        role,
         group,
         mesh,
         baseRadius: radius,
         radiusByMode: { compressed: radius, linear: linear.get(body.id) ?? radius },
         radius,
         focusRadius,
+        looks,
+        spin: spinModel(body, bodies),
+        ld,
+        granCells,
+        turnoverDays,
+        glowFactor: perMode((m) => glowFactors[m].get(body.id) ?? 2),
         glow,
-        label,
-      });
+        light,
+        rim,
+        orbitEph: body.orbit && body.orbit.epoch_mjd != null ? orbitEphemerisFor(this.system.id, body.id) : null,
+        mira: miraEphemerisFor(this.system.id, body.id),
+        dim: false,
+        frozen: false,
+      };
+      if (body.orbit && role !== 'disk') node.cloud = this.makeCloud(body);
+
+      if (typeof document !== 'undefined') {
+        const div = document.createElement('button');
+        div.type = 'button';
+        div.className = 'body-label';
+        div.textContent = body.name;
+        div.addEventListener('click', () => this.callbacks.onSelect(body.id));
+        const label = new CSS2DObject(div);
+        const offset = node.mesh.userData.labelOffset as THREE.Vector3 | undefined;
+        if (offset) label.position.copy(offset);
+        else label.position.set(0, radius * 1.25 + 0.15, 0);
+        group.add(label);
+        node.label = label;
+      }
+
+      this.scene.add(group);
+      this.nodes.set(body.id, node);
     }
+  }
+
+  /** 64 points for the dataset-time phase cloud of an orbit, in the orbit-legend colour (hidden until used). */
+  private makeCloud(body: Body): THREE.Points {
+    const geo = this.track(new THREE.BufferGeometry());
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(CLOUD_POINTS * 3), 3));
+    const col = new THREE.BufferAttribute(new Float32Array(CLOUD_POINTS * 4), 4);
+    const c = new THREE.Color(UNCERTAINTY_COLOR[body.orbit?.quality ?? 'fitted']);
+    for (let k = 0; k < CLOUD_POINTS; k++) col.setXYZW(k, c.r, c.g, c.b, RING_ALPHA);
+    geo.setAttribute('color', col);
+    const mat = this.track(
+      new THREE.PointsMaterial({ size: CLOUD_POINT_PX, sizeAttenuation: false, vertexColors: true, transparent: true, depthWrite: false }),
+    );
+    const points = new THREE.Points(geo, mat);
+    points.frustumCulled = false; // positions change every frame; the bounding sphere would go stale
+    points.visible = false;
+    points.raycast = () => {};
+    this.scene.add(points);
+    return points;
+  }
+
+  /** Arc (opacity follows the Gaussian density) or ring (uniform opacity): the per-point alpha. */
+  private setCloudKind(node: BodyNode, kind: 'arc' | 'ring') {
+    if (!node.cloud || node.cloudKind === kind) return;
+    node.cloudKind = kind;
+    node.ringMode = null;
+    const col = node.cloud.geometry.getAttribute('color') as THREE.BufferAttribute;
+    for (let k = 0; k < CLOUD_POINTS; k++) col.setW(k, kind === 'arc' ? ARC_ALPHA[k] : RING_ALPHA);
+    col.needsUpdate = true;
+  }
+
+  /**
+   * Dataset-time looks: dim the bodies whose orbit has no published epoch (opacity, or the brightness
+   * of a star's shader and of its glow), and label them; freeze the periodic variables without an
+   * ephemeris. Applied after every colour-mode change (applyLooks), so it never compounds.
+   */
+  private applyDatasetLook() {
+    const mode = this.options.colorMode;
+    for (const n of this.nodes.values()) {
+      const b = n.body;
+      const v = b.variability;
+      n.dim = this.datasetMode && !!b.orbit && b.orbit.epoch_mjd == null && n.role !== 'disk';
+      n.frozen = this.datasetMode && variabilityPhase(this.system.id, b) === 'unknown';
+      const k = n.dim ? DIM_FACTOR : 1;
+      if (n.role === 'star') {
+        (n.mesh.material as THREE.ShaderMaterial).uniforms.uBrightness.value = srgbDecode(n.looks[mode].level) * k;
+      } else if (n.role !== 'disk') {
+        const mat = n.mesh.material as THREE.MeshBasicMaterial | THREE.MeshStandardMaterial;
+        if (mat.transparent !== n.dim) {
+          mat.transparent = n.dim;
+          mat.needsUpdate = true;
+        }
+        mat.opacity = k;
+      }
+      if (n.rim) (n.rim.material as THREE.ShaderMaterial).uniforms.uStrength.value = RIM_STRENGTH * k;
+      if (n.label) {
+        const el = n.label.element;
+        const unknownLabel = v ? phaseUnknownLabel(v.kind) : '';
+        const suffix = n.dim ? ` ${PHASE_UNKNOWN_SUFFIX}` : n.frozen ? ` (${unknownLabel})` : '';
+        el.textContent = `${b.name}${suffix}`;
+        el.style.opacity = n.dim ? '0.7' : '';
+        el.title = n.dim
+          ? undatedOrbitTitle(b.orbit?.quality ?? 'fitted')
+          : n.frozen
+            ? `${unknownLabel[0].toUpperCase()}${unknownLabel.slice(1)} (no epoch or no period): drawn at mean brightness on real dates.`
+            : '';
+      }
+    }
+  }
+
+  /**
+   * The pattern texture of a body, built once on first use (never per frame). Synthetic planets get
+   * the legacy procedural texture; every other pattern is zonal bands (bandTexture). 'mottling' is
+   * never returned by appearance.surfacePattern (no class-level source), so it draws nothing.
+   */
+  private patternTexture(node: BodyNode, pattern: SurfacePattern): THREE.Texture | null {
+    if (pattern === 'none' || pattern === 'mottling') return null;
+    if (node.patternTex === undefined || node.patternKind !== pattern) {
+      const tex =
+        pattern === 'procedural' && node.role === 'lit'
+          ? proceduralTexture(node.body, bodyColor(node.body, this.system))
+          : bandTexture(node.body, patternContrast(pattern));
+      node.patternTex = tex ? this.track(tex) : null;
+      node.patternKind = pattern;
+    }
+    return node.patternTex;
+  }
+
+  private static setMap(mat: THREE.MeshBasicMaterial | THREE.MeshStandardMaterial, map: THREE.Texture | null) {
+    if (mat.map === map) return;
+    if (!!mat.map !== !!map) mat.needsUpdate = true; // the program changes only when a map appears or goes
+    mat.map = map;
+  }
+
+  /** Colours, maps and outlines for the current colour mode and class-typical toggle (no geometry rebuild). */
+  private applyLooks() {
+    const mode = this.options.colorMode;
+    const infrared = isInfraredMode(mode);
+    const synthetic = this.system.provenance.synthetic;
+    for (const n of this.nodes.values()) {
+      const look = n.looks[mode];
+      const pattern = surfacePattern(n.body, this.system, this.options.classTypical);
+      switch (n.role) {
+        case 'star': {
+          if (n.ld) setStarLook(n.mesh.material as THREE.ShaderMaterial, SystemScene.starLook(n.looks, n.ld, mode));
+          // Convection cells are class-typical (not observed on these stars): smooth sphere unless the toggle is on.
+          if (n.granCells) {
+            const u = (n.mesh.material as THREE.ShaderMaterial).uniforms.uGranCells;
+            if (u) u.value = this.options.classTypical || synthetic ? n.granCells : 0;
+          }
+          const hue = new THREE.Color().setRGB(look.hue[0], look.hue[1], look.hue[2], THREE.SRGBColorSpace);
+          if (n.glow) (n.glow.material as THREE.SpriteMaterial).color.copy(hue);
+          // The synthetic demo's planets keep their visible look in every mode, so their light does too.
+          const lit = synthetic ? n.looks.visible : look;
+          n.light?.color.setRGB(lit.hue[0], lit.hue[1], lit.hue[2], THREE.SRGBColorSpace);
+          break;
+        }
+        case 'disk': {
+          const mat = n.mesh.material as THREE.MeshBasicMaterial;
+          if (synthetic) mat.color.set(bodyColor(n.body, this.system)); // demo palette in every mode
+          else mat.color.setRGB(look.hue[0] * look.level, look.hue[1] * look.level, look.hue[2] * look.level, THREE.SRGBColorSpace);
+          mat.opacity = infrared && !synthetic ? 0.12 : 0.3; // SPHEREx modes: emission not modelled, a faint outline only
+          break;
+        }
+        case 'emitter': {
+          const mat = n.mesh.material as THREE.MeshBasicMaterial;
+          const tex = this.patternTexture(n, pattern);
+          SystemScene.setMap(mat, tex);
+          // Texture × (1 + c) = mean × (1 ± c): the mean emission is kept (the brightest bands may clip at 1).
+          setDisplayColor(mat.color, look, tex ? 1 + patternContrast(pattern) : 1);
+          if (n.rim) {
+            n.rim.visible = true;
+            setRimDashes(n.rim.material as THREE.ShaderMaterial, look.drawnAs === 'qualitative' ? RIM_DASHES : 0);
+          }
+          break;
+        }
+        case 'lit': {
+          const mat = n.mesh.material as THREE.MeshStandardMaterial;
+          if (infrared && !synthetic) {
+            // SPHEREx-band emission and reflection not modelled: a dark body with an outline.
+            SystemScene.setMap(mat, null);
+            mat.color.setRGB(IR_SILHOUETTE_ALBEDO, IR_SILHOUETTE_ALBEDO, IR_SILHOUETTE_ALBEDO, THREE.LinearSRGBColorSpace);
+            if (n.rim) n.rim.visible = true;
+          } else {
+            // Visible light, or the synthetic demo in any mode (its textures are kept everywhere).
+            const tex = this.patternTexture(n, pattern);
+            SystemScene.setMap(mat, tex);
+            if (pattern === 'procedural') mat.color.set(tex ? 0xffffff : bodyColor(n.body, this.system));
+            else if (synthetic) mat.color.set(bodyColor(n.body, this.system));
+            else {
+              // 18 % grey (albedo unknown); with a class-typical pattern, 18 % × (1 ± c).
+              const a = NEUTRAL_ALBEDO * (tex ? 1 + patternContrast(pattern) : 1);
+              mat.color.setRGB(a, a, a, THREE.LinearSRGBColorSpace);
+            }
+            if (n.rim) n.rim.visible = false;
+          }
+          break;
+        }
+      }
+    }
+    this.applyDatasetLook(); // dimming on top of the new colours (dataset time only)
+    this.renderer.domElement.setAttribute(
+      'aria-label',
+      `3D model of ${this.system.name}, drawn from catalog parameters (not a telescope image); ${
+        mode === 'ir'
+          ? `false colours: SPHEREx ${IR_SPAN_TEXT} blackbody model`
+          : mode === 'visible'
+            ? 'visible-light blackbody colours (model)'
+            : `grey levels: SPHEREx ${mode} only, blackbody model`
+      }${synthetic ? '; the synthetic demo bodies keep their decorative colours in every mode' : ''}`,
+    );
   }
 
   /** Resize bodies (by scaling, no geometry rebuild) for the current distance mode. */
@@ -434,8 +857,6 @@ export class SystemScene {
       }
       n.radius = n.radiusByMode[mode];
       n.focusRadius = n.radius;
-      n.mesh.scale.setScalar(n.radius / n.baseRadius);
-      n.glow?.scale.setScalar(n.radius * 5);
       n.label?.position.set(0, n.radius * 1.25 + 0.15, 0);
     }
   }
@@ -469,31 +890,141 @@ export class SystemScene {
       line.visible = this.options.showOrbits;
       this.scene.add(line);
       node.orbitLine = line;
+      node.ringMode = null; // ring positions depend on the distance mode
+    }
+    this.rebuildArrows();
+  }
+
+  private clearArrows() {
+    for (const a of this.losArrows) {
+      a.group.removeFromParent();
+      a.arrow.dispose();
+      a.label?.element.remove();
+    }
+    this.losArrows = [];
+  }
+
+  /**
+   * One 'toward Earth' arrow per parent of dated circles drawn with i = Ω = ω = 0 (Barnard b-e, M5):
+   * the conjunction convention puts the line of sight, projected on the orbit plane, along AU −y =
+   * scene +z. It passes through each planet's position at its t0. The inclination is unknown.
+   */
+  private rebuildArrows() {
+    this.clearArrows();
+    const reach = new Map<string, number>();
+    for (const n of this.nodes.values()) {
+      const o = n.body.orbit;
+      if (!o || n.role === 'disk' || !isLineOfSightOrbit(o) || !this.nodes.has(o.parent)) continue;
+      const r = this.displayOffset([o.semi_major_axis_au * (1 + o.eccentricity), 0, 0]).length();
+      reach.set(o.parent, Math.max(reach.get(o.parent) ?? 0, r));
+    }
+    for (const [parentId, r] of reach) {
+      const length = r * 1.35;
+      const dir = toScene([0, -1, 0]);
+      const head = Math.min(0.12 * length, 0.6);
+      const arrow = new THREE.ArrowHelper(dir, new THREE.Vector3(), length, new THREE.Color(LOS_HEX), head, head * 0.5);
+      arrow.traverse((o) => {
+        o.raycast = () => {};
+      });
+      const group = new THREE.Group();
+      group.add(arrow);
+      let label: CSS2DObject | undefined;
+      if (typeof document !== 'undefined') {
+        const el = document.createElement('div');
+        el.style.cssText =
+          'pointer-events:none;max-width:200px;text-align:center;font-size:11px;line-height:1.3;color:' +
+          `${LOS_HEX};text-shadow:0 0 3px #03050a,0 0 3px #03050a;white-space:normal`;
+        const [head1, ...rest] = LINE_OF_SIGHT_LABEL.split(' (');
+        const strong = document.createElement('strong');
+        strong.textContent = head1;
+        el.append(strong, document.createElement('br'), `(${rest.join(' (')}`);
+        label = new CSS2DObject(el);
+        label.position.copy(dir.clone().multiplyScalar(length * 1.08));
+        group.add(label);
+      }
+      group.visible = this.options.showOrbits;
+      this.scene.add(group);
+      this.losArrows.push({ parentId, group, arrow, label });
     }
   }
 
   // --- per frame --------------------------------------------------------------------
-  private updatePositions() {
+  /**
+   * Positions, sizes, spins and glows at the current model time. `stepDays` is the model time this
+   * frame advanced (0 for a jump such as setTime): a spin that would turn more than 90° in one
+   * frame is held still instead of aliasing.
+   */
+  private updatePositions(stepDays = 0) {
+    const mode = this.options.colorMode;
     for (const body of this.order) {
       const node = this.nodes.get(body.id)!;
+      let rel: Vec3 | null = null;
       if (!body.orbit) {
         node.group.position.set(0, 0, 0);
       } else {
         const parent = this.nodes.get(body.orbit.parent);
         const base = parent ? parent.group.position : new THREE.Vector3();
-        node.group.position.copy(base).add(this.displayOffset(orbitalPosition(body.orbit, this.mjd)));
+        rel = orbitalPosition(body.orbit, this.mjd);
+        node.group.position.copy(base).add(this.displayOffset(rel));
         node.orbitLine?.position.copy(base);
+        this.updateCloud(node, body.orbit, base);
       }
-      if (body.variability) {
-        const f = variabilityFactor(body, this.mjd);
-        const s = pulsationScale(f); // pulsating stars change size a little, brightness a lot
-        node.mesh.scale.setScalar(s * (node.radius / node.baseRadius));
-        if (node.glow) {
-          node.glow.scale.setScalar(node.radius * 5 * Math.pow(f, 0.3));
-          (node.glow.material as THREE.SpriteMaterial).opacity = Math.min(1, 0.35 + 0.4 * Math.log10(1 + f * 3));
-        }
+      if (node.role === 'disk') continue;
+      const puls = this.pulsationAt(node);
+      // Size: display radius × the class-typical Mira pulsation (1 for every other body).
+      node.mesh.scale.setScalar(puls.radiusScale * (node.radius / node.baseRadius));
+      const spin = node.spin;
+      if (spin.kind !== 'none' && !(spin.kind === 'period' && stepDays !== 0 && spinAliased(spin.periodHours, stepDays))) {
+        const angle = rotationAngle(spin, this.mjd, rel ? orbitalPhaseAngle(rel) : null);
+        if (angle !== undefined) node.mesh.rotation.y = angle;
+      }
+      if (node.turnoverDays) setStarPhase(node.mesh.material as THREE.ShaderMaterial, this.mjd / node.turnoverDays);
+      if (node.glow) {
+        const f = puls.factor; // V-band light curve: carried by the glow only
+        node.glow.scale.setScalar(node.radius * node.glowFactor[mode] * glowPulse(f, mode));
+        (node.glow.material as THREE.SpriteMaterial).opacity =
+          glowOpacity(node.looks[mode].level, f, mode) * (node.dim ? DIM_FACTOR : 1);
       }
     }
+    for (const a of this.losArrows) {
+      const parent = this.nodes.get(a.parentId);
+      if (parent) a.group.position.copy(parent.group.position);
+    }
+  }
+
+  /**
+   * V brightness factor and radius factor of a body now. Free-running: the catalog sinusoid (arbitrary
+   * phase). Dataset time: the catalogue ephemeris when there is one (R Dra, VSX), otherwise frozen at
+   * the mean (1, 1); irregular variables are 1 in both modes.
+   */
+  private pulsationAt(node: BodyNode): { factor: number; radiusScale: number } {
+    const body = node.body;
+    if (!this.datasetMode) return { factor: variabilityFactor(body, this.mjd), radiusScale: pulsationRadiusScale(body, this.mjd) };
+    if (node.mira && drawsPulsation(body)) {
+      const p = predictedPulsation(node.mira, body, this.mjd);
+      return { factor: p.factor, radiusScale: p.radiusScale };
+    }
+    return { factor: 1, radiusScale: 1 };
+  }
+
+  /** Dataset time: the arc (dated, ±2σ about the predicted position) or ring (phase unknown) of an orbit. */
+  private updateCloud(node: BodyNode, orbit: NonNullable<Body['orbit']>, base: THREE.Vector3) {
+    const points = node.cloud;
+    if (!points) return;
+    const cloud = this.datasetMode && this.options.showOrbits ? phaseCloud(orbit, node.orbitEph, this.mjd, meanAnomalyAt(orbit, this.mjd)) : null;
+    points.visible = cloud !== null;
+    if (!cloud) return;
+    this.setCloudKind(node, cloud.kind);
+    points.position.copy(base);
+    // A ring does not move along the orbit: recompute it only for a new distance mode.
+    if (cloud.kind === 'ring' && node.ringMode === this.options.distanceMode) return;
+    const pos = points.geometry.getAttribute('position') as THREE.BufferAttribute;
+    cloud.meanAnomalies.forEach((M, k) => {
+      const p = this.displayOffset(positionAtMeanAnomaly(orbit, M));
+      pos.setXYZ(k, p.x, p.y, p.z);
+    });
+    pos.needsUpdate = true;
+    node.ringMode = cloud.kind === 'ring' ? this.options.distanceMode : null;
   }
 
   private fitCamera() {
@@ -566,10 +1097,20 @@ export class SystemScene {
     if ((window.devicePixelRatio || 1) !== this.pixelRatio) this.resize();
     if (this.playing && dt > 0) {
       // Model time runs on continuously (no wrap), so no body or pulsation ever jumps.
-      this.mjd = advanceModelTime(this.mjd, this.speed, dt);
-      this.updatePositions();
+      let next = advanceModelTime(this.mjd, this.speed, dt);
+      // Dataset time plays inside its window and stops at the end (no data after it).
+      const stop = this.timeBounds !== null && next >= this.timeBounds[1];
+      if (stop) next = this.timeBounds![1];
+      const step = next - this.mjd;
+      this.mjd = next;
+      this.updatePositions(step);
+      if (stop) {
+        this.playing = false;
+        this.callbacks.onTick?.(this.mjd);
+        this.callbacks.onClockStop?.();
+      }
     }
-    for (const n of this.nodes.values()) if (n.body.kind !== 'disk') n.mesh.rotation.y += dt * 0.25;
+    // No global spin: bodies turn only in updatePositions, from a period or the tidal-lock rule.
 
     // Follow the focused body; ease the camera in on first focus.
     const focus = this.focusId ? this.nodes.get(this.focusId) : undefined;
