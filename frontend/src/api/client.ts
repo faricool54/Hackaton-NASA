@@ -19,6 +19,7 @@ import type {
   SpectrumResponse,
   ComparisonRequest,
   ComparisonResponse,
+  ObjectContextResponse,
 } from './types';
 
 export type DataMode = 'static' | 'api';
@@ -134,6 +135,14 @@ export function createClient(config: ClientConfig = envConfig()) {
       return getJson<ComparisonResponse>(`${apiBase}/api/fields/${encodeURIComponent(id)}/comparisons`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal,
       });
+    },
+    /** Catalog context for the object card: exactly one of a name or a position (contract 0.5.0). */
+    async getObjectContext(lookup: { name: string } | { ra: number; dec: number },
+      signal?: AbortSignal): Promise<ObjectContextResponse> {
+      if (mode !== 'api') throw new ApiError('Catalog context requires live API mode.', 0);
+      const params = 'name' in lookup ? new URLSearchParams({ name: lookup.name })
+        : new URLSearchParams({ ra: String(lookup.ra), dec: String(lookup.dec) });
+      return getJson<ObjectContextResponse>(`${apiBase}/api/object?${params}`, { signal });
     },
     analysisImageUrl: (path: string) => `${apiBase}/data/${path}`,
 
