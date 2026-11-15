@@ -1,5 +1,7 @@
 # Validación: Barnard's Star
 
+> **Actualización 2026-11-15 (después de #41).** WS2 reconstruyó los campos publicados en #41 (build del 2026-11-15, 04:05–04:06 UTC), con selección nueva, chequeo de registro por frame y descarte de frames malos, y #48 cambió el render de los núcleos brillantes. **El campo publicado hoy ya no es el que se analizó:** comparte 18 de sus 40 frames con el build de #17. Las mediciones hechas sobre **todas** las exposiciones (las 358 exposiciones) no dependen de esa selección y siguen valiendo. Lo que este registro dice de «los 40 frames publicados» (listas de ids, λ, problemas de los PNG) describe el build de #17 y no se volvió a verificar sobre el nuevo, salvo lo que se indica abajo. El render de núcleos saturados cambió con #48: el «disco blanco» descrito en *Problemas encontrados* no se re-midió.
+>
 > **Vigencia (2026-11-15).** Se analizó el campo publicado en `main` (`4af29e3`; `field.json` construido por #17 el 2026-11-14 a las 18:53:08 UTC, 40 frames) y las **358** exposiciones SPHEREx que cubren la posición:
 > - el análisis original (A) las leyó de S3 el 2026-11-14 desde las 23:44 UTC;
 > - la revisión adversarial independiente (R), con código propio, las volvió a leer el 2026-11-15 desde las 00:24 UTC.
