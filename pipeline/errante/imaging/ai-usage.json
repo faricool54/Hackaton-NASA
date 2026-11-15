@@ -1,7 +1,7 @@
 {
   "updated_on": "2026-11-15",
   "tool": "Anthropic Claude Code",
-  "scope": "WS2 imaging and comparison (pull requests by V0id47 with Claude Code): reprojection of SPHEREx frames onto the field grid, season x detector frame selection, bad-frame rejection and per-frame registration check, consistent rendering and display-only repairs, season coadds and flux-matched season differences, forced photometry, false-color season composites, their regression tests, and the five published golden fields built by running that code on real NASA SPHEREx exposures; also the additive composites contract (#39), the WS5 blink image-mode toggle (#40) and the WS2 reservation (#13)",
+  "scope": "WS2 imaging and comparison (pull requests by V0id47 with Claude Code): reprojection of SPHEREx frames onto the field grid, season x detector frame selection, bad-frame rejection and per-frame registration check, consistent rendering and display-only repairs, season coadds and flux-matched season differences, forced photometry, false-color season composites, their regression tests, and the five published golden fields built by running that code on real NASA SPHEREx exposures; also the additive composites contract (#39), the WS5 blink image-mode toggle (#40) and the WS2 reservation (#13); later the AI-use record (#68), faint-target differences (#69), the published-product check (#70), demo animations (#71) and the task status (#72); plus #88 by faricool54 with Claude Code in WS2's data/products",
   "affected_paths": [
     "pipeline/errante/imaging/",
     "pipeline/errante/detect/difference.py",
@@ -18,6 +18,11 @@
     "pipeline/tests/test_imaging_register.py",
     "pipeline/tests/test_imaging_display.py",
     "pipeline/tests/test_imaging_ai_usage.py",
+    "pipeline/tests/test_imaging_compare_faint.py",
+    "pipeline/tests/test_imaging_productcheck.py",
+    "pipeline/tests/test_imaging_productcheck_caveats.py",
+    "pipeline/tests/test_imaging_invert.py",
+    "pipeline/tests/test_imaging_animate.py",
     "data/products/",
     "tasks/WS2-imaging-detection.md",
     "pipeline/errante/models.py",
@@ -198,6 +203,64 @@
         "Tests: test_imaging_display.py"
       ],
       "humans": "V0id47 directed the work and merged it"
+    },
+    {
+      "number": 68,
+      "title": "ws2: record WS2's AI use (S08) in imaging/ai-usage.json",
+      "merged_at": "2026-11-15T05:57:36Z",
+      "ai_generated": [
+        "Record: imaging/ai-usage.json",
+        "Tests: test_imaging_ai_usage.py"
+      ],
+      "humans": "V0id47 directed the work and merged it"
+    },
+    {
+      "number": 69,
+      "title": "ws2: make season differences readable for faint targets (WISE 0855)",
+      "merged_at": "2026-11-15T05:57:41Z",
+      "ai_generated": [
+        "Code: target-region display limit, noise-based softening, unscaled and flagged-core notes and exported coadd weights in imaging/compare.py",
+        "Tests: test_imaging_compare_faint.py"
+      ],
+      "humans": "V0id47 directed the work and merged it"
+    },
+    {
+      "number": 70,
+      "title": "ws2: published-product check for the five targets with per-target caveats (WS2-8, R05)",
+      "merged_at": "2026-11-15T05:57:45Z",
+      "ai_generated": [
+        "Code: imaging/productcheck*.py and imaging/invert.py (display-level check of the published PNGs; its report is not science photometry or astrometry)",
+        "Tests: test_imaging_productcheck.py, test_imaging_productcheck_caveats.py, test_imaging_invert.py"
+      ],
+      "humans": "V0id47 directed the work and merged it"
+    },
+    {
+      "number": 71,
+      "title": "ws2: demo animations and stills of the published field products",
+      "merged_at": "2026-11-15T05:57:49Z",
+      "ai_generated": [
+        "Code: imaging/animate.py and imaging/annotate.py (GIFs and stills rendered from the published real-data PNGs, captioned as renders of real SPHEREx data with the IRSA credit; no generated imagery)",
+        "Tests: test_imaging_animate.py"
+      ],
+      "humans": "V0id47 directed the work and merged it"
+    },
+    {
+      "number": 72,
+      "title": "ws2: update the WS2 task status after #68-#71",
+      "merged_at": "2026-11-15T06:00:19Z",
+      "ai_generated": [
+        "Docs: tasks/WS2-imaging-detection.md"
+      ],
+      "humans": "V0id47 directed the work and merged it"
+    },
+    {
+      "number": 88,
+      "title": "ws2: sync published field descriptions with the reviewed fields.toml texts",
+      "merged_at": "2026-11-15T15:23:30Z",
+      "ai_generated": [
+        "Products: the description text of four published field.json files and manifest.json, copied from the reviewed fields.toml texts (no frame, PNG or other key changed)"
+      ],
+      "humans": "faricool54 (with Claude Code) authored and merged it in WS2's data/products; V0id47 is the path owner; also listed in WS3's record (pipeline/errante/science/ai-usage.json)"
     }
   ],
   "trailer_note": "The squash commits of rpccp's #53-#56 also list V0id47 and Claude as co-authors because those branches contained the #39 contract commits; their own AI use is recorded by WS4/WS5 (Codex)"
