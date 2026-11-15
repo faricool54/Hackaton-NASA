@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 export function useScienceRequest<T>(identity: string) {
   const [data, setData] = useState<T | null>(null);
@@ -9,7 +9,7 @@ export function useScienceRequest<T>(identity: string) {
     active.current?.abort(); setData(null); setError(''); setBusy(false);
     return () => active.current?.abort();
   }, [identity]);
-  async function run(load: (signal: AbortSignal) => Promise<T>) {
+  const run = useCallback(async (load: (signal: AbortSignal) => Promise<T>) => {
     active.current?.abort();
     const abort = new AbortController(); active.current = abort;
     setBusy(true); setError(''); setData(null);
@@ -21,7 +21,7 @@ export function useScienceRequest<T>(identity: string) {
       if (!abort.signal.aborted) setData(result);
     } catch (e) { if (!abort.signal.aborted) setError((e as Error).message); }
     finally { clearTimeout(timer); if (!abort.signal.aborted) setBusy(false); }
-  }
+  }, []);
   function stop() {
     active.current?.abort(); setBusy(false);
     setError('Stopped waiting. Server work may continue; retry to retrieve its result.');
