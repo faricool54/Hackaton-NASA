@@ -25,7 +25,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, field_validator, model_validator
 
-SCHEMA_VERSION = "0.6.0"
+SCHEMA_VERSION = "0.7.0"
 
 Release = Literal["dr1", "qr2", "qr3", "synthetic"]
 """SPHEREx data release a frame comes from (see docs/DATA.md)."""
@@ -508,6 +508,14 @@ class ResolvedRegion(SkyCoord):
     source: str
 
 
+class SpectrumMotion(_Model):
+    """Catalog linear proper motion, not SPHEREx astrometry; no parallax or radial velocity."""
+
+    ra_cosdec_masyr: FiniteFloat = Field(ge=-20000, le=20000)
+    dec_masyr: FiniteFloat = Field(ge=-20000, le=20000)
+    epoch_mjd: FiniteFloat = Field(ge=40000, le=80000)
+
+
 class SpectrumRequest(SkyCoord):
     """Bounded extraction at a fixed ICRS position; independent of detected candidates."""
 
@@ -519,6 +527,7 @@ class SpectrumRequest(SkyCoord):
     field_id: str | None = Field(default=None, pattern=r"^[a-z0-9][a-z0-9-]*$")
     aperture_px: int = Field(default=0, ge=0, le=3, description="Cube aperture radius; L2 uses WS2's native aperture")
     max_frames: int = Field(default=24, ge=2, le=60)
+    proper_motion: SpectrumMotion | None = None
 
     @model_validator(mode="after")
     def compatible_selection(self):
@@ -528,6 +537,12 @@ class SpectrumRequest(SkyCoord):
             raise ValueError("A static cube cannot be filtered by observation date")
         if self.source == "l2_exposures" and self.aperture_px:
             raise ValueError("aperture_px selects a cube aperture; L2 uses WS2's native aperture")
+        if self.proper_motion is not None:
+            if self.source != "l2_exposures":
+                raise ValueError("Proper motion requires dated L2 exposures, not a static cube")
+            era_dec = self.dec + self.proper_motion.dec_masyr / 3.6e6 * (61000 - self.proper_motion.epoch_mjd) / 365.25
+            if abs(self.dec) >= 89.99 or abs(era_dec) >= 89.99:
+                raise ValueError("Linear proper motion is unsupported at the celestial poles")
         return self
 
 
@@ -538,6 +553,9 @@ class MeasurementFailure(_Model):
 
 class SpectralMeasurement(_Model):
     id: str
+    position: SkyCoord | None = Field(
+        default=None, description="Actual extraction coordinate; catalog prediction when proper motion is used"
+    )
     detector: int = Field(ge=1, le=6)
     wavelength_um: FiniteFloat | None = Field(default=None, gt=0)
     bandwidth_um: FiniteFloat | None = Field(default=None, gt=0)
@@ -566,6 +584,7 @@ class SpectrumResponse(_Model):
     source: Literal["dr1_cube", "l2_exposures"]
     unit: Literal["MJy/sr", "mJy"]
     static_coadd: bool
+    proper_motion: SpectrumMotion | None = None
     points: list[SpectralMeasurement]
     built_at: datetime
     field_id: str | None = None
@@ -585,6 +604,10 @@ class SpectrumResponse(_Model):
             raise ValueError("Cube spectra are static surface brightness; exposure spectra are mJy")
         if self.source == "l2_exposures" and (self.unit != "mJy" or self.static_coadd):
             raise ValueError("Exposure photometry must retain its mJy and time interpretation")
+        if self.proper_motion is not None and self.static_coadd:
+            raise ValueError("A static cube cannot carry exposure proper motion")
+        if self.proper_motion is not None and any(p.position is None or p.mjd is None for p in self.points):
+            raise ValueError("Moving-source measurements need dated extraction coordinates")
         return self
 
 

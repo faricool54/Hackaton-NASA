@@ -560,3 +560,35 @@ def test_period_candidate_is_distinct_from_a_significant_period(tested, probabil
     else:
         with pytest.raises(ValueError):
             LightCurvePeriod.model_validate(doc)
+
+
+@pytest.mark.parametrize(
+    "source,declination,valid", [("dr1_cube", 0, False), ("l2_exposures", 4.7, True), ("l2_exposures", 89.999, False)]
+)
+def test_spectral_catalog_motion_requires_dated_nonpolar_exposures(source, declination, valid):
+    from errante.models import SpectrumRequest
+
+    doc = {
+        "ra": 269.4,
+        "dec": declination,
+        "source": source,
+        "proper_motion": {"ra_cosdec_masyr": -802, "dec_masyr": 10362, "epoch_mjd": 57388},
+    }
+    if valid:
+        parsed = SpectrumRequest.model_validate(doc)
+        assert parsed.proper_motion.dec_masyr == 10362
+        assert SpectrumRequest.model_validate_json(parsed.model_dump_json()) == parsed
+    else:
+        with pytest.raises(ValueError):
+            SpectrumRequest.model_validate(doc)
+
+
+@pytest.mark.parametrize("key,value", [("ra_cosdec_masyr", float("nan")), ("dec_masyr", 20001), ("epoch_mjd", 0)])
+def test_spectral_motion_is_finite_bounded_and_requires_reference_epoch(key, value):
+    from errante.models import SpectrumMotion
+
+    doc = {"ra_cosdec_masyr": 0, "dec_masyr": 0, "epoch_mjd": 57388, key: value}
+    with pytest.raises(ValueError):
+        SpectrumMotion.model_validate(doc)
+    with pytest.raises(ValueError):
+        SpectrumMotion.model_validate({"ra_cosdec_masyr": 0, "dec_masyr": 0})
