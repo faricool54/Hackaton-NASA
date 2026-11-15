@@ -7,6 +7,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Candidate, Composite, Field, Frame, KnownObject } from '../api/types';
 import { DETECTOR_BANDS, formatMjd } from '../api/format';
 import { channelLegend, seasonRange } from './blinkModes';
+import type { TrackAstrometry } from '../three/skyTrack';
+import { predictedFramePixel } from './framePrediction';
 
 interface Props {
   field: Field;
@@ -16,6 +18,7 @@ interface Props {
   imageUrl: (image: string) => string; // PNG path relative to the field dir
   candidates: Candidate[];
   known: KnownObject[];
+  prediction?: TrackAstrometry | null;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
 }
@@ -27,11 +30,15 @@ const STATUS_COLOR: Record<string, string> = {
   injected: 'var(--injected)',
 };
 
-export function BlinkViewer({ field, frames, composites, imageUrl, candidates, known, selectedId, onSelect }: Props) {
+const ZOOM_LEVELS = [1, 2, 4] as const;
+
+export function BlinkViewer({ field, frames, composites, imageUrl, candidates, known, prediction, selectedId, onSelect }: Props) {
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [intervalMs, setIntervalMs] = useState(700);
   const [showOverlays, setShowOverlays] = useState(true);
+  const [showPrediction, setShowPrediction] = useState(true);
+  const [zoom, setZoom] = useState<(typeof ZOOM_LEVELS)[number]>(1);
   const [loaded, setLoaded] = useState<Record<string, 'ready' | 'error'>>({});
   const [retry, setRetry] = useState(0);
 
@@ -97,6 +104,7 @@ export function BlinkViewer({ field, frames, composites, imageUrl, candidates, k
   const { width_px: w, height_px: h } = field.grid;
   const r = Math.max(2.5, w / 40);
   const stepDate = composite ? seasonRange(composite) : current ? formatMjd(current.mjd) : '';
+  const predictedPixel = current && prediction ? predictedFramePixel(field.grid, prediction, current.mjd) : null;
 
   return (
     <div className="blink" tabIndex={0} aria-label="Time sequence player" onKeyDown={(e) => {
@@ -109,62 +117,88 @@ export function BlinkViewer({ field, frames, composites, imageUrl, candidates, k
       {remaining > 0 && <p role="status" className="muted small">Loading sequence images… {n - remaining}/{n}</p>}
       {failed > 0 && <p role="alert" className="error">{failed} image(s) could not load. Playback is paused.
         {' '}<button onClick={() => { setLoaded({}); setRetry((r) => r + 1); }}>Retry images</button></p>}
+      <div className="blink-view-controls">
+        <div className="blink-zoom-control" role="group" aria-label="Image zoom">
+          <span aria-hidden="true">Zoom</span>
+          <div className="segmented">
+            {ZOOM_LEVELS.map((level) => (
+              <button key={level} type="button" aria-pressed={zoom === level} onClick={() => setZoom(level)}>
+                {level}×
+              </button>
+            ))}
+          </div>
+        </div>
+        {current && prediction && <button className={`overlay-toggle${showPrediction ? ' is-on' : ''}`}
+          type="button" aria-pressed={showPrediction} onClick={() => setShowPrediction((on) => !on)}
+          title={prediction.source}>
+          <span className="blink-prediction-dot" aria-hidden="true" />
+          Gaia prediction
+        </button>}
+      </div>
       <div className="blink-stage" style={{ aspectRatio: `${w} / ${h}` }}>
-        {stack.map((f, i) => (
-          <img
-            key={`${f.id}/${retry}`}
-            src={`${imageUrl(f.image)}${retry ? `?retry=${retry}` : ''}`}
-            alt={composites ? `False-color infrared composite ${f.id}` : `SPHEREx frame ${f.id}`}
-            className="blink-frame"
-            style={{ visibility: i === shown ? 'visible' : 'hidden' }}
-            draggable={false}
-            onLoad={() => setLoaded((s) => ({ ...s, [f.id]: 'ready' }))}
-            onError={() => setLoaded((s) => ({ ...s, [f.id]: 'error' }))}
-          />
-        ))}
-        {showOverlays && current && (
-          <svg className="blink-overlay" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
-            {selected && (
-              <polyline
-                points={selected.detections.map((d) => `${d.x + 0.5},${d.y + 0.5}`).join(' ')}
-                className="track"
-              />
-            )}
-            {candidates.map((c) =>
-              c.detections
-                .filter((d) => d.frame_id === current.id)
-                .map((d) => (
-                  <circle
-                    key={`${c.id}-${d.frame_id}`}
-                    cx={d.x + 0.5}
-                    cy={d.y + 0.5}
-                    r={c.id === selectedId ? r * 1.4 : r}
-                    stroke={STATUS_COLOR[c.status]}
-                    className="marker"
-                    onClick={() => onSelect(c.id)}
-                  >
-                    <title>{`${c.id} (${c.status})`}</title>
-                  </circle>
-                )),
-            )}
-            {known.map((k) =>
-              k.positions
-                .filter((p) => p.frame_id === current.id && p.in_frame)
-                .map((p) => (
-                  <rect
-                    key={`${k.designation}-${p.frame_id}`}
-                    x={p.x + 0.5 - r * 0.7}
-                    y={p.y + 0.5 - r * 0.7}
-                    width={r * 1.4}
-                    height={r * 1.4}
-                    className="known-marker"
-                  >
-                    <title>{`Known: ${k.designation}`}</title>
-                  </rect>
-                )),
-            )}
-          </svg>
-        )}
+        <div className="blink-zoom-layer" style={{ transform: zoom === 1 ? undefined : `scale(${zoom})` }}>
+          {stack.map((f, i) => (
+            <img
+              key={`${f.id}/${retry}`}
+              src={`${imageUrl(f.image)}${retry ? `?retry=${retry}` : ''}`}
+              alt={composites ? `False-color infrared composite ${f.id}` : `SPHEREx frame ${f.id}`}
+              className="blink-frame"
+              style={{ visibility: i === shown ? 'visible' : 'hidden' }}
+              draggable={false}
+              onLoad={() => setLoaded((s) => ({ ...s, [f.id]: 'ready' }))}
+              onError={() => setLoaded((s) => ({ ...s, [f.id]: 'error' }))}
+            />
+          ))}
+          {showOverlays && current && (
+            <svg className="blink-overlay" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
+              {selected && (
+                <polyline
+                  points={selected.detections.map((d) => `${d.x + 0.5},${d.y + 0.5}`).join(' ')}
+                  className="track"
+                />
+              )}
+              {candidates.map((c) =>
+                c.detections
+                  .filter((d) => d.frame_id === current.id)
+                  .map((d) => (
+                    <circle
+                      key={`${c.id}-${d.frame_id}`}
+                      cx={d.x + 0.5}
+                      cy={d.y + 0.5}
+                      r={c.id === selectedId ? r * 1.4 : r}
+                      stroke={STATUS_COLOR[c.status]}
+                      className="marker"
+                      onClick={() => onSelect(c.id)}
+                    >
+                      <title>{`${c.id} (${c.status})`}</title>
+                    </circle>
+                  )),
+              )}
+              {known.map((k) =>
+                k.positions
+                  .filter((p) => p.frame_id === current.id && p.in_frame)
+                  .map((p) => (
+                    <rect
+                      key={`${k.designation}-${p.frame_id}`}
+                      x={p.x + 0.5 - r * 0.7}
+                      y={p.y + 0.5 - r * 0.7}
+                      width={r * 1.4}
+                      height={r * 1.4}
+                      className="known-marker"
+                    >
+                      <title>{`Known: ${k.designation}`}</title>
+                    </rect>
+                  )),
+              )}
+            </svg>
+          )}
+          {current && loaded[current.id] === 'ready' && showPrediction && predictedPixel &&
+            <span className="blink-prediction-reticle" aria-hidden="true" style={{
+              left: `${100 * predictedPixel.x / w}%`,
+              top: `${100 * predictedPixel.y / h}%`,
+              transform: `translate(-50%, -50%) scale(${1 / zoom})`,
+            }}><i /><i /><i /><i /></span>}
+        </div>
         <div className="blink-caption">
           {composite ? (
             <>
@@ -184,6 +218,9 @@ export function BlinkViewer({ field, frames, composites, imageUrl, candidates, k
           )}
         </div>
       </div>
+      {current && prediction && showPrediction && <p className="blink-prediction-note muted small">
+        {predictedPixel ? 'Crosshair shows the position predicted from the Gaia catalog.' : 'No catalog position is available on this frame.'}
+      </p>}
 
       {/* Scrubber */}
       <div className="scrubber-wrap">
@@ -205,6 +242,11 @@ export function BlinkViewer({ field, frames, composites, imageUrl, candidates, k
           onKeyDown={(e) => {
             if (e.key === 'ArrowRight') { e.preventDefault(); setPlaying(false); setIndex((i) => Math.min(i + 1, n - 1)); }
             if (e.key === 'ArrowLeft')  { e.preventDefault(); setPlaying(false); setIndex((i) => Math.max(i - 1, 0)); }
+            if (e.key === 'Home' || e.key === 'End') {
+              e.preventDefault();
+              setPlaying(false);
+              setIndex(e.key === 'Home' ? 0 : n - 1);
+            }
           }}
         >
           <div className="scrubber-track">
@@ -263,8 +305,7 @@ export function BlinkViewer({ field, frames, composites, imageUrl, candidates, k
           </button>
         </div>
       </div>
-      {/* TODO(WS5): difference-image layer, zoom/pan, crosshair with RA/Dec readout
-          (use grid.wcs), "time-lapse" export as GIF/MP4. */}
+      {/* TODO(WS5): difference-image layer, pan, RA/Dec readout and GIF/MP4 export. */}
     </div>
   );
 }
