@@ -107,7 +107,9 @@ blanco no completa los cinco ensayos. Verificar valores es condición para anunc
     `errante systems --out data/products --real-only` (15/11) publica los cinco sistemas en el dataset real, cada
     uno con el `field_id` de su campo; en `?dataset=real` el "Dataset time" marca los frames construidos
     ("frames built in this dataset (field …)") y la página del sistema y la del campo se enlazan en los dos sentidos
-    (verificado en el navegador). `data/demo` sigue solo con campos sintéticos.
+    (verificado en el navegador). `data/demo` sigue solo con campos sintéticos. El enlace al campo nombra su
+    blanco con el nombre del manifiesto ("See Epsilon Indi B in SPHEREx images →"): el campo de ε Ind es de B
+    (0,15°, centrado en Ba+Bb) y no contiene a A, cuyas coordenadas muestra la página (`three/fieldLink.ts`).
   - [ ] Campos de contrato para épocas y errores (`epoch_err_days`, `spherex_passes`, astrometría de ε Ind B):
     diferidos, hoy en tablas WS7 del frontend; solo vía PR `contract:` del dueño del contrato.
 
