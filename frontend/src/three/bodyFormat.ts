@@ -45,6 +45,16 @@ function bandSuffix(band: string | null): string {
 }
 
 /**
+ * Amplitude in mag: one decimal from 0.1 mag up, 2 significant digits below, so a millimag-level
+ * catalog amplitude (a VSX BY Dra 0.02 mag) never reads as 0.
+ */
+export function formatAmplitude(mag: number): string {
+  return Math.abs(mag) >= 0.1
+    ? mag.toLocaleString('en', { maximumFractionDigits: 1 })
+    : mag.toLocaleString('en', { maximumSignificantDigits: 2 });
+}
+
+/**
  * One-line variability summary. `amplitude_mag` is the full range (as in the facts, e.g. "Visual
  * range 6.7-13.2 mag" = 6.5 mag), so periodic kinds say "peak-to-peak" and irregular / accretion /
  * eclipse kinds say "dims by up to"; the photometric band is always shown when known.
@@ -53,7 +63,7 @@ export function variabilityText(v: Variability): string {
   const parts: string[] = [v.kind];
   if (v.period_days) parts.push(`every ${formatPeriod(v.period_days)}`);
   if (v.amplitude_mag) {
-    const amp = `${v.amplitude_mag.toLocaleString('en', { maximumFractionDigits: 1 })} mag`;
+    const amp = `${formatAmplitude(v.amplitude_mag)} mag`;
     const band = bandSuffix(v.band);
     parts.push(PERIODIC_KINDS.has(v.kind) ? `${amp} peak-to-peak${band}` : `dims by up to ${amp}${band}`);
   }

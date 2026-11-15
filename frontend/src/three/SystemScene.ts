@@ -92,6 +92,7 @@ import {
   advanceModelTime,
   AU_PER_KM,
   capRadii,
+  baseDisplayRadii,
   distanceMapper,
   drawsPulsation,
   fitDistance,
@@ -555,7 +556,7 @@ export class SystemScene {
   private buildBodies() {
     const glowTex = glowTexture();
     if (glowTex) this.track(glowTex);
-    const base = new Map(this.order.map((b) => [b.id, displayRadius(b)]));
+    const base = baseDisplayRadii(this.order);
     const bodies = this.system.bodies;
     const toUnits = (mode: DistanceMode) => distanceMapper(mode, this.refAu, this.linearScale);
     const compressed = capRadii(bodies, 'compressed', base, toUnits('compressed'));

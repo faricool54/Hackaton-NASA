@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { client } from '../api/client';
+import type { ObjectLookup } from '../api/objectCard';
 import { formatRaDec } from '../api/format';
 import { searchSequences, type SearchSequence } from '../api/skySearch';
 import type { JobStatusResponse, SkyCoord, SystemSummary } from '../api/types';
 import { FieldPage } from '../pages/FieldPage';
+import { ObjectSystemPreview } from '../three/ObjectSystemPreview';
 import { separationArcsec } from '../three/skyTrack';
 import { PositionSpectrum } from './PositionSpectrum';
 import { SystemPreview } from './SystemPreview';
@@ -22,9 +24,11 @@ interface Props {
   building: boolean;
   buildError: string;
   quickLook: boolean;
+  /** WS7 (V14): the object card's lookup, so the 3D tab describes the same object as the card. */
+  lookup?: ObjectLookup | null;
 }
 
-export function PositionResults({ position, sequences, systems, selectedFieldId, job, building, buildError, quickLook }: Props) {
+export function PositionResults({ position, sequences, systems, selectedFieldId, job, building, buildError, quickLook, lookup }: Props) {
   const [view, setView] = useState<typeof VIEWS[number]>('Time');
   const live = client.config.mode === 'api';
   const readyFieldId = job?.status === 'ready' ? job.result_field_id ?? undefined : undefined;
@@ -72,7 +76,7 @@ export function PositionResults({ position, sequences, systems, selectedFieldId,
     </div>
     {view === '3D' && <section aria-label="3D catalog model">
       {model ? <SystemPreview key={model.id} systemId={model.id} />
-        : <p className="muted">No catalog model is available for this position in the current dataset.</p>}
+        : <ObjectSystemPreview position={position} lookup={lookup} />}
     </section>}
   </section>;
 }
