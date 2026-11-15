@@ -101,3 +101,13 @@ desktop/mobile playback and shared-link restoration. These checks do not establi
 Component metadata: [backend/ai-usage.json](backend/ai-usage.json),
 [frontend/ai-usage.json](frontend/ai-usage.json). Human review remains pending. No AI-generated sky imagery
 or new physical measurements were used; Aladin, IRSA and ESA imagery retain their source credits.
+
+## Cache and scientific panels (November 15, 2026)
+
+At rpccp's request, Codex implemented processing-fingerprint cache invalidation, the additive 0.4.0
+spectrum/comparison contract, supervised scientific API adapters, atomic analysis publication, and React
+controls/plots/quality tables. Code and regression tests were AI-assisted; team review remains pending.
+The implementation calls existing WS1/WS2 extraction and photometry/comparison methods rather than
+generating sky data. Live integration checked Barnard cube/season comparisons and RW Aurigae exposure
+photometry; saturated/invalid measurements were retained and excluded from usable plots. These are
+technical acceptance checks, not R05 validation. No AI image-model output, video or audio was generated.

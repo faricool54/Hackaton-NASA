@@ -53,22 +53,49 @@ con IA. La evidencia gráfica local y los caches/FITS pesados no se agregan al r
 
 ## Qué falta y de quién depende
 
-Actualización al integrar: #35 (selección/λ) y #37 (restas) ya están en main. El backend subió
+Registro previo al 15/11: #35 (selección/λ) y #37 (restas) ya están en main. El backend subió
 `JobRequest.build_context.build_revision` a `wavelength-pool-v3` para no reutilizar resultados de la
 selección anterior (`season-grid-v2`). #36 agregó registros de validación de cuatro blancos; eso no
-certifica el conjunto completo R05 ni convierte los ensayos locales de UI en validaciones científicas. #39 propone composites de falso color sobre versión 0.2.2: si #32 entra primero,
-su autor debe actualizarlo a 0.3.1, regenerar schema/TS y traer main. No renumerar ambos por separado.
+certifica el conjunto completo R05 ni convierte los ensayos locales de UI en validaciones científicas.
+#39 ya actualizó composites de falso color a 0.3.1. La integración científica 0.4.0 preserva ese modelo.
 La publicación actual copia/hashea el árbol completo, incluido `color/`; al adoptar el modelo Composite,
 ampliar también la validación de sus PNG antes de declararlos listos. El frontend de composites debe
 integrarse encima de #34 para conservar precarga, errores y los atajos acotados al visor.
 
 - WS4-4/6: destino/URL pública y prueba desde el origen final. Hosting aún no definido; no se contrató nada.
-- WS4-8/9/10 (extras): WS2 #19/#31 ya aporta comparación/fotometría; falta contrato científico acordado,
-  API y vistas con WS3/WS5. No consumir `compare.json` provisional como contrato estable.
+- WS4-8/9/10 (extras): implementados contrato/API/UI científica en PRs dependientes descritos abajo;
+  falta revisión/integración. No consumir `compare.json` provisional como contrato estable.
 - WS3 + WS1/2: validación científica de los cinco blancos (movimiento/variabilidad, controles y errores),
   espectros comparables y fuentes Gaia. Un preset o imagen visible no reemplaza esas mediciones.
 - WS7: migrar galería ilustrativa a modelo físico con datos/incertidumbre; no inventar superficie/planetas.
 - WS5/6: Lighthouse, pulido de accesibilidad, demo/materiales y enlaces sin login; envío confirmado.
 
-El P0 local de coordenadas está cerrado en estas ramas; WS4 completo incluye pendientes de publicación y
-contratos P1 que siguen marcados abiertos. Ver PARALLEL_PLAN.md y tasks/WS4-backend.md.
+El P0 local de coordenadas está cerrado; publicación pública/coordinación y `/api/limits` P2 conservan sus
+pendientes. Ver PARALLEL_PLAN.md y tasks/WS4-backend.md.
+
+## Caché, espectros y comparaciones — 15/11/2026
+
+- #52: revisión `display-mask-v4` + huella de código/dependencias; cambio de máscara/render WS2 invalida
+  jobs previos. Pedidos conservan contexto; un pendiente de otra revisión no publica bajo clave vieja.
+- #53: contrato **0.4.0**, basado en composites **0.3.1** #39. Es draft para revisión coordinada con WS3;
+  no se modificó la rama del compañero. Schema, Pydantic, tipos TS y tests de validación juntos.
+- #54: POST `/api/spectra` y `/api/fields/{id}/comparisons`; WS1 cube/point + WS2 photometry/compare.
+  Un proceso científico supervisado por instancia, 140 s/512 MiB/log 1 MiB, trabajo idéntico compartido,
+  caché contextual, errores sanitizados y publicación PNG/analysis.json atómica. Campo original intacto.
+- WS5 dependiente: panel por posición independiente de candidatos, unidades/filtros/errores/flags,
+  tabla de mediciones y scatter sin interpolación; selector de medias/diferencias, entradas y limitaciones.
+  Modo estático no envía POST, cancelar espera no cancela procesamiento compartido.
+
+Evidencia real en navegador (no fixtures): Barnard D2, tres medias + tres diferencias, cero fallos de
+entrada. Primera resta con escala 1.001 ajustada sobre 60 estrellas, ruido 0.0129 MJy/sr y λ 1.379–1.629 µm.
+No se interpreta esa resta como prueba de variabilidad. Cubo de Barnard: 8/102 puntos utilizables, huecos
+retenidos. RW Aurigae D2: cuatro filas L2 con flujo/error/fecha/FITS; las cuatro excluidas por saturación/
+píxeles malos. Escritorio y 390×844 sin desborde de página; tabla con scroll dentro del panel.
+
+Regresiones offline: fuente SOURCE informativa frente a HOT inválido, nulls/negativos/unidades, fotometría,
+procedencia cruzada, PNG corrupto regenerado, singleflight/cancelación, errores y muerte del hijo por
+deadline/disco. `scripts/dev.py check` verifica ownership, schema/lint, tests Python/TS y build.
+Las pruebas no sustituyen los ensayos científicos R05 ni mediciones físicas para WS7.
+
+Revisión/integración: #52 por separado; luego #39 → #53 → #54 → #55 (WS5 ciencia) → este registro. Tras cada
+squash, merge de main/check/push/retarget del siguiente PR. Uso local no requiere hosting contratado.
