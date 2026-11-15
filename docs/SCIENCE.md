@@ -1079,7 +1079,7 @@ sin red: `pipeline/tests/fixtures/ws3/continuum/eps-indi-b.json`. No es nueva ap
 Farid publicó #101 mientras se preparaba esta implementación. Se retiraron de esta rama los cambios
 propios de identidad y sus tests para evitar duplicarlo: `context.py` permanece igual a main de base.
 #101 conserva el nombre crudo de SIMBAD, cambia el nombre visible según WDS y avisa que SPHEREx mide
-el sistema sin resolver. Su estado de merge/deploy se verifica por separado; no se presenta como incluido aquí.
+el sistema sin resolver. #101 ya esta mergeado y se incorporo desde main; la publicacion se coordina con Farid en #100.
 [Dodin et al. 2020, p. 2](https://arxiv.org/pdf/2007.12559) identifica B con Gaia DR2 156430822114424576;
 [Kurtovic et al. 2024](https://arxiv.org/html/2407.18828v1) da RUWE ~16 para A y ~1,5 para B. Estas fuentes
 respaldan la revisión ya escrita en §0.3; no justifican atribuir la fotometría mezclada a un componente.
