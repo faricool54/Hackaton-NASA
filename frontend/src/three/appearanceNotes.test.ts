@@ -2,10 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { Body, SystemModel } from '../api/types';
 import panelSource from '../components/BodyPanel.tsx?raw';
 import notesSource from './appearanceNotes.ts?raw';
-import { classTypicalFeature, surfacePattern } from './appearance';
+import { surfacePattern } from './appearance';
 import {
   FLAG_TEXT,
-  GRANULATION_SENSITIVITY,
   SCENE_DRAWING_DEFAULTS,
   NOTE_TIER_LABEL,
   NOTE_TIER_MEANING,
@@ -19,10 +18,11 @@ import {
   separationVerdict,
   type AppearanceNote,
 } from './appearanceNotes';
-import { MIRA_TIO_CITATION, PHYS, granulationParams, spherexPrediction } from './astro';
-import { COLOR_MODES, COLOR_MODE_LABEL, bodyLook } from './colorModes';
+import { MIRA_TIO_CITATION, PHYS, granulationParams, spherexPrediction, spherexSaturationResult } from './astro';
+import { COLOR_MODES, COLOR_MODE_LABEL, SPHEREX_LIGHT_CURVE_POINTER, bodyLook } from './colorModes';
 import { MIRA_EPHEMERIDES, MIRA_PREDICTION_CAVEAT } from './ephemerides';
-import { PULSATION_CITATION, PULSATION_PHASE_NOTE, drawsPulsation, spinModel } from './sceneLayout';
+import { UNKNOWN_COLOUR_TEXT, UNKNOWN_SIZE_TEXT } from './factOrigin';
+import { drawsPulsation, spinModel } from './sceneLayout';
 
 // Every demo system shipped with the site (the same JSON the pipeline writes).
 const SYSTEMS = Object.values(
@@ -54,7 +54,6 @@ const verdictOf = (systemId: string, bodyId: string) => rowOf(notesOf(systemId, 
 const IR_COLOUR = /^Colour · SPHEREx IR/;
 const DETECTOR_GREY = /^Grey level · SPHEREx single detector \(D1–D6\)$/;
 const VISIBLE_COLOUR = /^Colour · Visible/;
-const CLASS_TOGGLE = "Toggle 'Show class-typical features'";
 const BAD_TEXT = /\bNaN\b|\bundefined\b|\bnull\b|Infinity|\[object/;
 
 describe('every demo body', () => {
@@ -91,8 +90,8 @@ describe('every demo body', () => {
         expect(props.some((x) => p.test(x)), `${where} ${String(p)}`).toBe(true);
       }
       if (b.kind === 'star') for (const p of ['Glow', 'Limb darkening', 'On-screen brightness']) expect(props, where).toContain(p);
-      // The class-typical toggle only exists for real systems (the synthetic demo keeps its textures).
-      expect(props.includes(CLASS_TOGGLE), where).toBe(!s.provenance.synthetic);
+      // The class-typical toggle is gone: no row describes it, and no row draws a class-typical feature.
+      expect(props.some((x) => /class-typical/i.test(x)), where).toBe(false);
     }
     // IR false colour is the default colour mode and the panel says so.
     expect(rowOf(notesOf('barnards-star', 'barnards-star'), IR_COLOUR).property).toMatch(/default view/);
@@ -102,7 +101,12 @@ describe('every demo body', () => {
     for (const s of SYSTEMS) {
       const before = JSON.stringify(s);
       for (const b of s.bodies) {
-        for (const n of appearanceNotes(b, s)) expect(JSON.stringify(n), `${b.id} ${n.property}`).not.toMatch(/saturat/i);
+        // The one exception is the offline FITS result of a target (A9, astro.SPHEREX_SATURATION_RESULTS), quoted verbatim.
+        const measured = spherexSaturationResult(s.id, b.id);
+        for (const n of appearanceNotes(b, s)) {
+          const text = measured ? JSON.stringify(n).split(measured).join('') : JSON.stringify(n);
+          expect(text, `${b.id} ${n.property}`).not.toMatch(/saturat/i);
+        }
       }
       expect(JSON.stringify(s)).toBe(before);
     }
@@ -121,6 +125,11 @@ describe('every demo body', () => {
         expect(irRow.flags, where).toContain('blackbody-unreliable');
       }
       if (ir.drawnAs === 'outline') expect(irRow.tier, where).toBe('not-drawn');
+      if (ir.drawnAs === 'unknown-colour') {
+        expect(irRow.value, where).toBe(`${UNKNOWN_COLOUR_TEXT}: neutral grey`);
+        expect(irRow.tier, where).toBe('not-drawn');
+        expect(irRow.flags, where).toContain('missing-input');
+      }
       if (ir.drawnAs === 'synthetic') expect(irRow.value, where).toBe(`${ir.hex} (demo palette)`);
       const d1 = bodyLook(b, s, 'D1');
       const grey = rowOf(notes, DETECTOR_GREY);
@@ -134,22 +143,16 @@ describe('every demo body', () => {
       expect(notes.some((n) => n.property === 'Pulsation (radius)'), where).toBe(drawsPulsation(b));
 
       if (b.kind !== 'star') {
-        const pattern = surfacePattern(b, s, false);
+        const pattern = surfacePattern(b, s);
         expect(rowOf(notes, 'Surface pattern').tier, where).toBe(pattern === 'none' ? 'not-drawn' : 'illustrative');
       }
-      // The toggle row says exactly what the scene's gates add: appearance.classTypicalFeature, and for
-      // stars the resolvable convection cells of astro.granulationParams (SystemScene.applyLooks).
-      if (!s.provenance.synthetic && b.kind === 'star' && granulationParams(b).draw) {
-        expect(rowOf(notes, CLASS_TOGGLE).tier, where).toBe('class-typical');
-      } else if (!s.provenance.synthetic) {
-        const feature = classTypicalFeature(b, s);
-        const toggle = rowOf(notes, CLASS_TOGGLE);
-        expect(toggle.tier, where).toBe(feature.pattern === 'none' ? 'not-drawn' : 'class-typical');
-        expect(surfacePattern(b, s, true), where).toBe(feature.pattern);
-        if (feature.pattern !== 'none') {
-          expect(toggle.value, where).toContain(feature.what);
-          expect(toggle.citation, where).toBe(feature.citation);
-        }
+      // A real star is a smooth sphere: SystemScene draws convection cells on the synthetic demo only.
+      if (!s.provenance.synthetic && b.kind === 'star') expect(rowOf(notes, 'Surface pattern').value, where).toMatch(/^none/);
+      // Size unknown: a fixed marker, said so in the size row.
+      if (b.kind !== 'disk' && !(b.radius_km && b.radius_km > 0) && !s.provenance.synthetic) {
+        const size = rowOf(notes, 'Size on screen');
+        expect(size.value, where).toMatch(new RegExp(`^fixed marker, [\\d.]+ scene units \\(${UNKNOWN_SIZE_TEXT}\\)$`));
+        expect(size.tier, where).toBe('not-drawn');
       }
     }
   });
@@ -183,16 +186,14 @@ describe('How this body is drawn', () => {
     }
   });
 
-  it('the class-typical toggle is off by default and its features are labelled CLASS-TYPICAL / ILLUSTRATIVE', () => {
+  it('no class-typical toggle or feature remains on any real body (docs/VISION.md: nothing invented)', () => {
     for (const { system: s, body: b } of ALL) {
       if (s.provenance.synthetic) continue;
-      const row = rowOf(appearanceNotes(b, s), "Toggle 'Show class-typical features'");
-      expect(row.value, b.id).toMatch(/^off by default/);
-      const adds = surfacePattern(b, s, true) !== 'none' || (b.kind === 'star' && granulationParams(b).draw);
-      expect(row.tier, b.id).toBe(adds ? 'class-typical' : 'not-drawn');
-      if (adds) expect(row.value, b.id).toMatch(/ILLUSTRATIVE/);
+      for (const n of appearanceNotes(b, s)) {
+        expect(`${n.property} ${n.value}`, `${b.id} ${n.property}`).not.toMatch(/class-typical|ILLUSTRATIVE/i);
+        expect(n.tier, `${b.id} ${n.property}`).not.toBe('class-typical');
+      }
     }
-    expect(rowOf(notesOf('epsilon-indi', 'eps-indi-ba'), /class-typical/).value).toMatch(/bands/);
   });
 
   it('surface-pattern rows say exactly what is known: no map, and no verified modulation amplitude in the catalog', () => {
@@ -235,82 +236,56 @@ describe('How this body is drawn', () => {
     );
   });
 
-  it('class-typical features: only the S5 list (Ba patchy clouds, Ab zonal bands), each with its own class-level source', () => {
-    const ba = rowOf(notesOf('epsilon-indi', 'eps-indi-ba'), CLASS_TOGGLE);
-    expect(ba.value).toBe('off by default; when on: patchy cloud bands, ±15 % about the mean brightness (ILLUSTRATIVE)');
-    expect(ba.method).toMatch(/L\/T-transition brown dwarfs \(L9–T3\.5\)/);
-    expect(ba.citation).toMatch(/Radigan et al\. 2014/);
-    const ab = rowOf(notesOf('epsilon-indi', 'eps-indi-ab'), CLASS_TOGGLE);
-    expect(ab.value).toMatch(/^off by default; when on: zonal bands/);
-    expect(ab.citation).not.toMatch(/brown dwarfs/); // the gas-giant bands are not cited to brown-dwarf papers
-    expect(ab.method).toMatch(/visible mode/);
-    for (const [sysId, id] of [
-      ['epsilon-indi', 'eps-indi-bb'],
-      ['wise-0855', 'wise-0855'],
-      ['barnards-star', 'barnard-b'],
-      ['barnards-star', 'barnard-c'],
-      ['barnards-star', 'barnard-d'],
-      ['barnards-star', 'barnard-e'],
-    ] as const) {
-      const r = rowOf(notesOf(sysId, id), CLASS_TOGGLE);
-      expect(r.value, id).toBe('off by default; nothing to add for this body');
-      expect(r.tier, id).toBe('not-drawn');
-      expect(r.method, id).toMatch(/no class-level source for a drawn pattern has been checked for this body/);
-    }
-  });
-
-  it('R Dra (Mira): every colour row says the molecular bands and dust are not modelled; the size phase is a display choice', () => {
+  it('R Dra (Mira, no measured Teff or radius): grey and a fixed marker; the AB rule still names the molecular bands', () => {
     const notes = notesOf('r-draconis', 'r-draconis');
-    const ir = rowOf(notes, IR_COLOUR);
-    expect(ir.method).toMatch(/Mira \/ AGB variable \('Variable type: Mira'\): H₂O and CO bands and circumstellar dust are not modelled/);
-    expect(ir.citation).toMatch(/Höfner & Olofsson 2018/);
-    expect(rowOf(notes, DETECTOR_GREY).method).toMatch(/H₂O and CO bands/);
-    const vis = rowOf(notes, VISIBLE_COLOUR);
-    expect(vis.method).toMatch(/TiO absorption bands/);
-    expect(vis.flags).toContain('not-modelled');
+    for (const prop of [IR_COLOUR, DETECTOR_GREY, VISIBLE_COLOUR]) {
+      const r = rowOf(notes, prop);
+      expect(r.value, String(prop)).toBe(`${UNKNOWN_COLOUR_TEXT}: neutral grey`);
+      expect(r.tier, String(prop)).toBe('not-drawn');
+    }
+    expect(rowOf(notes, 'On-screen brightness').value).toMatch(/^neutral grey, level 0\.46 in every colour mode$/);
+    expect(rowOf(notes, 'Size on screen').value).toMatch(/size unknown · not to scale/);
+    expect(rowOf(notes, 'Limb darkening').value).toBe('none (flat disc)');
+    // The Mira reason comes before the missing-input rule (astro.spherexReliability).
     expect(rowOf(notes, 'Predicted AB (D1–D6)').value).toBe('not shown: photosphere blackbody - molecular bands and dust not modelled');
+    expect(rowOf(notes, 'Predicted AB (D1–D6)').method).toMatch(/no Teff is measured for this star/);
     expect(notes.filter((n) => n.unit === 'AB mag')).toEqual([]);
     const puls = rowOf(notes, 'Pulsation (radius)');
-    expect(puls.method).toContain(PULSATION_PHASE_NOTE);
-    expect(puls.tier).toBe('class-typical');
+    expect(puls.value).toBe('radius drawn constant');
+    expect(puls.tier).toBe('not-drawn');
   });
 
-  it('R Dra pulsation and glow rows describe both clocks, with the Dataset-time ephemeris read from ephemerides.ts', () => {
+  it('R Dra pulsation and glow rows: constant radius, catalog V light curve on the glow, pointer to the SPHEREx light curve', () => {
     const eph = MIRA_EPHEMERIDES.find((e) => e.systemId === 'r-draconis' && e.bodyId === 'r-draconis')!;
     expect(eph).toBeTruthy();
     const notes = notesOf('r-draconis', 'r-draconis');
     const puls = rowOf(notes, 'Pulsation (radius)');
-    // Free-running: the catalog (GCVS) period, arbitrary phase.
-    expect(puls.method).toMatch(
-      /^Free-running clock: radius factor 1 − 0\.1·sin\(2π·\(MJD − 51544\.5\)\/P\) at the catalog period P = 245\.6 days; the phase is arbitrary/,
-    );
-    // Dataset time: the VSX epoch and period, the asymmetric 45 % rise, the timing band and the caveat.
-    expect(puls.method).toContain(`Dataset time: radius factor 1 + 0.1·s(φ), where s is the asymmetric ${eph.band}-band light-curve shape`);
-    expect(puls.method).toContain(`the rise from minimum to maximum takes ${Math.round(eph.riseFraction * 100)} % of the cycle, so minimum is at φ = 0.55`);
-    expect(puls.method).toContain(`epoch of maximum HJD ${eph.epochHjd.toFixed(2)} (MJD 57369.5) and P = ${eph.periodDays} d`);
-    expect(puls.method).toContain(`±${Number(eph.timingSigmaDays.toPrecision(2))} d timing band (1σ)`);
-    expect(puls.method).toContain(eph.note);
-    expect(puls.method).toContain(MIRA_PREDICTION_CAVEAT);
+    expect(puls.method).toMatch(/^the size change of this pulsating star is not measured, so its radius is drawn constant in both clocks/);
+    expect(puls.method).toContain('V-band light curve (catalog, not measured by SPHEREx; see the glow row)');
+    // V12a: the measured AAVSO maxima date the phase inside the SPHEREx window (±3 d), VSX only outside it (±9 d).
     expect(puls.method).toContain(
-      `In both clocks the amplitude is the class-typical ~20 % peak-to-peak continuum diameter change of Mira variables, not measured on this star, and ${PULSATION_PHASE_NOTE}`,
+      `which Dataset time dates with the V maxima measured by AAVSO inside the SPHEREx window (MJD 60811.4, 61046.5, 61304.3; linear phase between them, ±3 d band) and with the ephemeris ${eph.source} (±9 d timing band, 1σ) outside it`,
     );
-    expect(puls.citation).toBe(`${PULSATION_CITATION}; ephemeris: ${eph.source}; timing band: ${eph.timingSource}`);
+    expect(puls.method).toContain(SPHEREX_LIGHT_CURVE_POINTER);
+    expect(puls.method).not.toMatch(/±10 %|class-typical/);
+    expect(puls.citation).toContain(`ephemeris: ${eph.source}; timing band: ${eph.timingSource}`);
+    expect(puls.citation).toContain(`measured maxima: ${eph.observedMaximaSource}; their band: ${eph.observedTimingSource}`);
+    expect(puls.citation).toContain('SCIENCE.md 3D review (V12b, V12a)');
     // The glow: modulated in visible mode only, on both clocks, TiO-driven.
     const glow = rowOf(notes, 'Glow');
-    expect(glow.method).toMatch(/light curve modulates the glow in visible mode only \(opacity × f\^0\.25, size × f\^0\.3/);
+    expect(glow.method).toMatch(/light curve \(catalog, not measured by SPHEREx\) modulates the glow in visible mode only \(opacity × f\^0\.25, size × f\^0\.3/);
+    expect(glow.method).toContain('the radius stays constant');
     expect(glow.method).toContain('free-running clock, a sine at the catalog period with an arbitrary phase');
     expect(glow.method).toContain(
-      `Dataset time, the predicted ${eph.band} phase on the asymmetric curve of the ephemeris in the pulsation row (${MIRA_PREDICTION_CAVEAT})`,
+      `Dataset time, the ${eph.band} phase dated as in the pulsation row (measured maxima inside the SPHEREx window, the ephemeris outside it), on the asymmetric curve of the ephemeris (${MIRA_PREDICTION_CAVEAT})`,
     );
     expect(glow.method).toContain(`TiO absorption, not by the Planck function (${MIRA_TIO_CITATION})`);
     expect(glow.citation).toContain(eph.source);
-    // A pulsating star without a tabulated ephemeris is held at its mean size and glow in Dataset time.
+    // A pulsating star without a tabulated ephemeris: still a constant radius, and the glow is held at the mean.
     const sys: SystemModel = { ...system('r-draconis'), id: 'not-in-the-table' };
     const other = appearanceNotes(sys.bodies[0], sys);
-    expect(rowOf(other, 'Pulsation (radius)').method).toContain(
-      'Dataset time: no catalogue ephemeris of maximum light is tabulated for this star, so it is drawn at its mean size (phase unknown)',
-    );
-    expect(rowOf(other, 'Pulsation (radius)').citation).toBe(PULSATION_CITATION);
+    expect(rowOf(other, 'Pulsation (radius)').value).toBe('radius drawn constant');
+    expect(rowOf(other, 'Pulsation (radius)').citation).toMatch(/SCIENCE\.md 3D review \(V12b\)$/);
     expect(rowOf(other, 'Glow').method).toContain('Dataset time, held at the mean (no catalogue ephemeris: phase unknown)');
   });
 
@@ -339,32 +314,19 @@ describe('How this body is drawn', () => {
     else expect(row.value).toMatch(/convection cells across/);
   });
 
-  it('R Dra with the class-typical 1 M_sun: about 8 cells, and the verdict holds for 200–300 R_sun and 1–1.8 M_sun (Feast 2009)', () => {
-    // The catalog's own unverified Fact 'Mass (class-typical)' (Feast 2009), at exactly 1 M_sun in PHYS units.
+  it('a real star whose cells would be resolvable is still drawn smooth (no cell is observed on it)', () => {
+    // Test inputs only (not catalog values): an R Dra-like giant with resolvable cells.
     const base = bodyIn('r-draconis', 'r-draconis');
-    const massFact = base.facts.find((f) => /^mass\b/i.test(f.label))!;
-    expect(massFact).toMatchObject({ label: 'Mass (class-typical)', value: '~1', unit: 'solar masses', verified: false });
-    expect(massFact.source).toMatch(/^Feast 2009, .*arXiv:0812\.0250, Sect\. 3: .*C-Miras at log P ~2\.7 have ~1\.8 M_sun; R Dra has log P = 2\.39/);
-    const rdra: Body = { ...base, mass_kg: PHYS.GMSun / PHYS.G };
-    const sys: SystemModel = { ...system('r-draconis'), bodies: [rdra] };
-    const notes = appearanceNotes(rdra, sys);
-    const row = rowOf(notes, 'Surface pattern');
-    expect(row.value).toMatch(
-      /^≈8(\.\d)? convection cells across, ±15 % contrast, turnover ≈ 1\d\d d \(only with 'Show class-typical features', off by default\)$/,
-    );
-    expect(row.method).toMatch(/none is observed on this star, so the default view is a smooth sphere \(docs\/VISION\.md\)/);
-    expect(row.tier).toBe('illustrative');
-    // The toggle row says what it adds to R Dra: the cells, class-typical, with the π¹ Gru observation as the class basis.
-    const toggle = rowOf(notes, "Toggle 'Show class-typical features'");
-    expect(toggle.value).toMatch(/^off by default; when on: ≈8(\.\d)? convection cells across, ±15 % contrast \(ILLUSTRATIVE\)$/);
-    expect(toggle.tier).toBe('class-typical');
-    expect(toggle.citation).toMatch(/Paladini et al\. 2018/);
-    expect(row.method).toMatch(
-      /for R 200–300 R☉ and M 1–1\.8 M☉ \(illustrative ranges\) the count is 6\.\d–1\d, so the verdict holds, also for any lower mass \(N ∝ M\); M from the catalog's class-typical 1 M☉ up to 1\.8 M☉, the initial mass Feast 2009 gives for C-Miras at log P = 2\.72/,
-    );
-    expect(GRANULATION_SENSITIVITY['r-draconis'].radiusRsun).toEqual([200, 300]);
-    expect(GRANULATION_SENSITIVITY['r-draconis'].massMsun).toEqual([1, 1.8]);
-    expect(rowOf(notes, 'Luminosity').tier).toBe('illustrative');
+    const giant: Body = { ...base, teff_k: 3000, radius_km: 250 * (PHYS.RSun / 1e3), mass_kg: PHYS.GMSun / PHYS.G };
+    const sys: SystemModel = { ...system('r-draconis'), bodies: [giant] };
+    expect(granulationParams(giant).draw).toBe(true);
+    const row = rowOf(appearanceNotes(giant, sys), 'Surface pattern');
+    expect(row.value).toBe('none: smooth sphere with limb darkening');
+    expect(row.tier).toBe('not-drawn');
+    expect(row.method).toMatch(/no surface of this star is resolved or mapped, so no convection cells are drawn/);
+    // The synthetic demo keeps its decoration: the same star in a synthetic system gets cells.
+    const demo: SystemModel = { ...sys, provenance: { ...sys.provenance, synthetic: true } };
+    expect(rowOf(appearanceNotes(giant, demo), 'Surface pattern').value).toMatch(/convection cells across, .*\(synthetic demo\)$/);
   });
 
   it('rotation: only a verified period or the tidal-lock rule makes a body spin', () => {
@@ -447,7 +409,7 @@ describe('At SPHEREx scale', () => {
 
   it('angular sizes and separations against the 6.15″ pixel', () => {
     expect(rowOf(notesOf('barnards-star', 'barnards-star'), 'Angular diameter').value).toBe('0.94 mas = 1/6,500 px');
-    expect(rowOf(notesOf('r-draconis', 'r-draconis'), 'Angular diameter').value).toBe('2.9 mas = 1/2,100 px');
+    expect(rowOf(notesOf('r-draconis', 'r-draconis'), 'Angular diameter').value).toBe('not computed'); // radius unknown
     expect(rowOf(notesOf('barnards-star', 'barnard-e'), /^Separation from/).value).toBe('≤ 0.0208″ = 1/300 px');
     expect(rowOf(notesOf('epsilon-indi', 'eps-indi-bb'), /^Separation from/).value).toMatch(/^≤ 1\.02″ = 0\.17 px \(true separation 0\.304–1\.02″/);
     expect(rowOf(notesOf('epsilon-indi', 'eps-indi-ab'), /^Separation from/).value).toMatch(/^≤ 5\.42″ = 0\.88 px/);
@@ -485,11 +447,23 @@ describe('At SPHEREx scale', () => {
   it('flags predictions brighter than the pre-launch non-linearity onset', () => {
     const ab = notesOf('barnards-star', 'barnards-star').filter((n) => n.unit === 'AB mag');
     expect(ab.map((n) => n.value)).toEqual(['6.93', '6.45', '6.46', '6.82', '7.22', '7.42']);
+    // A9: Barnard's saturation was measured offline, so its rows give the result instead of "check".
     for (const r of ab) {
-      expect(r.flags, r.property).toContain('brighter-than-nonlinearity');
-      expect(r.method, r.property).toMatch(/non-linearity onset AB [\d.]+ \(pre-launch model\)/);
+      expect(r.flags, r.property).toEqual(['overflow-measured']);
+      expect(r.method, r.property).toMatch(
+        /non-linearity onset AB [\d.]+ \(pre-launch model\); SPHEREx pixel flags: saturated \(OVERFLOW\) in 357 of 358 exposures \(offline FITS analysis, docs\/validation\/barnards-star\.md\)$/,
+      );
     }
-    expect(FLAG_TEXT['brighter-than-nonlinearity']).toMatch(/OVERFLOW and NONLINEAR/);
+    expect(FLAG_TEXT['overflow-measured']).not.toMatch(/check/);
+    expect(FLAG_TEXT['overflow-measured']).toMatch(/OVERFLOW measured in its SPHEREx exposures/);
+    // Any other bright star (ε Ind A) keeps the generic "check the flags" text.
+    const epsA = notesOf('epsilon-indi', 'eps-indi-a').filter((n) => n.unit === 'AB mag');
+    expect(epsA.length).toBe(6);
+    for (const r of epsA) {
+      expect(r.flags, r.property).toEqual(['brighter-than-nonlinearity']);
+      expect(r.method, r.property).not.toMatch(/SPHEREx pixel flags/);
+    }
+    expect(FLAG_TEXT['brighter-than-nonlinearity']).toMatch(/check the OVERFLOW and NONLINEAR pixel flags/);
   });
 
   it('the blend fraction appears only for blended stellar pairs, with numbers only when both are reliable', () => {
@@ -559,7 +533,6 @@ describe('physical quantities behind the drawing', () => {
         "drawn | Glow | ×5 display radius (IR), ×5 (visible) | display",
         "drawn | Limb darkening | I(limb)/I(centre): visible R 0.18 · G 0.13 · B 0.073; IR (4.37/2.5/1.11 µm) R 0.69 · G 0.6 · B 0.37 | model",
         "drawn | Surface pattern | none: ≈1,600 cells across, too small to draw | model",
-        "drawn | Toggle 'Show class-typical features' | off by default; nothing to add for this kind of body | not-drawn",
         "drawn | Size on screen | ×4.1 true size (true-proportions mode), ×7.3 (compressed mode) | display",
         "drawn | Rotation | one turn per 145 ± 15 days | measured",
         "drawn | Lighting | self-luminous; its light takes its drawn hue (visible #ffbe7a, IR #85ffe1) | display",
@@ -570,12 +543,12 @@ describe('physical quantities behind the drawing', () => {
         "derived | Fraction of the light per SPHEREx detector | D1 0.26 · D2 0.28 · D3 0.19 · D4 0.11 · D5 0.017 · D6 0.01 | model",
         "derived | Spectral class (parsed) | M4 V (main-sequence) | derived",
         "spherex | Angular diameter | 0.94 mas = 1/6,500 px | derived",
-        "spherex | Predicted AB, D1 (0.746–1.117 µm) | 6.93 AB mag | model | brighter-than-nonlinearity",
-        "spherex | Predicted AB, D2 (1.103–1.65 µm) | 6.45 AB mag | model | brighter-than-nonlinearity",
-        "spherex | Predicted AB, D3 (1.63–2.435 µm) | 6.46 AB mag | model | brighter-than-nonlinearity",
-        "spherex | Predicted AB, D4 (2.403–3.847 µm) | 6.82 AB mag | model | brighter-than-nonlinearity",
-        "spherex | Predicted AB, D5 (3.811–4.43 µm) | 7.22 AB mag | model | brighter-than-nonlinearity",
-        "spherex | Predicted AB, D6 (4.412–5.01 µm) | 7.42 AB mag | model | brighter-than-nonlinearity",
+        "spherex | Predicted AB, D1 (0.746–1.117 µm) | 6.93 AB mag | model | overflow-measured",
+        "spherex | Predicted AB, D2 (1.103–1.65 µm) | 6.45 AB mag | model | overflow-measured",
+        "spherex | Predicted AB, D3 (1.63–2.435 µm) | 6.46 AB mag | model | overflow-measured",
+        "spherex | Predicted AB, D4 (2.403–3.847 µm) | 6.82 AB mag | model | overflow-measured",
+        "spherex | Predicted AB, D5 (3.811–4.43 µm) | 7.22 AB mag | model | overflow-measured",
+        "spherex | Predicted AB, D6 (4.412–5.01 µm) | 7.42 AB mag | model | overflow-measured",
       ]
     `);
     expect(compact('barnards-star', 'barnard-b')).toMatchInlineSnapshot(`
@@ -584,7 +557,6 @@ describe('physical quantities behind the drawing', () => {
         "drawn | Grey level · SPHEREx single detector (D1–D6) | emission not modelled: drawn as an outline | not-drawn | not-modelled",
         "drawn | Colour · Visible (CIE 1931, blackbody) | neutral 18 % grey | display | not-modelled",
         "drawn | Surface pattern | none (uniform) | not-drawn",
-        "drawn | Toggle 'Show class-typical features' | off by default; nothing to add for this body | not-drawn",
         "drawn | Size on screen | ×36 true size (true-proportions mode), ×64 (compressed mode) | display",
         "drawn | Rotation | tidally locked: one turn per orbit (3.2 days) | theory",
         "drawn | Lighting | visible: light of Barnard's Star #ffbe7a; SPHEREx modes: dark, with an outline | display",
@@ -615,16 +587,16 @@ describe('bundle boundary', () => {
     const imports = [...notesSource.matchAll(/^\s*import\b[^;]*?\bfrom\s+['"]([^'"]+)['"]/gm)].map((m) => m[1]);
     expect(imports.length).toBeGreaterThan(0);
     for (const i of imports) {
-      expect(['../api/types', './appearance', './astro', './bodyFormat', './colorModes', './ephemerides', './sceneLayout', './spherexBands'], i).toContain(i);
+      expect(['../api/types', './appearance', './astro', './colorModes', './ephemerides', './factOrigin', './sceneLayout', './spherexBands'], i).toContain(i);
     }
   });
 
   it('nor does any module it pulls in', () => {
     const sources = import.meta.glob<string>(
-      ['./appearance.ts', './bodyFormat.ts', './colorModes.ts', './ephemerides.ts', './kindLabels.ts', './orbits.ts', './sceneLayout.ts'],
+      ['./appearance.ts', './bodyFormat.ts', './colorModes.ts', './ephemerides.ts', './factOrigin.ts', './kindLabels.ts', './orbits.ts', './sceneLayout.ts'],
       { eager: true, query: '?raw', import: 'default' },
     );
-    expect(Object.keys(sources).length).toBe(7);
+    expect(Object.keys(sources).length).toBe(8);
     for (const [name, src] of Object.entries(sources)) {
       expect(src, name).not.toMatch(/from\s+['"]three(\/|['"])/);
       expect(src, name).not.toMatch(/import\(\s*['"]three/);

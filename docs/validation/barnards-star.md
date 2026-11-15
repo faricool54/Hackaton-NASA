@@ -225,7 +225,7 @@ Convención: **VERIFICADO** = medido en esta sesión (script en scratch); **INFE
   - D1 a λ < 0,85 µm, la que menos satura (1–4 px de `OVERFLOW`; n = 9 en S0 y 6 en S2): el residuo S2 − S0 vale (−0,04, −0,21)″ en A y (+0,22, −0,24)″ en R.
   - Paso 6 de VALIDATION.md pendiente: en esta sesión no se levantaron servidores ni se revisó la UI. Tampoco se corrió `errante compare` para este campo.
 - **Product field ID / public URL / screenshot or animation:**
-  - barnards-star (data/products/fields/barnards-star/). URL pública: pendiente del deploy (WS4).
+  - barnards-star (data/products/fields/barnards-star/). URL pública: https://errante.34-148-242-13.sslip.io/#/field/barnards-star (desde #84; ver el addendum del paso 6).
   - Figuras (gráficos generados con código a partir de los FITS reales de SPHEREx y de los PNG publicados):
     - [rev_fig1_stamps.png](figures/barnards-star/rev_fig1_stamps.png): Revisión: una exposición por detector y temporada. Remuestreo al vecino más cercano con norte arriba, sobre un marco de cielo fijo; posiciones predichas de S0, S1 y S2, ajuste rp y píxeles `OVERFLOW`/NaN.
     - [rev_fig2_track.png](figures/barnards-star/rev_fig2_track.png): Revisión: trayectoria medida (358 exposiciones) contra Gaia DR3 (pm y pm + paralaje), y residuos frente al tiempo con perfil radial y gaussiana.
@@ -437,3 +437,26 @@ Sin problema (VERIFICADO por A y R):
 - No hay `GHOST*`, `SNOWBALL` ni `STREAK` a ≤ 5 px de Barnard.
 - El WCS es estable entre temporadas a ≤ 0,12″ (0,02 px), sin contar el frame corrido.
 - La propagación con astropy (A) y la implementación propia con ERFA (R) coinciden a < 0,0001″.
+
+## Addendum 2026-11-15 (15:00 ART): productos publicados (#70) y recorrido público (paso 6)
+
+- **Chequeo de productos publicados (#70).** `python -m errante.imaging.productcheck --products data/products --out <dir>`,
+  regenerado el 2026-11-15 sobre `main` (`data/products` sin cambios de imagen desde #41; #88 solo cambió textos): da las
+  mismas cifras que el cuerpo de #70. Es nivel de display sobre PNG de 8 bits, no fotometría ni astrometría científica.
+  - **Límite común a los cinco.** Este chequeo mira los PNG del build reconstruido después de #17. Los registros
+    analizaron el build de #17 (2026-11-14), con una selección de frames en parte distinta, así que sus cifras por frame y
+    de «solo los frames del build» no corresponden a estos PNG. Lo esperado del chequeo usa solo el movimiento propio de
+    `fields.toml` y no incluye la paralaje.
+  - El núcleo está recortado en los 40 frames, así que el chequeo usa el estimador de meseta blanca. S0→S2 en D1–D6
+    (362 d) da 1.615 ± 0.066 px = 9.93 ± 0.41″ a PA 352.0°, contra 1.674 px = 10.30″ a PA 355.6° esperados.
+  - Frente a la cifra FITS de este registro (1.655–1.665 px a PA 354.1–355.4°), el PNG queda entre −0.050 y −0.040 px y
+    entre −3.4 y −2.1°.
+  - Solo S0→S2 (misma orientación) queda dentro de 3σ: residuo 0.119 px (2.0σ). S0→S1 (0.443 px, 4.4σ) y S1→S2
+    (0.532 px, 6.1σ) cruzan el giro de 180° de S1, que además mezcla la paralaje.
+  - Registro de campo re-medido en los PNG: 40 de 40 frames, mediana 0.023 px, máximo 0.085 px.
+- **Paso 6, recorrido público (parte técnica hecha; falta la prueba humana).** En
+  https://errante.34-148-242-13.sslip.io (deploy `3ed5c91`), el 2026-11-15 ~15:00 ART, en navegador de escritorio:
+  - `#/field/barnards-star` carga la secuencia publicada de 40 frames (PNG servidos);
+  - reproducir, pausar, «Next frame» y «Previous frame» funcionan (por ejemplo, 10 → 11 → 10). La retícula «Gaia prediction» (#96) está disponible en este campo.
+  - Un job nuevo por RA/Dec en la URL pública devolvió frames reales en 49 s (auditoría del 15/11; también #91 y #95).
+  - **Falta:** que una persona lo recorra en incógnito y en celular, y la revisión humana de este registro.

@@ -13,6 +13,20 @@ import {
   variabilityAnimationNote,
   variabilityText,
 } from '../three/bodyFormat';
+// Astro-free too: fact origin chips and the unknown colour / size rules of the 3D view.
+import {
+  FACT_ORIGIN_LABEL,
+  FACT_ORIGIN_MEANING,
+  factOrigin,
+  isColourKnown,
+  isSizeKnown,
+  UNKNOWN_COLOUR_REASON,
+  UNKNOWN_COLOUR_TEXT,
+  UNKNOWN_SIZE_REASON,
+  UNKNOWN_SIZE_TEXT,
+  unknownReason,
+  type FactOrigin,
+} from '../three/factOrigin';
 
 interface Props {
   system: SystemModel;
@@ -28,7 +42,14 @@ export function BodyPanel({ system, body, fieldExists, fieldSynthetic }: Props) 
   // A synthetic system can only point at synthetic frames, even if the caller did not say so.
   const syntheticField = fieldSynthetic === true || system.provenance.synthetic;
   const teff = body.teff_k != null && body.teff_k > 0 ? body.teff_k : null;
-  const hasModelRows = teff !== null || !!body.orbit || !!body.variability;
+  // Real systems only: the synthetic demo's look is decoration, not drawn from Teff or a radius.
+  const real = !system.provenance.synthetic;
+  const colourUnknown = real && !isColourKnown(body);
+  const sizeUnknown = real && !isSizeKnown(body);
+  // The body's own reason from the pipeline note, else the generic one.
+  const colourReason = (colourUnknown && unknownReason(system, body, 'temperature')) || UNKNOWN_COLOUR_REASON;
+  const sizeReason = (sizeUnknown && unknownReason(system, body, 'radius')) || UNKNOWN_SIZE_REASON;
+  const hasModelRows = teff !== null || colourUnknown || sizeUnknown || !!body.orbit || !!body.variability;
   const unverified = modelValuesUnverified(system);
   const animationNote = body.variability ? variabilityAnimationNote(body.variability) : null;
   return (
@@ -57,6 +78,24 @@ export function BodyPanel({ system, body, fieldExists, fieldSynthetic }: Props) 
               <>
                 <dt>Temperature</dt>
                 <dd>~{Math.round(teff)} K</dd>
+              </>
+            )}
+            {colourUnknown && (
+              <>
+                <dt>Temperature</dt>
+                <dd>
+                  unknown: {UNKNOWN_COLOUR_TEXT}
+                  <div className="muted small">Why: {colourReason}.</div>
+                </dd>
+              </>
+            )}
+            {sizeUnknown && (
+              <>
+                <dt>Radius</dt>
+                <dd>
+                  unknown: {UNKNOWN_SIZE_TEXT}
+                  <div className="muted small">Why: {sizeReason}.</div>
+                </dd>
               </>
             )}
             {body.orbit && (
@@ -103,7 +142,7 @@ export function BodyPanel({ system, body, fieldExists, fieldSynthetic }: Props) 
                 <th scope="row">{f.label}</th>
                 <td>
                   {f.value}
-                  {f.unit ? ` ${f.unit}` : ''}
+                  {f.unit ? ` ${f.unit}` : ''} <OriginChip origin={factOrigin(f, system.provenance.synthetic)} />
                   {!f.verified && (
                     <span className="unverified" title="An estimate, or a value not found in its source">
                       {' '}
@@ -147,6 +186,39 @@ export function BodyPanel({ system, body, fieldExists, fieldSynthetic }: Props) 
         </p>
       )}
     </div>
+  );
+}
+
+/** Chip colours of the fact origins (factOrigin.ts), readable on the dark panel background. */
+const ORIGIN_COLOR: Readonly<Record<FactOrigin, string>> = {
+  spherex: '#f9a8d4',
+  derived: '#2dd4bf',
+  catalog: '#a5b4c8',
+  unsourced: '#fbbf24',
+  synthetic: '#fbbf24',
+};
+
+/** Where a fact comes from: SPHEREx-measured, derived, catalog (not measured by SPHEREx), no source, or synthetic demo. */
+function OriginChip({ origin }: { origin: FactOrigin }) {
+  const color = ORIGIN_COLOR[origin];
+  return (
+    <span
+      title={FACT_ORIGIN_MEANING[origin]}
+      style={{
+        display: 'inline-block',
+        fontSize: '0.66rem',
+        fontWeight: 600,
+        lineHeight: 1.5,
+        letterSpacing: '0.02em',
+        padding: '0 6px',
+        borderRadius: 999,
+        border: `1px solid ${color}`,
+        color,
+        verticalAlign: 'middle',
+      }}
+    >
+      {FACT_ORIGIN_LABEL[origin]}
+    </span>
   );
 }
 

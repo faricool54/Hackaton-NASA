@@ -143,8 +143,8 @@ Además, la serie SPHEREx **sigue a la curva V contemporánea de AAVSO** (818 ob
   - Los máximos AAVSO salen de parábolas de ±40 d sobre estimaciones visuales y V. Su error formal es de 0,5–0,8 d, y el real es mayor (❓ INFERIDO: unos pocos días).
   - GCVS y 2MASS no pudieron consultarse: VizieR CfA seguía caído a las 19:23 UTC.
 - **Product field ID / public URL / screenshot or animation:**
-  - Field ID: `r-draconis` (`data/products/fields/r-draconis/`). URL pública: pendiente del deploy (WS4).
-  - Recorrido revisado solo en la vista local `/?dataset=real#/field/r-draconis` (paso 6 de VALIDATION.md pendiente en la URL pública).
+  - Field ID: `r-draconis` (`data/products/fields/r-draconis/`). URL pública: https://errante.34-148-242-13.sslip.io/#/field/r-draconis (desde #84; ver el addendum del paso 6).
+  - Recorrido revisado solo en la vista local `/?dataset=real#/field/r-draconis` (paso 6 en la URL pública: ver el addendum del 2026-11-15, 15:00 ART).
   - Figuras (gráficos generados con código a partir de los FITS reales de SPHEREx):
     - [fig_lightcurve_all.png](figures/r-draconis/fig_lightcurve_all.png): Curva de luz del ala de la PSF por detector (todas las colecciones, incluidas deep)
     - [fig_periodogram_all.png](figures/r-draconis/fig_periodogram_all.png): Periodograma (todas las colecciones)
@@ -326,13 +326,36 @@ Además, `errante compare r-draconis --dir review/products` sobre una copia del 
 ## Addendum 2026-11-15 (WS3): curva de luz publicada en la app
 
 - **Qué hay.** El producto precalculado `GET /api/lightcurves/r-draconis` (#79), con su panel en la página del campo
-  (#83), usa los métodos de WS3 de este registro (ala de la PSF, bins de 1 %, permutación de visitas), pero **solo el
+  (#83, con sus límites visibles desde #97), usa los métodos de WS3 de este registro (ala de la PSF, bins de 1 %, permutación de visitas), pero **solo el
   sondeo ancho**: 539 de 2493 exposiciones (dr1 + qr3), en 426 d (~1,6 ciclos).
-- **Qué da.** Período de 259,1 d con bootstrap 95 % de 240–276 d. 0 de 1000 permutaciones alcanzan el pico. Amplitudes
-  por detector compatibles con este registro en D1, D2, D3 y D5.
+- **Qué da** (producto publicado tras #93–#95, con búsqueda SIA en vivo). Período de 261,9 d (pisos evaluados en el
+  período final), bootstrap 95 % de 240,6–276,0 d (1000 remuestreos) y FAP 1/1000: 0 de 999 permutaciones de visitas
+  alcanzan el pico. Amplitudes por detector compatibles con este registro en D1, D2, D3 y D5. (La primera versión,
+  #79, daba 259,1 d y FAP 1/101 con 100 permutaciones.)
 - **Qué no da.** El intervalo contiene los valores de catálogo (GCVS 245,6 d, VSX 246,12 d, Gaia 247,2 d): **ese
   producto no distingue ~260 d de 247 d**. El «~260 d (255–265 d)» de este registro sigue saliendo de las 2493
   exposiciones.
 - **Corrige el punto 3 de arriba:** ya existe un producto de curva de luz.
 - **Revisión completa:** `docs/SCIENCE.md` § «Revisión científica de las curvas de luz» (#85). No es una validación
   nueva ni reemplaza este registro.
+
+## Addendum 2026-11-15 (15:00 ART): productos publicados (#70) y recorrido público (paso 6)
+
+- **Chequeo de productos publicados (#70).** `python -m errante.imaging.productcheck --products data/products --out <dir>`,
+  regenerado el 2026-11-15 sobre `main` (`data/products` sin cambios de imagen desde #41; #88 solo cambió textos): da las
+  mismas cifras que el cuerpo de #70. Es nivel de display sobre PNG de 8 bits, no fotometría ni astrometría científica.
+  - **Límite común a los cinco.** Este chequeo mira los PNG del build reconstruido después de #17. Los registros
+    analizaron el build de #17 (2026-11-14), con una selección de frames en parte distinta, así que sus cifras por frame y
+    de «solo los frames del build» no corresponden a estos PNG. Lo esperado del chequeo usa solo el movimiento propio de
+    `fields.toml` y no incluye la paralaje.
+  - Sin advertencias propias más allá del límite común. El núcleo es blanco en todos los frames de D1–D6: ninguno de los
+    14 pares a λ emparejada tiene cociente medible.
+  - Los 3 pares con cambio visible en el blink son de D2 y solo cambia el tamaño del disco blanco (228 → 122, 282 → 103
+    y 282 → 110 px): es un indicador de display, no un flujo.
+  - Registro de campo en los PNG: 23 de 40 frames medibles, mediana 0.034 px, máximo 0.073 px.
+- **Paso 6, recorrido público (parte técnica hecha; falta la prueba humana).** En
+  https://errante.34-148-242-13.sslip.io (deploy `3ed5c91`), el 2026-11-15 ~15:00 ART, en navegador de escritorio:
+  - `#/field/r-draconis` carga la secuencia publicada de 40 frames (PNG servidos);
+  - reproducir, pausar, «Next frame» y «Previous frame» funcionan (por ejemplo, 10 → 11 → 10).
+  - Un job nuevo por RA/Dec en la URL pública devolvió frames reales en 49 s (auditoría del 15/11; también #91 y #95).
+  - **Falta:** que una persona lo recorra en incógnito y en celular, y la revisión humana de este registro.

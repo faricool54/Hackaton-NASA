@@ -53,10 +53,11 @@ const field = (id: string): Field => {
 const TARGETS = Object.keys(SPHEREX_COVERAGE) as SpherexTargetId[];
 
 // Independent copy of the pass windows as given in the M4 work-package spec (from docs/DATA.md):
-// [startMjd, endMjd, nImages].
+// [startMjd, endMjd, nImages]. Eps Ind counts: the live SIA2 count of the DATA.md §3.0 note and
+// docs/validation/eps-indi-b.md (458 = 118 + 146 + 74 + 120; SCIENCE.md 3D review A11), not the first 460.
 const SPEC_PASSES: Record<SpherexTargetId, [number, number, number][]> = {
   'barnards-star': [[60903, 60949, 118], [61110, 61165, 121], [61269, 61306, 119]],
-  'epsilon-indi': [[60790, 60836, 120], [60947, 60992, 147], [61149, 61164, 73], [61305, 61315, 120]],
+  'epsilon-indi': [[60790, 60836, 118], [60947, 60992, 146], [61149, 61164, 74], [61305, 61315, 120]],
   'wise-0855': [[60801, 60802, 30], [60980, 61022, 128], [61151, 61174, 100]],
   'rw-aurigae': [[60919, 60938, 112], [61092, 61111, 114], [61285, 61300, 109]],
   'r-draconis': [[60790, 60879, 240], [60916, 61310, 2253]],
@@ -165,13 +166,21 @@ describe('SPHEREX_COVERAGE (IRSA DR1 + QR3, queried 2026-11-14)', () => {
       const byCollection = Object.values(c.imagesByCollection).reduce((n, k) => n + k, 0);
       const byDetector = c.imagesByDetector.reduce((n, k) => n + k, 0);
       expect(byPass, id).toBe(byCollection);
-      // RECON's per-detector counts come from a slightly different query (Eps Ind: 458 vs 460).
-      expect(Math.abs(byDetector - byPass), id).toBeLessThanOrEqual(2);
+      // RECON's per-detector counts come from a slightly different query; with the live Eps Ind count
+      // (458, A11) every target now agrees exactly.
+      expect(byDetector, id).toBe(byPass);
       for (const p of c.passes) {
         if (p.nImagesLongWave !== null) expect(p.nImagesLongWave).toBeLessThanOrEqual(p.nImages);
       }
     }
     expect(SPHEREX_COVERAGE['barnards-star'].imagesByDetector.reduce((n, k) => n + k, 0)).toBe(358);
+    // A11: ε Ind main count 458 (spherex_dr1 338 + qr3 120), and the note says why it is not DATA.md's first 460.
+    const eps = SPHEREX_COVERAGE['epsilon-indi'];
+    expect(eps.imagesByCollection).toEqual({ spherex_dr1: 338, spherex_qr3: 120 });
+    expect(eps.passes.map((p) => p.nImages)).toEqual([118, 146, 74, 120]);
+    expect(eps.note).toContain(
+      'DATA.md §3.0 first counted 460 (340/120); live SIA2 on 2026-11-14 19:24 UTC gives 458 at this centre and at the field centre (docs/validation/eps-indi-b.md); the cause of the difference is not verified.',
+    );
     expect(SPHEREX_COVERAGE['r-draconis'].passes.reduce((n, p) => n + p.nImages, 0)).toBe(2493);
   });
 
@@ -429,7 +438,10 @@ describe('phaseStatus', () => {
   it('predicts R Dra from the WS7 ephemeris table (S3), never an irregular variable (RW Aur)', () => {
     const rdra = system('r-draconis');
     expect(phaseStatus(rdra)).toMatchObject({ pulsationPredicted: ['r-draconis'], pulsationArbitrary: [], irregular: [] });
-    expect(phaseStatusLine(rdra)).toBe('Predicted pulsation phase (catalogue ephemeris): R Draconis');
+    // V12a: the measured maxima date it inside the SPHEREx window, the ephemeris outside.
+    expect(phaseStatusLine(rdra)).toBe(
+      'Pulsation phase (measured AAVSO maxima inside the SPHEREx window, catalogue ephemeris outside): R Draconis',
+    );
     // Without a table entry (another system id) the same star is phase-unknown, i.e. frozen on a real date.
     const other: Pick<SystemModel, 'id' | 'bodies'> = { id: 'not-in-the-table', bodies: rdra.bodies };
     expect(phaseStatus(other).pulsationArbitrary).toEqual(['r-draconis']);

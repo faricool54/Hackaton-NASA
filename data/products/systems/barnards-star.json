@@ -95,6 +95,55 @@
           "unit": "days",
           "source": "Toledo-Padrón et al. 2019, MNRAS 488, 5145 (activity indices + 15 yr of photometry)",
           "verified": true
+        },
+        {
+          "label": "Motion seen by SPHEREx",
+          "value": "10.2″ (1.66 px) between the Aug 2025 and Aug 2026 seasons, PA 354–355°",
+          "unit": null,
+          "source": "SPHEREx DR1+QR3, 358 exposures, offline FITS analysis; docs/validation/barnards-star.md (saturated core: wing astrometry)",
+          "verified": true
+        },
+        {
+          "label": "Effective temperature",
+          "value": "3100 (3099-3102)",
+          "unit": "K",
+          "source": "Gaia DR3 4472832130942575872, gaiadr3.astrophysical_parameters (ESA Gaia archive, retrieved 2026-11-15) | GSP-Phot (BP/RP spectra + parallax), 16th-84th percentiles | Caveat: GSP-Phot temperatures of M dwarfs and cooler objects are unreliable (see the Gaia DR3 astrophysical-parameters documentation): indicative only. Gaia GSP-Spec gives 4250 K: the two Gaia estimates disagree. (via WS3 object context; catalog, not measured by SPHEREx)",
+          "verified": true
+        },
+        {
+          "label": "Radius",
+          "value": "0.202 (0.198-0.206)",
+          "unit": "R_sun",
+          "source": "Gaia DR3 4472832130942575872, gaiadr3.astrophysical_parameters (ESA Gaia archive, retrieved 2026-11-15) | Gaia DR3 FLAME (from GSP-Phot parameters, G photometry and the Gaia distance), 16th-84th pct | Caveat: FLAME assumes a single star and inherits the GSP-Phot temperature. For M dwarfs the GSP-Phot input is unreliable: indicative only. (via WS3 object context; catalog, not measured by SPHEREx)",
+          "verified": true
+        },
+        {
+          "label": "Luminosity",
+          "value": "0.0034 (0.0033977-0.0033984)",
+          "unit": "L_sun",
+          "source": "Gaia DR3 4472832130942575872, gaiadr3.astrophysical_parameters (ESA Gaia archive, retrieved 2026-11-15) | Gaia DR3 FLAME (from GSP-Phot parameters, G photometry and the Gaia distance), 16th-84th pct | Caveat: FLAME assumes a single star and inherits the GSP-Phot temperature. For M dwarfs the GSP-Phot input is unreliable: indicative only. (via WS3 object context; catalog, not measured by SPHEREx)",
+          "verified": true
+        },
+        {
+          "label": "Distance",
+          "value": "1.828 (1.828-1.8282)",
+          "unit": "pc",
+          "source": "Gaia DR3 4472832130942575872, external.gaiaedr3_distance (ESA Gaia archive, retrieved 2026-11-15) | Bailer-Jones et al. (2021) geometric distance from the Gaia parallax, 16th-84th percentiles (via WS3 object context; catalog, not measured by SPHEREx)",
+          "verified": true
+        },
+        {
+          "label": "Variability type",
+          "value": "BY (V amplitude 0.02)",
+          "unit": null,
+          "source": "AAVSO VSX V2500 Oph (B/vsx, VizieR CfA, retrieved 2026-11-15) (via WS3 object context; catalog, not measured by SPHEREx)",
+          "verified": true
+        },
+        {
+          "label": "Variability period",
+          "value": "130.0",
+          "unit": "days",
+          "source": "AAVSO VSX V2500 Oph (B/vsx, VizieR CfA, retrieved 2026-11-15) (via WS3 object context; catalog, not measured by SPHEREx)",
+          "verified": true
         }
       ],
       "candidate_id": null
@@ -120,7 +169,7 @@
         "mean_anomaly_deg": 270.0,
         "epoch_mjd": 60243.2,
         "quality": "fitted",
-        "note": "Drawn circular: the fitted eccentricities are consistent with zero (Basant et al. 2025 favour e < 0.02). Orbit inclination unknown (radial-velocity detection). Phase: the planet is drawn in front of the star (on the 'toward Earth' arrow) at t0 = BJD 2460243.70 +0.08/−0.07 (Basant et al. 2025, Table 3), read as the time of inferior conjunction as used by juliet/RadVel (tc); the paper text says periastron. 1-sigma phase spread from t0 and P (2.3402 ± 0.0003 d): ±16° on 2025-04-24, ±25° on 2026-10-05 (linear propagation; the t0-P covariance is not published and is ignored). The sense of motion on the sky is unknown: drawn counter-clockwise seen from above."
+        "note": "Drawn circular: the fitted eccentricities (d 0.04, b 0.03, c 0.08, e 0.04; Basant et al. 2025 via the NASA Exoplanet Archive) are consistent with zero within 2σ. A circular drawing can misplace the planet along its orbit by up to 2e rad (3–9°); the phase arc does not include that. Orbit inclination unknown (radial-velocity detection). Phase: the planet is drawn in front of the star (on the 'toward Earth' arrow) at t0 = BJD 2460243.70 +0.08/−0.07 (Basant et al. 2025, Table 3), read as the time of inferior conjunction as used by juliet/RadVel (tc); the paper text says periastron. 1-sigma phase spread from t0 and P (2.3402 ± 0.0003 d): ±16° on 2025-04-24, ±25° on 2026-10-05 (linear propagation; the t0-P covariance is not published and is ignored). The sense of motion on the sky is unknown: drawn counter-clockwise seen from above."
       },
       "variability": null,
       "appearance": {
@@ -189,7 +238,7 @@
         "mean_anomaly_deg": 270.0,
         "epoch_mjd": 60242.88,
         "quality": "fitted",
-        "note": "Drawn circular: the fitted eccentricities are consistent with zero (Basant et al. 2025 favour e < 0.02). Orbit inclination unknown (radial-velocity detection). Phase: the planet is drawn in front of the star (on the 'toward Earth' arrow) at t0 = BJD 2460243.38 ± 0.09 (Basant et al. 2025, Table 3), read as the time of inferior conjunction as used by juliet/RadVel (tc); the paper text says periastron. 1-sigma phase spread from t0 and P (3.1542 ± 0.0004 d): ±13° on 2025-04-24, ±19° on 2026-10-05 (linear propagation; the t0-P covariance is not published and is ignored). The sense of motion on the sky is unknown: drawn counter-clockwise seen from above."
+        "note": "Drawn circular: the fitted eccentricities (d 0.04, b 0.03, c 0.08, e 0.04; Basant et al. 2025 via the NASA Exoplanet Archive) are consistent with zero within 2σ. A circular drawing can misplace the planet along its orbit by up to 2e rad (3–9°); the phase arc does not include that. Orbit inclination unknown (radial-velocity detection). Phase: the planet is drawn in front of the star (on the 'toward Earth' arrow) at t0 = BJD 2460243.38 ± 0.09 (Basant et al. 2025, Table 3), read as the time of inferior conjunction as used by juliet/RadVel (tc); the paper text says periastron. 1-sigma phase spread from t0 and P (3.1542 ± 0.0004 d): ±13° on 2025-04-24, ±19° on 2026-10-05 (linear propagation; the t0-P covariance is not published and is ignored). The sense of motion on the sky is unknown: drawn counter-clockwise seen from above."
       },
       "variability": null,
       "appearance": {
@@ -258,7 +307,7 @@
         "mean_anomaly_deg": 270.0,
         "epoch_mjd": 60242.42,
         "quality": "fitted",
-        "note": "Drawn circular: the fitted eccentricities are consistent with zero (Basant et al. 2025 favour e < 0.02). Orbit inclination unknown (radial-velocity detection). Phase: the planet is drawn in front of the star (on the 'toward Earth' arrow) at t0 = BJD 2460242.92 ± 0.10 (Basant et al. 2025, Table 3), read as the time of inferior conjunction as used by juliet/RadVel (tc); the paper text says periastron. 1-sigma phase spread from t0 and P (4.1244 ± 0.0006 d): ±11° on 2025-04-24, ±16° on 2026-10-05 (linear propagation; the t0-P covariance is not published and is ignored). The sense of motion on the sky is unknown: drawn counter-clockwise seen from above."
+        "note": "Drawn circular: the fitted eccentricities (d 0.04, b 0.03, c 0.08, e 0.04; Basant et al. 2025 via the NASA Exoplanet Archive) are consistent with zero within 2σ. A circular drawing can misplace the planet along its orbit by up to 2e rad (3–9°); the phase arc does not include that. Orbit inclination unknown (radial-velocity detection). Phase: the planet is drawn in front of the star (on the 'toward Earth' arrow) at t0 = BJD 2460242.92 ± 0.10 (Basant et al. 2025, Table 3), read as the time of inferior conjunction as used by juliet/RadVel (tc); the paper text says periastron. 1-sigma phase spread from t0 and P (4.1244 ± 0.0006 d): ±11° on 2025-04-24, ±16° on 2026-10-05 (linear propagation; the t0-P covariance is not published and is ignored). The sense of motion on the sky is unknown: drawn counter-clockwise seen from above."
       },
       "variability": null,
       "appearance": {
@@ -327,7 +376,7 @@
         "mean_anomaly_deg": 270.0,
         "epoch_mjd": 60244.8,
         "quality": "fitted",
-        "note": "Drawn circular: the fitted eccentricities are consistent with zero (Basant et al. 2025 favour e < 0.02). Orbit inclination unknown (radial-velocity detection). Phase: the planet is drawn in front of the star (on the 'toward Earth' arrow) at t0 = BJD 2460245.30 +0.37/−0.36 (Basant et al. 2025, Table 3), read as the time of inferior conjunction as used by juliet/RadVel (tc); the paper text says periastron. 1-sigma phase spread from t0 and P (6.7392 ± 0.0028 d): ±23° on 2025-04-24, ±31° on 2026-10-05 (linear propagation; the t0-P covariance is not published and is ignored). The sense of motion on the sky is unknown: drawn counter-clockwise seen from above."
+        "note": "Drawn circular: the fitted eccentricities (d 0.04, b 0.03, c 0.08, e 0.04; Basant et al. 2025 via the NASA Exoplanet Archive) are consistent with zero within 2σ. A circular drawing can misplace the planet along its orbit by up to 2e rad (3–9°); the phase arc does not include that. Orbit inclination unknown (radial-velocity detection). Phase: the planet is drawn in front of the star (on the 'toward Earth' arrow) at t0 = BJD 2460245.30 +0.37/−0.36 (Basant et al. 2025, Table 3), read as the time of inferior conjunction as used by juliet/RadVel (tc); the paper text says periastron. 1-sigma phase spread from t0 and P (6.7392 ± 0.0028 d): ±23° on 2025-04-24, ±31° on 2026-10-05 (linear propagation; the t0-P covariance is not published and is ignored). The sense of motion on the sky is unknown: drawn counter-clockwise seen from above."
       },
       "variability": null,
       "appearance": {
@@ -376,16 +425,17 @@
       "candidate_id": null
     }
   ],
-  "representation_note": "3D model drawn from published catalog and literature values (each fact shows its source) - not an image. Sizes and distances may be exaggerated for visibility.",
+  "representation_note": "3D model drawn from published catalog and literature values, not measured by SPHEREx unless a fact says 'seen by SPHEREx' (each fact shows its source) - not an image. What no source gives is not drawn: an unknown temperature is drawn grey and an unknown size at a fixed marker size, not to scale. Sizes and distances may be exaggerated for visibility.",
   "provenance": {
     "pipeline_version": "0.1.0",
-    "built_at": "2026-11-15T05:12:09.454672Z",
+    "built_at": "2026-11-15T14:38:50.162416Z",
     "synthetic": false,
     "data_releases": [],
     "notes": [
-      "Values checked on 2026-11-14 against the NASA Exoplanet Archive, SIMBAD (CfA mirror), Gaia DR3, VizieR and the cited papers (tasks/WS7-3d-systems.md, WS7-2). Facts still marked 'unverified' are estimates no source states.",
+      "Values checked on 2026-11-14 against the NASA Exoplanet Archive, SIMBAD (CfA mirror), Gaia DR3, VizieR and the cited papers (tasks/WS7-3d-systems.md, WS7-2). Facts still marked 'unverified' are estimates no source states. The 'seen by SPHEREx' facts were copied from the validation records (docs/validation/; AI analysis with an independent second analysis, human review pending), not from that catalog cross-check.",
       "Planet phases follow the t0 and periods of Basant et al. 2025 (Table 3), read as times of inferior conjunction: a position on a real date is a prediction with the 1-sigma spread given in each orbit note. The star's rotational phase is not known.",
-      "Planet masses are minimum masses (M sin i) and planet radii are estimates: radial velocity measures neither the inclination nor the size."
+      "Planet masses are minimum masses (M sin i) and planet radii are estimates: radial velocity measures neither the inclination nor the size.",
+      "Catalog values from the frozen WS3 object-context snapshot 'barnards-star' (query \"Barnard's Star\"; services answered 2026-11-15T03:44:16Z to 2026-11-15T04:21:22Z; replayed offline from the WS3 fixtures), pipeline/errante/systems/inputs/objects/: not measured by SPHEREx, and not queried when the site is built."
     ]
   }
 }

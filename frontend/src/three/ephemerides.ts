@@ -9,14 +9,18 @@
 //                     time of inferior conjunction (juliet passes it to RadVel as 'tc'); the paper text
 //                     says periastron. Phase spread sigma_phi = sqrt(sigma_t0^2 + N^2 sigma_P^2) / P,
 //                     N = (t - t0) / P (linear propagation; covariance not published, ignored).
-//   Mira (S3)         R Dra: AAVSO VSX epoch of maximum HJD 2457370.00, P = 246.12 d, rise 45 %. Predicted
-//                     maxima stay on the VSX dates; their 1-sigma timing band is the RMS of the O-C of
-//                     observed maxima 2015-2024 about VSX, sqrt(4.7^2 + 4.6^2) = 6.6 d (mean -4.7 d,
-//                     s.d. 4.6 d, Karlsson list), so the band also covers the mean offset.
+//   Mira (S3)         R Dra (SCIENCE.md 3D review V12a). Inside the SPHEREx window of the target the phase
+//                     is dated by the V maxima measured in 2025-2026 (AAVSO; MJD 60811.4, 61046.5, 61304.3):
+//                     linear between consecutive maxima, from the nearest measured maximum at the VSX period
+//                     before the first and after the last, with a +-3 d band about each measured maximum.
+//                     Outside the window: AAVSO VSX epoch of maximum HJD 2457370.00, P = 246.12 d, rise 45 %,
+//                     maxima on the VSX dates with a 1-sigma band of 9.0 d (RMS of the O-C of those AAVSO
+//                     maxima about VSX: -3.8, -14.8, -3.1 d). The rise fraction shapes the curve in both.
+//                     Only the glow follows this V curve: the radius is constant (size change not measured).
 //   Unknown phases    Why the other orbits stay arbitrary (Eps Ind Ab, Bb, RW Aur B), with sources.
 import type { Body, Orbit, OrbitQuality, SystemModel, VariabilityKind } from '../api/types';
 import { mjdToDate } from '../api/format';
-import { drawsPulsation, ORBIT_COLOR, PULSATION_RADIUS_AMPLITUDE } from './sceneLayout';
+import { drawsPulsation, ORBIT_COLOR } from './sceneLayout';
 
 /** MJD = JD - 2400000.5 (BJD_TDB/HJD vs UTC differ by ~69 s and minutes: negligible at day precision). */
 export const JD_MINUS_MJD = 2400000.5;
@@ -254,11 +258,23 @@ export interface MiraEphemeris {
   epsDays: number | null;
   source: string;
   timingSource: string;
+  /**
+   * Measured maxima of light (MJD, ascending) that date the phase inside observedWindowMjd (V12a): linear
+   * phase between consecutive maxima. null = the ephemeris everywhere.
+   */
+  observedMaximaMjd: readonly number[] | null;
+  observedMaximaSource: string | null;
+  /** Where the measured maxima date the phase: the SPHEREx archive window of the target (MJD, rounded to the day). */
+  observedWindowMjd: readonly [number, number] | null;
+  /** Timing band (days, ±) about each measured maximum. */
+  observedTimingDays: number | null;
+  observedTimingSource: string | null;
   note: string;
 }
 
+/** SCIENCE.md 3D review A13, without its final full stop (callers end the sentence). */
 export const MIRA_PREDICTION_CAVEAT =
-  'V-band prediction from a catalogue ephemeris; IR amplitude is smaller and IR maxima lag the visual ones; not a SPHEREx light curve';
+  'V-band prediction from a catalogue ephemeris, not a SPHEREx light curve. Measured offline on the SPHEREx FITS files, the infrared cycle is 0.5–1.3 mag peak-to-peak (6.5 mag in V), with maxima from 1 day before (0.74–1.1 µm) to 47 days after (2.4–3.8 µm) the visual ones (docs/validation/r-draconis.md)';
 
 export const MIRA_EPHEMERIDES: readonly MiraEphemeris[] = [
   {
@@ -270,12 +286,19 @@ export const MIRA_EPHEMERIDES: readonly MiraEphemeris[] = [
     band: 'V',
     ocMeanDays: -4.7,
     ocSdDays: 4.6,
-    timingSigmaDays: Math.hypot(4.7, 4.6), // 6.58 d: RMS of the O−C about VSX
+    timingSigmaDays: 9.0, // RMS of the O−C of the 2025–2026 AAVSO maxima about VSX (SCIENCE.md 3D review V12a)
     epsDays: null,
     source: 'AAVSO VSX R Dra (oid 13673, revision 4, 2024-01-18): epoch of maximum HJD 2457370.00, P = 246.12 d, rise 45 %',
-    timingSource:
-      'O−C of observed maxima 2015–2024 against the VSX ephemeris (T. Karlsson, Maxima of Mira stars, var.saaf.se): s.d. 4.6 d, mean −4.7 d; band = RMS about VSX, √(4.7² + 4.6²) ≈ 6.6 d',
-    note: 'VSX gives no epoch or period errors. The predicted maxima are the VSX dates, not shifted: observed maxima came on average 4.7 d before them, so the ±6.6 d band (1σ) is the RMS of the O−C about VSX, which includes that offset, not only the 4.6 d scatter. It is not a formal error and still underestimates the uncertainty: no cycle-to-cycle (Eddington–Plakidis) term is sourced and the period wanders over decades. The catalog period (GCVS 245.6 d) drives the free-running animation; dataset time uses the VSX epoch and period together.',
+    timingSource: 'RMS of the O−C of the 2025–2026 AAVSO maxima about VSX: −3.8, −14.8 and −3.1 d (offline WS3 analysis, docs/validation/r-draconis.md)',
+    observedMaximaMjd: [60811.4, 61046.5, 61304.3],
+    observedMaximaSource:
+      'AAVSO International Database, 818 visual and V observations, JD 2460700–2461360; maxima from ±40 d parabolas (offline WS3 analysis, docs/validation/r-draconis.md)',
+    // DATA.md "Cobertura de los 5 objetivos": R Dra frames from 2025-04-24 to 2026-09-27 (MJD 60790–61310).
+    observedWindowMjd: [60790, 61310],
+    observedTimingDays: 3,
+    observedTimingSource:
+      'SCIENCE.md 3D review V12a: ±3 d about each measured maximum (the formal error of the parabola maxima is 0.5–0.8 d; the real one, a few days, is INFERRED in docs/validation/r-draconis.md)',
+    note: 'Inside the SPHEREx window (2025-04-24 to 2026-09-27) the phase is dated by the V maxima measured in 2025–2026 (AAVSO: 2025-05-16, 2026-01-06 and 2026-09-21): linear between consecutive maxima (cycles of 235 and 258 d), and from the nearest measured maximum at the VSX period before the first and after the last, with a ±3 d band about each measured maximum. Outside the window the VSX ephemeris applies, not shifted: the measured maxima came 3.1–14.8 d before the VSX dates, so its ±9.0 d band (1σ) is the RMS of that O−C about VSX, which includes the offset. VSX gives no epoch or period errors; the 9.0 d band is not a formal error and still underestimates the uncertainty away from the measured maxima: no cycle-to-cycle (Eddington–Plakidis) term is sourced and the period wanders over decades. Earlier maxima (2015–2024, T. Karlsson, Maxima of Mira stars) gave a mean O−C of −4.7 d and a s.d. of 4.6 d. The catalog period (GCVS 245.6 d) drives the free-running animation; dataset time uses the VSX epoch and period together. Only the glow follows this V curve: the radius is drawn constant.',
   },
 ];
 
@@ -283,18 +306,50 @@ export function miraEphemerisFor(systemId: string, bodyId: string): MiraEphemeri
   return MIRA_EPHEMERIDES.find((e) => e.systemId === systemId && e.bodyId === bodyId) ?? null;
 }
 
-/** Cycle count since the epoch of maximum, (t − E0)/P. */
+/** Cycle count since the epoch of maximum of the ephemeris, (t − E0)/P. */
 export function miraCycle(eph: MiraEphemeris, mjd: number): number {
   return (mjd - jdToMjd(eph.epochHjd)) / eph.periodDays;
 }
 
-/** Predicted phase φ = frac((t − E0)/P); 0 = maximum light. */
-export function miraPhase(eph: MiraEphemeris, mjd: number): number {
-  return frac(miraCycle(eph, mjd));
+/** The archive window MJDs are rounded to the day (spherexCoverage.PASS_EDGE_TOLERANCE_DAYS): ±0.5 d. */
+export const OBSERVED_WINDOW_ROUNDING_DAYS = 0.5;
+
+/** True when the measured maxima date the phase at `mjd`: inside the SPHEREx window of the target (V12a). */
+export function miraDatedByMaxima(eph: MiraEphemeris, mjd: number): boolean {
+  const w = eph.observedWindowMjd;
+  const m = eph.observedMaximaMjd;
+  if (!w || !m || m.length < 2 || eph.observedTimingDays === null) return false;
+  return mjd >= w[0] - OBSERVED_WINDOW_ROUNDING_DAYS && mjd <= w[1] + OBSERVED_WINDOW_ROUNDING_DAYS;
 }
 
-/** 1-sigma timing band (days): sqrt(σ_band² + N ε²); ε is not sourced, so the band alone today. */
+/**
+ * The cycle `mjd` falls in, when the measured maxima date it: its start (a maximum) and its length.
+ * Between two measured maxima, the interval between them (linear phase); before the first or after the
+ * last measured maximum (still inside the window), the nearest measured maximum and the ephemeris period.
+ */
+function measuredCycle(eph: MiraEphemeris, mjd: number): { start: number; length: number } | null {
+  if (!miraDatedByMaxima(eph, mjd)) return null;
+  const m = eph.observedMaximaMjd as readonly number[];
+  if (mjd < m[0]) return { start: m[0] - eph.periodDays, length: eph.periodDays };
+  for (let i = 0; i + 1 < m.length; i++) if (mjd < m[i + 1]) return { start: m[i], length: m[i + 1] - m[i] };
+  return { start: m[m.length - 1], length: eph.periodDays };
+}
+
+/**
+ * Phase φ in [0, 1), 0 = maximum light. Inside the SPHEREx window: φ = (t − M_k)/(M_k+1 − M_k) between
+ * consecutive measured maxima (V12a); elsewhere the ephemeris, φ = frac((t − E0)/P).
+ */
+export function miraPhase(eph: MiraEphemeris, mjd: number): number {
+  const c = measuredCycle(eph, mjd);
+  return c ? frac((mjd - c.start) / c.length) : frac(miraCycle(eph, mjd));
+}
+
+/**
+ * Timing band (days): ±observedTimingDays about the measured maxima inside the window; elsewhere the
+ * 1-sigma band of the ephemeris, sqrt(σ_band² + N ε²) (ε is not sourced, so the band alone today).
+ */
 export function miraTimingSigmaDays(eph: MiraEphemeris, mjd: number): number {
+  if (miraDatedByMaxima(eph, mjd)) return eph.observedTimingDays as number;
   const n = Math.abs(miraCycle(eph, mjd));
   return Math.sqrt(eph.timingSigmaDays ** 2 + (eph.epsDays !== null ? n * eph.epsDays ** 2 : 0));
 }
@@ -304,8 +359,9 @@ export function formatTimingDays(days: number): string {
   return days.toFixed(1);
 }
 
+/** Phase spread: the timing band over the length of the cycle `mjd` falls in. */
 export function miraPhaseSigma(eph: MiraEphemeris, mjd: number): number {
-  return miraTimingSigmaDays(eph, mjd) / eph.periodDays;
+  return miraTimingSigmaDays(eph, mjd) / (measuredCycle(eph, mjd)?.length ?? eph.periodDays);
 }
 
 /** Phase of minimum light: maximum is at 0 and the rise takes riseFraction of the period. */
@@ -332,7 +388,7 @@ export function miraState(eph: MiraEphemeris, phase: number): string {
   return p < m ? 'declining' : 'rising';
 }
 
-/** Predicted maxima (MJD) in [lo, hi]. */
+/** Maxima of the ephemeris alone (MJD) in [lo, hi]: the VSX dates, whether or not a maximum was measured. */
 export function predictedMaxima(eph: MiraEphemeris, lo: number, hi: number): number[] {
   const out: number[] = [];
   const e0 = jdToMjd(eph.epochHjd);
@@ -340,10 +396,58 @@ export function predictedMaxima(eph: MiraEphemeris, lo: number, hi: number): num
   return out;
 }
 
-/** Next predicted maximum at or after `mjd`. */
-export function nextMaximum(eph: MiraEphemeris, mjd: number): number {
+export interface MiraMaximum {
+  mjd: number;
+  /** true = a measured maximum (inside the SPHEREx window); false = an ephemeris date. */
+  measured: boolean;
+  /** Timing band about it (days): ±observedTimingDays, or the 1-sigma band of the ephemeris. */
+  sigmaDays: number;
+}
+
+/**
+ * The maxima drawn in [lo, hi]: the measured ones inside the SPHEREx window, and the ephemeris dates
+ * outside it. An ephemeris date within half a period of a measured maximum is the same cycle, so it is
+ * replaced by the measured one (never two maxima for one cycle).
+ */
+export function miraMaxima(eph: MiraEphemeris, lo: number, hi: number): MiraMaximum[] {
+  const measured = (eph.observedMaximaMjd ?? []).filter((m) => miraDatedByMaxima(eph, m));
+  const out: MiraMaximum[] = measured
+    .filter((m) => m >= lo && m <= hi)
+    .map((m) => ({ mjd: m, measured: true, sigmaDays: eph.observedTimingDays as number }));
+  for (const m of predictedMaxima(eph, lo, hi)) {
+    if (miraDatedByMaxima(eph, m) || measured.some((x) => Math.abs(x - m) < eph.periodDays / 2)) continue;
+    out.push({ mjd: m, measured: false, sigmaDays: miraTimingSigmaDays(eph, m) });
+  }
+  return out.sort((a, b) => a.mjd - b.mjd);
+}
+
+/** Next drawn maximum at or after `mjd` (measured inside the window, ephemeris outside). */
+export function nextMiraMaximum(eph: MiraEphemeris, mjd: number): MiraMaximum {
+  // Within two periods there is one: only the ephemeris date of an already measured cycle is skipped.
+  const next = miraMaxima(eph, mjd, mjd + 2 * eph.periodDays)[0];
+  if (next) return next;
   const e0 = jdToMjd(eph.epochHjd);
-  return e0 + Math.ceil((mjd - e0) / eph.periodDays) * eph.periodDays;
+  const m = e0 + Math.ceil((mjd - e0) / eph.periodDays) * eph.periodDays;
+  return { mjd: m, measured: false, sigmaDays: miraTimingSigmaDays(eph, m) };
+}
+
+/** Next drawn maximum (MJD) at or after `mjd`. */
+export function nextMaximum(eph: MiraEphemeris, mjd: number): number {
+  return nextMiraMaximum(eph, mjd).mjd;
+}
+
+/** One maximum as written in the UI: 'measured maximum 2026-01-06 ± 3.0 d' or 'predicted maximum … ± 9.0 d'. */
+export function maximumText(m: MiraMaximum): string {
+  return `${m.measured ? 'measured' : 'predicted'} maximum ${isoDay(m.mjd)} ± ${formatTimingDays(m.sigmaDays)} d`;
+}
+
+/** How the phase is dated over [startMjd, endMjd]: by the measured maxima, by the ephemeris, or both. */
+export function miraDatingText(eph: MiraEphemeris, startMjd: number, endMjd: number): string {
+  const a = miraDatedByMaxima(eph, startMjd);
+  const b = miraDatedByMaxima(eph, endMjd);
+  if (a && b) return 'dated by the measured AAVSO maxima';
+  if (!a && !b) return 'VSX ephemeris';
+  return 'measured AAVSO maxima inside the SPHEREx window, VSX ephemeris outside';
 }
 
 export interface PredictedPulsation {
@@ -351,10 +455,8 @@ export interface PredictedPulsation {
   phaseSigma: number;
   /** Shape in [−1, 1] (+1 at maximum). */
   shape: number;
-  /** V brightness factor (linear flux ratio, 1 = mean), over the catalog's full V range. */
+  /** V brightness factor (linear flux ratio, 1 = mean), over the catalog's full V range (the glow only; the radius is constant). */
   factor: number;
-  /** Radius factor: 1 ± the class-typical 10 %, drawn in phase with the light (display convention). */
-  radiusScale: number;
 }
 
 /** The drawn pulsation of a body at `mjd` from its Mira ephemeris (dataset time). */
@@ -367,7 +469,6 @@ export function predictedPulsation(eph: MiraEphemeris, body: Body, mjd: number):
     phaseSigma: miraPhaseSigma(eph, mjd),
     shape,
     factor: Math.pow(10, 0.2 * amp * shape), // dmag = −(A/2)·shape
-    radiusScale: drawsPulsation(body) ? 1 + PULSATION_RADIUS_AMPLITUDE * shape : 1,
   };
 }
 
@@ -420,16 +521,38 @@ export function variabilityTracks(system: Pick<SystemModel, 'id' | 'bodies'>): V
   return out;
 }
 
-export const IRREGULAR_TEXT = 'irregular: cannot be predicted - look at the frames';
+export const IRREGULAR_TEXT = 'irregular: cannot be predicted';
 
-/** Predicted phase over one pass, e.g. "phase 0.90 → 0.26 (±0.03); predicted maximum 2025-05-20 ± 6.6 d". */
+/**
+ * What was measured offline about an irregular variable, per system (SCIENCE.md 3D review V12c):
+ * shown after IRREGULAR_TEXT so nobody reads the image brightness as a measurement.
+ */
+export const IRREGULAR_MEASURED_NOTES: Readonly<Record<string, string>> = {
+  'rw-aurigae':
+    'Measured offline on unsaturated SPHEREx D1 exposures at matched wavelength, RW Aur (A+B) was about 1 mag brighter at 0.75–0.77 µm in Sep 2026 than in Sep 2025 (docs/validation/rw-aurigae.md). In the same offline analysis no D2–D6 exposure is clean (0 of 279; OVERFLOW in 304 of 335 overall): image brightness here is not a measurement.',
+};
+
+/** IRREGULAR_TEXT, plus the system's offline measurement note when there is one. */
+export function irregularText(systemId: string): string {
+  const note = IRREGULAR_MEASURED_NOTES[systemId];
+  return note ? `${IRREGULAR_TEXT}. ${note}` : IRREGULAR_TEXT;
+}
+
+/**
+ * Phase over one pass, e.g. "V phase 0.91 → 0.29 (±0.01, dated by the measured AAVSO maxima); measured
+ * maximum 2025-05-16 ± 3.0 d", or "predicted V phase … (±0.04, VSX ephemeris); predicted maximum … ± 9.0 d".
+ */
 export function passPhaseSummary(eph: MiraEphemeris, startMjd: number, endMjd: number): string {
   const sig = miraPhaseSigma(eph, (startMjd + endMjd) / 2);
   const cycles = (endMjd - startMjd) / eph.periodDays;
-  const maxima = predictedMaxima(eph, startMjd, endMjd).map((m) => `${isoDay(m)} ± ${formatTimingDays(miraTimingSigmaDays(eph, m))} d`);
-  const parts = [`predicted ${eph.band} phase ${miraPhase(eph, startMjd).toFixed(2)} → ${miraPhase(eph, endMjd).toFixed(2)} (±${sig.toFixed(2)})`];
+  const dating = miraDatingText(eph, startMjd, endMjd);
+  const predictedOnly = !miraDatedByMaxima(eph, startMjd) && !miraDatedByMaxima(eph, endMjd);
+  const maxima = miraMaxima(eph, startMjd, endMjd).map(maximumText);
+  const parts = [
+    `${predictedOnly ? 'predicted ' : ''}${eph.band} phase ${miraPhase(eph, startMjd).toFixed(2)} → ${miraPhase(eph, endMjd).toFixed(2)} (±${sig.toFixed(2)}, ${dating})`,
+  ];
   if (cycles >= 1) parts.push(`${cycles.toFixed(1)} cycles`);
-  parts.push(maxima.length ? `predicted maxim${maxima.length > 1 ? 'a' : 'um'} ${maxima.join(', ')}` : 'no predicted maximum in this pass');
+  parts.push(maxima.length ? maxima.join(', ') : 'no maximum in this pass');
   return parts.join('; ');
 }
 
@@ -473,16 +596,21 @@ export function onThisDate(system: Pick<SystemModel, 'id' | 'bodies'>, mjd: numb
     if (t.kind === 'predicted') {
       const e = t.ephemeris;
       const phase = miraPhase(e, mjd);
-      const next = nextMaximum(e, mjd);
+      const next = nextMiraMaximum(e, mjd);
+      const band = formatTimingDays(miraTimingSigmaDays(e, mjd));
+      const dated = miraDatedByMaxima(e, mjd);
+      const how = dated
+        ? `${e.band} phase ${phase.toFixed(2)} ± ${miraPhaseSigma(e, mjd).toFixed(2)} (dated by the measured AAVSO maxima, ±${band} d band about each)`
+        : `predicted ${e.band} phase ${phase.toFixed(2)} ± ${miraPhaseSigma(e, mjd).toFixed(2)} (VSX ephemeris, ±${band} d 1σ timing band about the VSX dates)`;
       lines.push({
         bodyId: t.bodyId,
         name: t.name,
         kind: 'predicted',
-        text: `predicted ${e.band} phase ${phase.toFixed(2)} ± ${miraPhaseSigma(e, mjd).toFixed(2)} (VSX ephemeris, ±${formatTimingDays(miraTimingSigmaDays(e, mjd))} d 1σ timing band about the VSX dates) · ${miraState(e, phase)} · next predicted maximum ${isoDay(next)}`,
-        source: e.source,
+        text: `${how} · ${miraState(e, phase)} · next ${next.measured ? 'measured' : 'predicted'} maximum ${isoDay(next.mjd)}`,
+        source: dated && e.observedMaximaSource ? `${e.observedMaximaSource}; outside the SPHEREx window: ${e.source}` : e.source,
       });
     } else if (t.kind === 'irregular') {
-      lines.push({ bodyId: t.bodyId, name: t.name, kind: 'irregular', text: IRREGULAR_TEXT, source: null });
+      lines.push({ bodyId: t.bodyId, name: t.name, kind: 'irregular', text: irregularText(system.id), source: null });
     } else {
       lines.push({ bodyId: t.bodyId, name: t.name, kind: 'frozen', text: `${phaseUnknownLabel(t.variabilityKind)}: drawn at mean brightness`, source: null });
     }

@@ -33,7 +33,7 @@ errante = "errante.cli:main"
 include = ["errante*"]
 
 [tool.setuptools.package-data]
-errante = ["config/*.toml"]
+errante = ["config/*.toml", "systems/*.toml", "systems/inputs/objects/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

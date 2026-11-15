@@ -8,9 +8,10 @@
 // - A "today" marker at the query date says that no later data is in this dataset.
 // - The axis is a keyboard slider (arrows +-1 d, Shift +-10 d, PageUp/PageDown +-30 d, Home/End);
 //   "Pass N" buttons seek to the pass mid-date (onSeek) and then report the pass (onPass).
-// - Variable bodies (tracks, S3) get a row on the same axis: the predicted V light curve of a star
-//   with a catalogue ephemeris (R Dra: VSX) with each predicted maximum and its timing band, and the
-//   predicted phase over the selected pass; irregular variables a hatched row ("cannot be predicted").
+// - Variable bodies (tracks, S3) get a row on the same axis: the V light curve of a star with a
+//   catalogue ephemeris (R Dra: dated by the measured AAVSO maxima inside the SPHEREx window, VSX
+//   outside, V12a) with each maximum and its timing band, and the phase over the selected pass;
+//   irregular variables a hatched row ("cannot be predicted").
 // SVG coordinates are real pixels (the width is measured), so text stays legible at 375 px.
 import {
   useEffect,
@@ -27,12 +28,11 @@ import {
   formatTimingDays,
   IRREGULAR_TEXT,
   MIRA_PREDICTION_CAVEAT,
+  miraMaxima,
   miraPhase,
   miraShape,
-  miraTimingSigmaDays,
   passPhaseSummary,
   phaseUnknownLabel,
-  predictedMaxima,
   type VariabilityTrack,
 } from './ephemerides';
 import {
@@ -531,9 +531,10 @@ export function DatasetTimeline({ window: win, mjd, onSeek, onPass, label, track
 const TRACK_COLOR = '#f9a8d4';
 
 /**
- * One row per variable body under the pass bands (S3): the predicted V light curve with each
- * predicted maximum and its timing band; a hatched row for irregular variables (never a curve); a
- * flat dashed line for a periodic variable without an ephemeris (frozen at mean brightness).
+ * One row per variable body under the pass bands (S3): the V light curve with each maximum
+ * (measured inside the SPHEREx window, predicted outside) and its timing band; a hatched row for
+ * irregular variables (never a curve); a flat dashed line for a periodic variable without an
+ * ephemeris (frozen at mean brightness).
  */
 function TrackStrip({
   tracks,
@@ -595,19 +596,27 @@ function TrackStrip({
           const s = miraShape(e, miraPhase(e, m));
           pts.push(`${x(m).toFixed(1)},${(1 + (1 - (s + 1) / 2) * (BAND_H - 2)).toFixed(1)}`);
         }
-        const maxima = predictedMaxima(e, lo, hi);
+        const maxima = miraMaxima(e, lo, hi);
+        const measured = e.observedMaximaMjd !== null;
+        const curve = measured
+          ? `${e.band} light curve (measured AAVSO maxima inside the SPHEREx window, VSX ephemeris outside; bright = up; shaded = maximum ± timing band)`
+          : `predicted ${e.band} light curve (VSX ephemeris; bright = up; shaded = predicted maximum ± 1σ)`;
         return row(
           t.bodyId,
-          `${t.name}: predicted ${e.band} light curve (VSX ephemeris; bright = up; shaded = predicted maximum ± 1σ)`,
-          `${t.name}: predicted ${e.band} light curve; predicted maxima ${maxima.map((m) => mjdToIsoDate(m)).join(', ')}`,
+          `${t.name}: ${curve}`,
+          `${t.name}: ${measured ? '' : 'predicted '}${e.band} light curve; maxima ${maxima.map((m) => `${mjdToIsoDate(m.mjd)} (${m.measured ? 'measured' : 'predicted'})`).join(', ')}`,
           <>
             {maxima.map((m) => {
-              const sd = miraTimingSigmaDays(e, m);
+              const sd = m.sigmaDays;
               return (
-                <g key={m}>
-                  <title>{`predicted maximum ${mjdToIsoDate(m)} ± ${formatTimingDays(sd)} d (1σ about the VSX date)`}</title>
-                  <rect x={x(m - sd)} y={0} width={Math.max(x(m + sd) - x(m - sd), 1)} height={BAND_H} style={{ fill: TRACK_COLOR, opacity: 0.25 }} />
-                  <line x1={x(m)} x2={x(m)} y1={0} y2={BAND_H} style={{ stroke: TRACK_COLOR, strokeWidth: 1 }} />
+                <g key={m.mjd}>
+                  <title>
+                    {m.measured
+                      ? `measured maximum ${mjdToIsoDate(m.mjd)} ± ${formatTimingDays(sd)} d (AAVSO, band about the measured date)`
+                      : `predicted maximum ${mjdToIsoDate(m.mjd)} ± ${formatTimingDays(sd)} d (1σ about the VSX date)`}
+                  </title>
+                  <rect x={x(m.mjd - sd)} y={0} width={Math.max(x(m.mjd + sd) - x(m.mjd - sd), 1)} height={BAND_H} style={{ fill: TRACK_COLOR, opacity: 0.25 }} />
+                  <line x1={x(m.mjd)} x2={x(m.mjd)} y1={0} y2={BAND_H} style={{ stroke: TRACK_COLOR, strokeWidth: 1 }} />
                 </g>
               );
             })}
@@ -639,7 +648,10 @@ function TrackStrip({
           {MIRA_PREDICTION_CAVEAT}.
           {predicted.map((t) => (
             <span key={t.bodyId} style={{ display: 'block', margin: '2px 0', fontSize: '0.78rem' }}>
-              {t.name}: {t.ephemeris.source}. Timing band: {t.ephemeris.timingSource}. {t.ephemeris.note}
+              {t.name}: {t.ephemeris.source}. Timing band{t.ephemeris.observedMaximaMjd ? ' outside the SPHEREx window' : ''}:{' '}
+              {t.ephemeris.timingSource}.
+              {t.ephemeris.observedMaximaSource && ` Measured maxima: ${t.ephemeris.observedMaximaSource}.`}
+              {t.ephemeris.observedTimingSource && ` Their band: ${t.ephemeris.observedTimingSource}.`} {t.ephemeris.note}
             </span>
           ))}
         </figcaption>
