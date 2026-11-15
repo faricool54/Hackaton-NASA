@@ -115,6 +115,10 @@ export function BlinkViewer({ field, frames, composites, imageUrl, candidates, k
   const r = Math.max(2.5, w / 40);
   const stepDate = composite ? seasonRange(composite) : current ? formatMjd(current.mjd) : '';
   const predictedPixel = current && prediction ? predictedFramePixel(field.grid, prediction, current.mjd) : null;
+  const sourceUri = current?.source_uri;
+  const sourceUrl = sourceUri?.startsWith('ibe/data/spherex/')
+    ? `https://irsa.ipac.caltech.edu/${sourceUri}`
+    : sourceUri;
 
   return (
     <div className="blink" tabIndex={0} aria-label="Time sequence player" onKeyDown={(e) => {
@@ -352,6 +356,29 @@ export function BlinkViewer({ field, frames, composites, imageUrl, candidates, k
           </button>
         </div>
       </div>
+      {current && (
+        <details className="object-details small" onKeyDown={(e) => e.stopPropagation()}
+          onToggle={(e) => { if (e.currentTarget.open) setPlaying(false); }}>
+          <summary>
+            Frame quality · {current.valid_fraction == null
+              ? 'valid coverage unknown'
+              : `${(current.valid_fraction * 100).toFixed(1)}% valid pixels`}
+          </summary>
+          <p className="small muted">
+            Valid coverage is the fraction of this image grid with usable, unflagged pixels.
+            Individual contamination flags are unavailable in the frame metadata.
+          </p>
+          <p className="provenance-row small">
+            MJD {current.mjd.toFixed(5)} · Observation {current.obs_id}
+            {current.bandwidth_um != null && ` · Bandwidth ${current.bandwidth_um.toFixed(3)} µm`}
+          </p>
+          <p className="provenance-row small">
+            Original FITS: {sourceUrl && /^https?:\/\//.test(sourceUrl)
+              ? <a href={sourceUrl} target="_blank" rel="noreferrer">Open source</a>
+              : sourceUri || 'unavailable'}
+          </p>
+        </details>
+      )}
       {/* TODO(WS5): difference-image layer, pan, RA/Dec readout and GIF/MP4 export. */}
     </div>
   );
