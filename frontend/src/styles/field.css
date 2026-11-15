@@ -1,0 +1,158 @@
+/* FE-6 field dashboard (#/field/<id>) and the reusable SequencePlayer. Class prefix: .fd- */
+
+/* Page: title bar + body fill the viewport between the app top bar and the app footer (FE-1), with no page scroll. */
+main.fd-page {
+  --fd-title-h: 44px;
+  /* App footer rendered after every non-home page (FE-1 .app-footer): 2 × --sp-3 padding + one --fs-xs line at
+     --lh, from the same tokens so a larger browser font size grows it too; +1 px for rounding. */
+  --fd-footer-h: calc(2 * var(--sp-3, 12px) + var(--fs-xs, 0.75rem) * var(--lh, 1.45) + 1px);
+  --fd-free-h: calc(100dvh - var(--topbar-h, 48px) - var(--fd-footer-h) - var(--fd-title-h));
+  display: grid;
+  grid-template-rows: var(--fd-title-h) minmax(0, 1fr);
+  height: calc(100vh - var(--topbar-h, 48px) - var(--fd-footer-h));
+  height: calc(100dvh - var(--topbar-h, 48px) - var(--fd-footer-h));
+  min-height: 420px;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+main.fd-state { padding: var(--sp-4, 16px); }
+
+.fd-titlebar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3, 12px);
+  min-width: 0;
+  padding-inline: var(--sp-4, 16px);
+  background: var(--surface-1, var(--panel));
+  border-bottom: 1px solid var(--line, var(--border));
+}
+.fd-titlemain { display: flex; align-items: center; gap: var(--sp-3, 12px); flex: 1 1 auto; min-width: 0; }
+.fd-titlemeta { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2, 8px); flex: none; }
+.fd-titlemeta .badge { white-space: nowrap; }
+.fd-titlemeta .fd-titlebtn { min-height: 30px; white-space: nowrap; }
+.fd-back { flex: none; color: var(--text-2); font-size: var(--fs-sm); text-decoration: none; white-space: nowrap; }
+.fd-back:hover { color: var(--text); }
+.fd-back:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; border-radius: var(--r-xs, 4px); }
+.fd-title { min-width: 0; margin: 0; font-size: var(--fs-lg); font-weight: var(--fw-bold); line-height: var(--lh-tight); }
+
+/* Body: the player column is as wide as the free height allows for a square image above the fold (≥ 380 px at
+   1366×650 before FE-7), the tab panel takes the rest. Each column scrolls inside itself, never the page. */
+.fd-body {
+  --fd-player-w: clamp(400px, calc(var(--fd-free-h) - 90px), 46vw);
+  display: grid;
+  grid-template-columns: var(--fd-player-w) minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+}
+.fd-player-col {
+  min-width: 0;
+  min-height: 0;
+  padding: var(--sp-3, 12px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  border-inline-end: 1px solid var(--line, var(--border));
+}
+.fd-side {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--sp-3, 12px);
+  min-width: 0;
+  min-height: 0;
+  padding: var(--sp-3, 12px) var(--sp-4, 16px) 0;
+}
+.fd-side > [role='tablist'] { display: flex; justify-self: start; max-width: 100%; overflow-x: auto; scrollbar-width: thin; }
+.fd-side > [role='tablist'] > button { flex: none; }
+.fd-side > [role='tabpanel'] {
+  min-width: 0;
+  min-height: 0;
+  padding: 0 var(--sp-1, 4px) var(--sp-4, 16px) 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.fd-side > [role='tabpanel'][hidden] { display: none; }
+.fd-side > [role='tabpanel']:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: -2px; border-radius: var(--r-sm, 6px); }
+
+/* Sequence player */
+.fd-player { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: var(--sp-2, 8px); min-width: 0; }
+.fd-player-bar, .fd-player-foot { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2, 8px) var(--sp-3, 12px); }
+.fd-player-bar { justify-content: space-between; }
+.fd-player-bar .fd-expand { flex: none; min-height: 32px; }
+.fd-stage { min-width: 0; }
+.fd-seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 2px;
+  background: var(--surface-1, var(--panel));
+  border: 1px solid var(--line-control, var(--border));
+  border-radius: var(--r-pill, 999px);
+}
+.fd-seg button {
+  min-height: 30px;
+  padding: 0 var(--sp-3, 12px);
+  color: var(--text-2);
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-pill, 999px);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+.fd-seg button:hover:not(:disabled) { color: var(--text); }
+.fd-seg button[aria-pressed='true'] { color: var(--button-ink); background: var(--button-fill); }
+.fd-seg button:disabled { opacity: 0.4; cursor: not-allowed; }
+.fd-seg button:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 1px; }
+.fd-detector { display: inline-flex; align-items: center; gap: var(--sp-2, 8px); min-width: 0; color: var(--text-2); font-size: var(--fs-sm); }
+.fd-detector select { min-width: 0; max-width: 100%; min-height: 32px; border-color: var(--line-control, var(--border)); }
+.fd-detector select:disabled { opacity: 0.4; cursor: not-allowed; }
+.fd-hint { margin: 0; line-height: var(--lh); }
+
+/* Expand (theater): the same element goes fixed over the whole window, so the viewer is never remounted. */
+.fd-player.fd-theater {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal, 60);
+  grid-template-columns: min(100%, max(320px, calc(100dvh - 180px)));
+  justify-content: center;
+  padding: var(--sp-3, 12px) var(--sp-4, 16px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: var(--surface-0, var(--bg));
+}
+
+/* Tab contents */
+.fd-section-title { margin: 0 0 var(--sp-2, 8px); font-size: var(--fs-md); font-weight: var(--fw-bold); }
+.fd-science { margin-top: 0; }
+.fd-analysis { margin: 0 0 var(--sp-3, 12px); }
+.fd-provenance { margin: var(--sp-3, 12px) 0; }
+.fd-provenance > summary { cursor: pointer; color: var(--text-2); }
+.fd-provenance dl { margin: var(--sp-2, 8px) 0; }
+.fd-provenance p { margin: var(--sp-1, 4px) 0; overflow-wrap: anywhere; }
+.fd-facts { margin: var(--sp-2, 8px) 0 var(--sp-3, 12px); }
+.fd-facts dt { color: var(--text-2); }
+.fd-skymap { display: flex; flex-wrap: wrap; gap: var(--sp-1, 4px) var(--sp-3, 12px); margin: var(--sp-2, 8px) 0; }
+
+/* Embedded (explorer dock, Time tab): stacked, no fixed heights. */
+.fd-embedded { min-width: 0; }
+.fd-embedded .fd-player:not(.fd-theater) { margin-block: var(--sp-2, 8px) var(--sp-3, 12px); }
+
+/* ≤ 900 px: player first, tabs below, the page scrolls normally. */
+@media (max-width: 900px) {
+  main.fd-page { display: block; height: auto; min-height: 0; overflow: visible; }
+  .fd-titlebar { min-height: var(--fd-title-h); }
+  .fd-body { display: block; }
+  .fd-player-col { overflow: visible; border-inline-end: 0; border-bottom: 1px solid var(--line, var(--border)); }
+  .fd-side { display: block; padding: var(--sp-3, 12px); }
+  .fd-side > [role='tablist'] { width: max-content; margin-bottom: var(--sp-3, 12px); }
+  .fd-side > [role='tabpanel'] { overflow: visible; padding-right: 0; }
+}
+@media (max-width: 640px) {
+  .fd-titlebar { flex-wrap: wrap; row-gap: var(--sp-1, 4px); padding: var(--sp-2, 8px) var(--sp-3, 12px); }
+  .fd-titlemain, .fd-titlemeta { flex: 1 1 100%; }
+}
+@media (pointer: coarse) {
+  .fd-seg button, .fd-detector select, .fd-player-bar .fd-expand, .fd-titlemeta .fd-titlebtn { min-height: var(--touch-min, 44px); }
+}

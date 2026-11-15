@@ -8,7 +8,11 @@ interface Props {
 }
 
 export function CandidateList({ candidates, selectedId, onSelect }: Props) {
-  if (!candidates.length) return <p className="muted">No moving-object candidates in this field.</p>;
+  // AGENTS.md rule 12: an empty list means the optional analysis was not run or published, not "nothing moves here".
+  if (!candidates.length) {
+    return <p className="muted small fd-analysis">No candidate measurements provided: the moving-object analysis was not
+      run (or its results were not published) for this field. This is not a negative detection result.</p>;
+  }
   const sorted = [...candidates].sort((a, b) => b.score - a.score);
   return (
     <ul className="cand-list">

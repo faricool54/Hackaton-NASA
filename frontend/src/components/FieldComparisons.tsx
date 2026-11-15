@@ -20,7 +20,8 @@ function ComparisonPreview({ image }: { image: ComparisonImage }) {
   </figure>;
 }
 
-export function FieldComparisons({ field }: { field: Field }) {
+/** Season comparisons. `inline` (FieldPage's Seasons tab) shows it open; otherwise a folded <details>. */
+export function FieldComparisons({ field, inline = false }: { field: Field; inline?: boolean }) {
   const detectors = [...new Set(field.frames.map((f) => f.detector))].sort();
   const [detector, setDetector] = useState(detectors.includes(2) ? 2 : detectors[0] ?? 1);
   const [from, setFrom] = useState('');
@@ -30,8 +31,8 @@ export function FieldComparisons({ field }: { field: Field }) {
   const live = client.config.mode === 'api';
   const selected = request.data?.images.find((i) => i.id === selectedId) ?? request.data?.images[0];
   if (field.provenance.synthetic) return null;
-  return <details className="panel science-panel">
-    <summary>Compare seasons · weighted means and differences</summary>
+  const title = 'Compare seasons · weighted means and differences';
+  const content = <>
     <p className="muted small">Rebuild from the field's selected real FITS exposures on the same grid, separately per detector.
       Different wavelengths can leave a residual even for a constant source.</p>
     {!live && <p>Comparison generation requires live API mode.</p>}
@@ -73,5 +74,8 @@ export function FieldComparisons({ field }: { field: Field }) {
         {request.data.failures.map((f, i) => <p className="small error" key={i}>{f.frame_id}: {f.reason}</p>)}
       </details>
     </>}
-  </details>;
+  </>;
+  return inline
+    ? <section className="science-panel fd-science" aria-label="Compare seasons"><h3 className="fd-section-title">{title}</h3>{content}</section>
+    : <details className="panel science-panel"><summary>{title}</summary>{content}</details>;
 }

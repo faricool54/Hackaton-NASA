@@ -1,0 +1,5 @@
+{
+  "tool": "Anthropic Claude Code",
+  "scope": "FE-6 field page dashboard (title bar, player plus evidence tabs, theater mode), reusable SequencePlayer and field.css",
+  "human_review": "pending"
+}

@@ -1,166 +1,221 @@
-import { useEffect, useMemo, useState } from 'react';
+// Field page (FE-6): a no-scroll dashboard at #/field/<id> — 44 px title bar, the sequence player on the left and
+// the evidence in tabs on the right. `embedded` (the explorer dock's Time tab) keeps the stacked layout.
+import { useEffect, useState, type ReactNode } from 'react';
 import { client } from '../api/client';
-import type { Candidate, Field, KnownObject } from '../api/types';
-import { DETECTOR_BANDS, formatRaDec } from '../api/format';
-import { BlinkViewer } from '../components/BlinkViewer';
-import type { BlinkMode } from '../components/blinkModes';
-import { BLINK_MODES, compositesForMode, effectiveMode, isModeAvailable, modeHints, modeTitle } from '../components/blinkModes';
+import { formatMjd, formatRaDec } from '../api/format';
+import { loadLightCurve } from '../api/lightcurve';
+import { nameLookup, positionLookup } from '../api/objectCard';
+import { SHOWCASE_TARGETS } from '../api/showcase';
+import type { Candidate, Field, LightCurveProduct } from '../api/types';
 import { CandidateList } from '../components/CandidateList';
 import { CandidatePanel } from '../components/CandidatePanel';
+import { FieldComparisons } from '../components/FieldComparisons';
+import { LightCurvePanel, LightCurveProductView } from '../components/LightCurvePanel';
+import { ObjectCard } from '../components/ObjectCard';
+import { PositionSpectrum } from '../components/PositionSpectrum';
+import { SequencePlayer, useCatalogPrediction, useFieldSequence } from '../components/SequencePlayer';
+import { Skeleton } from '../components/Skeleton';
 import { SkyMap } from '../components/SkyMap';
 import { SyntheticBadge } from '../components/SyntheticBadge';
-import { FieldComparisons } from '../components/FieldComparisons';
-import { PositionSpectrum } from '../components/PositionSpectrum';
-import { LightCurvePanel } from '../components/LightCurvePanel';
-import { trackAstrometry, type TrackAstrometry } from '../three/skyTrack';
+import { Tabs } from '../components/Tabs';
+import '../styles/field.css';
 
-export function FieldPage({ fieldId, embedded = false }: { fieldId: string; embedded?: boolean }) {
-  const [field, setField] = useState<Field | null>(null);
-  const [candidates, setCandidates] = useState<Candidate[]>([]);
-  const [known, setKnown] = useState<KnownObject[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [detector, setDetector] = useState<number | 'all'>('all');
-  const [mode, setMode] = useState<BlinkMode>('bw');
-  const [systemId, setSystemId] = useState<string | null>(null);
-  const [prediction, setPrediction] = useState<TrackAstrometry | null>(null);
+type CurveProbe = LightCurveProduct | 'missing' | 'error';
+type TabId = 'lightcurve' | 'spectrum' | 'seasons' | 'evidence' | 'object';
+interface TabItem { id: TabId; label: string; content: ReactNode }
 
+/** Whether a precomputed light curve exists (one GET; 404 → 'missing'). `null` when not asked, 'checking' meanwhile. */
+function useLightCurveProbe(targetId: string | null): CurveProbe | 'checking' | null {
+  const [state, setState] = useState<{ id: string; value: CurveProbe } | null>(null);
   useEffect(() => {
-    let current = true;
-    setField(null);
-    setError(null);
-    setSystemId(null);
-    Promise.all([client.getField(fieldId), client.getCandidates(fieldId), client.getKnown(fieldId)])
-      .then(([f, c, k]) => {
-        if (!current) return;
-        setField(f);
-        setCandidates(c.candidates);
-        setKnown(k.objects);
-      })
-      .catch((e: Error) => { if (current) setError(e.message); });
-    // Both display modes can use the associated system for the blink prediction.
-    client.getManifest().then((m) => {
-      if (current) setSystemId((m.systems ?? []).find((s) => s.field_id === fieldId)?.id ?? null);
-    }).catch(() => { /* The field and science panels remain available. */ });
-    return () => { current = false; };
-  }, [fieldId]);
-
-  // Every field with a 3D system gets the catalog prediction (WS7: the five targets, e.g. eps Ind B's own
-  // Gaia solution and WISE 0855's Kirkpatrick 2021 one, from skyTrack.ts), not only Barnard's Star.
-  useEffect(() => {
-    setPrediction(null);
-    if (!systemId) return;
-    let active = true;
-    client.getSystem(systemId).then((system) => {
-      if (active && system.id === systemId && system.field_id === fieldId && !system.provenance.synthetic) {
-        setPrediction(trackAstrometry(system));
-      }
-    }).catch(() => { /* The image sequence still works if the catalog model is unavailable. */ });
-    return () => { active = false; };
-  }, [fieldId, systemId]);
-
-  const frames = useMemo(() => {
-    const all = [...(field?.frames ?? [])].sort((a, b) => a.mjd - b.mjd);
-    return detector === 'all' ? all : all.filter((f) => f.detector === detector);
-  }, [field, detector]);
-  // A mode the current field has no composites for (e.g. after switching fields) shows B/W.
-  const shownMode = effectiveMode(mode, field?.composites);
-  const composites = useMemo(
-    () => (shownMode === 'bw' ? null : compositesForMode(field?.composites, shownMode)),
-    [field, shownMode],
-  );
-  const detectors = useMemo(() => [...new Set(field?.frames.map((f) => f.detector))].sort(), [field]);
-  const selected = candidates.find((c) => c.id === selectedId) ?? null;
-
-  const Container = embedded ? 'section' : 'main';
-  if (error) return <Container className="error">Could not load field "{fieldId}": {error}</Container>;
-  if (!field) return <Container className="muted">Loading sequence…</Container>;
-
-  return (
-    <Container>
-      {!embedded && <p>
-        <a href="#/">← All fields</a>
-      </p>}
-      <h2 className="field-title">
-        {field.id.startsWith('job-') ? `SPHEREx at ${formatRaDec(field.center.ra, field.center.dec)}` : field.name}
-        {' '}<SyntheticBadge synthetic={field.provenance.synthetic} />
-      </h2>
-      <p className="muted">{field.description}</p>
-      {systemId && !embedded && (
-        <p>
-          <a href={`#/system/${systemId}`}>Explore these objects in 3D →</a>
-        </p>
-      )}
-
-      <div className="field-layout">
-        <section>
-          <div className="toolbar">
-            <div className="segmented" role="group" aria-label="Image mode">
-              {BLINK_MODES.map(({ mode: m, label }) => (
-                <button
-                  key={m}
-                  type="button"
-                  aria-pressed={shownMode === m}
-                  disabled={!isModeAvailable(m, field.composites)}
-                  title={modeTitle(m, field.composites)}
-                  onClick={() => setMode(m)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <label title={shownMode === 'bw' ? undefined : 'The detector filter applies to the B/W frames only'}>
-              Detector{' '}
-              <select
-                value={String(detector)}
-                disabled={shownMode !== 'bw'}
-                onChange={(e) => setDetector(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-              >
-                <option value="all">all ({field.frames.length} frames)</option>
-                {detectors.map((d) => (
-                  <option key={d} value={d}>
-                    D{d} · {DETECTOR_BANDS[d]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <span className="muted small">Space = play/pause · ←/→ = step</span>
-          </div>
-          <p className="mode-hint muted small" aria-live="polite">
-            {modeHints(mode, field.composites).join(' ')}
-          </p>
-          <BlinkViewer
-            key={`${field.id}/${detector}/${shownMode}`}
-            field={field}
-            frames={frames}
-            composites={composites}
-            imageUrl={(image) => client.fieldFileUrl(field.id, image)}
-            candidates={candidates}
-            known={known}
-            prediction={!field.provenance.synthetic ? prediction : null}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
-          />
-          {!embedded && <SkyMap field={field} />}
-        </section>
-        <aside>
-          <h2>Evidence and provenance</h2>
-          {candidates.length > 0 ? <CandidateList candidates={candidates} selectedId={selectedId} onSelect={setSelectedId} /> :
-            <p className="muted">No candidate measurements provided. This is not a negative detection result.</p>}
-          {field.provenance.notes.map((note, index) => <p className="small muted" key={index}>{note}</p>)}
-          {!embedded && <p className="small muted">Spectra below are extracted independently from FITS; a physical 3D model still requires measured constraints.</p>}
-          {selected && <CandidatePanel candidate={selected} />}
-          <p className="legend small">
-            <span className="dot known" /> known object <span className="dot unconfirmed" /> unconfirmed{' '}
-            <span className="dot artifact" /> artifact <span className="sq" /> catalog prediction
-          </p>
-        </aside>
-      </div>
-      {!field.provenance.synthetic && !embedded && <PositionSpectrum position={field.center} fieldId={field.id} />}
-      {!field.provenance.synthetic && !field.id.startsWith('job-') &&
-        <LightCurvePanel key={field.id} targetId={field.id} />}
-      <FieldComparisons field={field} />
-    </Container>
-  );
+    if (!targetId) return;
+    const abort = new AbortController();
+    loadLightCurve(client, targetId, abort.signal)
+      .then((value) => { if (!abort.signal.aborted) setState({ id: targetId, value }); })
+      .catch(() => { if (!abort.signal.aborted) setState({ id: targetId, value: 'error' }); });
+    return () => abort.abort();
+  }, [targetId]);
+  if (!targetId) return null;
+  return state?.id === targetId ? state.value : 'checking';
 }
 
+function fieldTitle(field: Field): string {
+  return field.id.startsWith('job-') ? `SPHEREx at ${formatRaDec(field.center.ra, field.center.dec)}` : field.name;
+}
+
+function Legend() {
+  return <p className="legend small">
+    <span className="dot known" /> known object <span className="dot unconfirmed" /> unconfirmed{' '}
+    <span className="dot artifact" /> artifact <span className="sq" /> catalog prediction
+  </p>;
+}
+
+function Provenance({ field }: { field: Field }) {
+  const { provenance } = field;
+  return <details className="fd-provenance small">
+    <summary>Provenance · {provenance.notes.length} note{provenance.notes.length === 1 ? '' : 's'}</summary>
+    <dl className="u-kv">
+      <dt>Pipeline</dt><dd className="u-mono">{provenance.pipeline_version}</dd>
+      <dt>Built</dt><dd>{provenance.built_at}</dd>
+      <dt>Releases</dt><dd>{provenance.data_releases.join(', ') || 'not reported'}</dd>
+    </dl>
+    {provenance.notes.map((note, index) => <p className="muted" key={index}>{note}</p>)}
+  </details>;
+}
+
+function Evidence({ field, candidates, selectedId, onSelect }: {
+  field: Field; candidates: Candidate[]; selectedId: string | null; onSelect: (id: string | null) => void;
+}) {
+  const selected = candidates.find((c) => c.id === selectedId) ?? null;
+  return <>
+    <CandidateList candidates={candidates} selectedId={selectedId} onSelect={onSelect} />
+    {selected && <CandidatePanel candidate={selected} />}
+    <Legend />
+    <Provenance field={field} />
+  </>;
+}
+
+export function FieldPage({ fieldId, embedded = false }: { fieldId: string; embedded?: boolean }) {
+  const data = useFieldSequence(fieldId);
+  // WS7 catalog prediction (systemId → client.getSystem → trackAstrometry → BlinkViewer `prediction`).
+  const { systemId, prediction } = useCatalogPrediction(fieldId);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [tab, setTab] = useState<TabId | null>(null);
+  const [objectSeen, setObjectSeen] = useState(false);
+  const [copied, setCopied] = useState('');
+  const field = data?.field ?? null;
+  const realCurve = field && !field.provenance.synthetic && !field.id.startsWith('job-') ? field.id : null;
+  const curve = useLightCurveProbe(embedded ? null : realCurve);
+
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(''), 2500);
+    return () => clearTimeout(timer);
+  }, [copied]);
+
+  const Container = embedded ? 'section' : 'main';
+  if (data?.error) {
+    return <Container className={embedded ? undefined : 'fd-state'}>
+      <p className="error" role="alert">Could not load field "{fieldId}": {data.error}</p>
+      {!embedded && <a href="#/">← Explore</a>}
+    </Container>;
+  }
+  if (!field || !data) {
+    return <Container className={embedded ? undefined : 'fd-state'}><Skeleton label="Loading sequence" lines={4} /></Container>;
+  }
+
+  const { candidates, known } = data;
+  const synthetic = field.provenance.synthetic;
+  const title = fieldTitle(field);
+  const player = <SequencePlayer fieldId={field.id} compact={embedded} field={field} candidates={candidates} known={known}
+    prediction={prediction} selectedId={selectedId} onSelect={setSelectedId} />;
+
+  if (embedded) {
+    return <section className="fd-embedded">
+      <h2 className="field-title">{title} <SyntheticBadge synthetic={synthetic} /></h2>
+      <p className="muted">{field.description}</p>
+      {player}
+      <h2>Evidence and provenance</h2>
+      <Evidence field={field} candidates={candidates} selectedId={selectedId} onSelect={setSelectedId} />
+      {realCurve && <LightCurvePanel key={field.id} targetId={field.id} />}
+      <FieldComparisons field={field} />
+    </section>;
+  }
+
+  const target = SHOWCASE_TARGETS.find((t) => t.fieldId === field.id);
+  const lookup = synthetic ? null
+    : target ? nameLookup(target.catalogName) : positionLookup(field.center.ra, field.center.dec);
+  const dates = field.frames.map((f) => f.mjd);
+  const detectors = [...new Set(field.frames.map((f) => f.detector))].sort();
+
+  const items: TabItem[] = [];
+  // The tab appears only once the product is known to exist (or the probe failed and needs a retry), never while
+  // checking: a field without a light curve must not show it and then drop it. TODO(FE-8): switch to
+  // <LightCurvePanel variant="inline" /> when it lands and remove useLightCurveProbe (LightCurveProductView is used
+  // here so the curve is visible without a click; its `{ product }` signature must stay until then).
+  if (curve && curve !== 'missing' && curve !== 'checking') {
+    items.push({
+      id: 'lightcurve', label: 'Light curve', content: curve === 'error' ? <>
+        <p className="error small" role="alert">The light curve could not be loaded. Open the panel below to retry.</p>
+        <LightCurvePanel key={field.id} targetId={field.id} />
+      </>
+        : <div className="science-panel fd-science"><LightCurveProductView product={curve} /></div>,
+    });
+  }
+  items.push(
+    {
+      id: 'spectrum', label: 'Spectrum', content: synthetic
+        ? <p className="muted">Spectra are measured only from real SPHEREx exposures; this field is synthetic.</p>
+        : <>
+          <h3 className="fd-section-title">Spectrum at {formatRaDec(field.center.ra, field.center.dec)}</h3>
+          <PositionSpectrum position={field.center} fieldId={field.id} inline />
+          <p className="small muted">Spectra are extracted independently from FITS; a physical 3D model still requires measured constraints.</p>
+        </>,
+    },
+    {
+      id: 'seasons', label: 'Seasons', content: synthetic
+        ? <p className="muted">Season comparisons are rebuilt only from real SPHEREx exposures; this field is synthetic.</p>
+        : <FieldComparisons field={field} inline />,
+    },
+    {
+      id: 'evidence', label: candidates.length ? `Evidence · ${candidates.length}` : 'Evidence',
+      content: <Evidence field={field} candidates={candidates} selectedId={selectedId} onSelect={setSelectedId} />,
+    },
+    {
+      id: 'object', label: 'Object', content: <>
+        <p>{field.description}</p>
+        <SkyMap field={field} />
+        <dl className="u-kv small fd-facts">
+          <dt>Frames</dt><dd>{field.frames.length} · {detectors.map((d) => `D${d}`).join(', ') || 'none'}</dd>
+          {dates.length > 0 && <><dt>Dates (UTC)</dt>
+            <dd>{formatMjd(Math.min(...dates)).slice(0, 10)} → {formatMjd(Math.max(...dates)).slice(0, 10)}</dd></>}
+        </dl>
+        {systemId && <p className="small">
+          <a href={`#/system/${systemId}`}>Explore these objects in 3D →</a> <span className="muted">3D model · not an image</span>
+        </p>}
+        {/* TODO(FE-5): this is a full-page consumer; pass variant="full" once ObjectCard has variants (default "dock"). */}
+        {synthetic ? <p className="muted small">Catalog context is not looked up for synthetic fields.</p>
+          : objectSeen && <ObjectCard lookup={lookup} />}
+      </>,
+    },
+  );
+  // Light curve is the default once it exists; Evidence until then. A tab the user picked (or focused into) stays.
+  const active: TabId = tab && items.some((i) => i.id === tab) ? tab
+    : items.some((i) => i.id === 'lightcurve') ? 'lightcurve' : 'evidence';
+
+  const copyLink = () => {
+    const done = (text: string) => setCopied(text);
+    if (!navigator.clipboard) { done('Copy the address bar link'); return; }
+    navigator.clipboard.writeText(window.location.href)
+      .then(() => done('Link copied'), () => done('Copy the address bar link'));
+  };
+
+  return (
+    <main className="fd-page">
+      <header className="fd-titlebar">
+        <div className="fd-titlemain">
+          <a className="fd-back" href="#/">← Explore</a>
+          <h1 className="fd-title u-truncate" title={title}>{title}</h1>
+        </div>
+        <div className="fd-titlemeta">
+          {synthetic ? <SyntheticBadge synthetic /> : <span className="u-badge u-badge--spherex">SPHEREx · real frames</span>}
+          {systemId && <a className="u-btn u-btn--ghost fd-titlebtn" href={`#/system/${systemId}`}
+            title="Explore these objects in 3D (3D MODEL · NOT AN IMAGE)">3D model</a>}
+          <button type="button" className="u-btn fd-titlebtn" onClick={copyLink}>{copied || 'Copy link'}</button>
+          <span className="u-sr-only" role="status">{copied}</span>
+        </div>
+      </header>
+      <div className="fd-body">
+        <section className="fd-player-col" aria-label="SPHEREx image sequence">
+          {player}
+        </section>
+        <section className="fd-side" aria-label="Field evidence" onFocus={() => { if (tab === null) setTab(active); }}>
+          <Tabs label="Field panels" items={items} active={active} onChange={(id) => {
+            setTab(id as TabId);
+            if (id === 'object') setObjectSeen(true);
+          }} />
+        </section>
+      </div>
+    </main>
+  );
+}
