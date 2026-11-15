@@ -7,6 +7,8 @@
     "frontend/src/components/LightCurvePanel.tsx",
     "frontend/public/sky-map.html",
     "frontend/README.md",
+    "frontend/src/components/BlinkViewer.tsx",
+    "frontend/src/components/BlinkViewer.test.tsx",
     "tasks/WS5-frontend.md"
   ],
   "external_assets": [
@@ -18,6 +20,7 @@
   "scientific_R05_validation": false,
   "human_review": "pending",
   "repository_disclosure": "AI_USAGE.md",
+  "v8": "Codex implemented per-frame valid coverage, archive flag fractions and unknown states, with local browser and compatibility checks.",
   "other_tools": [
     {
       "tool": "Anthropic Claude Code",

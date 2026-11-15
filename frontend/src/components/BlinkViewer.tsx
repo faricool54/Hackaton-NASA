@@ -36,6 +36,30 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 const ZOOM_LEVELS = [1, 2, 4] as const;
+const IRSA_ORIGIN = 'https://irsa.ipac.caltech.edu';
+
+const FRAME_FLAGS = [
+  ['OVERFLOW', 'Saturation'],
+  ['NONLINEAR', 'Nonlinear response'],
+  ['PERSIST', 'Detector persistence'],
+  ['GHOST', 'Optical ghost'],
+  ['GHOST_FPA', 'Focal-plane ghost'],
+  ['GHOST_EXT', 'Extended ghost'],
+  ['STREAK', 'Streak'],
+  ['SNOWBALL', 'Snowball artifact'],
+  ['BLOOM', 'Blooming'],
+  ['HALO', 'Halo'],
+  ['SOURCE', 'Source'],
+  ['OUTLIER', 'Outlier'],
+  ['TRANSIENT', 'Transient'],
+] as const;
+
+function formatPixelFraction(fraction: number): string {
+  const percent = fraction * 100;
+  if (percent > 0 && percent < 0.1) return '<0.1%';
+  if (percent > 99.9 && percent < 100) return '>99.9%';
+  return `${percent.toFixed(1)}%`;
+}
 
 export function BlinkViewer({ field, frames, composites, imageUrl, candidates, known, prediction, selectedId, onSelect }: Props) {
   const [index, setIndex] = useState(0);
@@ -115,6 +139,11 @@ export function BlinkViewer({ field, frames, composites, imageUrl, candidates, k
   const r = Math.max(2.5, w / 40);
   const stepDate = composite ? seasonRange(composite) : current ? formatMjd(current.mjd) : '';
   const predictedPixel = current && prediction ? predictedFramePixel(field.grid, prediction, current.mjd) : null;
+  const frameFlags = current && field.frame_flags?.[current.id];
+  const sourceUri = current?.source_uri;
+  const sourceUrl = sourceUri?.startsWith('ibe/data/spherex/')
+    ? `${IRSA_ORIGIN}/${sourceUri}`
+    : sourceUri;
 
   return (
     <div className="blink" tabIndex={0} aria-label="Time sequence player" onKeyDown={(e) => {
@@ -352,6 +381,49 @@ export function BlinkViewer({ field, frames, composites, imageUrl, candidates, k
           </button>
         </div>
       </div>
+      {current && (
+        <details className="object-details small" onKeyDown={(e) => e.stopPropagation()}
+          onToggle={(e) => { if (e.currentTarget.open) setPlaying(false); }}>
+          <summary>
+            Valid-pixel coverage · {current.valid_fraction == null
+              ? 'unknown'
+              : formatPixelFraction(current.valid_fraction)}
+          </summary>
+          <p className="small muted">
+            Coverage describes the whole image. Off-detector pixels, missing values and pixels rejected by the
+            quality mask, including saturation (OVERFLOW), count as invalid.
+            The target can be saturated even when coverage is high.
+          </p>
+          {frameFlags ? (
+            <details>
+              <summary>Archive flags · {formatPixelFraction(frameFlags.coverage_fraction)} of grid sampled</summary>
+              <p className="small muted">
+                Each percentage uses the covered part of the image. Flags can overlap.
+                SOURCE marks detected sky sources. OUTLIER or TRANSIENT can mark a moving source.
+              </p>
+              <ul>
+                {FRAME_FLAGS.map(([flag, label]) => {
+                  const fraction = frameFlags.fractions[flag];
+                  return <li key={flag}>{label} ({flag}) · {fraction == null ? 'unknown' : formatPixelFraction(fraction)}</li>;
+                })}
+              </ul>
+            </details>
+          ) : (
+            <p className="small muted">Archive saturation and contamination flags are unavailable for this frame.</p>
+          )}
+          <p className="provenance-row small">
+            MJD (mid-exposure) {current.mjd.toFixed(5)} · Frame {current.id}
+            {current.bandwidth_um != null && ` · Bandwidth ${current.bandwidth_um.toFixed(3)} µm`}
+          </p>
+          <p className="provenance-row small">
+            Original FITS: {sourceUrl && /^https?:\/\//.test(sourceUrl)
+              ? <a href={sourceUrl} target="_blank" rel="noreferrer">
+                {sourceUrl.startsWith(`${IRSA_ORIGIN}/`) ? 'Download FITS from IRSA' : 'Download FITS'}
+              </a>
+              : sourceUri || 'unavailable'}
+          </p>
+        </details>
+      )}
       {/* TODO(WS5): difference-image layer, pan, RA/Dec readout and GIF/MP4 export. */}
     </div>
   );
