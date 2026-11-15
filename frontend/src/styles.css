@@ -99,7 +99,7 @@ span.tone-warn { color: var(--unconfirmed); }
 @media (max-width: 440px) { .sky-map-frame { height: 300px; } .explore-filters { grid-template-columns: minmax(0, 1fr); } }
 
 .topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
-.topbar nav { display: flex; gap: 16px; align-items: center; }
+.topbar nav { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
 .brand { font-weight: 700; text-decoration: none; color: var(--text); }
 footer { text-align: center; padding: 24px 16px; }
 
@@ -114,7 +114,7 @@ footer { text-align: center; padding: 24px 16px; }
 .search-matches { padding: 0; margin: 12px 0 0; list-style: none; display: grid; gap: 6px; }
 .card.search-match { padding: 8px 12px; display: grid; gap: 2px; overflow-wrap: anywhere; }
 
-.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 16px; }
 .card { display: block; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; color: inherit; text-decoration: none; }
 .card:hover { border-color: var(--accent); }
 .card h3 { margin: 0 0 4px; }
@@ -137,8 +137,25 @@ select, button { background: var(--panel); border: 1px solid var(--border); bord
 button:hover:not(:disabled) { border-color: var(--accent); }
 
 .blink-stage { position: relative; width: 100%; background: #000; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.blink-view-controls, .blink-zoom-control { display: flex; align-items: center; gap: 8px; }
+.blink-view-controls { flex-wrap: wrap; justify-content: space-between; margin: 0 0 8px; }
+.blink-zoom-control { color: var(--muted); font-size: .85rem; }
+.blink-zoom-layer { position: absolute; inset: 0; }
 .blink-frame { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; user-select: none; }
 .blink-overlay { position: absolute; inset: 0; width: 100%; height: 100%; }
+.blink-prediction-reticle { position: absolute; width: 34px; height: 34px; pointer-events: none; }
+.blink-prediction-reticle i {
+  position: absolute; display: block; background: #6ff4f1; box-shadow: 0 0 0 1px #07111c;
+}
+.blink-prediction-reticle i:nth-child(-n+2) { width: 8px; height: 2px; top: calc(50% - 1px); }
+.blink-prediction-reticle i:nth-child(n+3) { height: 8px; width: 2px; left: calc(50% - 1px); }
+.blink-prediction-reticle i:nth-child(1) { left: 0; }
+.blink-prediction-reticle i:nth-child(2) { right: 0; }
+.blink-prediction-reticle i:nth-child(3) { top: 0; }
+.blink-prediction-reticle i:nth-child(4) { bottom: 0; }
+.blink-prediction-dot { width: .65em; height: .65em; border: 1px solid #6ff4f1; border-radius: 50%; }
+.overlay-toggle.is-on .blink-prediction-dot { background: #6ff4f1; }
+.blink-prediction-note { margin: 6px 0 0; }
 .blink-caption { position: absolute; left: 0; right: 0; bottom: 0; padding: 6px 10px; background: rgba(0, 0, 0, 0.6); font-size: 0.85rem; }
 .blink-controls { display: flex; align-items: center; gap: 8px; margin: 8px 0 16px; flex-wrap: wrap; }
 .blink-controls input[type='range'] { flex: 1; min-width: 120px; }
@@ -265,7 +282,10 @@ figure { margin: 8px 0; }
 }
 @media (max-width: 560px) {
   .system-viewer .blink-controls { gap: 8px; padding: 10px 11px; }
-  .system-viewer .blink-controls > label { gap: 6px; }
+  .system-viewer .blink-controls > label { gap: 6px; min-width: 0; max-width: 100%; white-space: normal; }
+  .system-viewer .blink-controls > label:has(select) { flex: 1 1 100%; }
+  .system-viewer .blink-controls select { min-width: 0; flex: 1; padding-right: 12px; }
+  .system-viewer .blink-controls input[type='checkbox'] { flex: none; }
 }
 
 /* --- Scrubber / Blink controls (UI-2, WS5) --- */
@@ -353,4 +373,5 @@ figure { margin: 8px 0; }
   .blink-playback-secondary { gap: 12px; }
   .speed-control { gap: 6px; }
   .speed-control input[type='range'] { width: 76px; }
+  .blink-view-controls .segmented button, .blink-view-controls .overlay-toggle { min-height: 44px; }
 }
