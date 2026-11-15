@@ -132,6 +132,11 @@ def cmd_search(args: argparse.Namespace) -> int:
     return 0
 
 
+POINT_NO_SAMPLES = 3
+"""`errante point` exit code when the series has no sample at all (nothing read: every frame timed out, failed
+or missed the pixel, or none was found). 2 = the search failed or the input is invalid; 0 = at least one sample."""
+
+
 def cmd_point(args: argparse.Namespace) -> int:
     from .data.irsa import SearchError
     from .data.point import point_series
@@ -169,7 +174,12 @@ def cmd_point(args: argparse.Namespace) -> int:
     else:
         from collections import Counter
 
-        origin = "cache" if t.get("from_cache") else f"{t.get('frames')} frames read from S3"
+        if t.get("from_cache"):
+            origin = "cache"
+        else:  # what was READ, not what was asked: timed-out and failed frames are not "read"
+            origin = f"read from S3: {len(series.samples)} of {t.get('frames')} frames"
+            if t.get("timed_out"):
+                origin += f", {t['timed_out']} timed out"
         print(
             f"{len(series.samples)} samples at ({series.ra:.5f}, {series.dec:.5f}), box {series.box_px} px "
             f"({origin}) in {t.get('total_s')} s"
@@ -197,6 +207,13 @@ def cmd_point(args: argparse.Namespace) -> int:
         if series.failures:
             reasons = Counter(r.split(":", 1)[0] for _, r in series.failures)
             print(f"  failures: {len(series.failures)} ({', '.join(f'{k}: {n}' for k, n in reasons.items())})")
+        if t.get("timed_out"):
+            print("  deadline cut, per season (samples read / frames asked):")
+            for c in t.get("seasons") or []:
+                cut = f", {c['timed_out']} timed out" if c.get("timed_out") else ""
+                print(
+                    f"    {c['release']} MJD {c['mjd_min']:.1f}-{c['mjd_max']:.1f}: {c['samples']}/{c['frames']}{cut}"
+                )
     if t.get("wave_errors"):
         print(
             f"WARNING: {t['wave_errors']} samples have no wavelength because S3 failed (not cached: ask again)",
@@ -206,6 +223,13 @@ def cmd_point(args: argparse.Namespace) -> int:
         print(f"WARNING: {t['timed_out']} frames not read within --deadline (not cached)", file=sys.stderr)
     if paths:
         print(f"Wrote {paths[0]} and {paths[1]}", file=sys.stderr)
+    if not series.samples:
+        print(
+            f"ERROR: no sample at ({series.ra:.5f}, {series.dec:.5f}): {t.get('frames')} frames, "
+            f"{len(series.failures)} failed or cut (exit {POINT_NO_SAMPLES})",
+            file=sys.stderr,
+        )
+        return POINT_NO_SAMPLES
     return 0
 
 
@@ -490,7 +514,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     s.set_defaults(func=cmd_search)
 
-    s = sub.add_parser("point", help="stamps of every SPHEREx exposure at a position, read from S3 (WS1)")
+    s = sub.add_parser(
+        "point",
+        help="stamps of every SPHEREx exposure at a position, read from S3 (WS1)",
+        epilog=f"Exit codes: 0 = at least one sample; 2 = the archive search failed or invalid input; "
+        f"{POINT_NO_SAMPLES} = no sample at all (every frame timed out, failed or missed the pixel; the JSON "
+        "is still printed).",
+    )
     s.add_argument("--ra", type=float, required=True)
     s.add_argument("--dec", type=float, required=True)
     s.add_argument(
@@ -514,7 +544,9 @@ def main(argv: list[str] | None = None) -> int:
         "--deadline",
         type=float,
         default=None,
-        help="seconds for the whole call; frames not read by then are failures (TimeoutError), not cached",
+        help="seconds for the whole call, archive search included (a cold search takes 1-9 s via SIA; under ~20 s "
+        "TAP cannot stand in for a hung SIA); frames not read by then are failures (TimeoutError), not cached; "
+        "what is read is spread over every season",
     )
     s.add_argument("--out", default=None, help="write the series to OUT.npz + OUT.json")
     s.add_argument("--no-cache", action="store_true", help="ignore and do not write the series cache")

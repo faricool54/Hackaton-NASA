@@ -280,6 +280,31 @@ def test_read_spherex_survives_an_unusable_wave_table(tmp_path, caplog):
     assert "unusable WCS-WAVE" in caplog.text
 
 
+@pytest.mark.filterwarnings("ignore::astropy.io.fits.verify.VerifyWarning")
+@pytest.mark.filterwarnings("ignore::astropy.utils.exceptions.AstropyUserWarning")  # "treated as corrupted"
+@pytest.mark.parametrize(
+    ("card", "garbage", "astropy_error"),
+    [
+        (b"TFORM1  = ", b"821-9Y=2AC9'.5=YXZ70", "VerifyError"),
+        (b"XTENSION= ", b"5  -Z'252'.58742YB.1", "AttributeError"),
+    ],
+    ids=["tform", "xtension"],
+)
+def test_read_spherex_survives_an_unparsable_wave_card(tmp_path, card, garbage, astropy_error):
+    """Review 2026-11-15: a WCS-WAVE card astropy cannot parse raised VerifyError / AttributeError (_CorruptedHDU)
+    out of read_spherex, whose docstring promises wave=None with extra['wave_error'] instead."""
+    path = _write_mef(tmp_path / "odd.fits", _header("cutout"))
+    blob = bytearray(path.read_bytes())
+    start = blob.rindex(b"XTENSION= 'BINTABLE'")  # the WCS-WAVE HDU is the last one
+    at = blob.index(card, start)
+    assert at % 80 == 0
+    blob[at + 10 : at + 30] = garbage
+    path.write_bytes(bytes(blob))
+    img = fits_io.read_spherex(path)
+    assert img.wave is None and img.extra["wave_error"].startswith(astropy_error)
+    assert img.data.shape == (49, 49) and img.mjd == 60902.865380749
+
+
 def test_inconsistent_w_and_a_shifts_are_rejected():
     wave = _wave_hdu()
     bad = _header("cutout")

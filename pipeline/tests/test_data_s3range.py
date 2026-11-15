@@ -626,6 +626,135 @@ def test_read_range_retries_a_body_cut_mid_transfer(monkeypatch):
         server.server_close()
 
 
+def test_read_patch_carries_the_wave_table(l2, tmp_path, monkeypatch):
+    """An in-memory patch has the file's WCS-WAVE table (``wave``), so ``wavelength_at`` works without writing and
+    re-reading the patch (WS2 photometry flagged every in-memory patch 'no_wavelength')."""
+    from errante.imaging import photometry
+
+    key, blob, _, _ = l2
+    ra, dec = _sky(150.3, 99.8)
+    img = s3range.read_patch(key, ra, dec, 3.0)
+    assert img.wave is not None and "wave_error" not in img.extra
+    with fits.open(io.BytesIO(blob)) as full:
+        want = fits_io.wavelength_at(full, ra, dec)
+    assert img.wavelength_at(ra, dec) == pytest.approx(want, abs=1e-12)
+    back = fits_io.read_spherex(s3range.write_patch_fits(img, tmp_path / "p.fits"))
+    assert img.wavelength_at(ra, dec) == pytest.approx(back.wavelength_at(ra, dec), abs=1e-12)
+    np.testing.assert_array_equal(img.wave.wavelength, back.wave.wavelength)
+    assert (img.mjd, img.date_obs) == (back.mjd, back.date_obs)  # mid-exposure instant (DATE-AVG), not DATE-OBS
+    m = photometry.measure(img, ra, dec)
+    assert m.wavelength_um == pytest.approx(want[0], abs=1e-12) and "no_wavelength" not in m.flags
+
+    def broken(hdu):
+        raise ValueError("VALUES shape (1,) != (14, 9, 2)")
+
+    monkeypatch.setattr(s3range.fits_io.WaveTable, "from_hdu", classmethod(lambda cls, hdu: broken(hdu)))
+    s3range.wave_table_from_bytes.cache_clear()
+    bad = s3range.read_patch(key, *_sky(100.0, 50.0), 2.0)  # an unusable table never fails the patch
+    assert bad.wave is None and bad.extra["wave_error"].startswith("ValueError")
+    assert bad.wavelength_at(*_sky(100.0, 50.0)) is None
+    s3range.wave_table_from_bytes.cache_clear()
+
+
+# Cards astropy cannot parse (found by fuzzing a real-layout WCS-WAVE, review 2026-11-15): VerifyError and a
+# _CorruptedHDU without .data (AttributeError) escaped read_patch's except tuple, so the whole patch failed.
+_CORRUPT_WAVE_CARDS = {
+    "VerifyError": (b"TFORM1  = '9J      '" + b" " * 10, b"TFORM1  = 821-9Y=2AC9'.5=YXZ70"),
+    "AttributeError": (
+        b"XTENSION= 'BINTABLE'           / binary table extension",
+        b"XTENSION= 5  -Z'252'.58742YB.1 / binary table extension",
+    ),
+}
+
+
+@pytest.mark.filterwarnings("ignore::astropy.io.fits.verify.VerifyWarning")  # the corrupt card, cached as JSON
+@pytest.mark.parametrize("astropy_error", sorted(_CORRUPT_WAVE_CARDS))
+def test_an_unparsable_wave_card_never_fails_the_patch(l2, monkeypatch, astropy_error):
+    key, blob, _, fake = l2
+    raw = s3range.hdu_directory(key).wcs_wave
+    old, new = _CORRUPT_WAVE_CARDS[astropy_error]
+    assert raw.count(old) == 1 and len(new) == len(old)
+    bad_raw = raw.replace(old, new)
+    s3range.wave_table_from_bytes.cache_clear()
+    with pytest.raises(ValueError, match="unparsable WCS-WAVE") as err:
+        s3range.wave_table_from_bytes(bad_raw)
+    assert type(err.value.__cause__).__name__ == astropy_error  # what astropy raised, kept as the cause
+    bad_key = key.replace("_0321_", "_0322_")
+    fake.objects[bad_key] = blob[: -len(raw)] + bad_raw
+    ra, dec = _sky(150.3, 99.8)
+    img = s3range.read_patch(bad_key, ra, dec, 3.0)
+    assert img.wave is None and img.extra["wave_error"].startswith("ValueError: unparsable WCS-WAVE")
+    assert img.wavelength_at(ra, dec) is None
+    np.testing.assert_array_equal(img.data, s3range.read_patch(key, ra, dec, 3.0).data)  # the pixels are intact
+
+
+def test_read_range_meta_honours_a_deadline_and_a_cancel_flag(monkeypatch):
+    """A caller with a deadline (point_series) never waits HTTP_TIMEOUT_S (120 s) x 4 attempts: each attempt's
+    timeout is what is left, no retry or backoff runs past it, and a cancelled read sends nothing more."""
+
+    class Stalled:
+        def __init__(self):
+            self.timeouts = []
+
+        def get(self, url, headers, stream, timeout):
+            self.timeouts.append(timeout)
+            time.sleep(timeout)  # a server that never answers
+            raise requests.ReadTimeout("stalled")
+
+    for read in (lambda **kw: s3range.read_range_meta("k", 0, 10, **kw), lambda **kw: s3range.read_tail("k", 4, **kw)):
+        sess = Stalled()
+        monkeypatch.setattr(s3range, "_session", lambda sess=sess: sess)
+        t0 = time.monotonic()
+        with pytest.raises(TimeoutError):
+            read(deadline=t0 + 0.4)
+        assert time.monotonic() - t0 < 0.9 and sess.timeouts and max(sess.timeouts) <= 0.4 + 1e-6
+        cancel = threading.Event()
+        cancel.set()
+        sess.timeouts.clear()
+        with pytest.raises(TimeoutError):
+            read(cancel=cancel)
+        assert sess.timeouts == []  # cancelled: no request at all
+
+    # without a deadline nothing changes: the configured timeout per attempt
+    class Ok:
+        def __init__(self):
+            self.timeouts = []
+
+        def get(self, url, headers, stream, timeout):
+            self.timeouts.append(timeout)
+            return _Resp(206, b"abcd", {"Content-Range": "bytes 10-13/100"})
+
+    ok = Ok()
+    monkeypatch.setattr(s3range, "_session", lambda: ok)
+    assert s3range.read_range("k", 10, 14) == b"abcd" and ok.timeouts == [settings.HTTP_TIMEOUT_S]
+
+
+def test_s3_requests_in_flight_are_capped_process_wide(monkeypatch):
+    """Every s3range request takes one of S3_MAX_CONNECTIONS process-wide slots, the size of the session's
+    connection pool: concurrent readers (two point series, a field build) can never overflow it."""
+    monkeypatch.setattr(s3range, "S3_MAX_CONNECTIONS", 3)
+    monkeypatch.setattr(s3range, "_REQUEST_SLOTS", None)
+    lock = threading.Lock()
+    state = {"now": 0, "peak": 0}
+
+    class Counting:
+        def get(self, url, headers, stream, timeout):
+            with lock:
+                state["now"] += 1
+                state["peak"] = max(state["peak"], state["now"])
+            time.sleep(0.02)
+            with lock:
+                state["now"] -= 1
+            return _Resp(206, b"abcd", {"Content-Range": "bytes 10-13/100"})
+
+    monkeypatch.setattr(s3range, "_session", lambda: Counting())
+    with ThreadPoolExecutor(12) as pool:
+        assert list(pool.map(lambda _: s3range.read_range("k", 10, 14), range(24))) == [b"abcd"] * 24
+    assert state["peak"] == 3
+    adapter = s3range._adapter()
+    assert adapter.poolmanager.connection_pool_kw["maxsize"] == 3  # the pool keeps every connection in use
+
+
 def test_header_without_end_is_bounded():
     """A corrupt header with no END card fails after a bounded read, not at EOF of a 60 MB file."""
     blob = b"SIMPLE  =                    T" + b" " * 50 + b"COMMENT " + b"x" * 72
@@ -699,3 +828,6 @@ def test_real_patch_equals_ibe_cutout(tmp_path, monkeypatch):
         sw.sip = None
         lam, bw = sw.pixel_to_world_values(*img.wcs.all_world2pix([BARNARD], 0)[0])
     assert 1.6 < float(lam) < 2.42 and 0 < float(bw) < 0.2  # D3 band
+    # ... and the patch in memory already has it (WCS-WAVE table attached), equal to the written patch
+    assert img.wave is not None
+    assert img.wavelength_at(*BARNARD) == pytest.approx(fits_io.read_spherex(path).wavelength_at(*BARNARD), abs=1e-12)
