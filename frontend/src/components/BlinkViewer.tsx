@@ -9,6 +9,11 @@ import { DETECTOR_BANDS, formatMjd } from '../api/format';
 import { channelLegend, seasonRange } from './blinkModes';
 import type { TrackAstrometry } from '../three/skyTrack';
 import { predictedFramePixel } from './framePrediction';
+// WS7 (V3 for all five targets): label, shift, predicted track and static field stars for WS5's reticle.
+import { predictFromAstrometry } from '../three/blinkTarget';
+
+/** Colour of WS5's prediction reticle (styles.css .blink-prediction-reticle), reused by the WS7 track. */
+const PREDICTION_TRACK_COLOR = '#6ff4f1';
 
 interface Props {
   field: Field;
@@ -98,6 +103,11 @@ export function BlinkViewer({ field, frames, composites, imageUrl, candidates, k
   );
 
   const selected = useMemo(() => candidates.find((c) => c.id === selectedId) ?? null, [candidates, selectedId]);
+  // WS7: what the prediction is for, how far it moves over the frames shown, and its track (blinkTarget.ts).
+  const summary = useMemo(
+    () => (prediction ? predictFromAstrometry(prediction, field, frames) : null),
+    [prediction, field, frames],
+  );
 
   if (composites && !composite) return <div className="panel">No false-color composites for this mode.</div>;
   if (!current && !composite) return <div className="panel">This field has no frames.</div>;
@@ -132,7 +142,7 @@ export function BlinkViewer({ field, frames, composites, imageUrl, candidates, k
           type="button" aria-pressed={showPrediction} onClick={() => setShowPrediction((on) => !on)}
           title={prediction.source}>
           <span className="blink-prediction-dot" aria-hidden="true" />
-          Gaia prediction
+          {summary?.toggleLabel ?? 'Gaia prediction'}
         </button>}
       </div>
       <div className="blink-stage" style={{ aspectRatio: `${w} / ${h}` }}>
@@ -192,6 +202,32 @@ export function BlinkViewer({ field, frames, composites, imageUrl, candidates, k
               )}
             </svg>
           )}
+          {current && loaded[current.id] === 'ready' && showPrediction && summary && (
+            // WS7: faint predicted track with hollow first/last rings, and static field stars (dashed).
+            // Image-edge coordinates, like the reticle: the PNG pixel centre + 0.5 (blinkTarget.ts header).
+            <svg className="blink-overlay" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none"
+              style={{ pointerEvents: 'none' }} aria-hidden="true">
+              {summary.showTrack && (
+                <>
+                  <polyline
+                    points={summary.points.filter((p) => p.inGrid).map((p) => `${p.x + 0.5},${p.y + 0.5}`).join(' ')}
+                    fill="none" stroke={PREDICTION_TRACK_COLOR} strokeOpacity={0.5} strokeWidth={1}
+                    vectorEffect="non-scaling-stroke"
+                  />
+                  {[summary.first, summary.last].map((p, i) => (
+                    // Constant on-screen size at any zoom, like WS5's reticle (scale 1/zoom).
+                    <circle key={i} cx={p.x + 0.5} cy={p.y + 0.5} r={0.45 / zoom} fill="none"
+                      stroke={PREDICTION_TRACK_COLOR} strokeOpacity={0.8} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+                  ))}
+                </>
+              )}
+              {summary.staticSources.filter((s) => s.inGrid).map((s) => (
+                <circle key={s.name} cx={s.x + 0.5} cy={s.y + 0.5} r={1.6} fill="none"
+                  stroke={PREDICTION_TRACK_COLOR} strokeOpacity={0.8} strokeWidth={1} strokeDasharray="3 2"
+                  vectorEffect="non-scaling-stroke" />
+              ))}
+            </svg>
+          )}
           {current && loaded[current.id] === 'ready' && showPrediction && predictedPixel &&
             <span className="blink-prediction-reticle" aria-hidden="true" style={{
               left: `${100 * predictedPixel.x / w}%`,
@@ -219,8 +255,19 @@ export function BlinkViewer({ field, frames, composites, imageUrl, candidates, k
         </div>
       </div>
       {current && prediction && showPrediction && <p className="blink-prediction-note muted small">
-        {predictedPixel ? 'Crosshair shows the position predicted from the Gaia catalog.' : 'No catalog position is available on this frame.'}
+        {predictedPixel ? `Crosshair shows the position predicted from ${summary?.catalogName ?? 'the Gaia catalog'}, not a measurement.` : 'No catalog position is available on this frame.'}
       </p>}
+      {current && showPrediction && summary && (
+        // WS7: target, honest label, shift over the frames shown and track legend; source and method on demand.
+        <details className="blink-prediction-note muted small" onKeyDown={(e) => e.stopPropagation()}>
+          <summary style={{ cursor: 'pointer' }}>
+            {summary.caption} <span style={{ color: 'var(--accent)' }}>Source and method</span>
+          </summary>
+          {summary.details.map((d) => (
+            <p key={d} style={{ margin: '4px 0 0' }}>{d}</p>
+          ))}
+        </details>
+      )}
 
       {/* Scrubber */}
       <div className="scrubber-wrap">
