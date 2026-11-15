@@ -23,6 +23,7 @@
     "pipeline/tests/test_imaging_productcheck_caveats.py",
     "pipeline/tests/test_imaging_invert.py",
     "pipeline/tests/test_imaging_animate.py",
+    "pipeline/tests/test_imaging_snrcheck.py",
     "data/products/",
     "tasks/WS2-imaging-detection.md",
     "pipeline/errante/models.py",
