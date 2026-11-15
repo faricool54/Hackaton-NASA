@@ -1,0 +1,102 @@
+/* FE-11 keyboard shortcuts: help button, modal dialog and the dock tab row. Prefix .kb- (FRONTEND_PLAN §4). */
+
+/* The dock's tablist and the Shortcuts button share one grid row of .xp-dock; the tablist keeps its own margins. */
+.kb-tabrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  min-width: 0;
+}
+
+.kb-open {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1, 4px);
+  margin: 0 var(--sp-4, 16px) var(--sp-2, 8px) auto;
+  padding: 3px 10px;
+  font-size: var(--fs-xs, 0.75rem);
+  color: var(--text-2, #b4bdd1);
+  background: transparent;
+  border: 1px solid var(--line, #232a3d);
+  border-radius: var(--r-pill, 999px);
+  white-space: nowrap;
+}
+.kb-open:hover:not(:disabled) { color: var(--text, #e6e9f2); border-color: var(--accent, #7cc4ff); }
+.kb-open:focus-visible { outline: none; box-shadow: var(--focus-ring, 0 0 0 2px #07090f, 0 0 0 4px #a6e0ff); }
+/* Phones and tablets without a keyboard have no use for the button; `?` still opens the dialog with one. */
+@media (hover: none) and (pointer: coarse) {
+  .kb-open { display: none; }
+}
+
+.kb-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal, 60);
+  display: grid;
+  place-items: center;
+  padding: var(--sp-4, 16px);
+  background: rgb(0 0 0 / 0.55);
+}
+
+.kb-dialog {
+  width: min(460px, 100%);
+  max-height: calc(100dvh - 2 * var(--sp-4, 16px));
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: var(--sp-4, 16px) var(--sp-5, 24px) var(--sp-5, 24px);
+  color: var(--text, #e6e9f2);
+  background: var(--surface-1, #0f1422);
+  border: 1px solid var(--line-strong, #34405e);
+  border-radius: var(--r-lg, 14px);
+  box-shadow: var(--shadow-pop, 0 12px 32px rgb(0 0 0 / 0.55));
+  font-family: var(--font-ui, system-ui, sans-serif);
+}
+.kb-dialog:focus { outline: none; }
+
+.kb-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3, 12px);
+  margin-bottom: var(--sp-3, 12px);
+}
+.kb-title { margin: 0; font-size: var(--fs-lg, 1.0625rem); font-weight: var(--fw-bold, 650); }
+.kb-close { min-height: var(--control-h, 34px); }
+.kb-close:focus-visible { outline: none; box-shadow: var(--focus-ring, 0 0 0 2px #07090f, 0 0 0 4px #a6e0ff); }
+
+.kb-list { display: grid; gap: var(--sp-2, 8px); margin: 0; }
+.kb-row {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--sp-3, 12px);
+}
+.kb-keys { display: flex; flex-wrap: wrap; gap: var(--sp-1, 4px); margin: 0; }
+.kb-action { margin: 0; font-size: var(--fs-sm, 0.8125rem); line-height: var(--lh, 1.45); color: var(--text-2, #b4bdd1); }
+
+.kb-key {
+  display: inline-block;
+  min-width: 1.6em;
+  padding: 1px 6px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: var(--fs-xs, 0.75rem);
+  line-height: 1.5;
+  text-align: center;
+  color: var(--text, #e6e9f2);
+  background: var(--surface-2, #171e31);
+  border: 1px solid var(--line-control, #626d88);
+  border-bottom-width: 2px;
+  border-radius: var(--r-xs, 4px);
+}
+
+.kb-note {
+  margin: var(--sp-4, 16px) 0 0;
+  font-size: var(--fs-xs, 0.75rem);
+  line-height: var(--lh, 1.45);
+  color: var(--muted, #8e97ad);
+}
+
+@media (max-width: 420px) {
+  .kb-dialog { padding: var(--sp-3, 12px) var(--sp-4, 16px) var(--sp-4, 16px); }
+  .kb-row { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+}
