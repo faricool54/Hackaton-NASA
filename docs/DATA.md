@@ -190,13 +190,136 @@ propio. Evidencia en [`validation/`](validation/) (#36) y en las PRs #42 (cubo) 
 | Colecciones deep | R Dra: 1954 de sus 2493 frames son `*_deep`, y aportan casi todo el muestreo temporal. La búsqueda por defecto (`spherex_dr1,spherex_qr3`) los excluye: ofrecer deep como opción para variables del NEP. |
 | Huella frente a array | 5 frames de la búsqueda de R Dra contienen la posición en su huella, pero el píxel cae 0–6 px fuera del array. El pipeline lo maneja sin fallar; solo infla los conteos de cobertura. |
 | WCS defectuosa en el archivo | `2026W38_1A_0162_3D6`: 4 estrellas Gaia corridas −1,21 a −1,36 px en x (~7,9″), aunque el header dice `FINAST=0` ("good") y `ASTRONETSOLVED=True`. Las exposiciones vecinas están a < 0,1 px. El patch S3 es idéntico al cutout IBE: el error viene del archivo. Hace falta un control de registro por frame. |
-| Registro WCS típico | Contra Gaia DR3, offset por frame con mediana ≤ 0,04 px y máximo ~0,2 px (ε Ind B, WISE 0855, RW Aur, R Dra). La estabilidad entre temporadas es ≤ 0,15″. |
+| WCS corrida en Barnard | `2026W34_1A_0431_2D6`: corrida (+0,66, −1,50)″ = 0,27 px (análisis A) y (+0,68, −1,60)″ = 0,283 px (revisión R) contra estrellas Gaia DR3 de campo, con `FINAST=0` y `MATCH_NSTARS` 1255, contra 2292 y 2357 en sus vecinas D6 `_1` y `_3`, que están a 0,011 y 0,039 px. El D3 de la misma exposición está a 0,038 px. Fuente: [`validation/barnards-star.md`](validation/barnards-star.md) (#46). Un `MATCH_NSTARS` mucho menor que el de las vecinas podría servir de alarma (INFERIDO, sin probar). |
+| Registro WCS típico | Contra Gaia DR3, offset por frame con mediana ≤ 0,04 px y máximo ~0,2 px (ε Ind B, WISE 0855, RW Aur, R Dra). La estabilidad entre temporadas es ≤ 0,15″. Barnard: estable a 0,014–0,017 px salvo el frame de 0,28 px (#46). |
 | `PSF_FWHM` del header | Es más ancho que el núcleo: la mejor gaussiana mide 0,70–0,86 × header, según el método. Los patches S3 de WS1 no traen el HDU `EPSF`, porque `s3range` lee solo PRIMARY, IMAGE, FLAGS, VARIANCE, ZODI y WCS-WAVE. |
 | Saturación | R Dra: `OVERFLOW` en el núcleo en 2488 de 2488 frames. RW Aur: en 304 de 335 (todo D2–D6). `NONLINEAR` no aparece nunca en ninguno de los dos. Los píxeles `OVERFLOW` son **finitos**, no NaN. |
+| Saturación de Barnard | ✅ Satura (#46, [`validation/barnards-star.md`](validation/barnards-star.md), mismos conteos en el análisis y en la revisión independiente). A ≤ 3 px de la posición predicha: `OVERFLOW` en el núcleo en **357 de 358** exposiciones (la única sin `OVERFLOW` es `2025W34_2B_0030_1D6`, 4,58 µm); `NONLINEAR` **nunca**; NaN en el núcleo en 240 (siempre junto con `OVERFLOW`; en D5/D6 solo 4 de 119), pero píxeles `OVERFLOW` **finitos** en 339. D1 a λ < 0,80 µm satura menos (media 2,3 px `OVERFLOW` contra 5,0 a ≥ 1,00 µm). En el cubo DR1 el núcleo queda vacío en 90 de 100 planos (§3.3). |
 | WISE 0855 | Se ve solo en D5/D6: SNR ~3,5 por exposición y 21–25 sumando por detector. En D1–D4 no se detecta. |
 | Cubo HiPS DR1 en S3 | Los tiles FITS (512×512×102) se leen por Range. El `obs_description` de IRSA lo presenta como producto **de visualización**: sirve para el panel, no para fotometría fina. `cube_spectrum` está en #42. |
 | Snapshots de búsqueda | Los JSON de `data/index/search/` coinciden exactamente con SIA en vivo para los cinco blancos (centro y círculo descentrado), según #43. |
 | TAP | No respondió en toda la sesión del 14/11: el fallback TAP sigue sin probarse en vivo (§6). |
+
+### 3.3 Para el deploy (WS4) ✅ (2026-11-14, código en `849a2d0`, simulación y mediciones en vivo)
+
+Verificado por WS1 (Claude) la noche del 14/11 (≈ 02 UTC del 15/11) desde una laptop en Buenos Aires, leyendo
+`backend/Dockerfile`, `backend/errante_api/{settings,live_service}.py` y `pipeline/errante/data/*.py`. No cambia
+código de WS1; lo que toca `backend/` queda como `TODO(WS4)`.
+
+**a) Los snapshots de búsqueda no entran en la imagen.**
+
+- `irsa.DEFAULT_SNAPSHOT_DIR = settings.REPO_ROOT / "data" / "index" / "search"`, y `REPO_ROOT` es la carpeta dos
+  niveles arriba de `errante/settings.py`. En el contenedor (`pip install -e 'pipeline[science]'` en `/app`) eso
+  da `/app/data/index/search`, pero `backend/Dockerfile` solo hace `COPY data/demo`. Si IRSA se cae, la búsqueda
+  **no** cae a los snapshots de #43: el único rastro es un `WARNING` por proceso (`Search snapshot directory ...
+  does not exist: the IRSA-outage fallback is off`) y la API responde el mismo 502/504 que sin snapshots.
+- Simulación: copia de `pipeline/errante` + `pyproject.toml` en una carpeta sin `data/`, caché vacía, SIA y TAP
+  apuntando a un puerto cerrado (`127.0.0.1:9`, `ConnectionError`), `ERRANTE_SEARCH_ATTEMPTS=1` y
+  `irsa.search_frames_report(269.44623, 4.76870)` (Barnard):
+
+  | Caso | Resultado |
+  |---|---|
+  | Sin `data/index` ni variable (= imagen actual) | `SearchError` con `is_outage=True` a los 4,1 s |
+  | `ERRANTE_SEARCH_SNAPSHOTS=<repo>/data/index/search` | responde `service='snapshot'`, `stale=True`, 358 frames y el warning con la fecha del snapshot (4,1 s) |
+  | `data/index` copiado junto a `pipeline/` (= `COPY data/index /app/data/index`) | igual que el anterior |
+
+- `backend/Dockerfile.dockerignore` no excluye `data/index`, así que el `COPY` funciona (5 JSON, 492 KB).
+- `ERRANTE_SEARCH_SNAPSHOTS` se lee **al importar** `errante.data.irsa` (`irsa.SNAPSHOT_DIR`): definila en el entorno
+  del proceso. `0`/`off` apaga el respaldo sin warning.
+- **TODO(WS4):** agregar `COPY data/index /app/data/index` junto a `COPY data/demo` (o copiarlos a otra ruta y definir
+  `ERRANTE_SEARCH_SNAPSHOTS`). WS1 no edita el Dockerfile.
+
+**b) Presupuestos de tiempo frente a `ERRANTE_API_TIMEOUT_S` (30 s).**
+
+`live_service.call` espera 30 s con `asyncio.wait_for` y contesta 504, pero el trabajo **sigue corriendo** en su
+hilo y retiene uno de los `ERRANTE_API_MAX_CONCURRENT` (2) cupos hasta terminar; mientras tanto las demás consultas
+reciben 503 ("Archive capacity is busy"). Cada presupuesto de WS1 tiene que quedar por debajo de 30 s para contestar
+a tiempo **y** para liberar el cupo. Todas estas variables se leen al importar (cambiarlas = reiniciar el proceso).
+
+| Variable | Default (código) | Qué acota | Recomendado en el contenedor |
+|---|---|---|---|
+| `ERRANTE_SEARCH_DEADLINE_S` | 60 (`settings.py`) | Búsqueda completa: SIA (≤ la mitad) + TAP | **25**. Hoy una búsqueda sin respaldo puede retener un cupo hasta 60 s: 30 s más allá del 504. SIA tardó 3,7–4,0 s (abajo). |
+| `ERRANTE_SEARCH_FALLBACK_DEADLINE_S` | 20 | Tiempo para IRSA cuando una caché vencida o un snapshot pueden contestar | 20 (dejar). Solo sirve si los snapshots están en la imagen (a). |
+| `ERRANTE_SIA_TIMEOUT_S` / `ERRANTE_TAP_TIMEOUT_S` / `ERRANTE_SEARCH_ATTEMPTS` | 30 / 60 / 4 | Cada intento | Dejar: el deadline los recorta. |
+| `ERRANTE_CUBE_DEADLINE_S` | 20 **por fuente** (`cube.py`) | `cube_spectrum`: S3 y, si falla, la copia de IRSA → peor caso 40 s | **12** (2 × 12 = 24 s). Medido: 0,7–2,6 s. |
+| `ERRANTE_CUBE_TIMEOUT_S` | 10 (conexión: mín(5, valor)) | Cada Range del cubo (4 B–64 KB) | Dejar. |
+| `ERRANTE_CUBE_PARALLEL` | 32 | Requests en vuelo por fuente, en todo el proceso | Dejar. |
+| `point_series(deadline_s=...)` | sin límite. **No hay variable**: es un parámetro (CLI `errante point --deadline`) | Lecturas de la serie. La búsqueda interna **no** queda acotada por `deadline_s` (solo por `ERRANTE_SEARCH_*`), pero su tiempo se descuenta de él | Si WS4 la expone en vivo: pasar `deadline_s` ≤ 25 y usar `ERRANTE_SEARCH_DEADLINE_S` ≤ 15. Los frames que no llegan quedan como `TimeoutError` y esa serie no se cachea. |
+| `ERRANTE_POINT_MAX_PARALLEL` | 48 (tope 64) | Requests S3 en vuelo por serie | Dejar (medido en laptop). ❓ CPU del host de deploy. |
+| `ERRANTE_HTTP_TIMEOUT_S` | 120 | Timeout (conexión y lectura) de cada request de `s3range` (que usa `point`) y de `cache`; también de los requests que siguen en segundo plano tras el deadline de una serie | Considerar 30 en la API (❓ no medido; los jobs de build bajan archivos más grandes). |
+
+Mediciones en vivo (2026-11-15 ~02:14 UTC, laptop en Buenos Aires → S3 us-east-1; el host de deploy, más cerca de
+S3, debería andar más rápido, ❓ sin medir):
+
+- `search_frames_report` puntual sin caché ni snapshot: Barnard 3,7 s (SIA, 358 frames), R Dra 4,0 s (SIA, 539).
+- `cube_spectrum` con los parámetros por defecto (sin NHITS ni FLAGS), ε Ind B, caché vacía: tile en frío **2,6 s**
+  (106 requests, 38 KB); apertura 2 en el mismo proceso 0,7 s (102 requests, 838 KB); proceso nuevo con los headers
+  en disco 2,4 s (abrir conexiones) y después 0,7–0,8 s; resultado cacheado 0,00 s. Con NHITS + FLAGS (302
+  requests, las fixtures de d): 1,8–4,0 s.
+- `point_series` (medido en #45, no repetido): Barnard 358 frames, 3,4 s de SIA + 15,1 s de lecturas en frío y 7,9 s
+  con los layouts cacheados; R Dra 539 frames, 4,3 + 23,3 s → en frío **no entra** en 25 s (resultado parcial).
+
+**c) Otras suposiciones de WS1 sobre rutas y disco (leyendo `pipeline/errante/data/*.py`).**
+
+- Todo lo que WS1 escribe va bajo `settings.CACHE_DIR` (`ERRANTE_CACHE_DIR=/app/data/cache` en el Dockerfile, creado
+  y con dueño 10001): `queries/` (búsquedas), `cube/dir` (~40 KB por tile) y `cube/spectra` (~7 KB por espectro),
+  `s3range/dir`, `point/layout`, `point/wave` y `point/series`; el backend agrega `api/` y `jobs/`. Todas las
+  escrituras son best-effort: un `OSError` no rompe la lectura, solo se pierde la caché. **No hay desalojo ni tope
+  de tamaño**: crece con cada punto o tile distinto. En un disco efímero se borra con cada redeploy (correcto, solo
+  más lento la primera vez).
+- La única ruta del repo que WS1 usa en ejecución es `data/index/search` (a). En producción solo se lee;
+  `errante snapshot-search` la escribe, pero es una herramienta de desarrollo.
+- `fields.toml` viaja dentro del paquete (`errante/config/`, leído por `build.py`), así que `COPY pipeline/errante`
+  alcanza.
+- Salida a red: HTTPS a `nasa-irsa-spherex.s3.us-east-1.amazonaws.com` (píxeles y cubo) y a `irsa.ipac.caltech.edu`
+  (SIA/TAP y respaldo del cubo). Sin claves. `s3range` respeta `REQUESTS_CA_BUNDLE`/`CURL_CA_BUNDLE` si el host usa
+  un almacén de certificados propio.
+
+**d) Espectros reales como fixtures para WS4/WS5.** `pipeline/tests/fixtures/ws1/cube_spectra/<id>_ap{0,2}.json`:
+`CubeSpectrum.to_dict()` en JSON estricto (NaN → `null`), 7,6–8,7 KB cada una, cargadas por
+`pipeline/tests/test_data_cube_spectra_fixtures.py`. Llamada en vivo del 2026-11-15 ~02:10 UTC desde S3, en el
+centro de `fields.toml`, con `with_nhits` y `with_flags`. El cielo vacío es (200,0, +40,1): sin fuentes Gaia DR3 a
+< 45″ y la AllWISE más cercana a 19″ (W1 = 17,2), según VizieR CfA.
+
+| Punto | Tile, píxel (x, y) | Planos válidos (ap 0 = ap 2) | Núcleo vacío (NaN, NHITS = 0) | Válidos con `OVERFLOW` |
+|---|---|---|---|---|
+| Barnard | 7945 (98, 103) | **10**: solo D5/D6, ≥ 4,29 µm | 90 | 2 |
+| ε Ind B | 11391 (98, 408) | 100 | 0 | 0 |
+| WISE 0855 | 10226 (212, 238) | 100 | 0 | 0 |
+| RW Aur | 277 (400, 252) | 85 | 15 (D4, 2,51–3,77 µm) | 50 |
+| R Dra | 2928 (20, 425) | **0** | 100 | 0 |
+| Cielo vacío | 2708 (178, 220) | 100 | 0 | 0 |
+
+- Los planos 50 y 51 (dicroicos) están siempre en blanco. La apertura de 2 px no rescata un núcleo vacío.
+- En el FLAGS del cubo, los planos con el núcleo vacío llevan `SUR_ERROR` + `BLOOM` y **nunca** `OVERFLOW`, aunque
+  en las exposiciones L2 esos mismos núcleos tienen `OVERFLOW` (§3.2). En el cubo, `OVERFLOW` marca en cambio planos
+  **válidos** (finitos, probablemente subestimados). `SOURCE` está prendido en los 100 planos del cielo vacío: el
+  FLAGS del cubo acumula los bits de las entradas, y `SOURCE` no sirve para decir "acá hay una estrella".
+
+**e) Propuesta para un futuro PR `contract:` (espectro de un punto).** No se tocó `models.py`. Un modelo nuevo y
+opcional (p. ej. `PointSpectrum`), con campos que salen directo de `CubeSpectrum.to_dict()`:
+
+| Campo | Tipo | Origen / regla |
+|---|---|---|
+| `ra`, `dec` | float, grados ICRS | posición pedida |
+| `pixel_center` | `{ra, dec}` | centro del píxel del cubo usado (píxel de 12,88″: hasta ~9″ de la posición pedida) |
+| `wavelength_um`, `bandwidth_um` | 102 floats | tabla WCS-WAVE del cubo, fija: 0,753–4,988 µm |
+| `flux` | 102 × `float \| null` | brillo superficial del píxel o media de la apertura en **MJy/sr**; `null` donde `valid` es falso |
+| `valid` | 102 bool | núcleo con datos, plano no en blanco y, con apertura, ≥ 50 % de sus píxeles con datos |
+| `unit` | `"MJy/sr"` | `BUNIT` del cubo |
+| `aperture_px`, `n_pixels` | int | radio pedido (0–10) y píxeles de la apertura (1, o 13 con radio 2) |
+| `n_used` (opcional) | 102 int | píxeles con datos por plano. Flujo integrado [Jy] = `flux * n_used * pixel_sr * 1e6`, sin restar fondo |
+| `pixel_sr`, `pixel_scale_arcsec` | float | 3,901e-9 sr y 12,8831″ |
+| `blank_planes` | int[] | `[50, 51]` |
+| `mjd_range` | `[float, float]` | MJD de las entradas del coadd: **no hay eje temporal** |
+| `source`, `release` | str | `s3` o `irsa`; `dr1/hips5_cube/hips_20261026` |
+| `notes` | str[] | la primera es siempre la nota de IRSA "for visualization" (`cube.NOTE_VISUALIZATION`): la UI tiene que mostrarla |
+| `saturated` | bool | **regla:** algún plano fuera de `blank_planes` con `core_valid` falso (núcleo NaN, NHITS = 0). Sale de la llamada por defecto, sin FLAGS. Medido: verdadero en Barnard, RW Aur y R Dra; falso en ε Ind B, WISE 0855 y el cielo vacío. `cube_spectrum` ya agrega una nota equivalente |
+| `n_core_missing` | int | cuántos planos cumplen la regla (Barnard 90, RW Aur 15, R Dra 100) |
+| `overflow_planes` (opcional) | int[] | solo con `with_flags`: planos válidos con `OVERFLOW` en el FLAGS del cubo (RW Aur 50, Barnard 2) |
+
+`tile`, `pixel`, `nhits`, `flags` y `timings` quedan fuera del contrato (sirven para depurar). La regla de
+`saturated` está implementada en el test (`saturation_hint`) para que el PR de contrato la copie.
 
 ## 4. Instrumento y survey 📄
 
@@ -216,7 +339,7 @@ propio. Evidencia en [`validation/`](validation/) (#36) y en las PRs #42 (cubo) 
 | JPL Horizons | https://ssd.jpl.nasa.gov/api/horizons.api | efemérides de un objeto |
 | IMCCE SkyBoT | https://ssp.imcce.fr/webservices/skybot/api/conesearch.php | cone search por época (JSON, CORS) |
 | SIMBAD | https://simbad.cds.unistra.fr/ | estrellas/enanas marrones con movimiento propio (⚠ CDS degradado: usar Sesame de CfA) |
-| Sesame / VizieR (CfA) ✅ | https://vizier.cfa.harvard.edu/viz-bin/nph-sesame/-oxp/SNV?NOMBRE | resolver nombres con pm; Gaia DR3 `I/355/gaiadr3` (con CORS) |
+| Sesame / VizieR (CfA) ✅ | https://vizier.cfa.harvard.edu/viz-bin/nph-sesame/-oxp/SNV?NOMBRE | resolver nombres con pm; Gaia DR3 `I/355/gaiadr3` (con CORS). ⚠️ `GJ 699` responde solo con VizieR local: 17:57:51.47 +04:33:03.2, a 514,8″ (**8,6′**) de la posición J2000 de Barnard (una posición de época antigua). Resolver con «Barnard's Star» o con el `source_id` Gaia DR3 4472832130942575872 ([`validation/barnards-star.md`](validation/barnards-star.md), #46) |
 
 ## 6. Abierto ❓
 
@@ -226,8 +349,10 @@ propio. Evidencia en [`validation/`](validation/) (#36) y en las PRs #42 (cubo) 
 - Política de cita/redistribución para publicar PNGs derivados (incluir créditos siempre).
 - HiPS: ✅ IRSA publica el cubo SPHEREx DR1 (102 canales, orden 5, con CORS); los HiPS QR2 de CDS dan 404 por el
   incidente. ✅ Aladin Lite 3.8.2 lo renderiza (gotchas en [`VISION.md`](VISION.md)).
-- ✅ WISE 0855 visible en D5/D6 y ✅ saturación de R Dra y RW Aur (§3.2). ❓ Saturación de Barnard; ❓ throughput a S3
-  desde el host de deploy.
+- ✅ WISE 0855 visible en D5/D6 y ✅ saturación de R Dra, RW Aur y **Barnard** (§3.2; Barnard cerrado con #46).
+  ❓ Throughput a S3 y tiempos de `cube_spectrum`/`point_series` desde el host de deploy (§3.3 solo midió desde
+  Buenos Aires).
+- ❓ Snapshots de búsqueda en la imagen de deploy: hoy no entran (§3.3 a, `TODO(WS4)`).
 
 ## 7. Comprobación de los enlaces del enunciado (2026-11-14)
 
