@@ -300,6 +300,27 @@
         "Products: frame_flags in the five published field.json (no PNG or other key changed)"
       ],
       "humans": "mateoa007 (with OpenAI Codex) authored it; V0id47 with Claude Code reviewed and approved the computation as WS2 owner; faricool54 merged it as coordinator"
+    },
+    {
+      "number": 136,
+      "title": "ws2: honest false-color composites and republished golden fields (WISE 0855 noise, mixed detectors, RW Aur text)",
+      "merged_at": "2026-11-15T20:53:42Z",
+      "ai_generated": [
+        "Code: noisy-channel black point, target-not-detected, mixed-detector and curated caveat notes in imaging/color.py",
+        "Tests: test_imaging_color_caveats.py",
+        "Products: composites and notes of the five published fields updated in place (frames, frame PNGs and frame_flags unchanged)"
+      ],
+      "humans": "V0id47 directed the work and merged it; faricool54 reviewed it after the merge"
+    },
+    {
+      "number": 137,
+      "title": "ws2: composite notes say a non-detection is not absence (+ field-star colour, per-season black point, flag scope)",
+      "merged_at": "2026-11-15T21:19:51Z",
+      "ai_generated": [
+        "Code and tests: composite note texts in imaging/color.py",
+        "Products: notes of the five published field.json updated in place (no PNG changed)"
+      ],
+      "humans": "V0id47 directed the work and merged it, following faricool54's review of #136"
     }
   ],
   "trailer_note": "The squash commits of rpccp's #53-#56 also list V0id47 and Claude as co-authors because those branches contained the #39 contract commits; their own AI use is recorded by WS4/WS5 (Codex)"
