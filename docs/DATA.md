@@ -68,7 +68,7 @@ archivo inspeccionado). ⚠️ `OUTLIER`/`TRANSIENT` pueden dispararse **justo s
 (no está donde el modelo del cielo estático lo espera): no los enmascares a ciegas para buscar movers.
 Implementado en `errante.imaging.flags` (`DEFAULT_BAD`, `MAYBE_MOVER`, `bits_from_header`).
 ✅ 2026-11-14: el bit 27 `SNOWBALL` ("Pixel part of a snowball artifact") está en los headers FLAGS de dr1 y qr3
-(`2025W36_1A_0095_1D1`, `2026W38_1A_0565_1D6`). TODO(WS2): no está en `FLAG_BITS` ni en `DEFAULT_BAD`.
+(`2025W36_1A_0095_1D1`, `2026W38_1A_0565_1D6`). ✅ WS2 lo agregó a `FLAG_BITS` y `DEFAULT_BAD` en #48.
 
 ## 3. Buscar y recortar con IRSA (✅ verificado en vivo el 2026-11-14: ver §3.0)
 
