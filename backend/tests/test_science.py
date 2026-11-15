@@ -281,3 +281,64 @@ def test_exposure_photometry_preserves_errors_negative_flux_and_bad_quality(monk
     assert not result.points[2].usable and "flags_unavailable" in result.points[2].flags
     assert result.stale and result.failures[0].reason == "download_failed"
     assert "private/path" not in result.model_dump_json()
+
+
+def test_catalog_motion_extracts_at_exposure_position_and_changes_cache_identity(tmp_path, monkeypatch):
+    from astropy.wcs import WCS
+
+    from errante.imaging.photometry import propagate
+
+    wcs = WCS(naxis=2)
+    wcs.wcs.crval, wcs.wcs.crpix = [10, 0], [13, 13]
+    wcs.wcs.cdelt, wcs.wcs.ctype = [-6.15 / 3600, 6.15 / 3600], ["RA---TAN", "DEC--TAN"]
+    yy, xx = np.mgrid[:25, :25]
+    data = 40 * np.exp(-((xx - 12) ** 2 + (yy - 15) ** 2) / (2 * 0.7**2))
+    image = SimpleNamespace(
+        data_minus_zodi=data,
+        data=data,
+        flags=np.zeros((25, 25), dtype=np.int64),
+        variance=np.ones((25, 25)),
+        header={"OMEGA_MEDIAN": 6.15**2},
+        wcs=wcs,
+        obs_id="explicit-moving-test",
+        detector=1,
+        mjd=61365.25,
+        source="https://example.invalid/moving-test.fits",
+        wavelength_at=lambda *a: (1.0, 0.05),
+    )
+    sample = SimpleNamespace(
+        obs_id=image.obs_id,
+        detector=1,
+        release="dr1",
+        image=image,
+        flags=image.flags,
+        variance=image.variance,
+        zodi=np.zeros((25, 25)),
+    )
+    calls = []
+
+    def series(ra, dec, **kwargs):
+        calls.append((ra, dec, kwargs["box_px"]))
+        return SimpleNamespace(samples=[sample], failures=[], search={"n_selected": 1, "n_found": 3})
+
+    monkeypatch.setattr("errante.data.point.point_series", series)
+    monkeypatch.setattr("errante.data.point.to_spherex_image", lambda sample: sample.image)
+    fixed = SpectrumRequest(ra=10, dec=0, source="l2_exposures")
+    moving = SpectrumRequest(
+        ra=10,
+        dec=0,
+        source="l2_exposures",
+        proper_motion={"ra_cosdec_masyr": 0, "dec_masyr": 18450, "epoch_mjd": 61000},
+    )
+    fixed_result = science_ops.exposure_spectrum(fixed, None)
+    result = science_ops.exposure_spectrum(moving, None)
+    expected = propagate(10, 0, (0, 18450, 61000), image.mjd)
+    assert result.points[0].position.dec == pytest.approx(expected[1])
+    assert result.points[0].flux > 3 * fixed_result.points[0].flux
+    assert result.proper_motion == moving.proper_motion and result.truncated
+    assert calls == [(10, 0, 25), (10, 0, 81)]
+    service = ScienceService(Settings(data_dir=tmp_path / "public", live_cache_dir=tmp_path / "private"))
+    try:
+        assert service._identity("spectrum", fixed, None)["id"] != service._identity("spectrum", moving, None)["id"]
+    finally:
+        service.close()

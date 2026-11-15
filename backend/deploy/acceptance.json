@@ -1,0 +1,59 @@
+{
+  "checked_on": "2026-11-15",
+  "environment": "local Docker Desktop Linux container; HTTP origin localhost:8017",
+  "public_deployment": false,
+  "real_showcase_fields": 5,
+  "frames_per_showcase": 40,
+  "live_coordinate_job": {
+    "ra": 269.4465,
+    "dec": 4.7689,
+    "size_deg": 0.05,
+    "detectors": [
+      2
+    ],
+    "frames": 8,
+    "id": "436e99b4444143dd974bfe0a3a4a5126",
+    "ready_before_and_after_restart": true,
+    "png_served": true,
+    "archive_selection": "IRSA unavailable; explicitly stale committed Barnard search snapshot, real FITS measurements"
+  },
+  "precomputed_comparisons": {
+    "source": "real SPHEREx FITS through existing WS1/WS2 methods",
+    "images": {
+      "barnards-star": 36,
+      "eps-indi-b": 52,
+      "r-draconis": 36,
+      "rw-aurigae": 36,
+      "wise-0855": 36
+    },
+    "failed_inputs_reported": 0,
+    "independent_R05_validation": false
+  },
+  "github": {
+    "repository_private": true,
+    "pages_enabled": false,
+    "current_account_admin": false
+  },
+  "external_dependencies": [
+    "Team activates/verifies Google Cloud account/project/credits and accepts resource estimate",
+    "Authenticated cloud project and domain/DNS for HTTPS publication",
+    "Public URL browser/mobile acceptance with WS5/WS6",
+    "Repository owner applies/verifies required review policy and confirms team roles",
+    "WS2 scientific detection-limits contract for optional P2 /api/limits",
+    "Independent WS3 scientific review; WS5 visual consumption"
+  ],
+  "ai_assistance": "OpenAI Codex assisted code/tests/docs; PNGs are numerical reductions of real FITS, not generated imagery",
+  "live_motion_spectrum": {
+    "points": 8,
+    "usable": 0,
+    "failures": 0,
+    "dated_positions": true,
+    "stale_search": true,
+    "interpretation": "All 8 Barnard D2 cores were flagged saturated/bad pixels and remain unusable. No usable spectrum or scientific recovery is claimed."
+  },
+  "final_image_job": {
+    "id": "8bbfc0f54ecf47b6bccc79cbd817519b",
+    "field_id": "job-8bbfc0f54ecf47b6bccc79cbd817519b-4e9c4de1f5214a5b81c3456b26f942a2",
+    "frames": 8
+  }
+}

@@ -91,7 +91,7 @@ def cube_spectrum(request: SpectrumRequest) -> SpectrumResponse:
 
 def exposure_spectrum(request: SpectrumRequest, field: SkyField | None) -> SpectrumResponse:
     from errante.data.point import point_series, to_spherex_image
-    from errante.imaging.photometry import APERTURE_PX, measure
+    from errante.imaging.photometry import APERTURE_PX, SPHEREX_ERA_MJD, measure, propagate
     from errante.models import FrameRef
 
     refs = None
@@ -107,10 +107,13 @@ def exposure_spectrum(request: SpectrumRequest, field: SkyField | None) -> Spect
             FrameRef(obs_id=f.obs_id, detector=f.detector, mjd=f.mjd, release=f.release, irsa_uri=f.source_uri)
             for f in selected
         ]
+    motion = request.proper_motion
+    pm = (motion.ra_cosdec_masyr, motion.dec_masyr, motion.epoch_mjd) if motion else None
+    query_ra, query_dec = propagate(request.ra, request.dec, pm, SPHEREX_ERA_MJD)
     series = point_series(
-        request.ra,
-        request.dec,
-        box_px=25,
+        query_ra,
+        query_dec,
+        box_px=81 if pm else 25,
         detectors=request.detectors or None,
         mjd_min=request.mjd_min,
         mjd_max=request.mjd_max,
@@ -131,7 +134,8 @@ def exposure_spectrum(request: SpectrumRequest, field: SkyField | None) -> Spect
         fid = f"{sample.obs_id}D{sample.detector}"
         try:
             image = to_spherex_image(sample)
-            value = measure(image, request.ra, request.dec, frame_id=fid, release=sample.release)
+            ra, dec = propagate(request.ra, request.dec, pm, image.mjd)
+            value = measure(image, ra, dec, frame_id=fid, release=sample.release)
             if value is None:
                 failures.append(MeasurementFailure(frame_id=fid, reason="no_overlap"))
                 continue
@@ -159,6 +163,7 @@ def exposure_spectrum(request: SpectrumRequest, field: SkyField | None) -> Spect
                     usable=value.usable and sample.flags is not None and sample.zodi is not None,
                     aperture_correction=finite(value.aperture_correction),
                     source_uri=image.source,
+                    position={"ra": ra, "dec": dec},
                 )
             )
         except (ValueError, OSError, KeyError, IndexError):
@@ -169,6 +174,7 @@ def exposure_spectrum(request: SpectrumRequest, field: SkyField | None) -> Spect
         source="l2_exposures",
         unit="mJy",
         static_coadd=False,
+        proper_motion=motion,
         points=points,
         field_id=request.field_id,
         built_at=datetime.now(UTC),
@@ -176,12 +182,21 @@ def exposure_spectrum(request: SpectrumRequest, field: SkyField | None) -> Spect
         background_subtracted=True,
         mjd_range=(min(epochs), max(epochs)) if epochs else (None, None),
         failures=failures,
-        truncated=bool(series.search.get("truncated") or series.search.get("overflow")),
+        truncated=bool(
+            series.search.get("truncated")
+            or series.search.get("overflow")
+            or series.search.get("n_selected", 0) < series.search.get("n_found", 0)
+        ),
         stale=bool(series.search.get("stale")),
         notes=[
             "Forced aperture photometry on native IMAGE - ZODI stamps, with a 4–7 pixel local sky annulus.",
             "At most the requested number of exposures, spread in time. Wavelength and epoch remain per point.",
-            "No proper-motion/parallax propagation: this measures the requested fixed sky position.",
+            (
+                "Linear catalog proper motion applied per exposure (mu_alpha*cos(dec), mu_delta, mas/year); no parallax or radial velocity. Predicted positions are not measured SPHEREx astrometry."
+                if pm
+                else "No proper-motion/parallax propagation: this measures the requested fixed sky position."
+            ),
+            "Coverage searched at MJD 61000; moving-source stamps are 81 pixels across. A trajectory leaving a stamp is reported as no_overlap, not a zero flux.",
             "Aperture correction uses stars in each small stamp when available; otherwise flux is uncorrected aperture flux.",
             "Negative flux is retained. Saturation, missing flags and bad pixels are excluded from usable points.",
             "A multi-epoch spectrum mixes variability and wavelength; filter dates before interpreting a spectral shape.",

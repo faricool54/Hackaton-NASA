@@ -20,5 +20,5 @@
     "arbitrary_coordinate_job": "4 frames plus manifest and images served over HTTP",
     "scientific_R05_validation": false
   },
-  "cache_revision": "display-mask-v4 with source/dependency fingerprint and queued-version fencing; transitive detect modules and products.py included with job/science cache regressions (Codex-assisted)"
+  "cache_revision": "display-mask-v4 with source/dependency fingerprint and queued-version fencing; transitive detect modules and products.py included with job/science cache regressions; Codex-assisted WS4 closeout adds schema 0.7.0 catalog-motion extraction, full-stack Docker/Compose/HTTPS and private runtime seeding, real comparison precomputation/GET/static export (196 native-FITS PNGs, no generated imagery), delivery regressions and cloud/admin handoff. Independent scientific/human review and public cloud acceptance remain pending."
 }

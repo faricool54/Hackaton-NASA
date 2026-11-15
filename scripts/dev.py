@@ -137,6 +137,16 @@ def build_fields() -> None:
 
 def api() -> None:
     port = os.environ.get("API_PORT", "8000")  # two agents on one machine: API_PORT=8001
+    runtime = ROOT / "data" / "cache" / "local"
+    env = {
+        "ERRANTE_DATA_DIR": os.environ.get("ERRANTE_DATA_DIR", str(runtime / "products")),
+        "ERRANTE_CACHE_DIR": os.environ.get("ERRANTE_CACHE_DIR", str(runtime / "private")),
+        "ERRANTE_JOBS_DIR": os.environ.get("ERRANTE_JOBS_DIR", str(runtime / "private" / "jobs")),
+        "ERRANTE_API_CACHE_DIR": os.environ.get("ERRANTE_API_CACHE_DIR", str(runtime / "private" / "api")),
+        "ERRANTE_CONTEXT_CACHE_DIR": os.environ.get("ERRANTE_CONTEXT_CACHE_DIR", str(runtime / "private" / "context")),
+    }
+    if not os.environ.get("ERRANTE_DATA_DIR"):
+        run(exe("python"), "-m", "errante_api.bootstrap", str(ROOT / "data" / "products"), env["ERRANTE_DATA_DIR"])
     run(
         exe("uvicorn"),
         "errante_api.main:app",
@@ -148,6 +158,7 @@ def api() -> None:
         "--port",
         port,
         cwd=ROOT / "backend",
+        env=env,
     )
 
 

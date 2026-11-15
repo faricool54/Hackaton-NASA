@@ -30,6 +30,8 @@ Implementación y validación de esta etapa: [PR #6](https://github.com/faricool
 
 - [ ] **WS4-1 (P0) Coordinación**: completar `docs/TEAM.md`, proteger `main` (requerir CI verde + 1 review),
   revisar PRs de contrato.
+  Contratos técnicos revisados e integrados. Cierre externo: `rpccp` tiene push pero no admin; dueño del repo
+  debe aplicar/verificar la política. Nombres/roles faltantes de TEAM se confirman con el equipo, no se inventan.
 - [x] **WS4-2 (P0) Endpoints en vivo robustos**: timeouts, caché en memoria (TTL) + disco, errores 502/504 con
   JSON claro, límite de concurrencia hacia IRSA. *Acepta:* tests con funciones mockeadas (lento, error, ok).
 - [x] **WS4-3 (P0) Integración continua de campos reales**: script/target `make build-fields` que construya los
@@ -48,7 +50,9 @@ Implementación y validación de esta etapa: [PR #6](https://github.com/faricool
 - [ ] **WS4-4 (P0, R01/R03) Deploy** del servicio de construcción por coordenadas (o equivalente verificable)
   con `ERRANTE_DATA_DIR`, worker/caché y CORS configurado. La web estática sola no cubre coordenadas arbitrarias.
   Documentar en `backend/README.md` y probar frontend → job → imágenes desde la URL pública.
-  Contenedor y arranque productivo preparados; falta proveedor/URL y prueba pública; contrato y recorrido local ya implementados.
+  Entrega web+API con cinco campos reales, snapshots y jobs implementada/probada; volumen persistente,
+  HTTPS opcional y receta de Google Compute Engine en `backend/deploy/`. Falta proyecto/cuenta con créditos
+  verificados, dominio/URL y aceptación pública. No se marcó un contenedor local como deploy público.
 - [x] **WS4-5 (P0, R03/C04/C06) Campos por coordenadas arbitrarias.** Diseñar contrato de solicitud
   RA/Dec/FOV/filtros, job ID y polling; reutilizar `build.build_field` básico. Validar rangos, FOV/píxeles/frames,
   concurrencia y tiempos. Caché por todos los parámetros y releases/versiones. Estados: en curso, listo,
@@ -60,8 +64,11 @@ Implementación y validación de esta etapa: [PR #6](https://github.com/faricool
   `frontend/` con `VITE_BASE` y publica.
   Para S03, probar app/demo/materiales finales sin login, permisos ni registro; videos/documentos se alojan
   externamente. El PDF no autoriza sustituir una demo de proyecto por una URL inaccesible o solo documentación.
-  Workflow opt-in `pages.yml` implementado; habilitar Pages/variables y comprobar acceso anónimo aún pendiente.
-- [ ] **WS4-7 (P2) `/api/limits`** cuando WS2 defina el contrato de límites.
+  Workflow opt-in `pages.yml` usa `real` por defecto y exporta curvas/comparaciones precalculadas.
+  La entrega de un solo origen no necesita Pages. Publicación externa y acceso anónimo pendientes.
+- [ ] **WS4-7 (P2, dependencia externa) `/api/limits`** cuando WS2 defina el contrato científico de límites.
+  No hay ese contrato ni límites medidos: se difiere con WS2. No reemplazar límites de detección por cupos
+  del servidor ni inventar medidas. No bloquea el alcance R01–R04 de WS4.
 - [x] **WS4-8 (P1, C02) Espectros bajo demanda.** `POST /api/spectra` independiente de candidatos:
   cubo DR1 estático MJy/sr o fotometría L2 mJy por exposición. Calidad/fuentes/fechas, errores, límites,
   hijo supervisado y caché. La integración usa WS1 cube/point y WS2 photometry; no afirma validación R05.
@@ -76,6 +83,13 @@ Implementación y validación de esta etapa: [PR #6](https://github.com/faricool
   `docs/submission/ai-usage.json`; coordinar procedencia de futuros productos sin confundir simulación numérica con imagen IA.
 
 ## Estado técnico actualizado (14/11/2026)
+
+- [x] **WS4-12 (P1, C02/V9) Movimiento propio en espectros L2.** Contrato 0.7.0 (#81), parámetros completos
+  en caché/worker, propagación y fotometría de WS2, posición por exposición, rechazo en cubo estático y
+  limitaciones explícitas. Prueba con una fuente sintética móvil verifica la extracción; no certifica astrometría R05.
+- [x] **WS4-13 (P1, C03/V11) Comparaciones precalculadas.** Cinco blancos, 196 PNG reales y JSON tipado,
+  CLI offline supervisado, GET sin cómputo y exportación para sitio estático. Verificación de versiones de
+  campo, integridad de PNG y procedencia; fuente/manifest originales conservados. Consumo visual corresponde a WS5.
 
 - [x] **WS4-11 (P1, R05/C04) Curvas de luz precalculadas: implementación del backend.** Índice y GET tipados,
   caché por contenido/ETag, CLI offline con hijo supervisado, publicación atómica y dos productos FITS reales

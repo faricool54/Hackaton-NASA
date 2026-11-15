@@ -66,7 +66,11 @@ class ScienceService:
     async def spectrum(self, request: SpectrumRequest, field: SkyField | None = None):
         if field is not None:
             self._real_field(field)
-            self._inside(field, request.ra, request.dec)
+            from errante.imaging.photometry import SPHEREX_ERA_MJD, propagate
+
+            motion = request.proper_motion
+            pm = (motion.ra_cosdec_masyr, motion.dec_masyr, motion.epoch_mjd) if motion else None
+            self._inside(field, *propagate(request.ra, request.dec, pm, SPHEREX_ERA_MJD))
         doc = self._identity("spectrum", request, field)
         return await self._live.call(
             "spectrum", doc, lambda: self._run(doc, SpectrumResponse), TypeAdapter(SpectrumResponse)
@@ -164,11 +168,12 @@ class ScienceService:
                 result = self._publish(result, stage / "output", field)
             else:
                 request = SpectrumRequest.model_validate(doc["request"])
-                if (result.center.ra, result.center.dec, result.source, result.field_id) != (
+                if (result.center.ra, result.center.dec, result.source, result.field_id, result.proper_motion) != (
                     request.ra,
                     request.dec,
                     request.source,
                     request.field_id,
+                    request.proper_motion,
                 ):
                     raise ValueError("Spectrum result does not match its position/source")
             return result

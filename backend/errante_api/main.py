@@ -30,6 +30,7 @@ from errante import __version__
 from errante.models import SCHEMA_VERSION
 from errante.products import ProductStore
 
+from .comparison_snapshots import router as comparison_snapshots
 from .lightcurve_store import LightCurveStore
 from .live_service import LiveService
 from .object_service import ObjectService
@@ -37,6 +38,7 @@ from .routes import jobs, lightcurves, live, objects, products, resolve, science
 from .science_service import ScienceService
 from .settings import Settings
 from .store import PublicProductStore
+from .web import mount_frontend
 
 log = logging.getLogger(__name__)
 
@@ -110,8 +112,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(science.router, prefix="/api")
     app.include_router(objects.router, prefix="/api")
     app.include_router(lightcurves.router, prefix="/api")
+    app.include_router(comparison_snapshots)
     if settings.data_dir.exists():
         app.mount("/data", StaticFiles(directory=settings.data_dir), name="data")
+    mount_frontend(app, settings.web_dir)
     return app
 
 
