@@ -49,8 +49,9 @@ sus carpetas; una rama `wsN/...` por tarea; un worktree por agente; nunca `git a
 (incluye la guardia de ownership `scripts/owners.py`) antes de cada push. La tabla detallada de dueños está en
 `docs/COLLABORATION.md` §1 y la aplica `scripts/owners.py`.
 
-Plan vigente de pendientes y dependencias: [`docs/PARALLEL_PLAN.md`](docs/PARALLEL_PLAN.md).
-WS4 está reservado por **rpccp** (rocco) con Codex; otros responsables por confirmar en TEAM.md.
+Plan vigente (estado, pendientes con dueño, decisiones del equipo, riesgos y cómo correr todo):
+[`docs/PARALLEL_PLAN.md`](docs/PARALLEL_PLAN.md). Reservas en TEAM.md: WS1 y WS3 **faricool54**, WS2 **V0id47**,
+WS4 **rpccp** (rocco) con Codex; WS5, WS6 y WS7 siguen sin reserva.
 
 ## Mapa del repo y dueños
 

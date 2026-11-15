@@ -70,24 +70,36 @@ texturas procedurales, tienen que migrar a esta regla.
 - El HiPS es un promedio del cielo, sin dimensión temporal: el cambio en el tiempo va en el panel.
 - Datos reales: los cinco blancos se arman con `errante build` (WS1 + WS2 #16/#19) en ~20–30 s cada uno.
 
-## Prioridades (freeze: domingo 17:00; envío: 21:00 ART)
+## Prioridades (freeze: domingo 15/11 17:00; envío: 21:00 ART)
+
+Estado al 15/11/2026, 03:30 ART (`main` `c333390`). La lista viva, con IDs, dueños, esfuerzo y dependencias, está en
+[`PARALLEL_PLAN.md`](PARALLEL_PLAN.md).
 
 1. **P0:** mapa + búsqueda + click → panel con el video SPHEREx real (el núcleo del reto), y deploy público.
-2. **P0:** los cinco blancos validados (R05).
-3. **P1:** espectro en el panel.
-4. **P1:** 3D desde mediciones; primero los cinco blancos, después cualquier estrella con datos de Gaia.
-5. **P2:** detección automática y Planeta X.
+   *Funciona en local con la API (#34): click → job → 40 frames reales en ~20-30 s. Faltan el deploy público (V2,
+   decisión D1), el arreglo del mapa negro intermitente (V1) y la retícula/zoom del video (V3).*
+2. **P0:** los cinco blancos validados (R05). *Cinco registros `success` en [`validation/`](validation/) (#36, #46);
+   faltan la revisión humana y el recorrido en la URL pública (V5, A9).*
+3. **P1:** espectro en el panel. *Hecho con la API (cubo DR1 o fotometría L2, #53-#55), sin movimiento propio (V9).
+   La ficha del objeto (contexto de catálogo de WS3, #58) ya está en el panel del click: contrato 0.5.0 (#73),
+   `GET /api/object` (#76) y `ObjectCard` (#75) (V6, hecho).*
+4. **P1:** 3D desde mediciones; primero los cinco blancos, después cualquier estrella con datos de Gaia. *Hoy hay un
+   3D de catálogo verificado para los cinco (#47, #64), todavía no construido desde mediciones SPHEREx (V13, V14).*
+5. **P2:** detección automática y Planeta X. *Sin empezar; propuesta: congelarlos hasta después del envío (D10).*
 
 ## Qué hace cada workstream
 
-| WS | Qué le toca |
-|---|---|
-| **WS5** (frontend) | Mapa Aladin con SPHEREx, selector de λ y buscador; panel al click (Tiempo / Espectro / 3D); coordenadas en la URL. Reemplaza el placeholder `SkyMap.tsx`. |
-| **WS7** (3D) | Pasar de presets cargados a mano con texturas procedurales a modelos construidos desde mediciones (tabla de arriba); quitar el detalle de superficie inventado. |
-| **WS3** (ciencia) | Espectro por posición, ajuste de temperatura, luminosidad y radio con Gaia, curvas de luz; validación de los cinco. Cambios de contrato (por ejemplo un modelo `Spectrum`) vía PR `contract:`. |
-| **WS2** (imágenes) | Video por posición y detector, restas de temporada; fotometría forzada para el espectro, junto con WS3. |
-| **WS4** (backend y deploy) | Endpoints para el panel (job de campo, espectro, ficha del objeto) y deploy público. |
-| **WS1** (datos) | Traer rápido todas las exposiciones de un punto (para el espectro y la curva de luz), búsqueda de respaldo cuando IRSA se cae, cobertura de los cinco. |
-| **WS6** (entrega) | Video o slides con el recorrido mapa → click → tiempo → 3D; registrar el origen de la idea en `docs/submission/ai-usage.json`. |
+Responsables según [`TEAM.md`](TEAM.md). «De facto» indica quién hizo el trabajo sin haber reservado el workstream.
 
-**Pendiente:** confirmar responsables de WS3 y WS5 en [`TEAM.md`](TEAM.md) y en qué workstream trabaja mateoa007.
+| WS | Responsable | Ya hecho | Lo que sigue (IDs de `PARALLEL_PLAN.md`) |
+|---|---|---|---|
+| **WS5** (frontend) | Sin reserva. Aportes: rpccp (#34, #55), V0id47 (#40), BenjaminPondal (#15, #20, #26) | Mapa Aladin con SPHEREx, selector de λ, buscador, coordenadas en la URL, click → job → blink, modos de color, paneles de espectro y comparación | Mapa negro (V1), retícula y zoom (V3), revisar `ObjectCard` (V6, mergeado en #75), panel de tres vistas (V7), calidad por frame (V8), About y filas de la revisión de textos (A2, A13), onboarding y Lighthouse (A10) |
+| **WS7** (3D) | Sin reserva; de facto DankoLiv (#47) | Valores de los cinco verificados contra catálogos (#9); 3D procedural con esferas lisas, *Dataset time* y panel del cielo (#47); publicado en el dataset real (#64) | Fila «bloquea» (V4), filas «importante» (V12), alimentar el 3D desde `physical_parameters` y después desde mediciones SPHEREx (V13), 3D para un click arbitrario (V14) |
+| **WS3** (ciencia) | faricool54 + Claude (#51) | Validación de los cinco (#36, #46), contexto del objeto (#58), espectro por temporada y curvas de luz (#59), revisión de textos (#60) y del 3D (#65) | Nombre A/B de RW Aur (V15), textos de `fields.toml` (V16), temperatura desde el espectro (V18), curva de luz como producto (V10) |
+| **WS2** (imágenes) | V0id47 + Claude (#13) | Reproyección y selección (#16, #35), cinco campos reales (#17, #41), restas y coadds (#19, #37, #69), fotometría forzada (#31), chequeo de productos y animaciones (#70, #71) | Comparaciones visibles sin backend (V11), SNR del coadd (V21), flags por frame (V8) |
+| **WS4** (backend y deploy) | rpccp + Codex | Jobs por coordenadas y nombre (#18, #32, #33), espectros y comparaciones (#53, #54), caché (#52, #57) | Revisar `GET /api/object` (V6, mergeado en #76), deploy (V2, A12), espectro con movimiento propio (V9) |
+| **WS1** (datos) | faricool54 + Claude (#10) | Búsqueda SIA/TAP, S3, λ y MJD (#21-#23), cubo DR1 (#42), todas las exposiciones de un punto (#45, #50), snapshots para caídas de IRSA (#43) | Probar en vivo el fallback TAP; releases nuevos (V20) |
+| **WS6** (entrega) | Sin reserva. TEAM.md: deploy → WS4; textos, About, pitch y video → WS5 + quien termine antes (normalmente WS3) | Guías y borradores en `docs/submission/` | Todo §3 de `PARALLEL_PLAN.md`: textos (A1-A3, A7), demo (A4), registro de IA (A5), fuentes (A6), envío (E1-E9) |
+
+**Pendiente:** reservar WS5, WS6 y WS7 en [`TEAM.md`](TEAM.md), y definir en qué workstream trabajan BenjaminPondal y
+mateoa007 (decisión D8).

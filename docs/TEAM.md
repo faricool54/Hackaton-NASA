@@ -6,6 +6,10 @@ Completar en el kickoff. Una persona por fila; cada una con su(s) agente(s).
 Reserva confirmada el 14/11/2026: **rpccp** (rocco) con Codex toma **WS4**; **faricool54** con Claude toma **WS1** (búsqueda SIA/TAP, lectura por rangos en S3, `wavelength_at`); **V0id47** con Claude toma **WS2** (`reproject_to_grid`, selección temporada × detector en `build.py`, render consistente por campo).
 Reserva del 15/11/2026: **faricool54** con Claude toma también **WS3** (ciencia: contexto Gaia/catálogos, espectros por posición, curvas de luz, revisión científica de textos), que no tenía responsable.
 Las otras filas siguen pendientes de confirmación; no representan reservas automáticas.
+**Sin reserva al 15/11/2026, 03:30 ART:** WS5, WS6, WS7 y coordinación. Aportes de facto, que no son reservas:
+WS5, rpccp (#34, #55), V0id47 (#40) y BenjaminPondal (#15, #20, #26); WS7, DankoLiv (#47), BenjaminPondal (#27, #30)
+y faricool54 (#9, #64). Colaboradores del repo sin fila: BenjaminPondal, DankoLiv y mateoa007. Qué falta y qué hay
+que decidir: [PARALLEL_PLAN.md](PARALLEL_PLAN.md) §2-§4.
 
 **Local Event confirmado por el usuario (14/11/2026): Universidad de Palermo, Buenos Aires, Argentina.**
 Zona: America/Argentina/Buenos_Aires (ART, UTC-3). Cierre según PDF: 15/11/2026 23:59 ART;
@@ -23,7 +27,7 @@ no se agregan personas después. Workstreams y agentes no son integrantes adicio
 | WS4 | Backend + integración + CI | rpccp (rocco) | Codex | backend, devops |
 | WS5 | Frontend | _nombre_ | | React/TS, ojo para UX |
 | WS6 | Producto, narrativa, deploy, entrega | _nombre_ | | comunicación, diseño, video |
-| WS7 | Galería 3D opcional, modelos y procedencia | _nombre/rol compartido_ | | gráficos y datos; P2 después del recorrido obligatorio |
+| WS7 | Galería 3D opcional, modelos y procedencia | _nombre/rol compartido_ | | gráficos y datos; el 3D desde mediciones es P1 (VISION.md) |
 
 **Coordinador/a de integración:** _nombre_ (cuida `main`, el contrato y el cronograma; suele ser WS4).
 
@@ -49,4 +53,5 @@ se mantiene el máximo de seis miembros registrados. La galería 3D no exige otr
 
 Orden compartido: I1 imágenes reales → I2 coordenadas/público → I3 cinco ensayos → I4 consideraciones
 → I5 análisis avanzado. Ninguna integración JPL/Planeta X bloquea I1–I3. Ver `docs/REQUIREMENTS.md`.
-La ampliación 3D está integrada como P2; su verificación/catálogo tiene dueño WS7, sin bloquear datos reales.
+El 3D desde mediciones es P1 (AGENTS.md, VISION.md); su verificación/catálogo tiene dueño WS7, sin bloquear el
+recorrido P0 con datos reales.
