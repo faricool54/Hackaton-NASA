@@ -1,0 +1,7 @@
+{
+ "service": "sesame",
+ "url": "https://vizier.cfa.harvard.edu/viz-bin/nph-sesame/-oxpI/SNV?WISE%20J085510.83-071442.5",
+ "params": null,
+ "retrieved_utc": "2026-11-15T03:44:36Z",
+ "text": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Sesame xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n xsi:noNamespaceSchemaLocation=\"https://vizier.cds.unistra.fr/xml/sesame_4x.xsd\">\n<Target option=\"SNV\">\n  <name>WISE J085510.83-071442.5</name>\n  <!-- Q312393 #1 -->\n  <Resolver name=\"Sc=Simbad (CDS, via client/server)\"><!--delay: 0ms [0] -->\n    <INFO>from cache</INFO>\n    <oid>8596164</oid>\n    <otype>BD*</otype>\n    <jpos>08:55:16.53 -07:14:49.3</jpos>\n    <jradeg>133.81890825</jradeg>\n    <jdedeg>-7.247048</jdedeg>\n    <refPos>2021ApJS..253....7K</refPos>\n    <pm>\n      <v>8151.5</v><e>1.8</e><q>C</q><r>2021ApJS..253....7K</r>\n      <pa>274.74</pa>\n      <pmRA>-8123.7</pmRA><epmRA>1.3</epmRA>\n      <pmDE>673.2</pmDE><epmDE>1.3</epmDE>\n    </pm>\n    <plx><v>439.0</v><e>2.4</e><q>C</q><r>2021ApJS..253....7K</r></plx>\n    <spType>Y2</spType><spNum>0.00046000.0000.0000000000000000</spNum>\n    <oname>WISEA J085510.74-071442.5</oname>\n    <alias>WISEA J085510.74-071442.5</alias>\n    <alias>WISE J085510.83-071442.5</alias>\n    <nrefs>145</nrefs>\n  </Resolver>\n</Target>\n</Sesame>\n<!--- ====Done (2026-Nov-15,03:44:36z)==== -->\n"
+}

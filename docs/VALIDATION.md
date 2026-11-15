@@ -16,7 +16,7 @@ jurado desde `Candidate.score`. La revisión interna queda separada en `submissi
 
 ✅ 2026-11-14/15: los cinco registros están en [`validation/`](validation/), hechos por agentes de Claude Code (análisis más
 revisión adversarial independiente con código propio) sobre los FITS reales. **Revisión humana pendiente.**
-Valen para los campos publicados por #17 (mismos 40 frames, PNG idénticos). Todos piden arreglos de render,
+Se analizaron sobre el build de #17. #41 reconstruyó los campos (comparten 18–28 de 40 frames con ese build): las mediciones sobre todas las exposiciones siguen valiendo, y cada registro tiene una nota de actualización que dice qué cambió en lo publicado. Todos piden arreglos de render,
 selección y UI para que el recorrido público *muestre* lo medido; cada registro los lista con su dueño.
 Barnard's Star se midió el 15/11 sobre las 358 exposiciones (no solo los 40 frames publicados).
 
