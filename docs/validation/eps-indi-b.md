@@ -18,7 +18,9 @@ sumando el sistemático. El movimiento propio ajustado coincide con el del catá
 Hay un offset constante de ~0,6″ (0,1 px) entre el fotocentro y el catálogo, de causa INFERIDA, que no afecta el
 desplazamiento. No es un descubrimiento: se recupera un movimiento conocido. Problemas de pipeline y de UI (detalle al final):
 λ nula en `field.json`, frames D1 sin el objetivo, un frame con salto de fondo, la UI sin marcador del objetivo y
-diferencias de WS2 sin escala ajustada en D5/D6.
+diferencias de WS2 sin escala ajustada en D5/D6. *(2026-11-15: el `field.json` publicado ya trae λ en los 40 frames y
+desde #99 la UI marca la posición predicha por catálogo; ver los problemas 1 y 4. El salto de fondo y los D1 sin objetivo: ver la
+actualización del encabezado.)*
 
 Convención: **VERIFICADO** = medido en esta sesión (script en scratch); **INFERIDO** = interpretación no comprobada.
 (A) = análisis original; (R) = revisión adversarial independiente, con código propio.
@@ -152,7 +154,8 @@ Convención: **VERIFICADO** = medido en esta sesión (script en scratch); **INFE
     x ≈ 123–127 px en S0/S2 y en x ≈ 4–10 px en S1/S3. INFERIDO: un sistemático de centroide o WCS que depende de la
     orientación.
   - El movimiento propio medido es instantáneo (2025–2026); no se modeló la órbita Ba–Bb.
-  - Los 40 frames publicados usan 1–2 frames por (temporada, detector) y no tienen λ en `field.json`.
+  - Los 40 frames publicados usan 1–2 frames por (temporada, detector) y no tienen λ en `field.json`. *(2026-11-15: hoy
+    sí la tienen; ver el problema 1.)*
 - **Product field ID / public URL / screenshot or animation:**
   - Field ID: `eps-indi-b` (`data/products/fields/eps-indi-b/`). URL pública: https://errante.34-148-242-13.sslip.io/#/field/eps-indi-b (desde #84; ver el addendum del paso 6).
   - Recorrido revisado solo en la vista local `/?dataset=real#/field/eps-indi-b` (paso 6 en la URL pública: ver el addendum del 2026-11-15, 15:00 ART).
@@ -294,6 +297,10 @@ Mismo detector en ambas temporadas, punto cero por temporada y paralaje incluido
      por λ de `plan_frames` no actúa.
    - La UI cae a la banda nominal (`BlinkViewer.tsx` usa `DETECTOR_BANDS`).
    - Dueños: WS1 + WS2 (`build.py`, coordinar con WS4); WS5 en la UI.
+   - **Actualización 2026-11-15: resuelto en el producto.** El `field.json` publicado trae `wavelength_um` y
+     `bandwidth_um` en los 40 frames (verificado). `build.py` las calcula en el centro del campo con `WCS-WAVE`
+     (`_wavelength_at_centre`), la selección ordena por λ medida un conjunto ya descargado desde #35/#41, y
+     `BlinkViewer` muestra esa λ (la banda nominal queda solo si falta). Las filas SIA siguen sin λ.
 2. **La selección incluye frames D1 a λ < ~0,83 µm sin el objetivo.**
    - Son 3 de los 5 D1 publicados, entre ellos los dos de S1. El objetivo “desaparece” en el blink D1, y los coadds y
      diferencias D1 de WS2 pierden sentido.
@@ -312,6 +319,9 @@ Mismo detector en ambas temporadas, punto cero por temporada y paralaje incluido
    - En la grilla, el objetivo pasa de (43,88; 43,21) px en S0 a (43,04; 43,82) px en S3: 1,07 px entre el primer y el último
      frame. Sin marcador no se puede comprobar (SCIENCE.md §0.2).
    - Dueños: WS3 (trayectoria predicha de los blancos oficiales) y WS5 (overlay).
+   - **Actualización 2026-11-15: resuelto en la UI.** #96 agregó el zoom y la retícula, y #99 la extendió a este campo
+     con la trayectoria predicha: sigue a B con su propia solución Gaia DR3, no al centro del sistema, que es A
+     (`frontend/src/three/skyTrack.ts`). La predicción se calcula en el navegador; `known.json` sigue vacío.
 5. **WS2 compare:**
    - 8 pares sin escala de flujo ajustada en D5/D6, por falta de estrellas;
    - sobrecorrección por color en D4 (s = 1,49 y 1,80);
@@ -356,3 +366,4 @@ Sin problema (VERIFICADO por A y R):
   - reproducir, pausar, «Next frame» y «Previous frame» funcionan (por ejemplo, 10 → 11 → 10).
   - Un job nuevo por RA/Dec en la URL pública devolvió frames reales en 49 s (auditoría del 15/11; también #91 y #95).
   - **Falta:** que una persona lo recorra en incógnito y en celular, y la revisión humana de este registro.
+    *(2026-11-15: la revisión humana quedó firmada por DankoLiv en #126; sigue faltando la prueba en incógnito y en celular.)*

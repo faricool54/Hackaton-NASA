@@ -1,0 +1,5 @@
+{
+  "tool": "OpenAI Codex",
+  "scope": "FE-1 app navigation, shared visual tokens, CSS utilities, original favicon and local browser verification",
+  "human_review": "pending"
+}

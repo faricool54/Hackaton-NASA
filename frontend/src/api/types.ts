@@ -4,7 +4,7 @@
 // Pixel convention for every x/y: PNG convention — origin at the TOP-LEFT pixel,
 // 0-based, x → right, y → DOWN, on the field's common north-up grid (east left).
 
-export const SCHEMA_VERSION = '0.7.0';
+export const SCHEMA_VERSION = '0.8.0';
 
 export type Release = 'dr1' | 'qr2' | 'qr3' | 'synthetic';
 export type ObjectType =
@@ -46,6 +46,11 @@ export interface Stretch {
   vmax: number;
   unit: string;
   method: 'linear' | 'asinh' | 'log' | 'zscale';
+}
+
+export interface FrameFlagSummary {
+  coverage_fraction: number;
+  fractions: Partial<Record<string, number>>;
 }
 
 export interface Frame {
@@ -189,6 +194,7 @@ export interface Field {
   size_deg: number;
   grid: Grid;
   frames: Frame[];
+  frame_flags?: Partial<Record<string, FrameFlagSummary>>;
   provenance: Provenance;
   composites?: Composite[]; // added in 0.3.1 (absent in older products: treat as [])
 }
