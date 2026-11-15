@@ -92,6 +92,57 @@ def test_single_outlier_pairs_do_not_make_a_constant_source_variable():
     assert spec.variable is False and any(p["delta_mag"] < -0.4 for p in spec.season_pairs)
 
 
+def test_variability_in_one_detector_is_not_outvoted_by_the_others():
+    """A young star (RW Aur) changes ~1 mag at 0.75 um and little in the infrared: D1 must not be pooled with the many
+    constant infrared pairs (review finding, 2026-11-15: the pooled median said 'constant', no warning)."""
+    pts, i = [], 0
+    for s, t0 in enumerate((60920.0, 61290.0)):
+        for k, lam in enumerate((0.75, 0.78, 0.81, 0.84, 0.87)):  # D1: 1 mag brighter in S1, 5 matched pairs
+            pts.append(ff(i, mjd=t0 + 0.1 * k, lam=lam, flux=100.0 * (2.512 if s else 1.0), det=1))
+            i += 1
+        for det, lam0, step in ((3, 1.7, 0.04), (4, 2.5, 0.08), (6, 4.4, 0.06)):  # constant, 4 pairs each
+            for k in range(4):
+                pts.append(ff(i, mjd=t0 + 1 + 0.01 * k, lam=lam0 + step * k, flux=300.0, det=det))
+                i += 1
+    spec = from_spectrum_result(SpectrumResult(1.0, 2.0, pts, [], []))
+    assert len(spec.season_pairs) == 17
+    assert spec.variable is True
+    assert len(spec.warnings) == 1 and "S0->S1 D1 median dm -1.00 (5 pairs)" in spec.warnings[0]
+    assert not any("D3" in w or "D4" in w or "D6" in w for w in spec.warnings)
+    assert not any("agree" in n for n in spec.notes)
+    # the same source without the D1 change: constant, and the note names the detectors it covers
+    const = [
+        ff(j, mjd=p.mjd, lam=p.wavelength_um, flux=100.0, det=p.detector) if p.detector == 1 else p
+        for j, p in enumerate(pts)
+    ]
+    spec = from_spectrum_result(SpectrumResult(1.0, 2.0, const, [], []))
+    assert spec.variable is False and not spec.warnings
+    assert any("detector tested (D1, D3, D4, D6)" in n for n in spec.notes)
+
+
+def test_one_detector_with_an_inconsistent_or_single_pair_is_not_called_constant():
+    def two_seasons(d1_flux_s1):
+        pts = []
+        for s, t0 in enumerate((60920.0, 61290.0)):
+            for k, lam in enumerate((1.7, 1.74, 1.78)):  # D3 constant
+                pts.append(ff(10 * s + k, mjd=t0 + k, lam=lam, flux=50.0, det=3))
+            for k, lam in enumerate((0.75, 0.80)[: len(d1_flux_s1)]):
+                pts.append(ff(10 * s + 5 + k, mjd=t0 + 5 + k, lam=lam, flux=d1_flux_s1[k] if s else 50.0, det=1))
+        return from_spectrum_result(SpectrumResult(1.0, 2.0, pts, [], []))
+
+    # D1: two pairs, one unchanged and one 0.75 mag brighter: the median (mean of two) is -0.38 but not a majority
+    spec = two_seasons((50.0, 100.0))
+    assert spec.variable is None and any("S0->S1 D1 median dm -0.38 (2 pairs)" in w for w in spec.warnings)
+    # D1: a single pair 1 mag brighter: not testable, never "constant" (the D3 pairs agree)
+    spec = two_seasons((125.6,))
+    assert spec.variable is None and any("S0->S1 D1 a single pair, dm -1.00" in w for w in spec.warnings)
+    # D1 in both seasons but at wavelengths that do not match: named as not tested
+    pts = [ff(0, mjd=60920.0, lam=0.75, flux=5.0), ff(1, mjd=61290.0, lam=0.90, flux=5.0)]
+    pts += [ff(2 + k, mjd=60920.0 + 370 * (k % 2), lam=1.7, flux=50.0, det=3) for k in range(2)]
+    spec = from_spectrum_result(SpectrumResult(1.0, 2.0, pts, [], []))
+    assert spec.variable is False and any("no matched pair with SNR >= 10): D1." in n for n in spec.notes)
+
+
 def test_untestable_multi_season_spectrum_is_warned():
     pts = [ff(0, mjd=60920.0, lam=0.75, flux=5.0), ff(1, mjd=61290.0, lam=0.90, flux=5.0)]
     spec = from_spectrum_result(SpectrumResult(1.0, 2.0, pts, [], []))
@@ -194,6 +245,31 @@ def test_candidate_spectrum_uses_measured_fluxes_only():
     )
     pts = candidate_spectrum(cand, {"A": (1.6, 0.04), "B": (1.2, 0.03), "C": (0.9, 0.02)})  # D: no wavelength
     assert [(p.frame_id, p.wavelength_um, p.flux_mjy) for p in pts] == [("C", 0.9, 1.5), ("A", 1.6, 2.0)]
+
+
+def test_candidate_spectrum_from_images_uses_one_aperture_correction():
+    """Review finding (2026-11-15): measure() per frame corrected the frame with field stars and left the star-poor
+    one uncorrected (r = 2 px only): the same source differed by 38 % between two frames of one spectrum."""
+    from test_science_variability import COMPS, DEC0, RA0, stamp
+
+    with_stars = stamp(20.0, mjd=60900.0, lam=1.0, obs_id="A", comps=COMPS)
+    no_stars = stamp(20.0, mjd=60901.0, lam=1.0, obs_id="B", comps=[])
+    alone = stamp(20.0, mjd=60902.0, lam=2.5, detector=4, obs_id="C", comps=[])
+    frames = (with_stars, no_stars, alone)
+    dets = [
+        Detection(frame_id=e.frame_id, mjd=e.mjd, position=SkyCoord(ra=RA0, dec=DEC0), x=40.0, y=40.0) for e in frames
+    ]
+    dets.append(Detection(frame_id="X", mjd=60903.0, position=SkyCoord(ra=RA0, dec=DEC0), x=1.0, y=1.0, flux_mjy=9.0))
+    cand = Candidate(id="c", field_id="f", kind="moving", status="unconfirmed", score=0.5, detections=dets)
+    images = {e.frame_id: e.image for e in frames}
+    pts = candidate_spectrum(cand, {"X": (1.2, 0.02)}, images=images)
+    by_id = {p.frame_id: p.flux_mjy for p in pts}
+    assert set(by_id) == {"AD1", "BD1", "CD4"}  # X has no image: its flux of unknown aperture is not mixed in
+    assert by_id["AD1"] == pytest.approx(by_id["BD1"], rel=0.02)  # one correction for D1 (was a ratio of 1.38)
+    assert by_id["CD4"] == pytest.approx(by_id["AD1"], rel=0.02)  # D4 has no star: the all-detector fit
+    # no field star in any image: no correction can be measured, and nothing uncorrected is returned
+    bare = {e.frame_id: e.image for e in (no_stars, alone)}
+    assert candidate_spectrum(cand, {}, images=bare) == []
 
 
 def test_position_spectrum_calls_ws2_photometry(monkeypatch):

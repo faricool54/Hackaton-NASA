@@ -286,6 +286,19 @@ def test_period_estimate_recovers_a_sinusoid_with_seasonal_gaps():
     assert lo <= p.period_days <= hi
     assert "aliases" in p.caveat
     assert all(f < 0.05 for f in p.floor_mag.values())  # the noise is 0.03 mag: no extra floor needed
+    assert p.significant is True and p.false_alarm <= 0.01 and p.n_permutations == 100
+    assert v.period_note(p).startswith("Period 2")
+
+
+@pytest.mark.parametrize("seed", [1, 2, 3])
+def test_noise_gives_a_best_period_but_not_a_significant_one(seed):
+    """Review finding (2026-11-15): pure noise (0.03 mag) gave P = 37.1 / 32.1 / 40.7 d with formal errors of
+    0.1-0.2 d and nothing said they were not significant."""
+    p = estimate_period(synthetic_lc(amp=0.0, seed=seed))
+    assert p.period_days > 0 and p.significant is False and p.false_alarm > 0.05
+    assert v.period_note(p).startswith("No significant period")
+    untested = estimate_period(synthetic_lc(amp=0.0, seed=seed), n_permutations=0)
+    assert untested.significant is None and untested.false_alarm is None and "NOT tested" in v.period_note(untested)
 
 
 def test_light_curve_to_dict_is_strict_json():
@@ -385,4 +398,6 @@ def test_cli_lightcurve_json_and_summary(monkeypatch, capsys, tmp_path):
     assert "method wing" in text and "D1:" in text
     assert main(["lightcurve", "--ra", str(RA0), "--dec", str(DEC0), "--period"]) == 0
     text = capsys.readouterr().out
-    assert "matched pairs" in text and "period" in text and "caveat" in text
+    assert "matched pairs" in text and "caveat" in text
+    # 6 visits, a monotonic brightening: the forced estimate is printed as NOT a period
+    assert "No significant period" in text and "  period " not in text

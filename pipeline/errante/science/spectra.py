@@ -12,7 +12,8 @@ adds what the science needs on top (:func:`position_spectrum`):
 
 - every exposure's date, detector, release, season (gaps > 30 d), saturation and usability;
 - per-season grouping, and a VARIABILITY CHECK so time changes are never read as spectral shape without a warning:
-  same-detector exposures of different seasons at matched wavelength (|dlambda|/lambda < 1 %) must agree;
+  same-detector exposures of different seasons at matched wavelength (|dlambda|/lambda < 1 %) must agree, tested
+  separately for every season pair and detector (a source may vary at some wavelengths only);
 - reference checks: averages over broadband filter windows against catalog photometry converted to mJy
   (:data:`REFERENCE_BANDS`: 2MASS and WISE zero points with their sources) and a shape comparison against the DR1
   spectral cube (``errante.data.cube.cube_spectrum``, a different product: only the shape is compared).
@@ -24,6 +25,7 @@ enter the spectrum. ``color_class`` is not implemented (classification is option
 from __future__ import annotations
 
 import math
+from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 
@@ -206,52 +208,71 @@ def season_pairs(
     return out
 
 
-def _variability_verdict(pairs: list[dict]) -> tuple[bool | None, str]:
-    """Variable when, for some pair of seasons (>= 2 pairs), the MEDIAN |dm| exceeds 0.15 mag and 5x the median
-    statistical error. Medians, not single pairs: a 1 % wavelength mismatch on a steep spectral feature or a
-    systematic outlier moves single pairs by > 0.15 mag even for a constant source (eps Ind B: 74 of 714 pairs,
-    median |dm| 0.03-0.06 mag per detector, measured 2026-11-15). A pair of seasons with a single pair above
-    0.15 mag is "not testable", never "variable" nor "constant"."""
+def _variability_verdict(pairs: list[dict], untested: Sequence[int] = ()) -> tuple[bool | None, str]:
+    """Tested SEPARATELY for every (season pair, detector): a source often varies in some wavelengths only (a young
+    star's extinction changes are ~1 mag at 0.75 um and < 0.1 mag at 4.5 um), so pooling detectors would let the
+    many infrared pairs outvote a real change in D1/D2.
+
+    A group (season pair, detector) CHANGED when it has >= 2 pairs, its median dm exceeds 0.15 mag and 5x the median
+    statistical error, and more than half of its pairs moved by > 0.15 mag in that direction. Medians and a majority,
+    not single pairs: a 1 % wavelength mismatch on a steep spectral feature or a systematic outlier moves single pairs
+    by > 0.15 mag even for a constant source (eps Ind B: 74 of 714 pairs, median |dm| 0.03-0.06 mag per detector,
+    measured 2026-11-15). A group AGREES when its median |dm| is <= 0.15 mag; anything else (a single pair above
+    0.15 mag, or pairs above it that are too noisy or inconsistent) is "not testable".
+
+    ``variable``: True when any group changed; None when none changed but some group is not testable; False only
+    when every group agrees (and then only for the detectors and seasons that have pairs). ``untested``: detectors
+    with usable points in several seasons but no pair (no matched wavelength or SNR < 10), named in the text."""
     if not pairs:
         return None, ""
-    groups: dict[tuple[int, int], list[dict]] = {}
+    groups: dict[tuple[int, int, int], list[dict]] = {}
     for p in pairs:
-        groups.setdefault((p["season_a"], p["season_b"]), []).append(p)
-    changed, unclear, single, agree = [], [], [], 0
-    for (sa, sb), ps in sorted(groups.items()):
-        med_abs = float(np.median([abs(p["delta_mag"]) for p in ps]))
-        if len(ps) < 2:
-            if med_abs > VARIATION_MAG:
-                single.append(f"S{sa}->S{sb} a single pair, dm {ps[0]['delta_mag']:+.2f}")
-            continue
+        groups.setdefault((p["season_a"], p["season_b"], p["detector"]), []).append(p)
+    changed, unclear, single, agree = [], [], [], []
+    for (sa, sb, det), ps in sorted(groups.items()):
+        dm = np.array([p["delta_mag"] for p in ps], float)
+        med, med_abs = float(np.median(dm)), float(np.median(np.abs(dm)))
         errs = [p["delta_mag_err"] for p in ps if p["delta_mag_err"] is not None]
         med_err = float(np.median(errs)) if errs else 0.0
-        label = f"S{sa}->S{sb} median dm {float(np.median([p['delta_mag'] for p in ps])):+.2f} ({len(ps)} pairs)"
-        if med_abs > VARIATION_MAG and med_abs > VARIATION_NSIGMA * med_err:
+        label = f"S{sa}->S{sb} D{det} median dm {med:+.2f} ({len(ps)} pairs)"
+        if med_abs <= VARIATION_MAG:
+            agree.append((sa, sb, det))
+        elif len(ps) < 2:
+            single.append(f"S{sa}->S{sb} D{det} a single pair, dm {med:+.2f}")
+        elif (
+            abs(med) > VARIATION_MAG
+            and abs(med) > VARIATION_NSIGMA * med_err
+            and int(np.sum(np.sign(med) * dm > VARIATION_MAG)) > len(ps) / 2
+        ):
             changed.append(label)
-        elif med_abs > VARIATION_MAG:
-            unclear.append(label)
         else:
-            agree += 1
+            unclear.append(label)
     med = float(np.median([abs(p["delta_mag"]) for p in pairs]))
     n_big = sum(abs(p["delta_mag"]) > VARIATION_MAG for p in pairs)
+    dets_ok = sorted({d for _, _, d in agree})
+    gap = (
+        f" Not tested (usable in several seasons, no matched pair with SNR >= {MIN_PAIR_SNR:g}): "
+        f"D{', D'.join(map(str, untested))}."
+        if untested
+        else ""
+    )
     if changed:
         return True, (
             f"The flux changed between seasons at matched wavelength (same detector, |dlambda|/lambda < 1 %): "
             f"{'; '.join(changed)}. Read each season's spectrum separately: combining them mixes variability (or "
             "calibration) with spectral shape."
         )
-    if unclear or (single and not agree):
+    if unclear or single:
         return None, (
-            f"Variability between seasons is not testable: {'; '.join(unclear + single)} exceed {VARIATION_MAG} mag, "
-            f"but within {VARIATION_NSIGMA:g} times the errors or with a single pair. Points from different seasons "
-            "may mix variability and spectral shape."
+            f"Variability between seasons is not testable in {'; '.join(unclear + single)}: above {VARIATION_MAG} mag "
+            f"but with a single pair, within {VARIATION_NSIGMA:g} times the errors or with pairs that disagree. "
+            f"Points from different seasons may mix variability and spectral shape.{gap}"
         )
-    extra = f" Not tested (single pairs): {'; '.join(single)}." if single else ""
     return False, (
-        f"{len(pairs)} same-detector pairs of different seasons at matched wavelength agree (median |dm| {med:.3f} "
-        f"mag; {n_big} single pairs differ by > {VARIATION_MAG} mag, expected from steep spectral features and "
-        f"systematics): no variability above ~{VARIATION_MAG} mag between seasons.{extra}"
+        f"{len(pairs)} same-detector pairs of different seasons at matched wavelength agree in every season pair and "
+        f"detector tested (D{', D'.join(map(str, dets_ok))}): median |dm| <= {VARIATION_MAG} mag in each ({med:.3f} "
+        f"mag over all; {n_big} single pairs differ by more, inside groups whose median agrees): no variability above "
+        f"~{VARIATION_MAG} mag between seasons in those detectors.{gap}"
     )
 
 
@@ -305,7 +326,11 @@ def from_spectrum_result(
             )
         )
     pairs = season_pairs(samples)
-    variable, verdict = _variability_verdict(pairs)
+    paired = {p["detector"] for p in pairs}
+    multi = {
+        d for d in {s.detector for s in samples} if len({s.season for s in samples if s.usable and s.detector == d}) > 1
+    }
+    variable, verdict = _variability_verdict(pairs, untested=sorted(multi - paired))
     warnings, notes = [], list(result.notes)
     n_sat = sum(s.saturated for s in samples)
     if samples and n_sat >= SATURATED_WARN_FRACTION * len(samples):
@@ -466,37 +491,61 @@ def candidate_spectrum(
     """Spectrum points of a candidate from its detections. ``wavelengths[frame_id] = (um, bw_um)`` at the
     detection position (``data.fits_io.wavelength_at``).
 
-    Each detection becomes a point when it has a wavelength and a flux: the detection's own ``flux_mjy`` (measured
-    by WS2 on the native frame), or, when ``images[frame_id]`` (a ``fits_io.SpherexImage``) is given, WS2's forced
-    photometry (``imaging.photometry.measure``) at the detection position, whose unusable points (saturated, bad
-    pixels, off the detector) are dropped. Nothing is invented: a detection without flux or wavelength is skipped.
-    Sorted by wavelength. Detections of a moving object are at different times: the spectrum mixes time and colour
-    if the object varies (rotation of an asteroid), say so in the UI.
+    Without ``images`` each detection with a wavelength and a flux becomes a point: the detection's own ``flux_mjy``
+    (measured by WS2 on the native frame). With ``images`` (``{frame_id: fits_io.SpherexImage}``) ONE photometry is
+    used for every point, as in ``imaging.photometry.spectrum_at``: WS2's forced photometry (``measure``, r = 2 px) at
+    the detection position, with the aperture correction fitted per detector against wavelength on the field stars of
+    all the given images (``fit_corrections``; the all-detector fit when a detector has too few stars). Detections
+    without an image, unusable measurements (saturated, bad pixels, off the detector) and frames whose detector has
+    no correction at all are dropped, never mixed in: an uncorrected r = 2 px flux is ~3-15 % lower on SPHEREx.
+    Nothing is invented: a detection without flux or wavelength is skipped. Sorted by wavelength. Detections of a
+    moving object are at different times: the spectrum mixes time and colour if the object varies (rotation of an
+    asteroid), say so in the UI.
     """
-    out = []
-    for det in candidate.detections:
-        wave = wavelengths.get(det.frame_id)
-        flux, err = det.flux_mjy, det.flux_err_mjy
-        if images is not None and det.frame_id in images:
-            from ..imaging.photometry import measure
+    rows: list[tuple[str, tuple[float, float | None], float, float | None]] = []
+    if images is None:
+        for det in candidate.detections:
+            wave = wavelengths.get(det.frame_id)
+            if wave is not None and det.flux_mjy is not None and math.isfinite(det.flux_mjy):
+                rows.append((det.frame_id, wave, det.flux_mjy, det.flux_err_mjy))
+    else:
+        from ..imaging.photometry import correction_ratios, fit_corrections, measure, planes
 
-            p = measure(images[det.frame_id], det.position.ra, det.position.dec, frame_id=det.frame_id)
-            if p is None or not (p.flux_mjy is not None and not ({"saturated", "edge", "bad_pixels"} & set(p.flags))):
+        measured, samples = [], defaultdict(list)
+        for det in candidate.detections:
+            img = images.get(det.frame_id)
+            if img is None:
                 continue
-            flux, err = p.flux_mjy, p.flux_err_mjy
+            pl = planes(img)
+            p = measure(img, det.position.ra, det.position.dec, frame_id=det.frame_id, correction=1.0, pl=pl)
+            if p is None or p.flux_mjy is None or {"saturated", "edge", "bad_pixels"} & set(p.flags):
+                continue
+            wave = wavelengths.get(det.frame_id)
             if wave is None and p.wavelength_um is not None:
                 wave = (p.wavelength_um, p.bandwidth_um)
-        if wave is None or flux is None or not math.isfinite(flux):
-            continue
-        out.append(
-            SpectrumPoint(
-                frame_id=det.frame_id,
-                wavelength_um=float(wave[0]),
-                bandwidth_um=None if wave[1] is None else float(wave[1]),
-                flux_mjy=float(flux),
-                flux_err_mjy=None if err is None or not math.isfinite(err) else float(err),
-            )
+            if wave is None:
+                continue
+            samples[p.detector] += [(wave[0], r) for r in correction_ratios(pl, exclude=(p.x, p.y))]
+            measured.append((det.frame_id, p, wave))
+        fits = fit_corrections(samples)
+        pooled = fit_corrections({0: [s for det_samples in samples.values() for s in det_samples]}).get(0)
+        for fid, p, wave in measured:
+            fit = fits.get(p.detector, pooled)
+            if fit is None:
+                continue
+            c = min(3.0, max(1.0, fit[0] + fit[1] * wave[0]))  # clamped like photometry.spectrum_at
+            rows.append((fid, wave, p.flux_mjy * c, None if p.flux_err_mjy is None else p.flux_err_mjy * c))
+    out = [
+        SpectrumPoint(
+            frame_id=fid,
+            wavelength_um=float(wave[0]),
+            bandwidth_um=None if wave[1] is None else float(wave[1]),
+            flux_mjy=float(flux),
+            flux_err_mjy=None if err is None or not math.isfinite(err) else float(err),
         )
+        for fid, wave, flux, err in rows
+        if math.isfinite(flux)
+    ]
     return sorted(out, key=lambda p: p.wavelength_um)
 
 

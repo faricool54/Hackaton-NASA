@@ -33,9 +33,12 @@ with the comparison ensemble measured in the SAME two frames).
 
 Period: :func:`estimate_period` fits, on a frequency grid, per-bin offsets plus a sinusoid with free amplitude and
 phase per detector (weighted least squares with a per-detector error floor such that chi2/dof = 1, as in the R Dra
-review). It is a quick estimate, not a periodogram analysis: Miras are not sinusoids, seasonal gaps make aliases
-(the returned ``peaks`` list them; R Dra has one at ~144 d), and formal errors exclude model error. Confirm against
-an independent contemporaneous light curve (e.g. AAVSO) and catalog periods (Gaia DR3 ``vari_long_period_variable``).
+review). The grid always has a best period, even for noise, so the estimate is tested like the R Dra record: the
+visit epochs are permuted (100 times by default), the grid refitted, and the period is ``significant`` only when
+<= 1 % of the permutations peak as high (``false_alarm``); otherwise it is labelled "no significant period". It is
+a quick estimate, not a periodogram analysis: Miras are not sinusoids, seasonal gaps make aliases (the returned
+``peaks`` list them; R Dra has one at ~144 d), and formal errors exclude model error. Confirm against an independent
+contemporaneous light curve (e.g. AAVSO) and catalog periods (Gaia DR3 ``vari_long_period_variable``).
 
 Data: WS1 ``data.point.point_series`` stamps (S3 Range reads of whole detector rows, so the cost grows with the box
 side: ~``box_px`` x 8 KB per plane). Defaults: ``aperture`` reads IMAGE + VARIANCE + FLAGS in an 81 px box (8.3',
@@ -93,6 +96,8 @@ PIXEL_ARCSEC = photometry.PIXEL_ARCSEC
 MIN_PERIOD_POINTS = 30
 PERIOD_RANGE_DAYS = (20.0, 800.0)
 OVERSAMPLE = 20
+N_PERMUTATIONS = 100  # visit permutations for the period's false-alarm probability
+PERIOD_FALSE_ALARM = 0.01  # significant when no more than 1 % of the permutations reach the observed peak
 MAG = 2.5 / math.log(10.0)  # 1.0857: sigma_mag = MAG * sigma_F / F
 UNITS = {"aperture": "mJy (r = 3 px aperture, no aperture correction)", "wing": "MJy/sr (PSF wing - background)"}
 EXCLUDE_ORDER = (
@@ -108,9 +113,11 @@ EXCLUDE_ORDER = (
 QUALITY_REASONS = frozenset(EXCLUDE_ORDER)
 BIN_REASONS = frozenset({"lone_bin", "short_bin"})
 PERIOD_CAVEAT = (
-    "Quick sinusoid-grid estimate (per-detector amplitude and phase, per-wavelength-bin offsets). Seasonal gaps make "
-    "aliases (see the other peaks), real light curves are not sinusoids and the formal error ignores model error: "
-    "confirm with an independent contemporaneous light curve and catalog periods before quoting it."
+    "Quick sinusoid-grid estimate (per-detector amplitude and phase, per-wavelength-bin offsets). The best grid period "
+    "of pure noise is still a number: read it only when 'significant' (visit-permutation false-alarm probability "
+    "<= 1 %). Seasonal gaps make aliases (see the other peaks), real light curves are not sinusoids and the formal "
+    "error ignores model error: confirm with an independent contemporaneous light curve and catalog periods before "
+    "quoting it."
 )
 
 
@@ -192,6 +199,9 @@ class PeriodEstimate:
     n_points: int
     baseline_days: float
     period_range_days: tuple[float, float]
+    false_alarm: float | None = None  # visit-permutation probability that noise gives as high a peak (None: not run)
+    n_permutations: int = 0
+    significant: bool | None = None  # false_alarm <= PERIOD_FALSE_ALARM; None without permutations
     caveat: str = PERIOD_CAVEAT
 
 
@@ -562,12 +572,14 @@ def light_curve_from_exposures(
     period: bool | None = None,
     period_range_days: tuple[float, float] = PERIOD_RANGE_DAYS,
     n_bootstrap: int = 0,
+    n_permutations: int = N_PERMUTATIONS,
     comparison_stars: Sequence[tuple[float, float]] | None = None,
 ) -> LightCurve:
     """Measure the target (and the comparison stars) on every exposure and build the binned light curve.
 
     ``comparison_stars`` (ra, dec) overrides the automatic choice (``n_comparison = 0`` disables them).
-    ``period``: None = estimate when there are >= 30 points over >= 2 x the shortest period tried.
+    ``period``: None = estimate when there are >= 30 points over >= 2 x the shortest period tried; the estimate is
+    always tested with ``n_permutations`` visit permutations and labelled ``significant`` or not (see the notes).
     """
     if method not in METHODS:
         raise ValueError(f"method must be one of {METHODS}, got {method!r}")
@@ -746,8 +758,28 @@ def light_curve_from_exposures(
         baseline = max(p.mjd for p in used) - min(p.mjd for p in used)
         auto = len(used) >= MIN_PERIOD_POINTS and baseline >= 2 * period_range_days[0]
         if period or (period is None and auto):
-            lc.period = estimate_period(lc, period_range_days=period_range_days, n_bootstrap=n_bootstrap)
+            lc.period = estimate_period(
+                lc, period_range_days=period_range_days, n_bootstrap=n_bootstrap, n_permutations=n_permutations
+            )
+            if lc.period is not None:
+                lc.notes.append(period_note(lc.period))
     return lc
+
+
+def period_note(pe: PeriodEstimate) -> str:
+    """One line for the notes and the CLI: the period only when the permutation test says it is significant."""
+    if pe.significant:
+        return (
+            f"Period {pe.period_days:.1f} d: significant (visit-permutation false-alarm probability {pe.false_alarm:.3f}"
+            f", {pe.n_permutations} permutations); quick sinusoid estimate, check the aliases and the caveat."
+        )
+    if pe.significant is False:
+        return (
+            f"No significant period: the best sinusoid ({pe.period_days:.1f} d) is matched by noise in "
+            f"{pe.false_alarm:.0%} of {pe.n_permutations} visit permutations (needs <= {PERIOD_FALSE_ALARM:.0%}); "
+            "do not quote it as a period."
+        )
+    return f"Best sinusoid {pe.period_days:.1f} d, NOT tested for significance (no permutations): not a period."
 
 
 def _notes(lc: LightCurve) -> list[str]:
@@ -849,34 +881,59 @@ def matched_pairs(lc: LightCurve, *, max_frac: float = LAMBDA_BIN_FRAC, min_dt_d
 # --- period --------------------------------------------------------------------------------------------------
 
 
-def _fit_grid(t, y, w, bins, dets, freqs):
+def _fit_grid(t, y, w, bins, dets, freqs, chunk: int = 256):
     """Delta chi2 of per-detector sinusoids after per-bin offsets, for every frequency (Frisch-Waugh-Lovell:
-    residualise against bin means, then a 2x2 solve per detector). Returns (dchi2[nf], coefficients[nf, ndet, 2])."""
+    residualise against bin means, then a 2x2 solve per detector). Returns (dchi2[nf], coefficients[nf, ndet, 2]).
+    Vectorised over frequencies in chunks of ``chunk`` (memory ~ chunk x points)."""
+    n = len(t)
     nb = int(bins.max()) + 1
-    wsum = np.bincount(bins, weights=w, minlength=nb)
+    member = np.zeros((n, nb))
+    member[np.arange(n), bins] = 1.0
+    wsum = member.T @ w
+    udets, det_idx = np.unique(dets, return_inverse=True)
+    det_member = np.zeros((n, len(udets)))
+    det_member[np.arange(n), det_idx] = 1.0
 
-    def resid(v):
-        return v - (np.bincount(bins, weights=w * v, minlength=nb) / wsum)[bins]
+    def resid(v):  # v: (..., n) minus its weighted mean per bin
+        return v - ((v * w) @ member / wsum)[..., bins]
 
     yr = resid(y)
-    udets = np.unique(dets)
+    freqs = np.asarray(freqs, float)
     dchi2 = np.zeros(len(freqs))
     coef = np.zeros((len(freqs), len(udets), 2))
-    masks = [dets == d for d in udets]
-    for k, f in enumerate(freqs):
-        ph = 2.0 * math.pi * f * t
+    for lo in range(0, len(freqs), chunk):
+        f = freqs[lo : lo + chunk]
+        ph = 2.0 * math.pi * f[:, None] * t[None, :]
         s, c = resid(np.sin(ph)), resid(np.cos(ph))
-        for j, m in enumerate(masks):
-            ww, ss, cc, yy = w[m], s[m], c[m], yr[m]
-            a11, a12, a22 = np.sum(ww * ss * ss), np.sum(ww * ss * cc), np.sum(ww * cc * cc)
-            b1, b2 = np.sum(ww * ss * yy), np.sum(ww * cc * yy)
-            det = a11 * a22 - a12 * a12
-            if det <= 1e-12 * max(a11 * a22, 1e-300):
-                continue
-            p, q = (a22 * b1 - a12 * b2) / det, (a11 * b2 - a12 * b1) / det
-            dchi2[k] += p * b1 + q * b2
-            coef[k, j] = (p, q)
+        ws, wc = w * s, w * c
+        a11, a12, a22 = (ws * s) @ det_member, (ws * c) @ det_member, (wc * c) @ det_member
+        b1, b2 = (ws * yr) @ det_member, (wc * yr) @ det_member
+        det = a11 * a22 - a12 * a12
+        ok = det > 1e-12 * np.maximum(a11 * a22, 1e-300)
+        safe = np.where(ok, det, 1.0)
+        p = np.where(ok, (a22 * b1 - a12 * b2) / safe, 0.0)
+        q = np.where(ok, (a11 * b2 - a12 * b1) / safe, 0.0)
+        dchi2[lo : lo + len(f)] = np.sum(p * b1 + q * b2, axis=1)
+        coef[lo : lo + len(f), :, 0], coef[lo : lo + len(f), :, 1] = p, q
     return dchi2, coef
+
+
+def _permutation_false_alarm(t, y, w, bins, dets, freqs, observed: float, n: int, rng) -> float:
+    """Visit-permutation false-alarm probability of the highest grid peak (the R Dra record's significance test):
+    every visit keeps its points and their internal time offsets but takes the epoch of another visit, the grid is
+    refitted and its highest delta chi2 compared with the observed one. (1 + exceedances) / (1 + n); the weights stay
+    those of the observed fit."""
+    visits = _visit_groups(t)
+    starts = np.array([t[v].min() for v in visits])
+    exceed = 0
+    for _ in range(n):
+        perm = rng.permutation(len(visits))
+        tp = np.empty_like(t)
+        for i, v in enumerate(visits):
+            tp[v] = t[v] - starts[i] + starts[perm[i]]
+        d, _ = _fit_grid(tp, y, w, bins, dets, freqs)
+        exceed += bool(d.max() >= observed)
+    return (1 + exceed) / (1 + n)
 
 
 def _floors(t, y, sig, bins, dets, f) -> dict[int, float]:
@@ -920,9 +977,14 @@ def estimate_period(
     oversample: int = OVERSAMPLE,
     n_peaks: int = 4,
     n_bootstrap: int = 0,
+    n_permutations: int = N_PERMUTATIONS,
     seed: int = 1,
 ) -> PeriodEstimate | None:
-    """Best sinusoid period of the light curve's points (see the module docstring); None with too few points."""
+    """Best sinusoid period of the light curve's points (see the module docstring); None with too few points.
+
+    ``n_permutations`` visit permutations give ``false_alarm`` (how often noise with the same visits, bins and errors
+    peaks as high) and ``significant`` (<= 1 %; at least 99 permutations are needed to reach it). Without them
+    (``n_permutations=0``) ``significant`` is None: the period is not tested."""
     used = [p for p in lc.used() if p.rel_mag_err is not None and p.rel_mag_err > 0]
     if len(used) < 10:
         return None
@@ -948,6 +1010,10 @@ def estimate_period(
     w = 1.0 / sig_t**2
     dchi2, coef = _fit_grid(t, y, w, bins, dets, freqs)
     k = int(np.argmax(dchi2))
+    fap = None
+    if n_permutations > 0:
+        rng_perm = np.random.default_rng([seed, 1])
+        fap = _permutation_false_alarm(t, y, w, bins, dets, freqs, float(dchi2[k]), n_permutations, rng_perm)
     # refine around the peak
     fine = np.linspace(freqs[max(k - 1, 0)], freqs[min(k + 1, len(freqs) - 1)], 201)
     dfine, cfine = _fit_grid(t, y, w, bins, dets, fine)
@@ -992,6 +1058,9 @@ def estimate_period(
         n_points=len(used),
         baseline_days=baseline,
         period_range_days=(float(pmin), float(pmax)),
+        false_alarm=fap,
+        n_permutations=max(int(n_permutations), 0),
+        significant=None if fap is None else fap <= PERIOD_FALSE_ALARM,
     )
 
 
@@ -1044,6 +1113,7 @@ def light_curve(
     period: bool | None = None,
     period_range_days: tuple[float, float] = PERIOD_RANGE_DAYS,
     n_bootstrap: int = 0,
+    n_permutations: int = N_PERMUTATIONS,
     use_cache: bool = True,
 ) -> LightCurve:
     """Light curve of the FIXED position (ra, dec) [deg ICRS] from every SPHEREx exposure covering it.
@@ -1088,6 +1158,7 @@ def light_curve(
         period=period,
         period_range_days=period_range_days,
         n_bootstrap=n_bootstrap,
+        n_permutations=n_permutations,
     )
     lc.failures = [{"frame_id": f"{f.obs_id}D{f.detector}", "reason": why} for f, why in series.failures] + failures
     lc.search = dict(series.search)

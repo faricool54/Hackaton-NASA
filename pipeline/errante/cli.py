@@ -543,6 +543,7 @@ def cmd_lightcurve(args: argparse.Namespace) -> int:
             min_bin_span_days=args.min_bin_span,
             period=True if args.period else None,
             n_bootstrap=args.bootstrap,
+            n_permutations=args.permutations,
         )
     except (SearchError, ValueError) as e:
         print(f"Light curve failed: {e}", file=sys.stderr)
@@ -573,7 +574,7 @@ def cmd_lightcurve(args: argparse.Namespace) -> int:
                 f"    D{p['detector']} {p['date_a'][:10]} -> {p['date_b'][:10]} at {p['wavelength_a_um']:.4f}/"
                 f"{p['wavelength_b_um']:.4f} um: {p['delta_mag']:+.3f} mag{ens}"
             )
-    if lc.period:
+    if lc.period and lc.period.significant:  # the notes above already say when it is not
         pe = lc.period
         err = f" +- {pe.period_err_formal_days:.1f} (formal)" if pe.period_err_formal_days else ""
         boot = (
@@ -582,8 +583,11 @@ def cmd_lightcurve(args: argparse.Namespace) -> int:
             else ""
         )
         other = ", ".join(f"{p:.0f} d" for p, _ in pe.peaks[1:])
-        print(f"  period {pe.period_days:.1f} d{err}{boot}; other peaks {other or 'none'}")
-        print(f"  caveat: {pe.caveat}")
+        print(
+            f"  period {pe.period_days:.1f} d{err}{boot}, false-alarm {pe.false_alarm:.3f}; other peaks {other or 'none'}"
+        )
+    if lc.period:
+        print(f"  caveat: {lc.period.caveat}")
     if lc.failures:
         print(f"  {len(lc.failures)} exposures not read or not on the detector")
     return 0 if lc.used() else 4
@@ -776,6 +780,12 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--min-bin-span", type=float, default=30.0, help="drop bins spanning fewer days (default 30)")
     s.add_argument("--period", action="store_true", help="always estimate a period (default: with >= 30 points)")
     s.add_argument("--bootstrap", type=int, default=0, help="visit-bootstrap resamples for the period (e.g. 100)")
+    s.add_argument(
+        "--permutations",
+        type=int,
+        default=100,
+        help="visit permutations for the period's false-alarm probability (default 100; 0 = untested)",
+    )
     s.add_argument("--json", action="store_true", help="print the full result (and matched pairs) as JSON")
     s.add_argument("--out", default=None, help="write the full result as JSON")
     s.set_defaults(func=cmd_lightcurve)

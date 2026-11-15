@@ -12,13 +12,17 @@ Measured with this code on 2026-11-15 (~04-06 UTC, laptop in Buenos Aires -> S3 
   stars, robust scatter 0.018 mag, ensemble in the same frames -0.021 / -0.007 mag.
 * R Dra wing (DR1 + QR3, 539 exposures, 111 px, IMAGE + FLAGS = 852 MB): 538 exposures with a saturated core,
   450 in the light curve; period 259.1 d (formal +-6.2, visit bootstrap 95 % 240-276 d), next peaks 104 and 150 d;
+  none of 100 visit permutations peaks as high (false alarm 1/101: significant; re-measured 2026-11-15 after the
+  permutation test was added, same period, 10.9 s on a cached series);
   peak-to-peak D1-D6 1.21 / 1.05 / 1.28 / 0.61 / 0.62 / 0.94 mag, floors 0.35 / 0.39 / 0.37 / 0.14 / 0.10 / 0.09 mag
   (record, P = 247 d fit: 1.19 / 0.96 / 1.29 / 0.51 / 0.62 / 0.80 and 0.28 / 0.37 / 0.38 / 0.14 / 0.09 / 0.08); control
   6 stars, scatter 0.016-0.117 mag. With the deep collections (900 of 2493 exposures, 1.40 GB, 89 s cold): 266.2 d,
   bootstrap 260-270, alias 146 d. The record (all 2493): 260 d, 95 % 255-265.
 * eps Ind B (458 exposures, 80 s cold, 9.5 s cached): SPHEREx / catalog = J 1.02, H 0.99, Ks 1.13 (2MASS
   22041052-5646577), W1 1.16, W2 1.05 (AllWISE J220415.75-564724.4, ccf 'hh00'); shape vs the DR1 cube fixture
-  r = 0.86 (single pixel) and 0.78 (r = 2 aperture); 714 season pairs, median |dm| 0.043: not variable.
+  r = 0.86 (single pixel) and 0.78 (r = 2 aperture); 714 season pairs, median |dm| 0.043, and every (season pair,
+  detector) group agrees (largest median |dm| 0.102, a single D4 pair): not variable. The same exposures with an
+  injected 1 mag (at 0.75 um) extinction-like brightening in one season are called variable (in D1, D2 and D3 at least).
 * WISE 0855 D5/D6 (93 exposures, 11 s cached): W2 window 0.540 +- 0.028 mJy vs AllWISE W2 0.567 mJy (ratio 0.95);
   per-exposure SNR < 10, so variability is "not testable". All six detectors: W1 window 0.19 mJy = 1.9 x AllWISE W1,
   because the Gaia DR3 star 5756956644387831296 (W2 15.05) sits 0.7-1.85 px away (docs/validation/wise-0855.md).
@@ -84,6 +88,7 @@ def test_r_draconis_wing_light_curve_gives_the_mira_period():
     lo, hi = pe.period_days - 2 * pe.period_err_formal_days, pe.period_days + 2 * pe.period_err_formal_days
     assert lo <= 265.0 and hi >= 255.0  # consistent with the record's 255-265 d
     assert pe.peaks[0][1] > 1.2 * pe.peaks[1][1]  # the period beats its aliases
+    assert pe.significant and pe.false_alarm <= 0.01  # no visit permutation peaks as high (record: p <= 0.003)
     for det, amp in pe.amplitude_mag.items():
         assert amp > 4 * lc.control[det]["robust_sigma_mag"]  # far above the comparison stars
     assert pe.amplitude_mag[1] > 0.9 and pe.amplitude_mag[3] > 0.9 and 0.4 < pe.amplitude_mag[4] < 0.8
@@ -98,7 +103,7 @@ def test_eps_ind_b_spectrum_matches_2mass_allwise_and_the_cube_shape():
     assert 0.9 < ratio["2MASS_Ks"] < 1.3 and 0.9 < ratio["WISE_W1"] < 1.4 and 0.85 < ratio["WISE_W2"] < 1.25
     cube = json.loads((CUBE / "eps-indi-b_ap0.json").read_text())
     assert compare_with_cube(spec, cube)["pearson_r"] > 0.75
-    assert spec.variable is False
+    assert spec.variable is False  # every (season pair, detector) group agrees within 0.15 mag
 
 
 def test_wise_0855_w2_flux_matches_allwise():
