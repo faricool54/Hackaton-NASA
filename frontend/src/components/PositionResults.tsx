@@ -69,7 +69,7 @@ export function PositionResults({
     </ExplorerPanel>
     <ExplorerPanel name="3D" active={view === '3D'}>
       {view === '3D' && (model ? <SystemPreview key={model.id} systemId={model.id} />
-        : selected ? <ObjectSystemPreview position={position} lookup={lookup} />
+        : selected ? <ObjectSystemPreview position={position} lookup={lookup} compact />
           : <p className="muted">Select a catalog object. <a href="#/systems">Browse catalog models →</a></p>)}
     </ExplorerPanel>
   </ExplorerDock>;
