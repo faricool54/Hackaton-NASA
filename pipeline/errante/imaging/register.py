@@ -5,20 +5,28 @@ at a shifted position and the blink shows a false jump of the whole field. This 
 2026W38_1A_0162_3D6 (RW Aurigae field) four Gaia stars sit 1.21-1.36 px off in x although the header says
 ``FINAST = 0`` and ``ASTRONETSOLVED = True`` (docs/validation/rw-aurigae.md).
 
-The check needs no catalog. Per detector (same PSF, same stars), the field stars are found on the per-pixel
-median of the detector's frames; each star's centroid is measured in every frame; the star's consensus
-position is the median of those centroids, so one bad frame cannot move it; and a frame's registration error
-is the median, over its stars, of (centroid - consensus). The target at the field centre (it may move or
-saturate) is left out with the same halo-sized circle as the season comparison.
+The check needs no catalog; it uses the frames of the field itself (all detectors: a correct WCS puts a star
+at the same grid position at every wavelength):
+
+1. Each frame is made sky-free and divided by its noise; the field stars are found on the per-pixel median
+   of those signal-to-noise images, outside the target circle (the target may move, vary or saturate).
+2. A coarse integer shift per frame (cross-correlation with the median, up to ``MAX_LAG_PX``) catches gross
+   WCS errors, so a star is never looked for in empty sky.
+3. Each star's centroid is measured in every frame where it stands ``FRAME_STAR_SNR`` sigmas above its local
+   sky; its consensus position is the median of those centroids, so a few bad frames cannot move it.
+4. A frame's registration error is the median over its stars of (centroid - consensus).
+
+Safety: a frame whose offset is uncertain (``MAX_ERROR_PX``: few or disagreeing stars) is not checked rather than judged,
+and if more than ``MAX_REJECT_FRACTION`` of the checked frames would be rejected the consensus itself is
+suspect, so nothing is rejected and the report says it is inconsistent.
 """
 
 from __future__ import annotations
 
 import math
 import warnings
-from collections import defaultdict
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol
 
 import numpy as np
@@ -27,12 +35,20 @@ from ..detect.difference import find_stars, local_sky
 from .compare import target_exclusion
 
 MAX_OFFSET_PX = 0.5  # a frame whose stars are further than this from their consensus position is misregistered
-MIN_FRAMES = 3  # frames of one detector needed for a consensus a single bad frame cannot pull
-MIN_STARS = 3  # stars measured in a frame (and in MIN_FRAMES frames overall) to judge it
-STAR_SNR = 15.0  # reference star peak above its local sky, in robust sigmas of the reference
-MAX_STARS = 25  # brightest reference stars used
+MIN_FRAMES = 3  # frames in which a star must be measured to have a consensus position
+MIN_STARS = 3  # stars measured in a frame to judge it
+STAR_SNR = 15.0  # field star peak on the median S/N image, in robust sigmas of that image
+FRAME_STAR_SNR = 5.0  # a star counts in a frame only if its peak is this many frame sigmas above its local sky
+MAX_STARS = 25  # brightest field stars used
 CENTROID_HALF = 2  # 5x5 px centroid box (SPHEREx PSF FWHM ~1.2 px)
-CENTROID_ITERATIONS = 2  # recentre the box once, so a 1-2 px shift is not clipped by the box edge
+CENTROID_ITERATIONS = 3  # the box is recentred on each estimate
+MAX_LAG_PX = 20  # coarse search radius for gross WCS errors
+CORRELATION_CLIP = (3.0, 30.0)  # S/N pixels used in the cross-correlation (noise out, bright stars capped)
+# A frame is judged only if the uncertainty of its offset (standard error of the median of its star offsets,
+# 1.2533 x robust scatter / sqrt(n), worst axis) is at most this: a few faint, disagreeing stars (e.g. 3 stars
+# in a D6 frame of eps Indi B, 0.38 px with scatter 0.44 px) are "not checked" rather than near the threshold.
+MAX_ERROR_PX = 0.15
+MAX_REJECT_FRACTION = 1 / 3  # rejecting more of the checked frames than this means the consensus is suspect
 MAD_TO_SIGMA = 1.4826
 
 
@@ -45,16 +61,29 @@ class _GridFrame(Protocol):
 
 @dataclass(frozen=True)
 class Registration:
-    """Registration error of one frame on the grid, relative to the other frames of its detector [px]."""
+    """Registration error of one frame on the grid, relative to the consensus of the field's frames [px]."""
 
     dx: float  # +x = towards the right of the PNG (west)
     dy: float  # +y = towards the bottom of the PNG (south)
     n_stars: int
-    scatter: float  # robust sigma of the per-star offsets (both axes pooled)
+    scatter: float  # robust sigma of the per-star offsets around their median (worst axis)
 
     @property
     def offset(self) -> float:
         return math.hypot(self.dx, self.dy)
+
+
+@dataclass(frozen=True)
+class Report:
+    """Per frame: its Registration, or None when it could not be checked."""
+
+    frames: dict[str, Registration | None] = field(default_factory=dict)
+    inconsistent: bool = False  # the check would have rejected too many frames; nothing was rejected
+
+    def misregistered(self, max_offset: float = MAX_OFFSET_PX) -> dict[str, Registration]:
+        if self.inconsistent:
+            return {}
+        return {fid: r for fid, r in self.frames.items() if r is not None and r.offset > max_offset}
 
 
 def _robust_sigma(values: np.ndarray) -> float:
@@ -64,21 +93,36 @@ def _robust_sigma(values: np.ndarray) -> float:
     return float(MAD_TO_SIGMA * np.median(np.abs(values - np.median(values))))
 
 
-def _usable(f: _GridFrame) -> np.ndarray:
-    """Frame data with bad pixels (saturated cores, defects repaired for display only) set to NaN."""
-    data = np.asarray(f.data, dtype=np.float64)
+def _sky_free(f: _GridFrame) -> np.ndarray:
+    """float32 frame data minus its median; bad pixels (saturated cores, repaired defects) and no data = NaN."""
+    data = np.asarray(f.data, dtype=np.float32)
     bad = np.asarray(f.bad, dtype=bool) if f.bad is not None else np.zeros(data.shape, bool)
-    return np.where(bad | ~np.isfinite(data), np.nan, data)
+    out = np.where(bad | ~np.isfinite(data), np.float32(np.nan), data)
+    finite = out[np.isfinite(out)]
+    return out - np.float32(np.median(finite)) if finite.size else out
 
 
-def centroid(img: np.ndarray, x: int, y: int) -> tuple[float, float] | None:
-    """Flux-weighted centroid (x, y) above the local sky in a 5x5 box near (x, y); None if not measurable.
+def _nanmedian(stack: np.ndarray) -> np.ndarray:
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)  # all-NaN pixels -> NaN
+        return np.nanmedian(stack, axis=0)
 
-    The box is recentred once on the first estimate. Not measurable: the box leaves the image, holds a NaN
-    (bad pixel, no data), the local sky ring is unusable, or no flux is above the sky.
+
+def _outside(shape: tuple[int, int], circle: tuple[float, float, float]) -> np.ndarray:
+    yy, xx = np.indices(shape)
+    return np.hypot(xx - circle[0], yy - circle[1]) >= circle[2]
+
+
+def centroid(img: np.ndarray, x: float, y: float, sigma: float | None = None) -> tuple[float, float] | None:
+    """Flux-weighted centroid (x, y) above the local sky in a 5x5 box recentred from (x, y); None if not measurable.
+
+    Not measurable: the box leaves the image or holds a NaN (bad pixel, no data), the local sky ring is
+    unusable, there is no flux above the sky, or (with ``sigma``, the frame's pixel noise) the brightest
+    box pixel is less than ``FRAME_STAR_SNR`` x ``sigma`` above the sky — no star there.
     """
     ny, nx = img.shape
     h = CENTROID_HALF
+    dy, dx = np.mgrid[-h : h + 1, -h : h + 1]
     cx, cy = float(x), float(y)
     for _ in range(CENTROID_ITERATIONS):
         ix, iy = int(round(cx)), int(round(cy))
@@ -92,46 +136,89 @@ def centroid(img: np.ndarray, x: int, y: int) -> tuple[float, float] | None:
             return None
         w = np.clip(box - sky, 0.0, None)
         total = float(w.sum())
-        if total <= 0:
+        if total <= 0 or (sigma is not None and float(w.max()) < FRAME_STAR_SNR * sigma):
             return None
-        dy, dx = np.mgrid[-h : h + 1, -h : h + 1]
         cx, cy = ix + float((w * dx).sum()) / total, iy + float((w * dy).sum()) / total
     return cx, cy
 
 
-def _reference_stars(stack: np.ndarray) -> list[tuple[int, int]]:
-    """Brightest isolated field stars on the per-pixel median of ``stack`` (target circle left out)."""
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", RuntimeWarning)  # all-NaN pixels
-        reference = np.nanmedian(stack, axis=0)
-    finite = reference[np.isfinite(reference)]
-    if finite.size == 0:
-        return []
-    sky_free = reference - float(np.median(finite))
-    sigma = _robust_sigma(sky_free)
-    if not math.isfinite(sigma) or sigma <= 0:
-        return []
-    exclude = target_exclusion(np.where(np.isfinite(sky_free), sky_free, np.nan))
-    stars = find_stars(sky_free, sigma, min_snr=STAR_SNR, exclude=exclude)
-    stars.sort(key=lambda s: -sky_free[s[1], s[0]])
-    return stars[:MAX_STARS]
+def coarse_lag(snr: np.ndarray, reference: np.ndarray, max_lag: int = MAX_LAG_PX) -> tuple[int, int]:
+    """Integer (dx, dy) that best aligns ``reference`` onto ``snr`` (both S/N images, target masked to NaN).
+
+    Cross-correlation of the clipped star pixels (``CORRELATION_CLIP``) by FFT with zero padding, searched
+    within ``max_lag`` px. (0, 0) when the images hold no star pixels.
+    """
+
+    def stars_only(img: np.ndarray) -> np.ndarray:
+        img = np.nan_to_num(img, nan=0.0)
+        return np.where(img > CORRELATION_CLIP[0], np.minimum(img, CORRELATION_CLIP[1]), 0.0)
+
+    a, b = stars_only(snr), stars_only(reference)
+    if not a.any() or not b.any():
+        return 0, 0
+    ny, nx = a.shape
+    shape = (ny + max_lag, nx + max_lag)
+    corr = np.fft.irfft2(np.fft.rfft2(a, shape) * np.conj(np.fft.rfft2(b, shape)), shape)
+    lags = np.arange(-max_lag, max_lag + 1)
+    window = corr[np.ix_(lags % shape[0], lags % shape[1])]
+    iy, ix = np.unravel_index(int(np.argmax(window)), window.shape)
+    return int(lags[ix]), int(lags[iy])
 
 
-def _detector_registrations(frames: Sequence[_GridFrame]) -> dict[str, Registration | None]:
-    stack = np.stack([_usable(f) for f in frames])
-    stars = _reference_stars(stack)
-    # centroids[i, k] = (x, y) of star k in frame i, NaN where not measurable
+def _measure(img: np.ndarray, sigma: float, stars: list[tuple[int, int]], lag: tuple[int, int]) -> np.ndarray:
+    out = np.full((len(stars), 2), np.nan)
+    for k, (x, y) in enumerate(stars):
+        c = centroid(img, x + lag[0], y + lag[1], sigma)
+        if c is not None:
+            out[k] = c
+    return out
+
+
+def registrations(frames: Sequence[_GridFrame]) -> Report:
+    """Registration error of every frame against the consensus of all ``frames`` (one grid, any detectors).
+
+    A frame is None (not checked) when fewer than ``MIN_STARS`` field stars with a consensus position are
+    measurable in it, or when its offset is too uncertain (``MAX_ERROR_PX``).
+    """
+    frames = list(frames)
+    if len(frames) < MIN_FRAMES:
+        return Report({f.frame_id: None for f in frames})
+    sky_free = np.stack([_sky_free(f) for f in frames])  # float32 (n, ny, nx)
+    shape = sky_free.shape[1:]
+    rough = np.array([_robust_sigma(img) for img in sky_free])
+    with np.errstate(invalid="ignore", divide="ignore"):
+        exclude = target_exclusion(_nanmedian(sky_free / rough[:, None, None]))
+    outside = _outside(shape, exclude)
+    sigma = np.array([_robust_sigma(img[outside]) for img in sky_free])  # the target halo inflates `rough`
+    usable = np.isfinite(sigma) & (sigma > 0)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        snr = sky_free / np.where(usable, sigma, np.nan)[:, None, None]
+    reference = _nanmedian(snr[usable]) if usable.any() else np.full(shape, np.nan)
+    ref_sigma = _robust_sigma(reference[outside])
+    stars: list[tuple[int, int]] = []
+    if math.isfinite(ref_sigma) and ref_sigma > 0:
+        stars = find_stars(reference, ref_sigma, min_snr=STAR_SNR, exclude=exclude)
+        stars.sort(key=lambda s: -reference[s[1], s[0]])
+        stars = stars[:MAX_STARS]
+
+    masked_reference = np.where(outside, reference, np.nan)
     centroids = np.full((len(frames), len(stars), 2), np.nan)
-    for i, img in enumerate(stack):
-        for k, (x, y) in enumerate(stars):
-            c = centroid(img, x, y)
-            if c is not None:
-                centroids[i, k] = c
+    for i in range(len(frames)):
+        if not usable[i] or not stars:
+            continue
+        at_zero = _measure(sky_free[i], float(sigma[i]), stars, (0, 0))
+        lag = coarse_lag(np.where(outside, snr[i], np.nan), masked_reference)
+        if lag != (0, 0):  # keep the gross shift only if it finds more stars than no shift
+            shifted = _measure(sky_free[i], float(sigma[i]), stars, lag)
+            if np.isfinite(shifted[:, 0]).sum() > np.isfinite(at_zero[:, 0]).sum():
+                at_zero = shifted
+        centroids[i] = at_zero
+
     measured = np.isfinite(centroids[..., 0])
-    enough = measured.sum(axis=0) >= MIN_FRAMES  # stars with a trustworthy consensus
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", RuntimeWarning)
         consensus = np.nanmedian(centroids, axis=0)  # (n_stars, 2)
+    enough = measured.sum(axis=0) >= MIN_FRAMES
     out: dict[str, Registration | None] = {}
     for i, f in enumerate(frames):
         use = measured[i] & enough
@@ -139,35 +226,12 @@ def _detector_registrations(frames: Sequence[_GridFrame]) -> dict[str, Registrat
             out[f.frame_id] = None
             continue
         d = centroids[i, use] - consensus[use]
-        out[f.frame_id] = Registration(
-            float(np.median(d[:, 0])),
-            float(np.median(d[:, 1])),
-            int(use.sum()),
-            _robust_sigma(d.ravel()),
+        med = np.median(d, axis=0)
+        scatter = max(_robust_sigma(d[:, 0] - med[0]), _robust_sigma(d[:, 1] - med[1]))
+        error = 1.2533 * scatter / math.sqrt(int(use.sum()))
+        out[f.frame_id] = (
+            None if error > MAX_ERROR_PX else Registration(float(med[0]), float(med[1]), int(use.sum()), scatter)
         )
-    return out
-
-
-def registrations(frames: Sequence[_GridFrame]) -> dict[str, Registration | None]:
-    """Registration error of every frame, judged against the other frames of the same detector.
-
-    None means not checked: fewer than ``MIN_FRAMES`` frames of that detector, or fewer than ``MIN_STARS``
-    field stars measurable in the frame. Frames must share one grid (same shape).
-    """
-    by_detector: dict[int, list[_GridFrame]] = defaultdict(list)
-    for f in frames:
-        by_detector[f.detector].append(f)
-    out: dict[str, Registration | None] = {}
-    for members in by_detector.values():
-        if len(members) < MIN_FRAMES:
-            out.update({f.frame_id: None for f in members})
-        else:
-            out.update(_detector_registrations(members))
-    return out
-
-
-def misregistered(
-    registered: dict[str, Registration | None], max_offset: float = MAX_OFFSET_PX
-) -> dict[str, Registration]:
-    """The frames whose registration error exceeds ``max_offset`` px."""
-    return {fid: r for fid, r in registered.items() if r is not None and r.offset > max_offset}
+    checked = [r for r in out.values() if r is not None]
+    n_bad = sum(r.offset > MAX_OFFSET_PX for r in checked)
+    return Report(out, inconsistent=bool(checked) and n_bad > MAX_REJECT_FRACTION * len(checked))
