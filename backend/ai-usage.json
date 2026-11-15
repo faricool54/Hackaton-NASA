@@ -20,5 +20,5 @@
     "arbitrary_coordinate_job": "4 frames plus manifest and images served over HTTP",
     "scientific_R05_validation": false
   },
-  "cache_revision": "display-mask-v4 with source/dependency fingerprint and queued-version fencing"
+  "cache_revision": "display-mask-v4 with source/dependency fingerprint and queued-version fencing; transitive detect modules and products.py included with job/science cache regressions (Codex-assisted)"
 }
