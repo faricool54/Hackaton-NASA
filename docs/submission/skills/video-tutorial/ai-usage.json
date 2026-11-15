@@ -1,0 +1,31 @@
+{
+  "component": "Reusable video-tutorial skill and English Errante demo profile",
+  "updated_on": "2026-11-15",
+  "original_source": "User-supplied video-tutorial folder; original authorship and asset-rights review not established by this import",
+  "tool": "OpenAI Codex",
+  "assistance": [
+    "User-requested review and adaptation of the supplied skill for the documented 30-second demo requirements",
+    "English narration script without subtitles, dark title/credit cards and real-application take templates",
+    "Strict MP4 duration, current narration/build inputs, credits and metadata verification with regression tests",
+    "Opening guidance and script communicating demonstrated distinguishing value within approximately the first 10 seconds",
+    "Import of reusable instructions, scripts, templates and tests into the repository"
+  ],
+  "original_browser_behavior_preserved": true,
+  "asset_cleanup": "Review follow-up: only the neutral preset and system fonts are bundled; no third-party corporate preset or font binaries are redistributed",
+  "voice_output_rights": {
+    "status": "not_cleared_for_public_delivery",
+    "reviewed_on": "2026-11-15",
+    "checked_sources": [
+      "https://github.com/rany2/edge-tts/blob/master/README.md",
+      "https://github.com/rany2/edge-tts/blob/master/LICENSE",
+      "https://www.microsoft.com/en-us/servicesagreement"
+    ],
+    "remaining": "Confirm applicable service/output terms for the selected voice or use team-recorded English narration; complete final media and form disclosures"
+  },
+  "final_video_generated": false,
+  "final_voiceover_generated": false,
+  "uploaded_or_submitted": false,
+  "validation_media": "Synthetic test tones/color frames and rendered HTML cards used for software validation; not telescope observations or a submitted demo",
+  "human_review": "Pending team review; automated checks do not establish scientific validity or contest eligibility",
+  "descriptive_disclosure": "../../VIDEO_SKILL.md"
+}
