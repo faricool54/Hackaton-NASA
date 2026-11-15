@@ -782,11 +782,15 @@ def light_curve_from_exposures(
     summary: dict[int, dict] = {}
     for det in sorted({p.detector for p in points}):
         mine = [p for p in points if p.detector == det]
-        stats = _robust([p.rel_mag for p in mine if p.rel_mag is not None])
+        # A two-point bin forces +/- half of ONE difference: two correlated endpoints are not
+        # an exposure-scatter estimate (LC24). Keep both for playback and matched-pair analysis.
+        scatter_bins = {b.index for b in bins if b.detector == det and b.n_points >= 3}
+        stats = _robust([p.rel_mag for p in mine if p.rel_mag is not None and p.bin in scatter_bins])
         stats["n_exposures"] = len(mine)
         stats["n_bins"] = sum(1 for b in bins if b.detector == det)
         stats["excluded"] = dict(Counter(p.excluded for p in mine if p.excluded))
         floor = control.get(det, {}).get("robust_sigma_mag")
+        stats["scatter_over_control"] = None
         if method == "wing":  # wing scatter over aperture scatter: not a defined ratio (WS3 review LC24)
             stats["scatter_over_control"] = None
         elif floor and stats.get("robust_sigma_mag") is not None:
@@ -893,6 +897,13 @@ def _notes(lc: LightCurve) -> list[str]:
         "Relative magnitudes: each point against the mean magnitude of its own detector and wavelength bin; the same "
         "detector does not mean the same wavelength (linear variable filter).",
     ]
+    n_two = sum(b.n_points for b in lc.bins if b.n_points == 2)
+    if n_two:
+        notes.append(
+            f"Scatter summaries exclude {n_two} endpoints in two-exposure wavelength bins: each pair is only one "
+            "independent difference. These exposures remain in the curve and matched-pair analysis. "
+            "Use the comparison-star matched-pair scatter as the aperture-pair noise floor."
+        )
     if lc.excluded:
         notes.append("Excluded exposures: " + ", ".join(f"{k} {v}" for k, v in sorted(lc.excluded.items())) + ".")
     sat = lc.excluded.get("saturated", 0)

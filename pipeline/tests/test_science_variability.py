@@ -155,6 +155,16 @@ def test_aperture_light_curve_recovers_season_changes_at_matched_wavelength():
     assert lc.period is None  # 18 points: no automatic period
 
 
+def test_two_exposure_bins_remain_pairs_but_do_not_claim_ten_independent_scatter_points():
+    # One visit in two seasons: each of the three wavelength bins has only two exposures.
+    exposures = [e for e in season_exposures() if str(e.image.obs_id).startswith(("S0V0_", "S2V0_"))]
+    assert len(exposures) == 6
+    lc = light_curve_from_exposures(exposures, RA0, DEC0, method="aperture")
+    assert len(lc.used()) == 6 and len(matched_pairs(lc)) == 3
+    assert lc.summary[1]["n"] == 0 and lc.summary[1]["scatter_over_control"] is None
+    assert any("only one independent difference" in note for note in lc.notes)
+
+
 def test_flux_is_in_mjy_and_dates_are_iso():
     exp = season_exposures()[:6]
     lc = light_curve_from_exposures(exp, RA0, DEC0, method="aperture", n_comparison=0, min_bin_span_days=0)

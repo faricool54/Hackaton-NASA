@@ -16,7 +16,9 @@ y registros de validación; luego espectros/contexto. `Candidate`/cruce/distanci
 ## Estado actual
 - ✅ `motion.py`: movimiento lineal desde detecciones; distancia aproximada por velocidad en oposición (solo
   orden de magnitud — SPHEREx mira a ~90° del Sol, ver SCIENCE §1).
-- ⛔ `known_objects.objects_in_frame/ephemeris/crossmatch`, `spectra.*`, `planet_x.*`.
+- ✅ Espectros/contexto/curvas implementados; #93 de faricool54 ya contiene los arreglos LC7/LC23–29 y #94/#95 republicaron los productos; #97 muestra sus límites.
+- Esta tarea (usuario, 15/11): rpccp con Codex completa V18 (temperatura de color), V15 (identidad RW Aur) y el remanente LC24, sobre esos cambios; no los reimplementa.
+- ⛔ `known_objects.objects_in_frame/ephemeris/crossmatch` y `planet_x.*`: extensiones P2, conservadas fuera del cierre previo al envío.
 
 ## Tareas
 
@@ -48,12 +50,16 @@ y registros de validación; luego espectros/contexto. `Candidate`/cruce/distanci
 - [x] **WS3-9 (P0, R05) Variables RW Aurigae y R Draconis.** ✅ Validadas en `docs/validation/` (#36) y producto `science.variability.light_curve` (#59; CLI `errante lightcurve`). Revisión científica de los productos precalculados de #78/#79/#83 en `docs/SCIENCE.md` § Revisión científica de las curvas de luz (2026-11-15): sin bloqueantes; LC1–LC7 importantes, y LC23–LC30 son de WS3. Construir comparación de brillo a λ
   compatible, con incertidumbre, fondo/PSF, saturación y mezcla de componentes controlados. Conservar flujo
   real y fechas; mismo detector no garantiza misma λ. Reportar resultado positivo, negativo o inconcluso.
-- [x] **WS3-10 (P1, C05) Contexto Gaia DR3/WISE.** ✅ `science.context.object_context` + `physical_parameters` (Facts con fuente; 'unknown' si no se midió) y CLI `errante object` (#58). Falta que WS4/WS5 lo conecten al panel y WS7 al 3D. Verificar catálogo, versión y condiciones de uso;
+- [x] **WS3-10 (P1, C05) Contexto Gaia DR3/WISE.** ✅ `science.context.object_context` + `physical_parameters` (Facts con fuente; 'unknown' si no se midió) y CLI `errante object` (#58). WS4/WS5 ya lo conectaron al panel (#75/#76); el mínimo de WS7 sigue en PR #90. Verificar catálogo, versión y condiciones de uso;
   propagar astrometría Gaia a épocas SPHEREx cuando haya datos. Exponer misión, banda, fecha y procedencia
   para WS5-4; no asumir que Gaia cubre enanas marrones débiles ni presentar WISE como SPHEREx.
 - [ ] **WS3-11 (P2) Evaluar recursos CSA/CADC/NEOSSat.** Revisar página de misión, acceso CADC,
   tutorial y dataset del enunciado, licencias y posibles comparaciones. Decisión escrita con fuentes;
   cualquier adaptador futuro conserva misión y procedencia separadas y no bloquea SPHEREx.
+
+- [x] **WS3-12 (P1, V18/C02) Temperatura de color y clasificación descriptiva IR.** `science.continuum` ajusta F_nu con escala libre, rango condicional y controles de calidad/cobertura; `spectra` interpreta cada temporada por separado y la CLI lo entrega en JSON/texto. No es Teff ni RGB. Rechazos explícitos; fixture real de ε Ind B y tests contra Astropy. Adaptador listo para que WS4 lo muestre en `SpectrumResponse.notes`, sin cambiar contrato.
+- [x] **WS3-13 (P1, V15/C05) Identidad RW Aur.** Nombre visible neutral, advertencia WDS/literatura/SIMBAD, cross-id crudo conservado. Identidad/facts/fotometría quedan sin verificar; no se renombra A/B silenciosamente ni se asigna el espectro mezclado a una estrella.
+- [x] **WS3-14 (LC24 restante) Resumen de dispersión.** No cuenta como medidas independientes los dos extremos de un único par. Bins de dos exposiciones conservados para pares, excluidos solo del resumen de dispersión; `scatter_over_control=null` si no hay muestra adecuada. Nuevos productos requieren republish WS4; los JSON empaquetados no se editan a mano.
 
 ## Gotchas
 - SPHEREx está en órbita baja: para asteroides cercanos usá la posición de la nave (no geocéntrica).

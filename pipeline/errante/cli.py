@@ -504,7 +504,7 @@ def _write_or_print(doc: dict, out: str | None, show: bool) -> None:
 def cmd_position_spectrum(args: argparse.Namespace) -> int:
     """Spectrum of a position with seasons, saturation and a variability check (WS3-5, on WS2's photometry)."""
     from .data.irsa import SearchError
-    from .science.spectra import position_spectrum
+    from .science.spectra import interpret_spectrum, interpretation_notes, position_spectrum
 
     pm = None
     if args.pm_ra is not None or args.pm_dec is not None:
@@ -530,6 +530,8 @@ def cmd_position_spectrum(args: argparse.Namespace) -> int:
         print(f"  WARNING: {w}")
     for n in spec.notes:
         print(f"  note: {n}")
+    for n in interpretation_notes(interpret_spectrum(spec)):
+        print(f"  interpretation: {n}")
     if spec.failures:
         print(f"  {len(spec.failures)} exposures could not be measured")
     return 0 if spec.samples else 4

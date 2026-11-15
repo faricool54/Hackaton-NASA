@@ -196,6 +196,24 @@ CONTEXT_NOTE = (
 )
 
 
+# SIMBAD's component cross-ids conflict with the WDS geometry / resolved-star literature.
+# Preserve the catalog's raw main_id; do not silently relabel A/B or attach one star's physics to the other.
+RW_AUR_GAIA_IDS = frozenset({156430817820015232, 156430822114424576})
+RW_AUR_IDENTITY_NOTE = (
+    "RW Aur component identity conflict: SIMBAD component labels/cross-ids disagree with the WDS "
+    "05078+3024 (JOY 5, A-BC) geometry and the resolved-component literature "
+    "(https://arxiv.org/abs/2007.12559). Gaia DR3 156430817820015232 is associated with A "
+    "in that geometry; 156430822114424576 with B/BC. The raw SIMBAD name is retained for provenance, "
+    "not adopted as a secure component identification. SPHEREx does not resolve A+BC; do not assign "
+    "the blended spectrum/variability or a neighbouring component's physical parameters to one star. "
+    "WDS: https://www.astro.gsu.edu/wds/"
+)
+
+
+def _rw_aur_conflict(ctx: ObjectContext) -> bool:
+    return ctx.gaia is not None and ctx.gaia.source is not None and ctx.gaia.source.source_id in RW_AUR_GAIA_IDS
+
+
 # --- HTTP with a raw-text disk cache ------------------------------------------------------------------------
 
 
@@ -1343,7 +1361,11 @@ def object_context(
     if hosts:
         listed = ", ".join(f'{h["hostname"]} (~{h["sep_arcsec"]:.0f}" at 2016.0)' for h in hosts[:3])
         warnings.append(f"Confirmed planet host(s) nearby but NOT this object: {listed}.")
-    ctx.identity_uncertain = bool(gaia is not None and (gaia.ambiguous or gaia.loose))
+    component_conflict = _rw_aur_conflict(ctx)
+    if component_conflict:
+        ctx.display_name = "RW Aur (component identity uncertain)"
+        warnings.append(RW_AUR_IDENTITY_NOTE)
+    ctx.identity_uncertain = component_conflict or bool(gaia is not None and (gaia.ambiguous or gaia.loose))
     for m in ctx.photometry:
         m.identity_uncertain = ctx.identity_uncertain
     exgal, exgal_firm = _extragalactic(ctx, src)
@@ -1580,9 +1602,9 @@ def derive_parameters(ctx: ObjectContext) -> list[PhysicalParameter]:
     reported as such, never as 'not catalogued'.
     """
     g = _gaia_ok(ctx)
-    amb = ctx.gaia is not None and (ctx.gaia.ambiguous or ctx.gaia.loose)
+    amb = ctx.identity_uncertain or (ctx.gaia is not None and (ctx.gaia.ambiguous or ctx.gaia.loose))
     by_name = ctx.query.get("name") is not None
-    common: list[str] = []
+    common: list[str] = [RW_AUR_IDENTITY_NOTE] if _rw_aur_conflict(ctx) else []
     if ctx.gaia is not None and ctx.gaia.ambiguous:
         common.append("Ambiguous Gaia match (several sources within the radius): not verified.")
     if ctx.gaia is not None and ctx.gaia.loose and g is not None:
@@ -1742,7 +1764,7 @@ def derive_parameters(ctx: ObjectContext) -> list[PhysicalParameter]:
     if ctx.spectral_type:
         sp.value, sp.source = ctx.spectral_type, SESAME_CATALOG + _stamp(ctx, "sesame")
         # by name SIMBAD IS the object; on a click SIMBAD is reached through the Gaia match
-        sp.verified = by_name or not amb
+        sp.verified = (by_name or not amb) and not _rw_aur_conflict(ctx)
         if not sp.verified:
             sp.caveats.append(ident_caveat)
     elif _failed(ctx, "sesame"):
@@ -1764,7 +1786,9 @@ def derive_parameters(ctx: ObjectContext) -> list[PhysicalParameter]:
     vsx_down = _failed(ctx, "vsx")
     # VSX is matched by position along the adopted track: by name, a VSX entry with the object's own name is
     # still that object even if the Gaia match is ambiguous (RW Aur); otherwise it needs a secure identification.
-    vsx_ok = not amb or (by_name and var is not None and _norm_name(var.name) in _names(ctx))
+    vsx_ok = (
+        not amb or (by_name and var is not None and _norm_name(var.name) in _names(ctx))
+    ) and not _rw_aur_conflict(ctx)
     vt = PhysicalParameter("variability_type", "Variability type", None)
     vp = PhysicalParameter("variability_period", "Variability period", None, "days")
     vsx_src = f"AAVSO VSX {var.name} (B/vsx, VizieR CfA{_stamp(ctx, 'vsx')})" if var else None
@@ -1835,7 +1859,7 @@ def physical_parameters(ctx: ObjectContext) -> list[Fact]:
 def identity_match(ctx: ObjectContext) -> str:
     """Contract ``ObjectMatch``: how secure the identity is (see models.ObjectMatch)."""
     gaia = ctx.gaia
-    if gaia is not None and gaia.ambiguous:
+    if _rw_aur_conflict(ctx) or (gaia is not None and gaia.ambiguous):
         return "ambiguous"
     if gaia is not None and gaia.loose:
         return "loose"
