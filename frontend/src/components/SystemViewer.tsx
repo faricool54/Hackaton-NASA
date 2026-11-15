@@ -12,8 +12,6 @@ interface Props {
   onSelect: (bodyId: string | null) => void;
 }
 
-const SPEED_STEPS = [0.25, 0.5, 1, 2, 4, 8];
-
 /** 'load' = the three.js chunk did not download; 'webgl' = the browser could not create the 3D context. */
 type ErrorKind = 'load' | 'webgl';
 
@@ -124,15 +122,18 @@ export function SystemViewer({ system, selectedId, onSelect }: Props) {
         <button type="button" onClick={() => setPlaying((p) => !p)} aria-label={playing ? 'Pause' : 'Play'}>
           {playing ? '❚❚ Pause' : '▶ Play'}
         </button>
-        <label>
-          Speed{' '}
-          <select value={speedMul} onChange={(e) => setSpeedMul(Number(e.target.value))}>
-            {SPEED_STEPS.map((s) => (
-              <option key={s} value={s}>
-                ×{s}
-              </option>
-            ))}
-          </select>
+        <label className="speed-control">
+          <span>Speed</span>
+          <input
+            type="range"
+            min={0.25}
+            max={8}
+            step={0.25}
+            value={speedMul}
+            onChange={(e) => setSpeedMul(Number(e.target.value))}
+            aria-label="System playback speed"
+          />
+          <span className="speed-value">×{Number(speedMul.toFixed(2))}</span>
         </label>
         <span className="muted small">{formatDaysPerSecond(daysPerSec)}</span>
         <label>

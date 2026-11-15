@@ -8,11 +8,17 @@ jurado desde `Candidate.score`. La revisión interna queda separada en `submissi
 
 | Objetivo | Qué se busca comprobar | Identidad / posición | Estado |
 |---|---|---|---|
-| Barnard's Star | Movimiento propio entre épocas separadas, registro WCS estable respecto al fondo | Preset `barnards-star` existente; verificar fuente, época y propagación antes de usarlo como evidencia | Pendiente |
-| Epsilon Indi B | Visualización del sistema de enanas marrones y su cambio entre épocas | Resolver el componente B y distinguirlo de Epsilon Indi A; no asumir que Ba/Bb se resuelven en SPHEREx | Pendiente |
-| WISE 0855 | Objeto débil con movimiento propio; escoger bandas y épocas adecuadas | Texto: RA **08h55m10.831s**, Dec **−07°14′42.53″**. Época no indicada; resolver y propagar con fuente | Pendiente |
-| RW Aurigae | Cambios de brillo, sin confundir espectro, calibración o mezcla de fuentes con variabilidad | Resolver identidad, componentes relevantes, coordenadas y época con fuente | Pendiente |
-| R Draconis | Serie temporal de una variable; comparación consistente de brillo entre épocas | Resolver identidad, coordenadas y época con fuente | Pendiente |
+| Barnard's Star | Movimiento propio entre épocas separadas, registro WCS estable respecto al fondo | Preset `barnards-star` existente; verificar fuente, época y propagación antes de usarlo como evidencia | **success** (2026-11-15): S0→S2 1,655–1,665 px vs 1,665 esperado, con el núcleo saturado ([registro](validation/barnards-star.md)) |
+| Epsilon Indi B | Visualización del sistema de enanas marrones y su cambio entre épocas | Resolver el componente B y distinguirlo de Epsilon Indi A; no asumir que Ba/Bb se resuelven en SPHEREx | **success** (2026-11-14): S0→S3 1,03 px medido vs 1,03 esperado ([registro](validation/eps-indi-b.md)) |
+| WISE 0855 | Objeto débil con movimiento propio; escoger bandas y épocas adecuadas | Texto: RA **08h55m10.831s**, Dec **−07°14′42.53″**. Época no indicada; resolver y propagar con fuente | **success** (2026-11-14): solo D5/D6; 8,4–8,5″ en 360 d vs 8,0″ ([registro](validation/wise-0855.md)) |
+| RW Aurigae | Cambios de brillo, sin confundir espectro, calibración o mezcla de fuentes con variabilidad | Resolver identidad, componentes relevantes, coordenadas y época con fuente | **success** (2026-11-14), solo D1: ~1 mag más brillante en un año a λ emparejada ([registro](validation/rw-aurigae.md)) |
+| R Draconis | Serie temporal de una variable; comparación consistente de brillo entre épocas | Resolver identidad, coordenadas y época con fuente | **success** (2026-11-14), offline: ala de la PSF, núcleo saturado; P ≈ 260 d, sigue la V de AAVSO ([registro](validation/r-draconis.md)) |
+
+✅ 2026-11-14/15: los cinco registros están en [`validation/`](validation/), hechos por agentes de Claude Code (análisis más
+revisión adversarial independiente con código propio) sobre los FITS reales. **Revisión humana pendiente.**
+Valen para los campos publicados por #17 (mismos 40 frames, PNG idénticos). Todos piden arreglos de render,
+selección y UI para que el recorrido público *muestre* lo medido; cada registro los lista con su dueño.
+Barnard's Star se midió el 15/11 sobre las 358 exposiciones (no solo los 40 frames publicados).
 
 No rellenar coordenadas faltantes a partir de la memoria ni tomar una posición antigua como posición actual.
 `config/fields.toml` contiene presets de desarrollo; no es un registro de validaciones aprobadas.

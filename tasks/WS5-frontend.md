@@ -18,11 +18,14 @@ desplegable (`npm run build`) que también funciona contra el backend (`?mode=ap
 - ✅ Home con tarjetas de campos, página de campo con **blink** (play/pausa, slider, velocidad, teclado),
   marcadores de candidatos y objetos conocidos, traza del candidato seleccionado, panel de evidencia, espectro
   SVG, filtro por detector, About, badge de datos sintéticos, modos `static`/`api`.
-- ⛔ Mapa del cielo (placeholder), búsqueda por coordenadas, zoom, capa de diferencia, mobile pulido.
+- ✅ Integración local: mapa real SPHEREx (Aladin 3.8.2/IRSA), λ propia y contexto AllWISE; búsqueda por
+  nombre/RA-Dec → job → 40 PNG reales. URL restaurable, errores y modo estático explícito.
+- Pendientes: validación científica R05, comparaciones y espectro/3D medidos, auditoría Lighthouse,
+  modo compacto y recorrido desde URL pública.
 
 ## Tareas
 
-- [ ] **WS5-1 (P0, R04) Blink estable sobre datos reales**: play/pausa, paso, velocidad y fechas; precarga,
+- [x] **WS5-1 (P0, R04) Blink estable sobre datos reales**: play/pausa, paso, velocidad y fechas; precarga,
   carga/fallos explícitos y reinicio correcto al cambiar campo/filtro. Funciona con candidatos/known vacíos.
   Zoom/pan, crosshair, comparación lado a lado/cortina y timeline proporcional son mejoras P1.
 - [ ] **WS5-2 (P0) Onboarding**: primer uso guiado ("estas son estrellas, esto se movió, por eso es un
@@ -35,14 +38,14 @@ desplegable (`npm run build`) que también funciona contra el backend (`?mode=ap
   recortes por detección, espectro, "qué podría ser" y advertencias.
 - [ ] **WS5-6 (P2) Página "Límites"**: tabla/heatmap de inyección-recuperación (WS2-6) + widget "¿Lo vería
   SPHEREx?" (WS3-6).
-- [ ] **WS5-7 (P0, R03/R05) Ingreso RA/Dec → secuencia.** Unidades claras, grados y formato sexagesimal
+- [x] **WS5-7 (P0, R03/R05) Ingreso RA/Dec → secuencia.** Unidades claras, grados y formato sexagesimal
   normalizado; validar rangos y mostrar errores de campo. Consultar y construir/cargar mediante WS4-5,
   con progreso/sin cobertura/reintento; contar archivos sin abrir imágenes no alcanza. Accesos a los cinco
   blancos de VALIDATION.md con fuente/época verificadas. Resolver nombres es opcional. El modo estático
   explica su límite de campos curados y no simula una búsqueda arbitraria.
 - [ ] **WS5-8 (P1, C03) Suma/resta de épocas.** Elegir A/B o conjunto y ver suma/media/resta generada
   por WS2/WS4, con fechas, banda y advertencias. Color compuesto y exportación GIF/MP4 quedan P2.
-- [ ] **WS5-9 (P1, C04) Campo de visión configurable.** Control con unidades y límites del servidor;
+- [x] **WS5-9 (P1, C04) Campo de visión configurable.** Control con unidades y límites del servidor;
   explicar que más área implica más transferencia/procesamiento; progreso y estimación cuando exista.
   El FOV seleccionado afecta la solicitud, el producto y el enlace compartido.
 - [ ] **WS5-10 (P1, C07) Panel de metadatos/calidad.** Fecha/MJD, detector, λ/ancho si existen, release,
@@ -85,3 +88,79 @@ desplegable (`npm run build`) que también funciona contra el backend (`?mode=ap
 > `src/api/types.ts`; si necesitás un dato nuevo, proponelo como
 > PR `contract:` aparte. Verificá en el navegador (desktop y ancho de celular), corré `npm run build` y
 > `npm test`, y mostrame el diff antes de commitear.
+
+---
+
+## Mejoras de UI planificadas (2026-11-14)
+
+### UI-1 — Ecualizador de bandas infrarrojas (Band Equalizer)
+
+**Objetivo:** reemplazar el `<select>` de detector por un control visual interactivo que permita
+activar/desactivar múltiples bandas SPHEREx simultáneamente.
+
+**Componente nuevo:** `frontend/src/components/BandEqualizer.tsx`
+- Props: `detectors: number[]`, `frameCountByDetector: Record<number, number>`, `selected: Set<number>`, `onChange`
+- 6 botones toggle (uno por detector disponible en el campo), con colores por banda:
+  - D1 `0.75–1.11 µm` → `#a78bfa` (violeta/NIR)
+  - D2 `1.11–1.64 µm` → `#60a5fa` (azul)
+  - D3 `1.64–2.42 µm` → `#34d399` (verde)
+  - D4 `2.42–3.82 µm` → `#fbbf24` (ámbar)
+  - D5 `3.82–4.42 µm` → `#f97316` (naranja)
+  - D6 `4.42–5.00 µm` → `#ef4444` (rojo/MIR)
+- Bandas inactivas: grisadas; activas: opacidad 100%
+- Botones rápidos `All` / `None`
+- Contador `X frames selected`
+- Hover: tooltip con rango λ y cantidad de frames del detector
+- Accesibilidad: `role="checkbox"`, `aria-checked`, soporte teclado (Space/Enter)
+
+**Modifica:** `frontend/src/pages/FieldPage.tsx`
+- Estado `detector: number | 'all'` → `selectedDetectors: Set<number>` (todos activos por defecto)
+- Reemplaza el `<select>` del toolbar por `<BandEqualizer>`
+- `frames` filtrado por `selectedDetectors.has(f.detector)`
+
+**Sin cambio de contrato** — puramente presentacional.
+
+---
+
+### UI-2 — Rediseño del playback (Blink Viewer controls)
+
+**Objetivo:** reemplazar el `<input type="range">` plano por un scrubber estilo media player
+(inspirado en iOS Music) adaptado al dominio astronómico.
+
+**Modifica:** `frontend/src/components/BlinkViewer.tsx`
+
+**Scrubber custom:**
+- Barra de progreso con fill proporcional (`var(--accent)`) y track (`var(--border)`)
+- **Thumb circular** arrastrable con soporte pointer events (mouse + touch)
+- **Tick marks** verticales equidistantes sobre la barra, uno por frame; el tick activo se ilumina
+- **Izquierda de la barra**: fecha del frame actual vía `formatMjd()` (ej. `2026-01-15 UTC`)
+- **Derecha de la barra**: total de frames (ej. `8 frames`)
+- Click en la barra → salta al frame más cercano al tick
+
+**Controles:**
+- Disposición centrada: `◀◀  ❚❚  ▶▶`
+- Control de velocidad reubicado debajo, más discreto
+- Toggle de markers se mantiene
+
+**Estilos:** clases `.scrubber-*` en `frontend/src/styles.css`
+
+---
+
+### Checklist de implementación
+
+- [x] **UI-2a** Rediseñar controles de `BlinkViewer.tsx` (scrubber custom + ticks)
+- [x] **UI-2b** Agregar estilos `.scrubber-*` en `styles.css`
+
+## Evidencia de integración local (14/11/2026)
+
+- Contrato 0.3.0 (#32), backend corregido (#33) y frontend WS5 se revisan por separado; integrar en ese orden.
+- Navegador: formulario cerca de Barnard (269.44623, +4.76870), click vecino (269.4401033, +4.8094009) y
+  nombre R Draconis resuelto por CfA (248.16761083, +66.75497942), D2, FOV 0.05°, 40 imágenes por job.
+  Los tres llegaron a `ready` con PNG reales, fechas y release; no es validación científica R05.
+- Recarga del enlace conserva ID/resultados. RA=360 se rechaza sin enviar build. Modo estático explica
+  campos curados y mantiene botón de build deshabilitado; las demos conservan su badge sintético.
+- Escritorio y 390×844: mapa y secuencia visibles, 40 imágenes cargadas, ancho de contenido ≤ viewport.
+  Atajos limitados al reproductor; reproducción espera precarga y ofrece reintento de imágenes fallidas.
+- WS5-11: coordenadas/FOV/detector/job en URL implementados; modo compacto/iframe externo sigue pendiente.
+- WS5-4: mapa y capa AllWISE implementados; footprint, Gaia propagado y otras capas siguen pendientes.
+- No afirmar Lighthouse ≥90 ni prueba pública: no se midieron en esta integración local.
