@@ -19,9 +19,11 @@ El enunciado pide probar la herramienta con estos cinco ([`CHALLENGE.md`](CHALLE
 los datos que hay hoy (DR1 + QR3).
 
 🆕 **Los cinco tienen registro de validación con resultado `success`** (§0.0). Son análisis offline de los FITS
-reales, cada uno repetido por una revisión adversarial independiente con código propio. La revisión humana y el paso 6
-de [`VALIDATION.md`](VALIDATION.md) (recorrido en la URL pública) siguen pendientes. Ninguno es un descubrimiento: se
-recuperan movimientos y variabilidad ya catalogados.
+reales, cada uno repetido por una revisión adversarial independiente con código propio. 🆕 Revisión
+humana: DankoLiv revisó los cinco registros el 2026-11-15 (#126), en una revisión guiada; los análisis no se volvieron a
+correr. Del paso 6 de [`VALIDATION.md`](VALIDATION.md) (recorrido en la URL pública) está hecha la parte técnica y falta
+la prueba humana (addendum de cada registro, #104). Ninguno es un descubrimiento: se recuperan movimientos y
+variabilidad ya catalogados.
 
 ### 0.0 Qué establecieron los registros de validación 🆕
 
@@ -37,7 +39,8 @@ original y (R) la revisión independiente. «px» = píxel SPHEREx de 6,15″.
 | R Draconis | [r-draconis.md](validation/r-draconis.md) (#36) | Gaia DR3 1648328016354496384 (G = 6,37, VARIABLE). Sin mezcla: dentro de 45″ solo hay dos fuentes de G ≈ 19 | 2493 frames (dr1 413, qr3 126, dr1_deep 1225, qr3_deep 729), MJD 60790–61310 (520 d). Fotometría **relativa del ala de la PSF**, mismo detector y λ en bins de 1–1,5 %: **0,5–1,3 mag pico a pico** según el detector; permutación p ≤ 0,003 (D2 marginal); sigue la curva V contemporánea de AAVSO con retrasos de −1 a +47 d. **Período efectivo ~260 d** (bootstrap 95 %: 255–265 d), igual al último ciclo AAVSO (258 d; el anterior duró 235 d) y compatible con Gaia DR3 (247,2 ± 6,0 d) | `OVERFLOW` en **2488 de 2488** frames con la estrella en el detector; `NONLINEAR` nunca | Fotometría del núcleo o flujo absoluto. Decir que SPHEREx «midió 247 d». El campo publicado (40 PNG, ninguno deep) no muestra la variabilidad. La curva de luz precalculada de la app (#79, #83) usa solo el sondeo ancho: 539 de 2493 exposiciones (ver «Revisión científica de las curvas de luz») |
 
 Comunes a los cinco: scripts en el scratch local (no versionados), figuras en [`validation/figures/`](validation/figures/),
-revisión humana pendiente, paso 6 pendiente. Los registros no usan detección automática.
+revisión humana guiada de DankoLiv el 2026-11-15 (#126; los análisis no se volvieron a correr), y del paso 6 falta la
+prueba humana. Los registros no usan detección automática.
 
 ### 0.1 Astrometría de referencia
 
@@ -313,7 +316,8 @@ Verificado en vivo el 2026-11-15 (✅ consultas reales; los números salen de es
   citar métodos, épocas, calidad e incertidumbres al informar resultados.
 - 🆕 Los cinco blancos son objetos conocidos: recuperar su movimiento o su variabilidad es una **validación**, no un
   descubrimiento. Decir «medido offline en los FITS» cuando el número no sale del producto publicado, y «revisión humana
-  pendiente» mientras lo esté.
+  pendiente» mientras lo esté. (2026-11-15: los cinco registros ya tienen la revisión humana guiada de DankoLiv, #126;
+  siguen pendientes la del código asistido por IA, la del 3D y la prueba humana del paso 6.)
 - 🆕 Para estrellas saturadas (Barnard, RW Aur, R Dra), el brillo del PNG no es una medida.
 
 ## 5. Glosario rápido
@@ -347,6 +351,11 @@ menores.
 Todo texto sugerido que cite un número de validación dice «offline»: esos números salen de análisis de los FITS, y el
 producto publicado todavía no los muestra (§4). `pipeline/tests/test_science_review_texts.py` comprueba esa regla, los
 conteos de arriba y que los facts del bloque **A5** se lean bien con su unidad.
+
+> **Nota del 2026-11-15 (#126).** DankoLiv hizo la revisión humana guiada de los cinco registros de validación (los
+> análisis no se volvieron a correr). En las filas de abajo, «human review pending» o «revisión humana pendiente»
+> referidos a esos registros ya no valen: al aplicarlas, decir que tienen revisión humana guiada (2026-11-15). Siguen
+> pendientes la revisión humana del código asistido por IA (`AI_USAGE.md`), la del 3D y la prueba humana del paso 6.
 
 | archivo:línea | texto actual | problema | texto sugerido | severidad | dueño |
 |---|---|---|---|---|---|
@@ -408,6 +417,11 @@ months» (R Dra); los planetas de Barnard y ε Ind A b contra el NASA Exoplanet 
 
 ### Textos listos para pegar
 
+> **Nota del 2026-11-15 (#126).** En A2, A2b, A4 y A5 se actualizó solo el estado de la revisión humana de los registros.
+> El resto de esos bloques y los demás no se volvió a cotejar con lo mergeado después (por ejemplo, «public deployment»
+> en A4 ya está hecho desde #84, y «The viewer does not yet mark the targets» en A2 y A4 no vale desde la retícula de
+> #96/#99, que marca la posición predicha por catálogo; las medidas siguen sin verse en la app).
+
 **A1. About, «Current project status»** (reemplaza el primer párrafo, `AboutPage.tsx:19-24`):
 
 ```text
@@ -423,8 +437,9 @@ five real fields: an empty candidate list there is not a negative result.
 
 ```text
 We validated the five challenge targets with offline measurements on the SPHEREx FITS files, each
-repeated by an independent second analysis (human review pending). All five are known objects, so these
-are recoveries of known behaviour, not discoveries.
+repeated by an independent second analysis and checked in a guided human review on 15 Nov 2026 (the
+analyses were not rerun). All five are known objects, so these are recoveries of known behaviour, not
+discoveries.
 
 - Barnard's Star moves 10.2″ (1.66 SPHEREx pixels) between the August 2025 and August 2026 seasons, in the
   direction Gaia DR3 predicts (10.24″). The star saturates the detector, so positions come from the wings
@@ -446,7 +461,7 @@ docs/validation/ in the project repository.
 **A2b. Tabla de `PROJECT.md` «Validation and limitations»** (reemplaza `PROJECT.md:71-77`):
 
 ```markdown
-| Target | Observed result (SPHEREx DR1/QR3, offline FITS analysis; human review pending) |
+| Target | Observed result (SPHEREx DR1/QR3, offline FITS analysis; guided human review 15 Nov 2026, analyses not rerun) |
 |---|---|
 | Barnard's Star | Proper motion recovered: 10.2″ (1.66 SPHEREx pixels) between the Aug 2025 and Aug 2026 seasons at PA 354–355°, vs 10.24″ at PA 355.7° from Gaia DR3; 358 exposures. Saturated in 357/358: positions from the PSF wings. Parallax not measurable with these data. |
 | Epsilon Indi B | Ba+Bb seen as one source in ~440 of 458 frames (not below ~0.83 µm); moved 1.03 pixels between May 2025 and Sep 2026, matching the catalog prediction within its uncertainty. |
@@ -492,19 +507,21 @@ Errante is a web explorer for NASA SPHEREx images over time. On a map of the rea
 searches a name or coordinates, or clicks a point, and Errante builds and plays the SPHEREx Level 2 images
 of that spot date by date, showing each frame's date, detector, wavelength and data release. We validated
 the five challenge targets with offline measurements on the SPHEREx FITS files, each repeated by an
-independent second analysis (human review pending): the SPHEREx data recover the known proper motions of
+independent second analysis and checked in a guided human review (15 Nov 2026; the analyses were not
+rerun): the SPHEREx data recover the known proper motions of
 Barnard's Star (1.66 pixels in a year), Epsilon Indi B and WISE 0855−0714, and the brightness changes of
 RW Aurigae (about 1 magnitude) and R Draconis (a cycle of about 260 days). These are recoveries of known
 behaviour, not discoveries. The viewer does not yet mark the targets, and saturated stars appear white, so
-these measurements are not yet visible in the app. Remaining work: showing them in the viewer, public
-deployment and human review of the validation records.
+these measurements are not yet visible in the app. Remaining work: showing them in the viewer and public
+deployment.
 ```
 
 **A5. Facts SPHEREx para el 3D** (`catalog.py`, con su helper `_vfact`; la fuente es el registro, cuyos valores se
 copian tal cual). `BodyPanel.tsx` muestra cada fact como «valor unidad»: si hay unidad, el valor es solo el número.
 La fuente dice «offline» porque el producto publicado no muestra estas medidas. Al agregarlos, `VERIFIED_NOTE`
 tiene que decir que los facts «seen by SPHEREx» se copiaron de los registros de validación (análisis de IA con
-revisión independiente; revisión humana pendiente), no del cruce con catálogos del 14/11.
+revisión independiente; revisión humana guiada de DankoLiv el 2026-11-15, #126, sin volver a correr los análisis), no
+del cruce con catálogos del 14/11.
 
 ```python
 # barnards_star(), cuerpo "barnards-star"
@@ -566,7 +583,8 @@ the astrometric reference.
 **Sin verificar en esta revisión** (no inventar): la frase de reconocimiento genérica de IRSA y la de AAVSO (URLs
 con 404); el tipo espectral ~Y4 de WISE 0855 en Kirkpatrick+2021 y Luhman+2024; los números del Planeta Nueve del §2;
 la VR de RW Aur (Gaia DR3 da −20,9 km/s para B y `catalog.py` usa +15 km/s de SIMBAD, Nguyen et al. 2012: no se ve en
-la UI). Los registros de validación son análisis de IA con revisión independiente; la revisión humana sigue pendiente.
+la UI). Los registros de validación son análisis de IA con revisión independiente; la revisión humana sigue pendiente
+(2026-11-15: hecha por DankoLiv en #126, guiada; los análisis no se volvieron a correr).
 
 ## Revisión científica del 3D (WS7, #47) - 2026-11-15
 
@@ -750,7 +768,8 @@ registro, `DATA.md` §3.2 y §0.
 (Dodin+2020); los valores de Kurtovic+2024; el radio de ε Ind A (Sanghi+2026); Matthews+2024; Luhman+2024; Hitchcock+2020;
 Esplin+2016, Wilson+2025 y Miles+2026; el «e < 0.02» y el ω de Basant+2025; la convención de juliet/RadVel; la lista O−C de
 Karlsson; la subida del 45 % de VSX; los desplazamientos AB − Vega de WISE (2,699 y 3,339). Los registros de validación son
-análisis de IA con revisión independiente; la revisión humana sigue pendiente.
+análisis de IA con revisión independiente; la revisión humana sigue pendiente (2026-11-15: la de los cinco registros la
+hizo DankoLiv en #126, guiada y sin volver a correr los análisis; la del 3D sigue pendiente).
 
 ## Revisión científica de las curvas de luz (#78, #79, #83) - 2026-11-15
 
@@ -803,6 +822,8 @@ sin versionar.
    - En RW Aur los cinco bins tienen exactamente dos puntos, y cada `rel_mag` vale ± la mitad de la diferencia
      (±0,264, ±0,198, ±0,517, ±0,188, ±0,049). Por eso la mediana es 0 y el `summary` (σ 0,294,
      `scatter_over_control` 16,3) descansa en solo cinco diferencias: es descriptivo, no una significancia.
+     (2026-11-15: con #102/#106 y el rebuild de #113, ese `summary` tiene `n` = 0 y `scatter_over_control` = null; los
+     puntos y los pares no cambiaron. Ver LC26.)
    - Normalizar por bin no sesga el período ni las amplitudes de R Dra (inyección y recuperación, 200 simulaciones).
      Sí comprime un poco los `rel_mag` mostrados en D1/D2.
 3. **Puntos cero no aplicados.**
@@ -950,7 +971,9 @@ sin versionar.
 - **LC25.** `control[det].excluded` siempre sale `{}`, aunque en R Dra se excluyen 1178 de las 3228 mediciones de
   comparación.
 - **LC26.** Falta un control a nivel de pares: la dispersión de pares de las comparaciones es 1,4–1,9 veces el control
-  por punto, y en RW Aur da 0,033 contra 0,018.
+  por punto, y en RW Aur da 0,033 contra 0,018. (2026-11-15: #106 aplica al control la regla de bins de ≥ 3 puntos y
+  #113 republicó la curva; en `backend/errante_api/curated/lightcurves/rw-aurigae.json` el control por punto de RW Aur
+  D1 es ahora **0,023 mag** (91 mediciones de 5 estrellas) y el de pares sigue en 0,033 mag con 180 pares.)
 - **LC27.** Los pisos del período se calculan en el mejor período estadístico (239 d), no en el final (259 d).
   Recalculados en el período final, el de R Dra pasa de 259,1 a 261,9 d (Δχ² 0,3 entre los dos, dentro del error), y el
   piso de D6 baja de 0,091 a 0,075.
