@@ -15,12 +15,14 @@ export function SystemsPage() {
   }, []);
 
   const systems = manifest?.systems ?? [];
+  // The real dataset has no synthetic system: only mention one when this dataset lists it.
+  const hasSynthetic = systems.some((s) => s.synthetic);
   return (
     <main>
       <section className="hero">
         <h1>Explore the objects in 3D</h1>
         <p>
-          Explore models of the challenge targets and a synthetic example. Their parameters were checked against
+          Explore models of the challenge targets{hasSynthetic ? ' and a synthetic example' : ''}. Their parameters were checked against
           the NASA Exoplanet Archive, SIMBAD, Gaia DR3 and the cited papers; values that are only estimates are
           marked as such. Watch model orbits and pulsations, or select a body to inspect its facts, sources and
           verification status.

@@ -14,8 +14,8 @@ mag con corrección de punto cero. También se abrillanta 0,38–0,57 mag entre 
 en sus propios pares a λ emparejada, dan una σ robusta de 0,046–0,049 mag y |Δm| ≤ 0,27 mag.
 Una revisión adversarial independiente re-midió con código propio la cobertura, la astrometría, la fotometría, los
 pares, las comparaciones y el render. Reproduce todos los Δm del objetivo con diferencias ≤ 0,003 mag.
-Las imágenes publicadas no muestran el cambio. La estrella está saturada (`OVERFLOW`) en 304 de 335 frames: todo D2–D6
-y 37 de 56 frames de D1. En los 40 PNG la estrella vale 255.
+Las imágenes publicadas no muestran el cambio. La estrella está saturada (`OVERFLOW` en la apertura) en 304 de 335 frames, y ningún frame de D2–D6
+queda limpio: los 17 frames sin flags en el objetivo son todos de D1 (17 de 56). En los 40 PNG la estrella vale 255.
 **La "estrella ausente" en D1 no es un error de datos, de WCS ni de reproyección.** En D1 RW Aur está en el centro como una
 mancha blanca compacta de 4–7 px, igual que otras 8–13 estrellas del campo, porque el stretch las satura a todas. En D1 no es
 más brillante que el resto del campo: vale 0,4–1,2× la fuente más brillante. En D4–D6, en cambio, domina la imagen. Además, la
@@ -194,7 +194,7 @@ La revisión encontró dos problemas nuevos:
   - El recorrido público (paso 6) sigue pendiente: los PNG no muestran el cambio y no hay URL pública.
 - **Limitations and failed downloads:**
   - 0 descargas fallidas: 0 de 40 en el build; 335 de 335 patches de 8′ presentes en caché.
-  - Solo D1 es medible; D2–D6 están saturados en todos los frames. Hay 17 frames limpios, que dan 8 pares emparejados.
+  - Solo D1 es medible: ningún frame de D2–D6 queda limpio (`OVERFLOW`, otros flags o borde). Hay 17 frames limpios, todos D1, que dan 8 pares emparejados.
   - La variabilidad dentro de una temporada mezcla tiempo y color.
   - **Salto sin explicación de +0,38 mag** entre exposiciones consecutivas separadas 2,15 min:
     - 2025W36_1A_0446_3D1: 0,8196 µm, 105,6 mJy (revisión).
@@ -376,4 +376,4 @@ vecina con G < G+1,5 a menos de 15″. Las cifras son de sus propios pares a λ 
      coincide a 0,1–0,4″, según el método. Es cosmético.
    - La asignación A/B de Gaia en `SCIENCE.md` no está verificada.
    - "3 puntos por detector" no se cumple: solo D1 es medible sin saturación.
-   - El ❓ de saturación de `DATA.md` §6 queda resuelto para este blanco: satura en todo D2–D6 y en 37 de 56 frames de D1.
+   - El ❓ de saturación de `DATA.md` §6 queda resuelto para este blanco: `OVERFLOW` en 304 de 335 frames, ningún frame de D2–D6 limpio y 17 de 56 limpios en D1. (Corregido el 2026-11-15: la versión anterior decía «todo D2–D6 y 37 de 56 de D1», que suma 316, no 304; la tabla de clases no da el reparto por detector de `sat`.)

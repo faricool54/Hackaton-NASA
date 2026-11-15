@@ -7,6 +7,7 @@ import { BodyPanel } from '../components/BodyPanel';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { SyntheticBadge } from '../components/SyntheticBadge';
 import { SystemViewer } from '../components/SystemViewer';
+import { fieldLinkLabel, type FieldLinkInfo } from '../three/fieldLink';
 import { SystemViewerContext } from '../three/viewerLink';
 
 // The sky-track panel and its astrometry module load on demand, like the 3D scene, so the
@@ -48,8 +49,8 @@ const bodyLinkStyle: CSSProperties = {
 
 export function SystemPage({ systemId, bodyId }: { systemId: string; bodyId: string | null }) {
   const [system, setSystem] = useState<SystemModel | null>(null);
-  // Field id -> synthetic flag, from the manifest (a field from a synthetic manifest is synthetic).
-  const [fields, setFields] = useState<Map<string, boolean>>(new Map());
+  // Field id -> name and synthetic flag, from the manifest (a field from a synthetic manifest is synthetic).
+  const [fields, setFields] = useState<Map<string, FieldLinkInfo>>(new Map());
   const [error, setError] = useState<string | null>(null);
   // Dataset-time date of the 3D view (null in free-running), marked on the sky-track panel.
   const [datasetMjd, setDatasetMjd] = useState<number | null>(null);
@@ -60,7 +61,7 @@ export function SystemPage({ systemId, bodyId }: { systemId: string; bodyId: str
     client.getSystem(systemId).then(setSystem).catch((e: Error) => setError(e.message));
     client
       .getManifest()
-      .then((m) => setFields(new Map(m.fields.map((f) => [f.id, f.synthetic || m.synthetic]))))
+      .then((m) => setFields(new Map(m.fields.map((f) => [f.id, { name: f.name, synthetic: f.synthetic || m.synthetic }]))))
       .catch(() => setFields(new Map()));
   }, [systemId]);
 
@@ -74,8 +75,9 @@ export function SystemPage({ systemId, bodyId }: { systemId: string; bodyId: str
   const body = bodyId ? system.bodies.find((b) => b.id === bodyId) ?? null : null;
   const unverified = system.bodies.some((b) => b.facts.some((f) => !f.verified));
   const fieldExists = !!system.field_id && fields.has(system.field_id);
+  const field = system.field_id ? fields.get(system.field_id) : undefined;
   // Never call a synthetic field (or the field of a synthetic system) "SPHEREx images".
-  const fieldSynthetic = system.provenance.synthetic || (!!system.field_id && fields.get(system.field_id) === true);
+  const fieldSynthetic = system.provenance.synthetic || field?.synthetic === true;
   const m = system.motion;
 
   return (
@@ -224,7 +226,8 @@ export function SystemPage({ systemId, bodyId }: { systemId: string; bodyId: str
                     textDecoration: 'none',
                   }}
                 >
-                  {fieldSynthetic ? 'See the synthetic demo field (not SPHEREx) →' : 'See it in SPHEREx images →'}
+                  {/* Names the field's target: it is not always the primary whose coordinates are above (Epsilon Indi). */}
+                  {fieldLinkLabel(field, system.provenance.synthetic)}
                 </a>
               ) : (
                 <div

@@ -33,3 +33,27 @@ def write_systems(store: ProductStore, systems: list[SystemModel]) -> list[str]:
         validate_hierarchy(system)
         store.write_system(system)
     return [s.id for s in systems]
+
+
+def synthetic_system_ids(store: ProductStore) -> list[str]:
+    """Ids of the synthetic systems already on disk under ``<root>/systems``."""
+    paths = sorted((store.root / "systems").glob("*.json"))
+    return [p.stem for p in paths if store.read_system(p.stem).provenance.synthetic]
+
+
+def write_real_systems(store: ProductStore, systems: list[SystemModel]) -> tuple[list[str], list[str]]:
+    """Write only the non-synthetic systems, for a real dataset such as data/products (AGENTS.md rule 3).
+
+    Returns ``(written ids, skipped synthetic ids)``. Raises ``ValueError`` and writes nothing when the
+    folder already holds a synthetic system: ``rebuild_manifest`` lists every file in ``systems/``, so
+    it would publish it next to the real fields. Call ``store.rebuild_manifest()`` afterwards.
+    """
+    stale = synthetic_system_ids(store)
+    if stale:
+        raise ValueError(
+            f"{store.root / 'systems'} already holds synthetic systems {stale}; remove them first, "
+            "or the manifest of this real dataset would list them"
+        )
+    real = [s for s in systems if not s.provenance.synthetic]
+    skipped = [s.id for s in systems if s.provenance.synthetic]
+    return write_systems(store, real), skipped

@@ -21,6 +21,26 @@ How (per detector, never across detectors):
    halo still biases the ratios of stars 25-30 px away.
 3. ``late - s * early``; variance ``var_late + s^2 var_early``.
 
+Every coadd exports its per-frame weights (``Coadd.weights``, same order as
+``frame_ids``): 1 / median VARIANCE of the frame's usable pixels, in
+(MJy/sr)^-2, or 1 / robust noise^2 for a frame without a VARIANCE plane.
+
+Display (``display_scale``): "noise" there is the robust sigma (1.4826 x
+MAD) of the difference image's valid pixels. The colour range is normally the
+field's brightest residuals (99.9th percentile of |residual|) or 10 x the
+noise. A faint target (WISE 0855) is then drawn far below the residuals of
+bright field stars, so when the field limit is at least
+``FAINT_TARGET_RATIO`` x the limit of the target region (the SECOND-largest
+|residual| within the circle of ``target_exclusion``, so that one hot pixel
+or cosmic ray does not set it; never below 10 x the noise), the range comes
+from the target region instead and the note says that field-star residuals
+clip. The asinh softening is min(1, max(0.05, 3 x noise / limit)): residuals
+under ~3 x the noise stay in its linear, dark part, whatever the range. Notes
+also flag an unscaled difference (s = 1) and a flagged target core
+(``Difference.target_core_flagged``: some core pixel is flagged or invalid in
+at least one frame of a coadd; partial flags count): the difference there is
+not a clean brightness measurement.
+
 Limitation: a coadd holds only the field's selected frames (a few per season
 and detector), which sample different wavelengths in each season. A target
 whose colour differs from the field stars (e.g. a red dwarf) can then leave a
@@ -59,6 +79,17 @@ HALO_NSIGMA = (
 )
 MIN_RING_PIXELS = 8  # rings with fewer valid pixels (saturated core, no data) do not end the halo
 MIN_BACKGROUND_PIXELS = 50
+# Display of a difference. The field limit (brightest residuals or 10 x noise) must be at least this many times the
+# target-region limit before the range is taken from the target region. Golden fields (2026-11-15, 40-frame builds,
+# target limit = second-largest |residual|): field / target-region limit is 0.21-1.36 for Barnard's Star, 0.11-1.35
+# RW Aurigae, 0.51-0.93 R Draconis, 0.17-2.17 eps Indi B (>= 2 in D1 S1-S0 and D6 S3-S2 only) and 1.28-12 WISE 0855
+# (D5/D6 1.28-2.44).
+FAINT_TARGET_RATIO = 2.0
+DIFF_SOFTENING = 0.05  # asinh softening (fraction of the limit) for a range far above the noise
+# softening x limit >= this many noise sigmas (robust sigma of the difference image), softening capped at 1: the
+# noise stays in the dark, linear part
+NOISE_SOFTENING_SIGMAS = 3.0
+CORE_RADIUS_PX = 2.0  # the target core: pixels within this radius of the field centre (12 px)
 
 LIMITATIONS = [
     "Each coadd uses only the field's selected frames (a few per season and detector); they sample different "
@@ -69,7 +100,29 @@ LIMITATIONS = [
     "and the difference also shows the wavelength change. A saturated target in a sparse field (e.g. R Draconis) "
     "often leaves too few stars and falls back to s = 1.",
     "Saturated cores and detector defects carry no valid data (grey checkerboard).",
+    "Display only: the colour range is the field's brightest residuals or 10 x the noise (noise = robust sigma of "
+    "the difference image). When the target region is much fainter (field range >= 2 x target-region range, e.g. "
+    "WISE 0855), the range is set from the target region (its second-largest residual: one hot pixel cannot set "
+    "it, and the brightest pixel there may clip) and brighter field-star residuals clip (saturate). Residuals under "
+    "~3 x the noise stay dark.",
+    "With two or three frames per season and detector, a faint target can stay in the noise: an empty target "
+    "region at this depth is not evidence that the target did not move or vary.",
 ]
+WEIGHTS_DEFINITION = (
+    "Per coadd, 'weights' lists one weight per frame in the order of 'frame_ids': 1 / median VARIANCE of the "
+    "frame's usable pixels, in (MJy/sr)^-2 (1 / robust noise^2 for a frame without a VARIANCE plane). Each pixel "
+    "is the weighted mean of the frames valid there (sky removed per frame)."
+)
+DISPLAY_DEFINITION = (
+    "Signed asinh: v = asinh(x / (softening x limit)) / asinh(1 / softening) for a residual x (MJy/sr) clipped at "
+    "+/- limit ('limit_mjy_sr'). softening = min(1, max(0.05, 3 x noise / limit)) ('display_softening'), where noise "
+    "is the robust sigma (1.4826 x median absolute deviation) of the difference image's valid pixels (not "
+    "'noise_mjy_sr', which comes from the propagated VARIANCE). 'field_limit_mjy_sr' = 99.9th percentile of the "
+    "field's |residuals| or 10 x noise, whichever is larger. 'target_limit_mjy_sr' = second-largest |residual| "
+    "within 'target_exclude_px' of the field centre (so one hot pixel or cosmic ray cannot set it; the brightest "
+    "pixel there may clip), at least 10 x noise. 'limit_rule' is 'target_region' (limit = target limit) when the "
+    "field limit is >= 2 x the target limit, else 'field' (limit = field limit)."
+)
 
 
 @dataclass(frozen=True)
@@ -94,6 +147,7 @@ class Stack:
     variance: np.ndarray
     coverage: np.ndarray  # number of frames contributing to each pixel
     skipped: list[str] = field(default_factory=list)  # frames with no usable pixel
+    weights: list[float] = field(default_factory=list)  # one per frame in ``frames`` (see weighted_stack)
 
 
 @dataclass
@@ -106,10 +160,25 @@ class Coadd:
     variance: np.ndarray
     coverage: np.ndarray  # number of frames contributing to each pixel
     skipped: list[str] = field(default_factory=list)  # frames with no usable pixel
+    weights: list[float] = field(default_factory=list)  # one per frame_id: 1 / median VARIANCE, (MJy/sr)^-2
 
     @property
     def id(self) -> str:
         return f"D{self.detector}_S{self.season}"
+
+
+@dataclass(frozen=True)
+class CoreCoverage:
+    """How many target-core pixels (within ``CORE_RADIUS_PX`` of the field centre) are flagged or invalid."""
+
+    pixels: int
+    no_data: int  # flagged or invalid in every frame of the coadd: no data (grey checkerboard)
+    fewer_frames: int  # flagged or invalid in some frames only: the mean there mixes fewer frames (other wavelengths)
+
+    @property
+    def flagged(self) -> bool:
+        """Some core pixel is flagged or invalid in at least one frame of the coadd (partial flags count)."""
+        return self.no_data > 0 or self.fewer_frames > 0
 
 
 @dataclass
@@ -129,6 +198,15 @@ class Difference:
     @property
     def has_overlap(self) -> bool:
         return bool(np.isfinite(self.data).any())
+
+    @property
+    def target_core_flagged(self) -> bool:
+        """Some target-core pixel is flagged or invalid in at least one frame of either coadd (partial flags count).
+
+        Not "saturated": a core pixel flagged in one frame of three is enough. ``core_no_data_px`` and
+        ``core_fewer_frames_px`` of each coadd say how many core pixels are flagged in every / some frames.
+        """
+        return core_coverage(self.late).flagged or core_coverage(self.early).flagged
 
 
 def _usable(data: np.ndarray, bad: np.ndarray, variance: np.ndarray | None = None) -> np.ndarray:
@@ -153,6 +231,7 @@ def weighted_stack(frames: Sequence[GridFrame], *, include_bad: bool = False) ->
     always come from a frame's usable pixels; frames without any usable pixel are skipped. By default
     bad pixels are left out of the mean. ``include_bad=True`` (display only) also averages the finite
     bad pixels, i.e. the saturated cores and defects that ``reproject_to_grid`` repaired for display.
+    ``Stack.weights`` lists each used frame's weight, in the order of ``Stack.frames``.
     """
     if not frames:
         raise ValueError("a stack needs at least one frame")
@@ -163,6 +242,7 @@ def weighted_stack(frames: Sequence[GridFrame], *, include_bad: bool = False) ->
     coverage = np.zeros(shape, dtype=np.int16)
     used: list[GridFrame] = []
     skipped: list[str] = []
+    weights: list[float] = []
     for f in frames:
         ok = _usable(f.data, f.bad, f.variance)
         if not ok.any():
@@ -184,10 +264,11 @@ def weighted_stack(frames: Sequence[GridFrame], *, include_bad: bool = False) ->
         var_sum += np.where(take, pixel_var, 0.0) * w**2
         coverage += take
         used.append(f)
+        weights.append(w)
     with np.errstate(invalid="ignore", divide="ignore"):
         data = np.where(weight > 0, total / weight, np.nan)
         variance = np.where(weight > 0, var_sum / weight**2, np.nan)
-    return Stack(used, data.astype(np.float32), variance.astype(np.float32), coverage, skipped)
+    return Stack(used, data.astype(np.float32), variance.astype(np.float32), coverage, skipped, weights)
 
 
 def coadd(frames: Sequence[GridFrame], season: int = 0) -> Coadd:
@@ -206,6 +287,43 @@ def coadd(frames: Sequence[GridFrame], season: int = 0) -> Coadd:
         variance=stack.variance,
         coverage=stack.coverage,
         skipped=stack.skipped,
+        weights=stack.weights,
+    )
+
+
+def _centre_distance(shape: tuple[int, ...]) -> np.ndarray:
+    """Distance (px) of every pixel from the field centre, where the target sits."""
+    h, w = shape
+    yy, xx = np.indices(shape)
+    return np.hypot(xx - (w - 1) / 2, yy - (h - 1) / 2)
+
+
+def core_coverage(c: Coadd, radius: float = CORE_RADIUS_PX) -> CoreCoverage:
+    """Target-core pixels of ``c`` with no valid frame / fewer than all of its frames (bad pixels skipped)."""
+    core = _centre_distance(c.data.shape) <= radius
+    n_frames = len(c.frame_ids)
+    return CoreCoverage(
+        pixels=int(core.sum()),
+        no_data=int((core & (c.coverage == 0)).sum()),
+        fewer_frames=int((core & (c.coverage > 0) & (c.coverage < n_frames)).sum()),
+    )
+
+
+def _core_counts(cid: str, cov: CoreCoverage) -> str:
+    every = f", {cov.no_data} of them in every frame" if cov.no_data else ""
+    return f"{cid}: {cov.no_data + cov.fewer_frames} of {cov.pixels} px{every}"
+
+
+def _core_note(late: Coadd, early: Coadd) -> str | None:
+    """The note of ``Difference.target_core_flagged`` (partial flags count); None when the core is clean."""
+    flagged = [_core_counts(c.id, cov) for c in (early, late) if (cov := core_coverage(c)).flagged]
+    if not flagged:
+        return None
+    return (
+        f"Target core flagged: pixels within {CORE_RADIUS_PX:g} px of the field centre are flagged or invalid in at "
+        f"least one frame of the coadd ({'; '.join(flagged)}). Those pixels average fewer frames (other "
+        "wavelengths) or, when flagged in every frame, have no data (grey checkerboard), so the difference there is "
+        "not a clean brightness measurement."
     )
 
 
@@ -278,16 +396,20 @@ def difference(late: Coadd, early: Coadd) -> Difference:
     )
     if not diff.has_overlap:
         diff.notes.append("The two seasons share no valid pixel; nothing to compare.")
-    elif not scale.fitted:
+        return diff
+    if not scale.fitted:
         diff.notes.append(
-            f"Flux scale not fitted (only {scale.n_stars} usable field stars outside the "
-            f"{exclusion[2]:.0f}-px circle around the target); s = 1, so the wavelength change between seasons "
-            "is not corrected."
+            f"Unscaled difference (s = 1): flux scale not fitted (only {scale.n_stars} usable field stars outside "
+            f"the {exclusion[2]:.0f}-px circle around the target), so the wavelength change between seasons is not "
+            "corrected and static stars can leave same-sign residuals."
         )
+    core = _core_note(late, early)
+    if core:
+        diff.notes.append(core)
     return diff
 
 
-def diverging_rgba(data: np.ndarray, limit: float, softening: float = 0.05) -> np.ndarray:
+def diverging_rgba(data: np.ndarray, limit: float, softening: float = DIFF_SOFTENING) -> np.ndarray:
     """Signed asinh map: black = no change, ORANGE = brighter now, CYAN = brighter before.
 
     NaN (no valid data in a season: off the cutout, or a saturated core that
@@ -310,14 +432,87 @@ def diverging_rgba(data: np.ndarray, limit: float, softening: float = 0.05) -> n
     return rgba
 
 
-def difference_limit(diff: Difference, nsigma: float = 10.0, pct: float = 99.9) -> float:
-    """Colour range: the brightest residuals (movers) or ``nsigma`` x the noise, whichever is larger."""
+@dataclass(frozen=True)
+class DisplayScale:
+    """How a difference is drawn by ``diverging_rgba``: colour range, softening and why."""
+
+    limit: float  # MJy/sr: |residual| drawn at full colour (clipped above)
+    softening: float  # min(1, max(DIFF_SOFTENING, 3 x noise / limit)); noise = robust sigma of the difference
+    rule: str  # "field" or "target_region"
+    field_limit: float  # brightest field residuals (pct) or nsigma x noise
+    target_limit: float | None  # second-largest |residual| in the target region, at least nsigma x noise
+    notes: tuple[str, ...] = ()
+
+
+def noise_softening(limit: float, sigma: float) -> float:
+    """asinh softening ``min(1, max(DIFF_SOFTENING, NOISE_SOFTENING_SIGMAS x sigma / limit))``.
+
+    ``sigma`` is the noise of the difference image (``display_scale`` passes its robust sigma): residuals under
+    ``NOISE_SOFTENING_SIGMAS`` x ``sigma`` stay in the dark, linear part of the asinh. The cap at 1 keeps the map
+    close to linear when the limit is under ~3 x the noise. ``DIFF_SOFTENING`` without a valid sigma or limit.
+    """
+    if not (math.isfinite(sigma) and sigma > 0 and limit > 0):
+        return DIFF_SOFTENING
+    return min(max(DIFF_SOFTENING, NOISE_SOFTENING_SIGMAS * sigma / limit), 1.0)
+
+
+def _target_region_peak(diff: Difference) -> float | None:
+    """Second-largest |residual| within ``target_exclude_px`` of the field centre; None without valid pixels there.
+
+    Not the largest: one hot pixel or cosmic ray in the region must not set the colour range. A moving target
+    leaves two lobes, so this is usually the fainter lobe; a residual held by one pixel (SPHEREx undersamples
+    its PSF) clips there. A region with a single valid pixel returns that pixel.
+    """
+    region = np.isfinite(diff.data) & (_centre_distance(diff.data.shape) <= diff.target_exclude_px)
+    values = np.abs(diff.data[region])
+    if values.size == 0:
+        return None
+    if values.size == 1:
+        return float(values[0])
+    return float(np.partition(values, -2)[-2])
+
+
+def _target_region_note(limit: float, peak: float, field_limit: float, radius: float, nsigma: float) -> str:
+    where = f"within {radius:.0f} px of the field centre"
+    why = (
+        f"the second-largest residual {where}: the single brightest pixel there may clip"
+        if peak >= limit
+        else f"{nsigma:g} x the noise: the second-largest residual {where} is fainter than that"
+    )
+    return (
+        f"Faint target: display limit set from the target region ({limit:.3g} MJy/sr, {why}) instead of the field "
+        f"({field_limit:.3g} MJy/sr); field-star residuals clip."
+    )
+
+
+def display_scale(diff: Difference, nsigma: float = 10.0, pct: float = 99.9) -> DisplayScale:
+    """Colour range and softening of a difference.
+
+    noise = robust sigma (1.4826 x MAD) of the difference image's valid pixels. Field limit: the field's
+    brightest residuals (``pct`` percentile of |residual|) or ``nsigma`` x noise, whichever is larger. When
+    it is at least ``FAINT_TARGET_RATIO`` x the target-region limit (second-largest |residual| within
+    ``target_exclude_px`` of the field centre, so one hot pixel does not set it; never below ``nsigma`` x
+    noise) the target region sets the range and a note says that field-star residuals clip. Softening:
+    ``noise_softening(limit, noise)`` = min(1, max(0.05, 3 x noise / limit)).
+    """
     ok = np.isfinite(diff.data)
     if not ok.any():
-        return 1.0
+        return DisplayScale(1.0, DIFF_SOFTENING, "field", 1.0, None)
     sigma = _robust_sigma(diff.data[ok])
-    bright = float(np.percentile(np.abs(diff.data[ok]), pct))
-    return max(bright, nsigma * sigma, 1e-6)
+    floor = max(nsigma * sigma, 1e-6) if math.isfinite(sigma) else 1e-6
+    field_limit = max(float(np.percentile(np.abs(diff.data[ok]), pct)), floor)
+    peak = _target_region_peak(diff)
+    target_limit = None if peak is None else max(peak, floor)
+    if target_limit is None or field_limit < FAINT_TARGET_RATIO * target_limit:
+        return DisplayScale(field_limit, noise_softening(field_limit, sigma), "field", field_limit, target_limit)
+    note = _target_region_note(target_limit, peak, field_limit, diff.target_exclude_px, nsigma)
+    softening = noise_softening(target_limit, sigma)
+    return DisplayScale(target_limit, softening, "target_region", field_limit, target_limit, (note,))
+
+
+def difference_limit(diff: Difference, nsigma: float = 10.0, pct: float = 99.9) -> float:
+    """Colour range of ``diff`` (MJy/sr); see ``display_scale``."""
+    return display_scale(diff, nsigma, pct).limit
 
 
 def build_comparisons(
@@ -340,6 +535,49 @@ def build_comparisons(
 
 def _finite_or_none(x: float) -> float | None:
     return float(x) if math.isfinite(x) else None
+
+
+def _coadd_meta(c: Coadd, image: str, stretch: dict) -> dict:
+    core = core_coverage(c)
+    return {
+        "id": c.id,
+        "detector": c.detector,
+        "season": c.season,
+        "mjd_min": min(c.mjds),
+        "mjd_max": max(c.mjds),
+        "n_frames": len(c.frame_ids),
+        "frame_ids": c.frame_ids,
+        "weights": c.weights,  # same order as frame_ids; see WEIGHTS_DEFINITION
+        "skipped_frame_ids": c.skipped,
+        "image": image,
+        "stretch": stretch,
+        "valid_fraction": float(np.isfinite(c.data).mean()),
+        "core_pixels": core.pixels,
+        "core_no_data_px": core.no_data,
+        "core_fewer_frames_px": core.fewer_frames,
+    }
+
+
+def _difference_meta(d: Difference, scale: DisplayScale, image: str) -> dict:
+    return {
+        "id": d.id,
+        "detector": d.late.detector,
+        "later": d.late.id,
+        "earlier": d.early.id,
+        "flux_scale": d.scale.scale,
+        "flux_scale_fitted": d.scale.fitted,
+        "flux_scale_stars": d.scale.n_stars,
+        "target_exclude_px": round(d.target_exclude_px, 2),
+        "limit_mjy_sr": scale.limit,
+        "limit_rule": scale.rule,
+        "field_limit_mjy_sr": scale.field_limit,
+        "target_limit_mjy_sr": scale.target_limit,
+        "display_softening": scale.softening,
+        "noise_mjy_sr": _finite_or_none(float(np.sqrt(np.nanmedian(d.variance)))),
+        "target_core_flagged": d.target_core_flagged,  # a core pixel flagged/invalid in >= 1 frame of a coadd
+        "image": image,
+        "notes": [*d.notes, *scale.notes],
+    }
 
 
 def _clear_previous(out: Path) -> None:
@@ -394,6 +632,8 @@ def compare_field(
             "star appears as an orange/cyan dipole; static stars cancel."
         ),
         "limitations": LIMITATIONS,
+        "weights_definition": WEIGHTS_DEFINITION,
+        "display": DISPLAY_DEFINITION,
         "colors": {
             "positive": "orange: brighter in the later season",
             "negative": "cyan: brighter in the earlier season",
@@ -406,44 +646,15 @@ def compare_field(
     for c, st in zip(coadds, stretches, strict=True):
         rel = f"{COMPARE_DIR}/coadd_{c.id}.png"
         save_png(c.data, field_dir / rel, st)
-        meta["coadds"].append(
-            {
-                "id": c.id,
-                "detector": c.detector,
-                "season": c.season,
-                "mjd_min": min(c.mjds),
-                "mjd_max": max(c.mjds),
-                "n_frames": len(c.frame_ids),
-                "frame_ids": c.frame_ids,
-                "skipped_frame_ids": c.skipped,
-                "image": rel,
-                "stretch": st.model_dump(),
-                "valid_fraction": float(np.isfinite(c.data).mean()),
-            }
-        )
+        meta["coadds"].append(_coadd_meta(c, rel, st.model_dump()))
     for d in diffs:
         if not d.has_overlap:
             meta["skipped"].append({"id": d.id, "reason": d.notes[0]})
             continue
         rel = f"{COMPARE_DIR}/diff_{d.id}.png"
-        limit = difference_limit(d)
-        Image.fromarray(diverging_rgba(d.data, limit)).save(field_dir / rel, optimize=True)
-        meta["differences"].append(
-            {
-                "id": d.id,
-                "detector": d.late.detector,
-                "later": d.late.id,
-                "earlier": d.early.id,
-                "flux_scale": d.scale.scale,
-                "flux_scale_fitted": d.scale.fitted,
-                "flux_scale_stars": d.scale.n_stars,
-                "target_exclude_px": round(d.target_exclude_px, 2),
-                "limit_mjy_sr": limit,
-                "noise_mjy_sr": _finite_or_none(float(np.sqrt(np.nanmedian(d.variance)))),
-                "image": rel,
-                "notes": d.notes,
-            }
-        )
+        scale = display_scale(d)
+        Image.fromarray(diverging_rgba(d.data, scale.limit, scale.softening)).save(field_dir / rel, optimize=True)
+        meta["differences"].append(_difference_meta(d, scale, rel))
     (out / "compare.json").write_text(json.dumps(meta, indent=2, allow_nan=False) + "\n", encoding="utf-8")
     return meta
 
