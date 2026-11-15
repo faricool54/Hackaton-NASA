@@ -1,0 +1,96 @@
+{
+  "additionalProperties": false,
+  "description": "Bounded extraction at a fixed ICRS position; independent of detected candidates.",
+  "properties": {
+    "aperture_px": {
+      "default": 0,
+      "description": "Cube aperture radius; L2 uses WS2's native aperture",
+      "maximum": 3,
+      "minimum": 0,
+      "title": "Aperture Px",
+      "type": "integer"
+    },
+    "dec": {
+      "description": "ICRS declination [deg]",
+      "maximum": 90,
+      "minimum": -90,
+      "title": "Dec",
+      "type": "number"
+    },
+    "detectors": {
+      "items": {
+        "maximum": 6,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "title": "Detectors",
+      "type": "array"
+    },
+    "field_id": {
+      "anyOf": [
+        {
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Field Id"
+    },
+    "max_frames": {
+      "default": 24,
+      "maximum": 60,
+      "minimum": 2,
+      "title": "Max Frames",
+      "type": "integer"
+    },
+    "mjd_max": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Mjd Max"
+    },
+    "mjd_min": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Mjd Min"
+    },
+    "ra": {
+      "description": "ICRS right ascension [deg]",
+      "exclusiveMaximum": 360,
+      "minimum": 0,
+      "title": "Ra",
+      "type": "number"
+    },
+    "source": {
+      "default": "dr1_cube",
+      "enum": [
+        "dr1_cube",
+        "l2_exposures"
+      ],
+      "title": "Source",
+      "type": "string"
+    }
+  },
+  "required": [
+    "ra",
+    "dec"
+  ],
+  "title": "SpectrumRequest",
+  "type": "object"
+}

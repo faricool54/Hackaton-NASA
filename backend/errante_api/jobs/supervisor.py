@@ -21,7 +21,7 @@ from ..publication import AtomicProductStore, atomic_bytes, field_path, hashes, 
 from .process import collect_log, kill_tree, stop_saved_child, tree_bytes
 from .publication import publish_job
 from .repository import JobRepository, _new_id
-from .types import ChildResult, JobRequest, JobStatus
+from .types import ChildResult, JobRequest, JobStatus, _build_context
 
 log = logging.getLogger(__name__)
 _POLL_INTERVAL_S = 2.0
@@ -141,6 +141,11 @@ class Supervisor:
         request_path, result_path = stage / "request.json", stage / "result.json"
         field_id = _field_id_for_job(job.id, attempt_id)
         request = JobRequest.from_dict(job.params)
+        current = _build_context()
+        if any(request.build_context.get(key) != current[key] for key in ("build_revision", "processing")):
+            self._repo.finish_attempt(attempt_id)
+            self._repo.mark_failed(job.id, "failed", "Processing changed while this request was queued; submit again")
+            return
         atomic_bytes(
             request_path,
             json.dumps({"request": request.to_dict(), "staging_dir": str(stage), "field_id": field_id}).encode(),

@@ -46,8 +46,33 @@ formulario; con `job` retoman el polling, sin `job` no construyen al cargar. El 
 sus PNG reales. El blink espera las imágenes, muestra fallos/reintento y limita los atajos al reproductor.
 Notas de procedencia visibles; listas sin análisis no se interpretan como ausencia de objetos.
 
-Espectros por posición, comparaciones de épocas, Gaia, flags detallados, 3D físico y modo embebido compacto
-siguen siendo dependencias P1 de ciencia/contrato. No se fabrican mediciones para completar esas vistas.
+Gaia, 3D físico y modo embebido compacto siguen siendo dependencias P1 de ciencia/contrato.
+Espectros y comparaciones están conectados como se describe abajo.
+
+## Spectra and season comparisons
+
+With API mode and the scientific backend installed, expand **Spectrum at RA, Dec** below the map or on a
+real field page. It measures the selected fixed sky position independently of candidate detection.
+Choose the static DR1 cube (surface brightness in MJy/sr, no background subtraction or flux errors), or
+native L2 exposure photometry (background-subtracted aperture flux in mJy, dates and reported errors).
+Select detector, cube aperture, or L2 UTC dates and exposure limit. Missing/flagged points stay in the
+quality table and are excluded from the scatter plot; negative flux is retained. Nothing is interpolated.
+Cube channels 50/51 are blank. L2 measurements mix time and wavelength and do not follow proper motion.
+
+On a real field page, **Compare seasons** selects a detector and optional UTC date range, then requests
+weighted season means and scaled later-minus-earlier differences. Detectors remain separate. Choose
+a returned product to see its PNG, input dates, wavelength range, scale, noise and provenance. A weighted
+mean is not a raw sum; varying wavelengths or an unfitted scale can produce residuals without variability.
+
+Scientific requests have a 160-second UI wait limit and can be stopped locally. Changing inputs clears
+old results. Stopping a wait does not cancel shared backend processing. Errors and empty/invalid results
+are explicit; static mode never sends a scientific POST. No additional frontend dependency was added.
+Uses contract **0.4.0**, pending contract/composites #39 and contract/science-api #53, then WS4 science API.
+
+Local acceptance on 2026-11-15: Barnard D2 returned six real products (three means, three differences),
+the cube returned 8/102 usable points, and four RW Aurigae L2 exposures were correctly excluded for
+saturation/bad pixels while retaining flux/error/source rows. Desktop and 390×844 checked; the mobile
+quality table scrolls within its panel. This verifies integration, not scientific R05 recovery.
 
 ## Estructura
 

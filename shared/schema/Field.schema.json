@@ -1,5 +1,165 @@
 {
   "$defs": {
+    "Composite": {
+      "additionalProperties": false,
+      "description": "A FALSE-COLOR infrared composite of one observing season, as an RGB(A) PNG on the field grid.\n\nSPHEREx observes 0.75-5.0 um, invisible to the eye: red/green/blue are assigned to infrared\nwavelengths (see CompositeMode). It is NOT a true-color image and the UI must say so.",
+      "properties": {
+        "channels": {
+          "description": "Exactly three channels, in the order red, green, blue",
+          "items": {
+            "$ref": "#/$defs/CompositeChannel"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "title": "Channels",
+          "type": "array"
+        },
+        "id": {
+          "description": "Unique within the field, e.g. 'detectors_S0'",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "image": {
+          "description": "RGB/RGBA PNG on the field grid, path relative to the field directory (no '..', no absolute or Windows paths), e.g. 'color/detectors_S0.png'",
+          "pattern": "\\.png$",
+          "title": "Image",
+          "type": "string"
+        },
+        "mjd_max": {
+          "description": "Latest mid-exposure MJD among the inputs [days]",
+          "title": "Mjd Max",
+          "type": "number"
+        },
+        "mjd_min": {
+          "description": "Earliest mid-exposure MJD among the inputs [days]",
+          "title": "Mjd Min",
+          "type": "number"
+        },
+        "mode": {
+          "description": "detectors = whole SPHEREx detectors over the full 0.75-5.0 um range; jhk = 2MASS-like, exposures near J/H/Ks (~1.25/1.65/2.15 um). Blue = shortest, red = longest wavelengths.",
+          "enum": [
+            "detectors",
+            "jhk"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "notes": {
+          "description": "Plain-language caveats for the UI",
+          "items": {
+            "type": "string"
+          },
+          "title": "Notes",
+          "type": "array"
+        },
+        "season": {
+          "description": "0-based observing season of the field (0 = earliest)",
+          "minimum": 0,
+          "title": "Season",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "mode",
+        "season",
+        "mjd_min",
+        "mjd_max",
+        "image",
+        "channels"
+      ],
+      "title": "Composite",
+      "type": "object"
+    },
+    "CompositeChannel": {
+      "additionalProperties": false,
+      "description": "One color channel of a FALSE-COLOR composite: which infrared exposures were mapped to it.",
+      "properties": {
+        "color": {
+          "description": "Display channel these infrared exposures are mapped to",
+          "enum": [
+            "red",
+            "green",
+            "blue"
+          ],
+          "title": "Color",
+          "type": "string"
+        },
+        "detector": {
+          "anyOf": [
+            {
+              "maximum": 6,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "SPHEREx detector of every input; None = inputs from several detectors",
+          "title": "Detector"
+        },
+        "frame_ids": {
+          "description": "Exposures combined into this channel (Frame.id convention). They may include exposures that are not published in Field.frames.",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Frame Ids",
+          "type": "array"
+        },
+        "wavelength_max_um": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Longest central wavelength among the inputs at the field centre [um]",
+          "title": "Wavelength Max Um"
+        },
+        "wavelength_min_um": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Shortest central wavelength among the inputs at the field centre [um]",
+          "title": "Wavelength Min Um"
+        },
+        "wavelength_um": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Mean central wavelength of the inputs at the field centre [um]",
+          "title": "Wavelength Um"
+        }
+      },
+      "required": [
+        "color",
+        "frame_ids"
+      ],
+      "title": "CompositeChannel",
+      "type": "object"
+    },
     "Frame": {
       "additionalProperties": false,
       "description": "One SPHEREx exposure (one detector), reprojected onto the field grid.",
@@ -17,6 +177,7 @@
           "title": "Bandwidth Um"
         },
         "date_obs": {
+          "description": "Same instant as mjd, ISO-8601 UTC (header DATE-AVG)",
           "format": "date-time",
           "title": "Date Obs",
           "type": "string"
@@ -39,7 +200,7 @@
           "type": "string"
         },
         "mjd": {
-          "description": "Mid-exposure time (MJD-OBS) [days]",
+          "description": "Mid-exposure time [MJD days]: header MJD-AVG (fallbacks in docs/DATA.md; MJD-OBS is the START)",
           "title": "Mjd",
           "type": "number"
         },
@@ -287,6 +448,14 @@
   "properties": {
     "center": {
       "$ref": "#/$defs/SkyCoord"
+    },
+    "composites": {
+      "description": "Optional FALSE-COLOR infrared composites per observing season (infrared wavelengths mapped to RGB, not true color). Empty when none were built; absent in products older than 0.3.1.",
+      "items": {
+        "$ref": "#/$defs/Composite"
+      },
+      "title": "Composites",
+      "type": "array"
     },
     "description": {
       "default": "",

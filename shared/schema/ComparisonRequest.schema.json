@@ -1,0 +1,33 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "detectors": {
+      "items": {
+        "maximum": 6,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "title": "Detectors",
+      "type": "array"
+    },
+    "frame_ids": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 60,
+          "minItems": 2,
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Frame Ids"
+    }
+  },
+  "title": "ComparisonRequest",
+  "type": "object"
+}

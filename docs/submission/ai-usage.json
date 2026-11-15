@@ -1,6 +1,6 @@
 {
   "document_version": "1.2",
-  "updated_on": "2026-11-14",
+  "updated_on": "2026-11-15",
   "status": "draft_requires_team_review",
   "scope": "Verified assistance in the current Codex session; not a complete repository authorship audit",
   "tool": "OpenAI Codex",
@@ -9,7 +9,8 @@
     "Reference-link accessibility checks",
     "Documentation, requirements, technical planning and task-priority revisions",
     "Optional-analysis build and CLI implementation with regression tests",
-    "Draft submission text, demo outline and public attribution text"
+    "Draft submission text, demo outline and public attribution text",
+    "Processing cache invalidation, shared spectrum/comparison contract, supervised API and frontend scientific panels with real-data integration checks"
   ],
   "known_affected_code": [
     "pipeline/errante/build.py",
@@ -17,7 +18,12 @@
     "pipeline/tests/test_build.py",
     "frontend/src/pages/AboutPage.tsx",
     "frontend/src/pages/HomePage.tsx",
-    "frontend/src/pages/SystemsPage.tsx"
+    "frontend/src/pages/SystemsPage.tsx",
+    "backend/errante_api/processing.py",
+    "backend/errante_api/science_service.py",
+    "backend/errante_api/science_ops.py",
+    "frontend/src/components/PositionSpectrum.tsx",
+    "frontend/src/components/FieldComparisons.tsx"
   ],
   "imported_contributions": [
     {

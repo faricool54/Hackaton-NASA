@@ -4,7 +4,7 @@
 // Pixel convention for every x/y: PNG convention — origin at the TOP-LEFT pixel,
 // 0-based, x → right, y → DOWN, on the field's common north-up grid (east left).
 
-export const SCHEMA_VERSION = '0.3.0';
+export const SCHEMA_VERSION = '0.4.0';
 
 export type Release = 'dr1' | 'qr2' | 'qr3' | 'synthetic';
 export type ObjectType =
@@ -20,6 +20,13 @@ export type CandidateKind = 'moving' | 'proper_motion' | 'variable';
 /** unconfirmed = not matched to any catalog. It is NOT a discovery claim. */
 export type CandidateStatus = 'unconfirmed' | 'known' | 'artifact' | 'injected';
 export type MatchSource = 'jpl_sbident' | 'jpl_horizons' | 'skybot' | 'simbad' | 'synthetic';
+/**
+ * How a FALSE-COLOR composite maps SPHEREx infrared wavelengths to RGB (added in 0.3.1).
+ * detectors = whole SPHEREx detectors over the full 0.75-5.0 um range;
+ * jhk = 2MASS-like, exposures near J/H/Ks (~1.25/1.65/2.15 um). Blue = shortest, red = longest.
+ */
+export type CompositeMode = 'detectors' | 'jhk';
+export type CompositeColor = 'red' | 'green' | 'blue';
 
 export interface SkyCoord {
   ra: number; // deg ICRS
@@ -45,8 +52,8 @@ export interface Frame {
   id: string;
   obs_id: string;
   detector: number; // 1-6
-  mjd: number;
-  date_obs: string; // ISO 8601
+  mjd: number; // mid-exposure (header MJD-AVG), not the start (MJD-OBS)
+  date_obs: string; // ISO 8601 UTC, same instant as mjd (DATE-AVG)
   wavelength_um: number | null;
   bandwidth_um: number | null;
   release: Release;
@@ -148,6 +155,31 @@ export interface Provenance {
   notes: string[];
 }
 
+/** One color channel of a FALSE-COLOR composite: which infrared exposures were mapped to it. */
+export interface CompositeChannel {
+  color: CompositeColor;
+  detector: number | null; // 1-6; null = inputs from several detectors
+  wavelength_um: number | null; // mean central wavelength of the inputs at the field centre
+  wavelength_min_um: number | null; // shortest central wavelength among the inputs
+  wavelength_max_um: number | null; // longest central wavelength among the inputs
+  frame_ids: string[]; // Frame.id convention; may include exposures not in Field.frames
+}
+
+/**
+ * FALSE-COLOR infrared composite of one observing season (added in 0.3.1).
+ * SPHEREx sees 0.75-5.0 um, invisible to the eye: it is NOT a true-color image and the UI must say so.
+ */
+export interface Composite {
+  id: string; // unique within the field, e.g. 'detectors_S0'
+  mode: CompositeMode;
+  season: number; // 0-based observing season (0 = earliest)
+  mjd_min: number; // earliest mid-exposure MJD among the inputs
+  mjd_max: number; // latest mid-exposure MJD among the inputs
+  image: string; // RGB/RGBA PNG relative to the field dir, e.g. 'color/detectors_S0.png'
+  channels: [CompositeChannel, CompositeChannel, CompositeChannel]; // red, green, blue (in this order)
+  notes: string[];
+}
+
 export interface Field {
   id: string;
   name: string;
@@ -158,6 +190,7 @@ export interface Field {
   grid: Grid;
   frames: Frame[];
   provenance: Provenance;
+  composites?: Composite[]; // added in 0.3.1 (absent in older products: treat as [])
 }
 
 export interface FieldSummary {
@@ -331,4 +364,46 @@ export interface ResolvedRegion extends SkyCoord {
   object_type: ObjectType;
   resolved_name: string;
   source: string;
+}
+
+
+export interface SpectrumRequest extends SkyCoord {
+  source?: 'dr1_cube' | 'l2_exposures';
+  field_id?: string | null;
+  detectors?: number[];
+  mjd_min?: number | null;
+  mjd_max?: number | null;
+  aperture_px?: number;
+  max_frames?: number;
+}
+export interface MeasurementFailure {
+  frame_id: string | null;
+  reason: 'download_failed' | 'measurement_failed' | 'no_overlap' | 'invalid_pixels';
+}
+export interface SpectralMeasurement {
+  id: string; detector: number; wavelength_um: number | null; bandwidth_um: number | null;
+  flux: number | null; flux_err: number | null; usable: boolean; flags: string[];
+  frame_id: string | null; mjd: number | null; release: Release; source_uri: string | null;
+  nhits: number | null; n_used: number | null; aperture_correction: number | null;
+}
+export interface SpectrumResponse {
+  schema_version: string; center: SkyCoord; source: 'dr1_cube' | 'l2_exposures'; unit: 'MJy/sr' | 'mJy';
+  static_coadd: boolean; points: SpectralMeasurement[]; built_at: string; field_id: string | null;
+  mjd_range: [number | null, number | null]; pixel_scale_arcsec: number | null; aperture_px: number;
+  background_subtracted: boolean; synthetic: boolean; truncated: boolean; stale: boolean;
+  notes: string[]; failures: MeasurementFailure[];
+}
+export interface ComparisonRequest { detectors?: number[]; frame_ids?: string[] | null; }
+export interface ComparisonImage {
+  id: string; kind: 'weighted_mean' | 'scaled_difference'; detector: number; image: string;
+  frame_ids: string[]; mjd_min: number; mjd_max: number; wavelength_range_um: [number, number] | null;
+  season: number | null; earlier: string | null; later: string | null; valid_fraction: number | null;
+  flux_scale: number | null; flux_scale_fitted: boolean | null; flux_scale_stars: number | null;
+  noise_mjy_sr: number | null; display_limit_mjy_sr: number | null; target_exclude_px: number | null;
+  weights: number[] | null; notes: string[];
+}
+export interface ComparisonResponse {
+  schema_version: string; id: string; field_id: string; field_built_at: string; built_at: string;
+  unit: 'MJy/sr'; method: string; input_frames: Frame[]; images: ComparisonImage[];
+  failures: MeasurementFailure[]; notes: string[]; synthetic: boolean;
 }

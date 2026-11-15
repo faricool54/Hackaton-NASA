@@ -30,7 +30,8 @@ from errante.models import SCHEMA_VERSION
 from errante.products import ProductStore
 
 from .live_service import LiveService
-from .routes import jobs, live, products, resolve
+from .routes import jobs, live, products, resolve, science
+from .science_service import ScienceService
 from .settings import Settings
 from .store import PublicProductStore
 
@@ -64,6 +65,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 app.state.job_engine.stop()
                 log.info("job engine stopped")
             app.state.live.close()
+            app.state.science.close()
 
     app = FastAPI(
         title="Errante API",
@@ -79,6 +81,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.store = PublicProductStore(settings.data_dir)
     app.state.live = LiveService(settings)
+    app.state.science = ScienceService(settings)
 
     @app.get("/api/health")
     def health() -> dict:
@@ -98,6 +101,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(live.router, prefix="/api")
     app.include_router(resolve.router, prefix="/api")
     app.include_router(jobs.router, prefix="/api")
+    app.include_router(science.router, prefix="/api")
     if settings.data_dir.exists():
         app.mount("/data", StaticFiles(directory=settings.data_dir), name="data")
     return app
