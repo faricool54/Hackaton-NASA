@@ -29,7 +29,7 @@ async def d1(t):
     match = t.page.get_by_role("button", name=re.compile("Barnard.*frames", re.I))
     await match.wait_for(state="visible", timeout=30000)
     # A loaded input alone does not establish that the WebGL map is ready.
-    await t.page.locator('select[aria-label="Map wavelength"]:not([disabled])').wait_for(timeout=45000)
+    await t.page.locator('select[aria-label="Map wavelength"]:not([disabled])').wait_for(state="attached", timeout=45000)
     await t.start(ready="#sky-query")
     await t.hover(query, hold_s=0.3)
     await t.click(match)
@@ -67,7 +67,12 @@ async def d2(t):
         const img = document.querySelector('.comparison-image');
         return img && img.complete && img.naturalWidth > 0;
     }""", timeout=30000)
-    await products.scroll_into_view_if_needed()
+    # Put the real image, its dates and the nearby quality warning in the frame;
+    # merely revealing the selector can leave the entire difference below the fold.
+    await image.evaluate("""img => window.scrollTo({
+        top: Math.max(0, img.getBoundingClientRect().top + window.scrollY - 100),
+        behavior: 'instant'
+    })""")
     await t.start(ready=image)
     await hold_measured(t, "D2")
 
