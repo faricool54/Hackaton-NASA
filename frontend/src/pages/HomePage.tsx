@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ApiError, client } from '../api/client';
-import type { Manifest } from '../api/types';
+import { ApiError, client, createClient } from '../api/client';
+import type { FieldSummary, Manifest } from '../api/types';
 import { formatMjd, formatRaDec } from '../api/format';
 import { SyntheticBadge } from '../components/SyntheticBadge';
 import { SkyExplorer } from '../components/SkyExplorer';
@@ -9,6 +9,7 @@ export function HomePage() {
   const [manifest, setManifest] = useState<Manifest | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [empty, setEmpty] = useState(false);
+  const [realFields, setRealFields] = useState<FieldSummary[]>([]);
 
   useEffect(() => {
     client.getManifest().then(setManifest).catch((e: Error) => {
@@ -16,6 +17,23 @@ export function HomePage() {
       else setError(e.message);
     });
   }, []);
+
+  const realBase = `${import.meta.env.BASE_URL}data/real/`;
+  useEffect(() => {
+    // On a static demo build, the real challenge fields may be bundled alongside the demo.
+    if (client.config.mode !== 'static' || client.config.staticBase === realBase) return;
+    let current = true;
+    createClient({ ...client.config, staticBase: realBase }).getManifest()
+      .then((real) => { if (current) setRealFields(real.fields); })
+      .catch(() => { /* Some installations only include the synthetic demo. */ });
+    return () => { current = false; };
+  }, [realBase]);
+
+  const realLink = `${import.meta.env.BASE_URL}?mode=static&dataset=real#/`;
+  const sequences = [
+    ...(manifest?.fields ?? []).map((field) => ({ field, href: `#/field/${field.id}` })),
+    ...realFields.map((field) => ({ field, href: `${realLink}field/${field.id}` })),
+  ];
 
   return (
     <main>
@@ -27,14 +45,14 @@ export function HomePage() {
           sky map, choose a position, and build a sequence of real observations. Curated fields are also available below.
         </p>
         <p>
-          <a href={`${import.meta.env.BASE_URL}?mode=static&dataset=real#/`}>Browse the five real challenge fields →</a>
+          <a href={realLink}>Browse the five real challenge fields →</a>
           {' · '}
           <a href="#/systems">Explore illustrative 3D models of the challenge targets →</a>
         </p>
-        {/* TODO(WS6): final copy, project name, call to action. TODO(WS5): coordinate/name search box (api mode). */}
+        {/* TODO(WS6): final copy, project name, call to action. */}
       </section>
 
-      <SkyExplorer />
+      <SkyExplorer sequences={sequences} />
       {error && <p className="error">Could not load curated fields: {error}</p>}
       {empty && <p className="muted">No curated fields yet. Build your first sequence above.</p>}
       {!manifest && !error && !empty && <p className="muted">Loading…</p>}

@@ -5,10 +5,12 @@ import { isTerminal, parseCoordinate, positionUrl, readPosition, watchJob } from
 import { DETECTOR_BANDS } from '../api/format';
 import { coordinateLookup, nameLookup, positionLookup, type ObjectLookup } from '../api/objectCard';
 import { SHOWCASE_TARGETS } from '../api/showcase';
+import type { SearchSequence } from '../api/skySearch';
 import { FieldPage } from '../pages/FieldPage';
 import { ExplorerMap } from './ExplorerMap';
 import { ObjectCard } from './ObjectCard';
 import { PositionSpectrum } from './PositionSpectrum';
+import { SkySearch } from './SkySearch';
 
 function initialPosition(): { request: JobSubmitRequest; error: string } {
   try { return { request: readPosition(location.search), error: '' }; }
@@ -22,15 +24,13 @@ function initialLookup(request: JobSubmitRequest, error: string): ObjectLookup |
   return !error && params.has('ra') && params.has('dec') ? coordinateLookup(request.ra, request.dec) : null;
 }
 
-export function SkyExplorer() {
+export function SkyExplorer({ sequences }: { sequences: SearchSequence[] }) {
   const [initial] = useState(initialPosition);
   const [center, setCenter] = useState<SkyCoord>(initial.request);
   const [ra, setRa] = useState(String(initial.request.ra));
   const [dec, setDec] = useState(String(initial.request.dec));
   const [fov, setFov] = useState(String(initial.request.size_deg));
   const [detector, setDetector] = useState(initial.request.detectors![0]);
-  const [name, setName] = useState('');
-  const [inputMode, setInputMode] = useState('coordinates');
   const [resolved, setResolved] = useState('');
   const [job, setJob] = useState<JobStatusResponse | null>(null);
   const [busy, setBusy] = useState(false);
@@ -62,23 +62,16 @@ export function SkyExplorer() {
 
   const submit = async (position?: SkyCoord) => {
     if (!live) return;
-    if (!position) { // the card starts at once, in parallel with the build (a map click already set it)
-      if (inputMode === 'name') { const next = nameLookup(name); if (next) setLookup(next); }
-      else { try { setLookup(coordinateLookup(parseCoordinate(ra, true), parseCoordinate(dec, false))); } catch { /* reported below */ } }
-    }
     controller.current?.abort();
     const abort = new AbortController();
     controller.current = abort;
-    setBusy(true); setError(''); setNotice(''); setJob(null); setResolved('');
+    setBusy(true); setError(''); setNotice(''); setJob(null);
     try {
-      let point = position;
-      if (!point && inputMode === 'name') {
-        if (!name.trim()) throw new Error('Enter an object name.');
-        const result = await client.resolveName(name.trim(), abort.signal);
-        point = result;
-        setResolved(`${result.resolved_name} · ${result.object_type.replace('_', ' ')} · ${result.source}`);
+      const point = position ?? { ra: parseCoordinate(ra, true), dec: parseCoordinate(dec, false) };
+      if (!position && !(lookup && 'name' in lookup && point.ra === center.ra && point.dec === center.dec)) {
+        setLookup(coordinateLookup(point.ra, point.dec));
+        setResolved('');
       }
-      point ??= { ra: parseCoordinate(ra, true), dec: parseCoordinate(dec, false) };
       const size = Number(fov);
       if (!Number.isFinite(size) || size < 0.01 || size > 0.5) throw new Error('Field side must be 0.01–0.5 degrees.');
       // Catalog response fields belong to the resolver, not the job request.
@@ -97,6 +90,19 @@ export function SkyExplorer() {
     finally { if (!abort.signal.aborted) setBusy(false); }
   };
 
+  const locate = (point: SkyCoord, label?: string, source?: string) => {
+    controller.current?.abort();
+    setBusy(false); setJob(null); setError(''); setNotice('');
+    setCenter(point); setRa(String(point.ra)); setDec(String(point.dec));
+    setLookup(label ? nameLookup(label) : coordinateLookup(point.ra, point.dec));
+    setResolved(label ? `${label} · ${source}` : '');
+    // Keep a valid share link even if the user was in the middle of editing the field size.
+    const size = Number(fov);
+    const url = positionUrl(location.href, { ...initial.request, ra: point.ra, dec: point.dec,
+      size_deg: size >= 0.01 && size <= 0.5 ? size : initial.request.size_deg, detectors: [detector] });
+    history.replaceState(null, '', url); setShareUrl(url);
+  };
+
   const stop = () => {
     controller.current?.abort(); setBusy(false);
     setNotice('Stopped watching. The server may continue the build; resume to see its result.');
@@ -112,13 +118,12 @@ export function SkyExplorer() {
   };
 
   return <section aria-labelledby="explore-title">
+    <SkySearch sequences={sequences} onLocate={locate} />
     <div className="explorer-layout">
       <ExplorerMap center={center} onSelect={(p) => {
-        setInputMode('coordinates'); setRa(String(p.ra)); setDec(String(p.dec)); setCenter(p);
+        locate(p);
         setLookup(positionLookup(p.ra, p.dec));
         if (live) void submit(p);
-        else { const url = positionUrl(location.href, { ...initial.request, ...p, size_deg: Number(fov), detectors: [detector] });
-          history.replaceState(null, '', url); setShareUrl(url); }
       }} />
       <aside className="panel explore-form">
         <h2 id="explore-title">Explore a position</h2>
@@ -127,7 +132,7 @@ export function SkyExplorer() {
           const target = SHOWCASE_TARGETS[Number(e.target.value)];
           if (!target) return;
           controller.current?.abort(); setBusy(false); setJob(null); setError(''); setResolved('');
-          setInputMode('coordinates'); setCenter(target); setRa(String(target.ra)); setDec(String(target.dec));
+          setCenter(target); setRa(String(target.ra)); setDec(String(target.dec));
           setFov('0.15'); setDetector(target.detector); setLookup(nameLookup(target.catalogName));
           setNotice(`${target.name}: ICRS position propagated to mean epoch MJD ${target.mjd}. Sesame/SIMBAD CfA astrometry, checked 14 Nov 2026. This preset is not a validated detection.`);
           const url = positionUrl(location.href, { ra: target.ra, dec: target.dec, size_deg: 0.15, detectors: [target.detector] });
@@ -135,20 +140,14 @@ export function SkyExplorer() {
         }}><option value="" disabled>Choose one of the five targets…</option>
           {SHOWCASE_TARGETS.map((target, index) => <option key={target.name} value={index}>{target.name}</option>)}
         </select></label>
-        {!live && <p className="mode-note">Static mode opens curated fields below. Arbitrary positions and names need the backend.
+        {!live && <p className="mode-note">Static mode lets you explore positions and open saved sequences. Building a new sequence or looking up an unsaved name needs the live API.
           {' '}<a href={(() => { const u = new URL(location.href); u.searchParams.set('mode', 'api'); return u.toString(); })()}>Use live API →</a></p>}
         <form onSubmit={(e) => { e.preventDefault(); void submit(); }}>
-          <label>Find by<select value={inputMode} onChange={(e) => setInputMode(e.target.value)}>
-            <option value="coordinates">RA / Dec</option><option value="name">Object name</option>
-          </select></label>
-          {inputMode === 'name' ? <label>Object name<input value={name} onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Barnard's Star" required autoComplete="off" /></label> : <>
             <label>Right ascension<input value={ra} onChange={(e) => setRa(e.target.value)} required
               aria-describedby="coordinate-help" placeholder="269.44623 or 17:57:47.1" /></label>
             <label>Declination<input value={dec} onChange={(e) => setDec(e.target.value)} required
               aria-describedby="coordinate-help" placeholder="+4.76870 or +04:46:07.3" /></label>
             <p className="muted small" id="coordinate-help">ICRS decimal degrees, or RA HH:MM:SS and Dec ±DD:MM:SS.</p>
-          </>}
           <div className="explore-filters">
             <label>Field side (degrees)<input type="number" min="0.01" max="0.5" step="any" value={fov}
               onChange={(e) => setFov(e.target.value)} required /></label>
