@@ -25,10 +25,12 @@ MIN_SPAN = 2.0
 FRACTIONAL_FLOOR = 0.05  # declared modelling allowance, NOT a measured instrument calibration
 CHANNEL_FRAC = 0.025  # approximate broad SPHEREx channel width; prevents repeated-frame pseudo-precision
 TEMPERATURE_BOUNDS_K = (300.0, 20000.0)
+TEMPERATURE_FLOOR_FRACTION = 0.10  # declared modelling allowance, not calibrated confidence
 CAUTION = (
     "Blackbody colour temperature, not stellar effective temperature or a physical 3D reconstruction. "
     "No extinction, disk, atmosphere/molecular-band or blend model; channel centres approximate bandpasses. "
-    "Intervals are conditional profile-delta-chi2=1 ranges, not total astrophysical uncertainties."
+    "Ranges rescale profile delta-chi2 by max(1, reduced chi2) and include an assumed +/-10% temperature "
+    "modelling floor; they are not calibrated confidence intervals or total astrophysical uncertainties."
 )
 
 
@@ -47,6 +49,7 @@ class TemperatureEstimate:
     frame_ids: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=lambda: [CAUTION])
     model_source: str = PLANCK_SOURCE
+    temperature_floor_fraction: float = TEMPERATURE_FLOOR_FRACTION
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -55,7 +58,8 @@ class TemperatureEstimate:
 def _valid_points(points: Sequence[SpectrumPoint]) -> tuple[list[SpectrumPoint], dict[str, int]]:
     valid, excluded = [], Counter()
     for p in points:
-        if not (math.isfinite(p.wavelength_um) and 0.75 <= p.wavelength_um <= 5.05):
+        # WCS-WAVE centres straddle nominal detector edges (real epsilon Indi B: 0.74996 um).
+        if not (math.isfinite(p.wavelength_um) and 0.74 <= p.wavelength_um <= 5.05):
             excluded["outside_spherex_wavelength"] += 1
         elif not math.isfinite(p.flux_mjy) or p.flux_mjy <= 0:
             excluded["nonpositive_or_missing_flux"] += 1
@@ -134,15 +138,24 @@ def estimate_temperature(points: Sequence[SpectrumPoint]) -> TemperatureEstimate
         result.status = "poor_fit"
         result.notes.append("Single blackbody rejected: reduced chi-square > 5, including the declared floor.")
         return result
-    inside = np.flatnonzero(chi2 <= chi2[best] + 1)
+    threshold = chi2[best] + max(1.0, result.reduced_chi2)
+    inside = np.flatnonzero(chi2 <= threshold)
     lo, hi = int(inside[0]), int(inside[-1])
     # A closed interval is essential: a best fit near a grid boundary is not a measurement.
     if lo == 0 or hi == len(temperatures) - 1:
         result.status = "unconstrained"
         result.notes.append("Temperature interval reaches the 300-20000 K search boundary; no finite result reported.")
         return result
-    lower = float(np.interp(chi2[best] + 1, chi2[lo - 1 : lo + 1][::-1], temperatures[lo - 1 : lo + 1][::-1]))
-    upper = float(np.interp(chi2[best] + 1, chi2[hi : hi + 2], temperatures[hi : hi + 2]))
+    lower = float(np.interp(threshold, chi2[lo - 1 : lo + 1][::-1], temperatures[lo - 1 : lo + 1][::-1]))
+    upper = float(np.interp(threshold, chi2[hi : hi + 2], temperatures[hi : hi + 2]))
+    lower = min(lower, float(temperatures[best] * (1 - TEMPERATURE_FLOOR_FRACTION)))
+    upper = max(upper, float(temperatures[best] * (1 + TEMPERATURE_FLOOR_FRACTION)))
+    if lower <= TEMPERATURE_BOUNDS_K[0] or upper >= TEMPERATURE_BOUNDS_K[1]:
+        result.status = "unconstrained"
+        result.notes.append(
+            "The modelling-floor range reaches a temperature search boundary; no finite result reported."
+        )
+        return result
     if (upper - lower) / temperatures[best] > 0.5:
         result.status = "unconstrained"
         result.notes.append(
@@ -159,16 +172,19 @@ def estimate_temperature(points: Sequence[SpectrumPoint]) -> TemperatureEstimate
 def color_class(points: Sequence[SpectrumPoint]) -> str:
     """Descriptive F_nu colour, NOT an object/spectral-type classifier or visible RGB.
 
-    Median 4-5 um / 1-2 um source flux: <0.25 star-like, <1 neutral, <4 red, else very-red.
+    Median 4-5 um / 1-2 um source flux: <0.25 blue, <=1 neutral, <4 red, else very-red.
     These are declared display categories (flat F_nu has ratio 1), not empirically calibrated
-    class boundaries. Require three wavelength groups in each window; otherwise 'unknown'.
+    class boundaries. Require three wavelength groups spanning each window; otherwise 'unknown'.
     """
     use, excluded = _valid_points(points)
     if not use or sum(excluded.values()) > len(points) * 0.2:
         return "unknown"
     lam, flux, _ = _channels(use)
+    short_lam, long_lam = lam[(lam >= 1) & (lam <= 2)], lam[(lam >= 4) & (lam <= 5)]
     short, long = flux[(lam >= 1) & (lam <= 2)], flux[(lam >= 4) & (lam <= 5)]
     if len(short) < 3 or len(long) < 3:
         return "unknown"
+    if short_lam.min() > 1.2 or short_lam.max() < 1.8 or long_lam.min() > 4.2 or long_lam.max() < 4.8:
+        return "unknown"
     ratio = float(np.median(long) / np.median(short))
-    return "star-like" if ratio < 0.25 else "neutral" if ratio < 1 else "red" if ratio < 4 else "very-red"
+    return "blue" if ratio < 0.25 else "neutral" if ratio <= 1 else "red" if ratio < 4 else "very-red"
