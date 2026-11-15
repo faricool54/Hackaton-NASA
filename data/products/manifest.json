@@ -1,6 +1,6 @@
 {
-  "schema_version": "0.2.1",
-  "generated_at": "2026-11-14T18:54:24.248091Z",
+  "schema_version": "0.3.1",
+  "generated_at": "2026-11-15T04:06:38.565726Z",
   "synthetic": false,
   "fields": [
     {
@@ -20,7 +20,7 @@
       "n_frames": 40,
       "n_candidates": 0,
       "mjd_range": [
-        60908.642840356,
+        60905.8569073,
         61281.662753423
       ],
       "thumbnail": "thumb.png",
@@ -44,7 +44,7 @@
       "n_candidates": 0,
       "mjd_range": [
         60790.26312899,
-        61313.507952659
+        61313.307759557
       ],
       "thumbnail": "thumb.png",
       "synthetic": false
@@ -67,7 +67,7 @@
       "n_candidates": 0,
       "mjd_range": [
         60828.126855703,
-        61232.444951999
+        61232.443459731
       ],
       "thumbnail": "thumb.png",
       "synthetic": false
@@ -88,8 +88,8 @@
       "n_frames": 40,
       "n_candidates": 0,
       "mjd_range": [
-        60920.978031166,
-        61298.129857486
+        60920.03229708,
+        61297.859084291
       ],
       "thumbnail": "thumb.png",
       "synthetic": false
@@ -112,7 +112,7 @@
       "n_candidates": 0,
       "mjd_range": [
         60800.70069465,
-        61172.175970113
+        61173.064732196
       ],
       "thumbnail": "thumb.png",
       "synthetic": false
