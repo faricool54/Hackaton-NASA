@@ -890,7 +890,7 @@ sin versionar.
 | LC4 | WS4 + WS5 | RW Aur, dos avisos que faltan. (a) Es **A+BC sin resolver**: WDS JOY 5, 1,50″ a PA 254° (2022); par Gaia a 1,493″; las dos componentes caen dentro de la apertura de 18,5″. (b) **La saturación depende del brillo**: satura 7/19 (S0, la temporada débil), 14/19 (S1) y 16/18 (S2), así que los estados brillantes quedan afuera y en S2 solo sobreviven 2 puntos. Además, el panel lista los flujos saturados como «Measured signal» cuando son cotas inferiores | Nota por preset en `PRESETS` (WS4) y texto del panel (WS5): «Uncorrected aperture flux (r = 3 px); RW Aur A+BC unresolved; N saturated exposures (lower limits, mostly in the bright seasons) are excluded». Saturados como «≥ valor» |
 | LC5 | WS4 + WS5 | R Dra usa solo el sondeo ancho (539 de 2493 exposiciones, 426 d) y no lo dice. La página muestra arriba «~2,500 frames… the best light-curve case» (field.json) y el panel, «450 of 538» | Nota del preset: «Wide survey only (DR1+QR3): 539 of 2493 exposures; deep collections excluded; data end 2026-07-16». Opcional: reconstruir con las colecciones deep y `max_frames` ≤ 2500, revisando el tope de 8 MiB (LC16) |
 | LC6 | WS3 (+ rebuild del campo) | Los textos de `fields.toml` que se ven arriba del panel lo contradicen: RW Aur dice «not single exposures», y R Dra, «period ~247 d… ~2,500 frames». Ya estaban como pendientes en la revisión de textos | Aplicar los textos listos de esa tabla. A R Dra, agregarle que la curva de la app usa solo el sondeo ancho. `field.json` se regenera al publicar los campos |
-| LC7 | WS3 + contrato + WS5 | «Significant» se presenta como si confirmara un período, pero solo prueba variabilidad ordenada en el tiempo: una tendencia o un escalón pasan el test en el borde de la grilla. El docstring de `LightCurvePeriod` dice que un período significativo deja de ser candidato, y eso contradice el caveat de WS3. El contrato acepta `period_days` = 5000 con la grilla [20, 800] | WS3: no marcar significativo un mejor período en el borde de la grilla o que cubra < 2 ciclos, y reescribir el caveat. Contrato: `period_range_days[0] ≤ period_days ≤ [1]` y docstring corregido. WS5: «Variability significant; best period 259.1 d», con los alias y los períodos de catálogo |
+| LC7 | WS3 + contrato + WS5 | «Significant» se presenta como si confirmara un período, pero solo prueba variabilidad ordenada en el tiempo: una tendencia o un escalón pasan el test en el borde de la grilla. El docstring de `LightCurvePeriod` dice que un período significativo deja de ser candidato, y eso contradice el caveat de WS3. El contrato acepta `period_days` = 5000 con la grilla [20, 800] | WS3: no testear un mejor período en el borde de la grilla o que cubra < 1,5 ciclos, y reescribir el caveat (✅ hecho; ver «Arreglos de WS3 aplicados»). Contrato: `period_range_days[0] ≤ period_days ≤ [1]` y docstring corregido. WS5: «Variability significant; best period 259.1 d», con los alias y los períodos de catálogo |
 
 ### Hallazgos menores y observaciones, por dueño
 
@@ -948,8 +948,9 @@ sin versionar.
   comparación.
 - **LC26.** Falta un control a nivel de pares: la dispersión de pares de las comparaciones es 1,4–1,9 veces el control
   por punto, y en RW Aur da 0,033 contra 0,018.
-- **LC27.** Los pisos del período se calculan en el mejor período estadístico (239 d), no en el final (259 d). No
-  cambia el período; D6 pasaría de 0,091 a 0,075.
+- **LC27.** Los pisos del período se calculan en el mejor período estadístico (239 d), no en el final (259 d).
+  Recalculados en el período final, el de R Dra pasa de 259,1 a 261,9 d (Δχ² 0,3 entre los dos, dentro del error), y el
+  piso de D6 baja de 0,091 a 0,075.
 - **LC28.** Bins de 1 %:
   - en R Dra D1 son anchos: el corrimiento de λ dentro del bin explica ~0,14 de los 0,29 mag de residuo;
   - en D5/D6, un bin de 1 % es más ancho que el canal del filtro lineal variable (hoy sin efecto medible);
@@ -959,6 +960,44 @@ sin versionar.
 - **LC30.** En esta PR: actualizar §0.0 y §0.3, que decían que no había producto de curva de luz. Pendiente: un
   addendum fechado en los dos registros de `docs/validation/` (archivos de coordinación) que apunte a
   `/api/lightcurves/{id}`, y la fila de curvas de luz en `docs/PARALLEL_PLAN.md`.
+
+### Arreglos de WS3 aplicados (2026-11-15)
+
+Los arreglos están en `pipeline/errante/science/variability.py`, con tests. Los productos publicados en
+`backend/errante_api/curated/lightcurves/` (de WS4) **no se regeneraron**: los números de arriba describen esos productos,
+y cambian recién cuando WS4 los republique. Se probaron con un rebuild desde los FITS reales en el scratch, con los mismos
+presets y los mismos frames.
+
+| ID | Qué se hizo | Efecto en el rebuild real |
+|---|---|---|
+| LC7 | Si el mejor período cae a un paso de cualquiera de los extremos de la grilla, o cubre menos de 1,5 ciclos, no se testea: `false_alarm` y `significant` quedan `null` y la nota dice por qué. El caveat dice que «significant» es variabilidad correlacionada en el tiempo, no un período confirmado. La FAP se escribe como cuenta: «1/101 (0 of 100 permutations reached the peak…)». | Ni R Dra ni RW Aur caen en la guarda |
+| LC23 (parcial) | El piso de pares y los errores de amplitud se publican en `notes`. Para que sean datos estructurados hace falta una PR `contract:` | Notas nuevas |
+| LC24 | Con `wing`, `scatter_over_control` es `null` y una nota explica por qué. Pendiente: en RW Aur el `summary` sale de bins de 2 puntos | R Dra: 25,9…3,3 → `null` |
+| LC25 | `control[det].excluded` cuenta las exclusiones de las comparaciones | R Dra: 1178 de 3228; RW Aur: 77 de 280 |
+| LC26 | Nota con la dispersión de pares de las comparaciones. En `aperture` es el piso de los pares del blanco; en `wing` se aclara que **no** lo es | RW Aur D1: 0,033 mag (180 pares). R Dra D1–D6: 0,030 / 0,038 / 0,044 / 0,049 / 0,134 / 0,169 |
+| LC27 | Los pisos se recalculan en el período final hasta que deja de moverse | R Dra: 259,09 → **261,88 d**, error formal 6,2 → 4,95 d, bootstrap 240,2–276,3 → 242,0–274,4 d. Sigue significativo (1/101). Las amplitudes cambian ≤ 0,06 mag |
+| LC28 | El ensemble de cada par usa solo comparaciones emparejadas en λ (\|Δλ\|/λ < `max_frac`). El ancho del bin de 1 % quedó solo documentado | RW Aur: cambia el ensemble de 4 de los 8 pares. Los dos pares de ~1 mag no cambian (corregidos −0,987 y −1,027). Un par queda con una sola comparación. R Dra: 37 pares sin ensemble (antes 12) |
+| LC29 | Error de cada amplitud pico a pico, desde la covarianza del ajuste, en la nota del período. Corregido el comentario de `PERIOD_FALSE_ALARM`, y la CLI escribe la FAP como cuenta | R Dra: D1 1,15 ± 0,37, D2 1,06 ± 0,28, D3 1,29 ± 0,15, D4 0,64 ± 0,08, D5 0,63 ± 0,03, D6 0,96 ± 0,03 mag |
+| LC4 (parte de WS3) | Nota de saturación por temporada cuando la fracción saturada cambia ≥ 0,3 entre temporadas | RW Aur: «S0 7/19, S1 14/19, S2 16/18…» |
+
+- **Por qué 1,5 ciclos y no los 2 que proponía LC7.** Se midió sobre el muestreo real de R Dra (450 puntos en 426 d),
+  con ruido igual a sus pisos:
+  - las señales fuertes sin período (tendencias, parábolas, desvanecimientos, escalones de 0,5 mag, sinusoides parciales
+    de 600 a 3000 d) caen en ≤ 1,22 ciclos, casi siempre en el borde de 800 d;
+  - con 2 ciclos solo se descartarían 2 de 30 sinusoides parciales débiles, y quedarían sin testear los períodos de
+    catálogo de R Dra (245,6–247,2 d = 1,72 ciclos).
+
+  Ningún umbral hace que «significant» signifique «periódico»: en ese muestreo, escalones débiles de 0,2 mag pasan el test
+  a 3–7 ciclos. Para resolverlo de verdad hay que comparar el seno contra un modelo de tendencia por detector, y eso es
+  trabajo nuevo.
+- **Con el período nuevo**, 247,2 d (Gaia) queda Δχ² ≈ 10,7 por debajo del pico, pero sigue dentro del bootstrap
+  (242,0–274,4 d). La conclusión no cambia: este producto, que usa solo el sondeo ancho, no distingue ~260 d de 247 d.
+- **Pendiente:**
+  - campos estructurados (PR `contract:`);
+  - el `summary` de bins de 2 puntos (LC24);
+  - el ancho del bin (LC28);
+  - que WS4 republique los dos productos y que WS5 muestre las notas (LC1) y `n_ensemble` junto a
+    `delta_mag_corrected`.
 
 ### Comprobaciones hechas para esta revisión (2026-11-15, UTC)
 

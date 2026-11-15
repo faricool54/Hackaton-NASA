@@ -176,6 +176,7 @@ def test_saturated_exposures_are_excluded_and_counted():
     sat = [p for p in lc.points if p.excluded == "saturated"]
     assert {p.frame_id for p in sat} == {"SAT1D1", "SAT2D1"} and all(p.rel_mag is None for p in sat)
     assert "saturated" in " ".join(lc.notes)
+    assert not any(n.startswith("Saturated exposures by season") for n in lc.notes)  # 1/7, 0/6, 1/7: no censoring
     assert all(p["frame_a"] not in ("SAT1D1", "SAT2D1") for p in matched_pairs(lc))
 
 
@@ -201,7 +202,12 @@ def test_target_off_the_stamp_or_without_flags_is_excluded():
     assert why["NOFLAGSD1"] == "no_flags" and why["FARD1"] == "edge"
 
 
-def test_wing_method_measures_a_saturated_star_relative_brightness():
+WING_COMPS = [(36.0, 22.0, 40.0), (-35.0, -20.0, 35.0), (-30.0, 30.0, 45.0)]  # >= 30 px: off the target's halo
+
+
+def wing_exposures(comps=COMPS):
+    """A saturated star with a halo on D4, three seasons x two wavelengths, 111 px stamps (``COMPS`` are all closer
+    than the 30 px the wing method needs: no comparison; ``WING_COMPS`` are far enough)."""
     exps = []
     for s, t0 in SEASONS.items():
         for lam in (2.5, 2.6):
@@ -217,8 +223,14 @@ def test_wing_method_measures_a_saturated_star_relative_brightness():
                     halo=0.01,
                     box=111,
                     seed=s,
+                    comps=comps,
                 )
             )
+    return exps
+
+
+def test_wing_method_measures_a_saturated_star_relative_brightness():
+    exps = wing_exposures()
     lc = light_curve_from_exposures(exps, RA0, DEC0, method="wing")
     assert lc.unit.startswith("MJy/sr")
     assert all("saturated_core" in p.flags for p in lc.points)
@@ -239,8 +251,9 @@ def test_wing_measure_flags_a_clipped_annulus():
     assert "edge" in flags and math.isnan(flux)
 
 
-def synthetic_lc(period=250.0, amp=0.5, n_det=2, seed=3) -> LightCurve:
-    """Points of a sinusoid sampled in three seasons with per-bin offsets already removed (relative magnitudes)."""
+def synthetic_lc(period=250.0, amp=0.5, n_det=2, seed=3, trend=0.0, err=0.03) -> LightCurve:
+    """Points of a sinusoid sampled in three seasons with per-bin offsets already removed (relative magnitudes).
+    ``trend``: mag added linearly over the 500 d baseline; ``err``: the stated error (the noise is 0.03 mag)."""
     rng = np.random.default_rng(seed)
     pts, b = [], 0
     for det in range(1, n_det + 1):
@@ -249,6 +262,7 @@ def synthetic_lc(period=250.0, amp=0.5, n_det=2, seed=3) -> LightCurve:
                 [rng.uniform(60800, 60880, 8), rng.uniform(61000, 61080, 8), rng.uniform(61220, 61300, 8)]
             )
             m = amp / det * np.sin(2 * math.pi * t / period + det) + rng.normal(0, 0.03, t.size)  # semi-amplitude
+            m += trend * (t - 60800) / 500
             m -= m.mean()
             for ti, mi in zip(t, m, strict=True):
                 pts.append(
@@ -263,10 +277,10 @@ def synthetic_lc(period=250.0, amp=0.5, n_det=2, seed=3) -> LightCurve:
                         wavelength_um=1.0 + 0.01 * lam_bin,
                         bandwidth_um=0.02,
                         flux=1.0,
-                        flux_err=0.03,
+                        flux_err=err,
                         bin=b,
                         rel_mag=float(mi),
-                        rel_mag_err=0.03,
+                        rel_mag_err=err,
                     )  # fmt: skip
                 )
             b += 1
@@ -287,7 +301,11 @@ def test_period_estimate_recovers_a_sinusoid_with_seasonal_gaps():
     assert "aliases" in p.caveat
     assert all(f < 0.05 for f in p.floor_mag.values())  # the noise is 0.03 mag: no extra floor needed
     assert p.significant is True and p.false_alarm <= 0.01 and p.n_permutations == 100
-    assert v.period_note(p).startswith("Period 2")
+    assert p.untested_reason is None and p.caveat == v.PERIOD_CAVEAT  # 2 cycles, far from the grid ends: tested
+    note = v.period_note(p)
+    assert note.startswith("Significant time-correlated variability; best period 2") and "not a confirmed" in note
+    assert set(p.amplitude_err_mag) == {1, 2} and all(0 < e < 0.05 for e in p.amplitude_err_mag.values())
+    assert f"D1 {p.amplitude_mag[1]:.2f}±{p.amplitude_err_mag[1]:.2f}" in note
 
 
 @pytest.mark.parametrize("seed", [1, 2, 3])
@@ -399,5 +417,258 @@ def test_cli_lightcurve_json_and_summary(monkeypatch, capsys, tmp_path):
     assert main(["lightcurve", "--ra", str(RA0), "--dec", str(DEC0), "--period"]) == 0
     text = capsys.readouterr().out
     assert "matched pairs" in text and "caveat" in text
-    # 6 visits, a monotonic brightening: the forced estimate is printed as NOT a period
-    assert "No significant period" in text and "  period " not in text
+    # 6 visits, a monotonic brightening: the forced estimate is printed as NOT a period (and not even tested: its
+    # best period is the 800 d grid edge, < 1.5 cycles of the 373 d baseline)
+    assert "NOT tested for significance" in text and "fewer than 1.5 cycles" in text and "  period " not in text
+
+
+# --- WS3 review of the published light curves (docs/SCIENCE.md, LC7 and LC23-LC30) -------------------------------
+
+
+def test_a_trend_is_not_tested_as_a_period(monkeypatch):
+    """LC7: on R Dra's sampling a 0.6 mag linear trend peaked at the 800 d grid edge and beat every visit permutation
+    (false alarm 1/101, 'significant'): time-correlated variability, not a period."""
+    lc = synthetic_lc(amp=0.0, trend=0.6)
+    p = estimate_period(lc)
+    assert p.period_days == pytest.approx(800.0, rel=0.01)
+    assert p.significant is None and p.false_alarm is None and p.n_permutations == 0  # the test is not even run
+    assert "edge of the 20-800 d search range" in p.untested_reason and "fewer than 1.5 cycles" in p.untested_reason
+    assert p.caveat.startswith("Not tested for significance: best period at the edge")
+    assert p.caveat.endswith(v.PERIOD_CAVEAT) and "does not by itself establish a period" in p.caveat
+    note = v.period_note(p)
+    assert note.startswith("Best sinusoid 800.0 d, NOT tested for significance") and "consistent with a trend" in note
+    # without the guard the same trend passes the permutation test: what 'significant' alone would have claimed
+    monkeypatch.setattr(v, "_period_guard", lambda *a: None)
+    unguarded = estimate_period(lc)
+    assert unguarded.significant is True and unguarded.false_alarm == pytest.approx(1 / 101)
+
+
+def test_period_guard_checks_both_grid_ends_and_the_cycles_covered():
+    short = estimate_period(synthetic_lc(period=20.0))  # a real 20 d signal sits on the grid's short end
+    assert short.period_days == pytest.approx(20.0, rel=0.01) and short.significant is None
+    assert short.untested_reason == "best period at the edge of the 20-800 d search range"
+    long = estimate_period(synthetic_lc(period=400.0))  # 1.25 cycles over the ~500 d baseline
+    assert long.period_days == pytest.approx(400.0, rel=0.05) and long.significant is None
+    assert long.n_permutations == 0 and long.untested_reason.startswith("it covers fewer than 1.5 cycles")
+    assert "edge" not in long.untested_reason
+    capped = estimate_period(synthetic_lc(), period_range_days=(20.0, 250.0))  # 249.4 d: one step from 250 d
+    assert capped.significant is None and "edge of the 20-250 d search range" in capped.untested_reason
+    untested = estimate_period(synthetic_lc(), n_permutations=0)  # no permutations asked: untested, no reason
+    assert untested.significant is None and untested.untested_reason is None
+    assert "NOT tested for significance (no permutations run)" in v.period_note(untested)
+
+
+def test_a_period_of_one_and_a_half_to_two_cycles_is_tested():
+    """MIN_PERIOD_CYCLES is 1.5, not the review's 2 (measured reasons in its comment): R Dra's catalog period
+    (245.6-247.2 d) covers 1.73 cycles of the product's 426 d baseline, and no strong trend-like signal peaked at
+    1.5-2 cycles on its sampling. A real 300 d sinusoid over ~500 d (1.67 cycles) is tested and significant."""
+    p = estimate_period(synthetic_lc(period=300.0))
+    assert p.period_days == pytest.approx(300.0, rel=0.05) and 1.5 < p.baseline_days / p.period_days < 2.0
+    assert p.untested_reason is None and p.n_permutations == 100 and p.significant is True
+    assert "a weak trend can still pass" in p.caveat
+
+
+def test_cli_prints_the_false_alarm_as_counts(monkeypatch, capsys):
+    """The CLI's period line used to print 'false-alarm 0.010' for 1/101 (LC8): the same counts as the notes now."""
+    from errante.cli import main
+
+    lc = synthetic_lc()
+    lc.period = estimate_period(lc)
+    assert lc.period.significant is True
+    monkeypatch.setattr(v, "light_curve", lambda *a, **k: lc)
+    assert main(["lightcurve", "--ra", "0", "--dec", "0"]) == 0
+    text = capsys.readouterr().out
+    line = next(x for x in text.splitlines() if x.startswith("  period "))
+    assert (
+        "false-alarm 1/101 (0 of 100 permutations reached the peak; the smallest value 100 permutations can give)"
+        in (line)
+    )
+    assert "0.010" not in line
+
+
+def period_arrays(lc):
+    """The arrays estimate_period fits (used points with an error, t from the first point, bin labels)."""
+    used = [p for p in lc.used() if p.rel_mag_err]
+    t = np.array([p.mjd for p in used])
+    y = np.array([p.rel_mag for p in used])
+    sig = np.array([p.rel_mag_err for p in used])
+    bins = np.unique([p.bin for p in used], return_inverse=True)[1]
+    return t - t.min(), y, sig, bins, np.array([p.detector for p in used])
+
+
+def test_floors_and_amplitude_errors_refer_to_the_reported_period():
+    """LC27: the floors were evaluated at the statistical-only best period (239 d for R Dra), not the reported 259 d.
+    LC29: amplitude_mag had no uncertainty; it now comes from the fit covariance (in the period note)."""
+    lc = synthetic_lc(err=0.01)  # 0.03 mag noise with 0.01 mag errors: floors of ~0.03 mag are needed
+    p = estimate_period(lc)
+    assert p.significant is True and all(0.02 < f < 0.04 for f in p.floor_mag.values())
+    t, y, sig, bins, dets = period_arrays(lc)
+    f = 1.0 / p.period_days
+    assert p.floor_mag == pytest.approx(v._floors(t, y, sig, bins, dets, f), abs=1e-3)
+    # amplitude and error = the full weighted least squares (bin offsets + a sinusoid per detector) at that period
+    w = 1.0 / (sig**2 + np.array([p.floor_mag[int(d)] for d in dets]) ** 2)
+    nb = int(bins.max()) + 1
+    x = np.zeros((t.size, nb + 4))
+    x[np.arange(t.size), bins] = 1.0
+    for j, d in enumerate((1, 2)):
+        m = dets == d
+        x[m, nb + 2 * j], x[m, nb + 2 * j + 1] = np.sin(2 * math.pi * f * t[m]), np.cos(2 * math.pi * f * t[m])
+    cov = np.linalg.inv(x.T @ (x * w[:, None]))
+    beta = cov @ (x.T @ (w * y))
+    for j, d in enumerate((1, 2)):
+        pq = beta[nb + 2 * j : nb + 2 * j + 2]
+        g = pq / np.hypot(*pq)
+        c = cov[nb + 2 * j : nb + 2 * j + 2, nb + 2 * j : nb + 2 * j + 2]
+        assert p.amplitude_mag[d] == pytest.approx(2 * np.hypot(*pq), rel=1e-6)
+        assert p.amplitude_err_mag[d] == pytest.approx(2 * math.sqrt(g @ c @ g), rel=1e-6)
+    assert f"D2 {p.amplitude_mag[2]:.2f}±{p.amplitude_err_mag[2]:.2f}" in v.period_note(p)
+
+
+def test_period_note_reads_the_false_alarm_as_counts():
+    """LC8/LC29: (1 + k) / (1 + n) = 1/101 when 0 of 100 permutations reached the peak: the smallest value 100
+    permutations can give, neither a measured 1 % nor an upper bound (the true probability can be higher)."""
+
+    def pe(fap, n, significant):
+        return v.PeriodEstimate(
+            259.1, 1826.0, 6.2, None, [(259.1, 1826.0)], {1: 1.21}, {1: 0.35}, 450, 425.9, (20.0, 800.0),
+            false_alarm=fap, n_permutations=n, significant=significant, amplitude_err_mag={1: 0.39},
+        )  # fmt: skip
+
+    smallest = v.period_note(pe(1 / 101, 100, True))
+    assert (
+        "probability 1/101 (0 of 100 permutations reached the peak; the smallest value 100 permutations can give)"
+        in (smallest)
+    )
+    assert "<=" not in smallest and "D1 1.21±0.39" in smallest  # not written as an upper bound
+    assert "candidate period" in smallest and "not a confirmed one" in smallest
+    two = v.period_note(pe(3 / 101, 100, False))
+    assert two.startswith("No significant period") and "is matched by shuffled visit epochs" in two
+    assert "0.030 (2 of 100 permutations reached the peak)" in two and "needs at least" not in two
+    assert "1/1000 (0 of 999 permutations reached the peak" in v.period_note(pe(1 / 1000, 999, True))
+    # fewer than 99 permutations can never reach 1 %: unbeaten, the note must not say shuffled epochs matched it
+    few = v.period_note(pe(1 / 51, 50, False))
+    assert few.startswith("No significant period: 50 visit permutations cannot reach") and "1/51" in few
+    assert "at least 99 are needed" in few and "none of them reached the peak" in few and "matched by" not in few
+    beaten = v.period_note(pe(3 / 51, 50, False))
+    assert "is matched by shuffled visit epochs" in beaten and "2 of 50 permutations" in beaten
+    assert "which needs at least 99 permutations" in beaten
+    assert v.false_alarm_text(pe(None, 0, None)) == "not tested"
+    assert (
+        "means time-correlated variability" in v.PERIOD_CAVEAT and "conditional on the chosen peak" in v.PERIOD_CAVEAT
+    )
+
+
+def test_wing_has_no_scatter_over_control():
+    """LC24: wing scatter over the aperture comparisons' scatter is not a defined ratio."""
+    lc = light_curve_from_exposures(wing_exposures(WING_COMPS), RA0, DEC0, method="wing")
+    assert len(lc.comparisons) == 3 and lc.control[4]["robust_sigma_mag"] is not None
+    assert lc.summary[4]["scatter_over_control"] is None
+    assert any(n.startswith("scatter_over_control is not given for wing photometry") for n in lc.notes)
+    # the comparisons' aperture pairs are not the floor of wing pairs (R Dra D1: floor_mag 0.35 against 0.030 mag)
+    pair = next(n for n in lc.notes if n.startswith("Comparison-star matched-pair scatter"))
+    assert "their own aperture pairs" in pair and "NOT the floor of the target's wing pairs" in pair
+    assert "empirical floor" not in pair
+    ap = light_curve_from_exposures(season_exposures(), RA0, DEC0, method="aperture")
+    assert ap.summary[1]["scatter_over_control"] > 10 and not any("not given for wing" in n for n in ap.notes)
+    pair = next(n for n in ap.notes if n.startswith("Comparison-star matched-pair scatter"))
+    assert "the empirical floor for the target's matched-wavelength pairs" in pair and "NOT" not in pair
+
+
+def lone_and_short_exposures():
+    exps = season_exposures()
+    exps.append(stamp(10.0, mjd=60925.0, lam=0.95, obs_id="LONE"))  # alone at 0.95 um
+    exps += [stamp(10.0, mjd=60930.0, lam=1.05, obs_id="SHORTA"), stamp(10.0, mjd=60935.0, lam=1.05, obs_id="SHORTB")]
+    return exps
+
+
+def test_control_counts_comparison_exclusions_and_notes_the_pair_floor():
+    """LC25: control[det].excluded was always {} (R Dra: ~36 % of the comparison measurements are excluded).
+    LC26: the floor for a matched pair is the comparisons' own matched-pair scatter, not the per-point control."""
+    lc = light_curve_from_exposures(lone_and_short_exposures(), RA0, DEC0, method="aperture")
+    n = len(lc.comparisons)
+    assert n >= 3
+    assert lc.control[1]["excluded"] == {"lone_bin": n, "short_bin": 2 * n}  # every comparison, in the same frames
+    assert sum(lc.control[1]["excluded"].values()) == sum(w is not None for c in lc.comparisons for w in c.excluded)
+    pairs = v.comparison_pair_scatter(lc)
+    # per star: 3 wavelengths x (15 pairs of 6 epochs - 3 within a season) >= 30 d apart; LONE/SHORT give none
+    assert pairs[1]["n"] == 36 * n and pairs[1]["robust_sigma_mag"] < 0.02
+    note = next(x for x in lc.notes if x.startswith("Comparison-star matched-pair scatter"))
+    assert f"D1 {pairs[1]['robust_sigma_mag']:.3f} mag ({36 * n} pairs)" in note and "< 1.0%" in note
+    assert v.comparison_pair_scatter(lc, min_dt_days=1000.0) == {}
+    half = light_curve_from_exposures(season_exposures(), RA0, DEC0, lambda_bin_frac=0.005)  # the contract's minimum
+    assert "< 0.5%" in next(x for x in half.notes if x.startswith("Comparison-star matched-pair scatter"))
+
+
+def lc_point(fid: str, mjd: float, lam: float, flux: float) -> LightCurvePoint:
+    return LightCurvePoint(fid, fid, 1, "dr1", mjd, v.mjd_to_iso(mjd), 0, lam, 0.01, flux, 0.01)
+
+
+def comparison(cid: str, lam_b: float, flux_b: float) -> v.ComparisonStar:
+    """A comparison at 2.0 um and flux 1 in frame A, ``lam_b``/``flux_b`` in frame B."""
+    return v.ComparisonStar(
+        cid, 0.0, 0.0, 2, ["A", "B"], [1, 1], [2.0, lam_b], [1.0, flux_b], [0.01, 0.01], [None, None], [None, None]
+    )
+
+
+def test_pair_ensemble_uses_only_wavelength_matched_comparisons():
+    """LC28: a comparison sits elsewhere on the linear variable filter, so the target's wavelength match is not its
+    match (median 0.5-0.9 %, up to 2.3 % on the real products): only comparisons matched themselves count."""
+    pts = [lc_point("A", 61000.0, 1.000, 1.0), lc_point("B", 61100.0, 1.005, 0.5)]  # 0.5 % apart: a matched pair
+    matched, off = comparison("C1", 2.004, 1.1), comparison("C2", 2.05, 3.0)  # 0.2 % and 2.5 % apart
+    lc = LightCurve(0, 0, "aperture", "", 0.01, 30, pts, [], [matched, off], {}, {}, {})
+    (pair,) = matched_pairs(lc)
+    assert pair["delta_mag"] == pytest.approx(2.5 * math.log10(2.0))
+    assert pair["n_ensemble"] == 1 and pair["ensemble_mag"] == pytest.approx(-2.5 * math.log10(1.1))
+    assert pair["delta_mag_corrected"] == pytest.approx(pair["delta_mag"] - pair["ensemble_mag"])
+    assert matched_pairs(lc, max_frac=0.03)[0]["n_ensemble"] == 2  # a looser match takes both
+    lc.comparisons = [off]
+    (pair,) = matched_pairs(lc)
+    assert pair["n_ensemble"] == 0 and pair["ensemble_mag"] is None and pair["delta_mag_corrected"] is None
+
+
+def saturated_in_one_season():
+    """Season exposures plus 4 saturated ones in S2: saturated S0 0/6, S1 0/6, S2 4/10."""
+    sat = [stamp(400.0, mjd=61291.0 + k, lam=0.75, obs_id=f"SAT{k}", saturate=True) for k in range(4)]
+    return season_exposures() + sat
+
+
+def test_saturation_changing_with_season_gets_a_censoring_note():
+    """RW Aur saturates in 7/19, 14/19 and 16/18 exposures by season: the bright states are preferentially excluded,
+    and the notes did not say so."""
+    lc = light_curve_from_exposures(saturated_in_one_season(), RA0, DEC0, method="aperture")
+    assert lc.excluded["saturated"] == 4
+    note = next(n for n in lc.notes if n.startswith("Saturated exposures by season"))
+    assert "S0 0/6, S1 0/6, S2 4/10" in note and "bright states may be preferentially excluded" in note
+
+
+def as_contract(lc: LightCurve):
+    """What WS4's adapter publishes (backend/errante_api/lightcurve_build.py calculate()), validated by the contract
+    model (extra='forbid': a new key anywhere fails)."""
+    from errante.models import LightCurveData
+
+    native = lc.to_dict()
+    for key in ("search", "timings"):
+        native.pop(key, None)
+    native["unit"] = "mJy" if lc.method == "aperture" else "MJy/sr"
+    native["relative_only"] = lc.method == "wing"
+    native["matched_pairs"] = matched_pairs(lc, max_frac=lc.lambda_bin_frac)
+    native["failures"] = []
+    return LightCurveData.model_validate(native)
+
+
+def test_light_curves_still_validate_against_the_contract():
+    forced = light_curve_from_exposures(lone_and_short_exposures(), RA0, DEC0, method="aperture", period=True)
+    assert forced.period.significant is None and forced.period.untested_reason  # a trend: untested
+    assert not set(v.PERIOD_PRIVATE_FIELDS) & set(forced.to_dict()["period"])
+    data = as_contract(forced)
+    assert data.period.significant is None and data.period.n_permutations == 0 and data.period.false_alarm is None
+    assert data.period.caveat.startswith("Not tested") and data.control[1].excluded["lone_bin"] == len(data.comparisons)
+    assert data.matched_pairs and all(p.n_ensemble >= 3 for p in data.matched_pairs)
+    for pe in (estimate_period(synthetic_lc()), estimate_period(synthetic_lc(amp=0.0, seed=1))):
+        forced.period = pe  # a significant and a non-significant tested period
+        assert as_contract(forced).period.significant is pe.significant
+    wing = as_contract(light_curve_from_exposures(wing_exposures(WING_COMPS), RA0, DEC0, method="wing"))
+    assert wing.relative_only and wing.summary[4].scatter_over_control is None and wing.control[4].n_stars == 3
+    sat = as_contract(light_curve_from_exposures(saturated_in_one_season(), RA0, DEC0, method="aperture"))
+    assert any(n.startswith("Saturated exposures by season") for n in sat.notes)
+    assert any(n.startswith("Comparison-star matched-pair scatter") for n in sat.notes)

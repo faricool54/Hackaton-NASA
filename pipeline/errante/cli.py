@@ -538,7 +538,7 @@ def cmd_position_spectrum(args: argparse.Namespace) -> int:
 def cmd_lightcurve(args: argparse.Namespace) -> int:
     """Light curve of a position within narrow wavelength bins, with comparison stars (WS3-9)."""
     from .data.irsa import SearchError
-    from .science.variability import light_curve, matched_pairs
+    from .science.variability import false_alarm_text, light_curve, matched_pairs
 
     cols = args.collections
     if args.deep:
@@ -582,7 +582,7 @@ def cmd_lightcurve(args: argparse.Namespace) -> int:
     pairs = doc["matched_pairs"]
     if pairs:
         print(
-            f"  matched pairs (same detector, |dlambda|/lambda < {lc.lambda_bin_frac:.0%}, >= 30 d apart): {len(pairs)}"
+            f"  matched pairs (same detector, |dlambda|/lambda < {lc.lambda_bin_frac:.1%}, >= 30 d apart): {len(pairs)}"
         )
         for p in pairs[:20]:
             ens = "" if p["ensemble_mag"] is None else f", comparisons {p['ensemble_mag']:+.3f} ({p['n_ensemble']})"
@@ -600,7 +600,8 @@ def cmd_lightcurve(args: argparse.Namespace) -> int:
         )
         other = ", ".join(f"{p:.0f} d" for p, _ in pe.peaks[1:])
         print(
-            f"  period {pe.period_days:.1f} d{err}{boot}, false-alarm {pe.false_alarm:.3f}; other peaks {other or 'none'}"
+            f"  period {pe.period_days:.1f} d{err}{boot}, false-alarm {false_alarm_text(pe)}; "
+            f"other peaks {other or 'none'}"
         )
     if lc.period:
         print(f"  caveat: {lc.period.caveat}")
