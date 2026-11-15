@@ -31,18 +31,6 @@
   VARIANCE, λ/Δλ de WCS-WAVE, flags). Base de WS3-5/WS4-8/WS5-12 (espectro en el panel de la visión).
   Validado: estrella normal del campo de ε Ind vs 2MASS J/H/Ks = 1,025/1,058/1,062; WISE 0855 a 4,4–5 µm = 0,57 mJy
   (W2 = 0,57 mJy). Las estrellas saturadas (Barnard) quedan marcadas `saturated`: no hay flujo confiable.
-- ✅ `imaging/animate.py` (+ `imaging/annotate.py`): GIFs y stills de los productos PUBLICADOS para el deck/video de
-  WS6 (S0x demo ≤ 30 s / ≤ 7 diapositivas): `python -m errante.imaging.animate --products data/products --out <dir>
-  [--field id] [--detector N]`. Por campo: blink de un detector (el de `FIELD_DETECTORS` si el campo tiene uno, si no el
-  del thumbnail, si no el de más frames) con cruz en la posición del objetivo **medida en el primer frame** (solo blancos
-  `proper-motion` y solo si el píxel más brillante del núcleo, r ≤ 2,5 px, llega al gris 217 en ese PNG: con roll-off es
-  Stretch.vmax, con asinh simple ~63 % de vmin→vmax; NO es la regla del thumbnail), falso color por temporada
-  (detectors/jhk), comparación D1 de dos épocas para RW Aurigae y contact sheet PNG; `animations.json` con frames,
-  duraciones, tamaños y captions (regenerar un campo reemplaza todas sus entradas). Captions: render de datos reales
-  SPHEREx + crédito IRSA (o SYNTHETIC DATA), damero = sin datos, y "asinh stretch, highlights compressed above vmax" en
-  los detectores con roll-off según la nota de display. WISE 0855: blink en D5 (`FIELD_DETECTORS`; en D1–D4 el centro
-  es una estrella de fondo, `docs/validation/wise-0855.md`), sin cruz porque no se destaca en el primer frame, y el
-  caption dice que es débil (~2–5σ por frame publicado).
 - ⛔ `find_sources`, `link_tracks`, `score_tracks`, `inject_mover`.
 
 ## Tareas
