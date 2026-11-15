@@ -1,5 +1,5 @@
 {
-  "updated_on": "2026-11-14",
+  "updated_on": "2026-11-15",
   "tool": "OpenAI Codex",
   "scope": "WS4 review fixes: transactional admission, matching served/build roots, CORS, verified atomic publication/recovery, bounded child execution and regression tests",
   "affected_paths": [
@@ -19,5 +19,6 @@
     "source": "real SPHEREx",
     "arbitrary_coordinate_job": "4 frames plus manifest and images served over HTTP",
     "scientific_R05_validation": false
-  }
+  },
+  "cache_revision": "display-mask-v4 with source/dependency fingerprint and queued-version fencing"
 }
