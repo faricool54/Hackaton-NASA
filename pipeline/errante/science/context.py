@@ -44,15 +44,28 @@ import json
 import math
 import os
 import re
+import threading
+import time
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from urllib.parse import quote, urlencode
+from urllib.parse import quote, urlencode, urlsplit
 
 from .. import settings
-from ..models import Fact
+from ..models import (
+    ContextMagnitude,
+    ContextService,
+    Fact,
+    NearbyPlanetHost,
+    ObjectContextResponse,
+    ObjectIdentity,
+    ObjectPlanet,
+    ObjectPosition,
+    ObjectQuery,
+    ObjectVariability,
+)
 
 # --- services (verified live 2026-11-15) -------------------------------------------------------------------
 SESAME_URL = "https://vizier.cfa.harvard.edu/viz-bin/nph-sesame/-oxpI/"
@@ -62,6 +75,39 @@ EXOPLANET_TAP_SYNC = "https://exoplanetarchive.ipac.caltech.edu/TAP/sync"
 
 CONTEXT_CACHE_TTL_S = float(os.environ.get("ERRANTE_CONTEXT_CACHE_TTL_S", str(7 * 86400)))
 CONTEXT_TIMEOUT_S = float(os.environ.get("ERRANTE_CONTEXT_TIMEOUT_S", "25"))
+# A host that did not accept a connection within the timeout is skipped for this long (per process): on 2026-11-15
+# the ESA Gaia TAP stopped accepting connections and every lookup paid a full connect timeout before the VizieR
+# fallback. Skipped calls are reported as errors (unknown, not negative), so the stale cache / fallbacks still apply.
+CONTEXT_HOST_BACKOFF_S = float(os.environ.get("ERRANTE_CONTEXT_HOST_BACKOFF_S", "120"))
+# Only hosts with a fallback are skipped. The CfA host serves Sesame (the only name resolver), the VizieR Gaia
+# fallback, VSX, 2MASS and AllWISE: skipping it after one dropped connection made every name lookup fail for 120 s
+# (review 2026-11-15). Hosts without a fallback pay their own transport timeout, bounded by the API deadline.
+BACKOFF_HOSTS = frozenset({urlsplit(GAIA_TAP_SYNC).netloc})
+_DOWN_HOSTS: dict[str, tuple[float, str]] = {}
+_DOWN_LOCK = threading.Lock()
+
+
+def _host_down(host: str) -> str | None:
+    with _DOWN_LOCK:
+        entry = _DOWN_HOSTS.get(host)
+        if entry is None:
+            return None
+        age = time.monotonic() - entry[0]
+        if age >= CONTEXT_HOST_BACKOFF_S:
+            _DOWN_HOSTS.pop(host, None)
+            return None
+    return f"skipped: {host} did not accept a connection {age:.0f} s ago ({entry[1]}); retried after {CONTEXT_HOST_BACKOFF_S:.0f} s"
+
+
+def _mark_down(host: str, why: str) -> None:
+    with _DOWN_LOCK:
+        _DOWN_HOSTS[host] = (time.monotonic(), why)
+
+
+def _mark_up(host: str) -> None:
+    with _DOWN_LOCK:
+        _DOWN_HOSTS.pop(host, None)
+
 
 # --- epochs and matching -------------------------------------------------------------------------------------
 J2000_MJD = 51544.5
@@ -131,7 +177,23 @@ OTYPE_LABELS = {
 
 
 class ContextError(RuntimeError):
-    """No position to work with: the name was not found, or Sesame could not be reached for a name lookup."""
+    """No position to work with: the name was not found, or Sesame could not be reached for a name lookup.
+
+    ``not_found`` is True only when Sesame answered that it does not know the name (an API maps it to 404); False
+    when Sesame could not be reached or its answer was unreadable.
+    """
+
+    def __init__(self, message: str, *, not_found: bool = False):
+        super().__init__(message)
+        self.not_found = not_found
+
+
+# Error note of a response that an offline replay does not have (see to_response(replay_deadline_s=...)).
+OFFLINE_MISS = "offline: response not recorded"
+CONTEXT_NOTE = (
+    "Catalog context from other missions/surveys (SIMBAD, Gaia DR3, AAVSO VSX, NASA Exoplanet Archive, "
+    "2MASS, AllWISE): not SPHEREx measurements. 'unknown' = not measured or not found."
+)
 
 
 # --- HTTP with a raw-text disk cache ------------------------------------------------------------------------
@@ -196,7 +258,7 @@ class _Http:
             if self.offline or (age is not None and age <= self.ttl_s):
                 return _Reply(service, full, True, entry["text"], entry.get("retrieved_utc"), cached=True)
         if self.offline:
-            return _Reply(service, full, False, error="offline: response not recorded")
+            return _Reply(service, full, False, error=OFFLINE_MISS)
         for attempt in range(2):
             text, error, retry = self._fetch(url, params, require)
             if error is None or not retry or attempt:
@@ -217,12 +279,20 @@ class _Http:
 
     def _fetch(self, url: str, params: dict | None, require: str | None) -> tuple[str, str | None, bool]:
         """(text, error or None, worth retrying once)."""
+        host = urlsplit(url).netloc
+        backoff = host in BACKOFF_HOSTS
+        down = _host_down(host) if backoff else None
+        if down is not None:
+            return "", down, False
         try:
             import requests
 
             r = requests.get(url, params=params, timeout=self.timeout_s, headers={"User-Agent": "errante/0.1"})
         except Exception as e:  # noqa: BLE001 - any transport failure is a service error, reported in provenance
+            if backoff and type(e).__name__ == "ConnectTimeout":
+                _mark_down(host, type(e).__name__)
             return "", f"{type(e).__name__}: {e}", "timeout" not in type(e).__name__.lower()
+        _mark_up(host)
         text = r.text
         if r.status_code >= 400:
             return text, f"HTTP {r.status_code}: {_short(text)}", r.status_code >= 500
@@ -558,10 +628,7 @@ class ObjectContext:
         doc = asdict(self)
         doc["parameters"] = [asdict(p) for p in self.parameters()]
         doc["facts"] = [f.model_dump() for f in physical_parameters(self)]
-        doc["note"] = (
-            "Catalog context from other missions/surveys (SIMBAD, Gaia DR3, AAVSO VSX, NASA Exoplanet Archive, "
-            "2MASS, AllWISE): not SPHEREx measurements. 'unknown' = not measured or not found."
-        )
+        doc["note"] = CONTEXT_NOTE
         return _finite(doc)
 
 
@@ -1169,7 +1236,9 @@ def object_context(
         sesame, prov = _sesame(http, name.strip())
         provenance.append(prov)
         if sesame is None:
-            raise ContextError(f"could not resolve {name!r}: {prov.note or prov.status}")
+            raise ContextError(
+                f"could not resolve {name!r}: {prov.note or prov.status}", not_found=prov.status == "no_match"
+            )
         if not sesame.is_simbad:
             warnings.append(
                 f"Sesame resolved {name!r} via '{sesame.resolver}', not SIMBAD, without a proper motion: the position "
@@ -1758,3 +1827,175 @@ def derive_parameters(ctx: ObjectContext) -> list[PhysicalParameter]:
 def physical_parameters(ctx: ObjectContext) -> list[Fact]:
     """The parameters as contract ``Fact``s (label, value, unit, source, verified); 'unknown' when not measured."""
     return [p.to_fact() for p in derive_parameters(ctx)]
+
+
+# --- contract adapter (GET /api/object, models.ObjectContextResponse) ---------------------------------------------
+
+
+def identity_match(ctx: ObjectContext) -> str:
+    """Contract ``ObjectMatch``: how secure the identity is (see models.ObjectMatch)."""
+    gaia = ctx.gaia
+    if gaia is not None and gaia.ambiguous:
+        return "ambiguous"
+    if gaia is not None and gaia.loose:
+        return "loose"
+    if ctx.query.get("name") is not None:
+        return "name" if ctx.sesame is not None and ctx.sesame.is_simbad else "none"
+    if gaia is None:
+        return "unavailable"
+    return "matched" if gaia.source is not None else "none"
+
+
+def _finite_or_none(v: float | None) -> float | None:
+    return v if v is not None and math.isfinite(v) else None
+
+
+def to_response(
+    ctx: ObjectContext, *, built_at: datetime | None = None, replay_deadline_s: float | None = None
+) -> ObjectContextResponse:
+    """The context as the API contract (``models.ObjectContextResponse``): the backend does no science.
+
+    ``replay_deadline_s``: this context was REPLAYED offline from the disk cache after an API stopped waiting for
+    the live lookup at that deadline. Responses not recorded yet are then reported as unanswered within the
+    deadline (unknown, not negative), cache entries older than the TTL are flagged stale and the result is partial.
+    """
+    match = identity_match(ctx)
+    by_name = ctx.query.get("name") is not None
+    ses = ctx.sesame
+    src = ctx.gaia.source if ctx.gaia is not None else None
+    # no secure identity at all: values matched by position may belong to anything in the radius
+    uncertain = bool(ctx.identity_uncertain or match == "unavailable" or (by_name and match == "none"))
+    pending = None
+    if replay_deadline_s is not None:
+        pending = f"no answer within the {replay_deadline_s:.0f} s API deadline (lookup still running; retry later)"
+
+    def unanswered(text: str | None) -> str | None:
+        return text.replace(OFFLINE_MISS, pending) if text and pending else text
+
+    def stamp(service: str) -> str:
+        return _stamp(ctx, service).replace(", retrieved", "; retrieved")
+
+    provenance = []
+    for p in ctx.provenance:
+        stale = p.stale
+        if pending is not None and p.status != "error" and (_age_s(p.retrieved_utc) or 0.0) > CONTEXT_CACHE_TTL_S:
+            stale = True  # an offline replay does not apply the TTL
+        note = unanswered(p.note)
+        provenance.append(
+            ContextService(
+                service=p.service,
+                catalog=p.catalog,
+                url=p.url or None,
+                status=p.status if p.status in ("ok", "no_match", "error", "skipped") else "error",
+                retrieved_utc=p.retrieved_utc,
+                cached=p.cached,
+                stale=stale,
+                note=note[:300] if note else None,
+            )
+        )
+    warnings = [unanswered(w) or "" for w in ctx.warnings]
+    partial = any(p.status == "error" for p in provenance)
+    if pending is not None and partial:
+        warnings.insert(
+            0,
+            f"Partial result: the catalog lookup did not finish within {replay_deadline_s:.0f} s. Services marked "
+            "'error' had not answered yet: their values are unknown, not negative. Retry for the full context.",
+        )
+    var = ctx.variability
+    return ObjectContextResponse(
+        query=ObjectQuery(
+            ra=ctx.query["ra"] % 360.0 if ctx.query.get("ra") is not None else None,
+            dec=ctx.query.get("dec"),
+            name=ctx.query.get("name"),
+            epoch_mjd=ctx.query.get("epoch_mjd", ctx.epoch_mjd),
+            radius_arcsec=ctx.query.get("radius_arcsec", DEFAULT_RADIUS_ARCSEC),
+        ),
+        position=(
+            ObjectPosition(ra=ctx.ra % 360.0, dec=ctx.dec, epoch_mjd=ctx.epoch_mjd, source=ctx.position_source)
+            if ctx.ra is not None and ctx.dec is not None
+            else None
+        ),
+        identity=ObjectIdentity(
+            display_name=ctx.display_name,
+            main_id=ctx.main_id,
+            object_type=ctx.object_type,
+            object_type_label=ctx.object_type_label,
+            spectral_type=ctx.spectral_type,
+            resolver=(SESAME_CATALOG if ses.is_simbad else f"Sesame resolver '{ses.resolver}' (CfA)") if ses else None,
+            gaia_source_id=str(src.source_id) if src is not None else None,
+            gaia_method=ctx.gaia.method if src is not None else None,
+            match=match,
+            identity_uncertain=uncertain,
+            separation_arcsec=_finite_or_none(src.sep_arcsec) if src is not None else None,
+            n_gaia_within_radius=ctx.gaia.n_within_radius if ctx.gaia is not None else None,
+        ),
+        facts=physical_parameters(ctx),
+        variability=(
+            ObjectVariability(
+                name=var.name,
+                var_type=var.var_type,
+                period_days=var.period_d if var.period_d and var.period_d > 0 else None,
+                mag_max=var.mag_max,
+                mag_min=var.mag_min,
+                min_is_amplitude=var.min_is_amplitude,
+                passband=var.passband,
+                separation_arcsec=_finite_or_none(var.sep_arcsec),
+                url=var.url,
+                source=VSX_CATALOG + stamp("vsx"),
+            )
+            if var is not None
+            else None
+        ),
+        planets=[
+            ObjectPlanet(
+                name=p.name,
+                hostname=p.hostname,
+                match=p.match,
+                period_days=p.period_d,
+                semi_major_axis_au=p.semi_major_axis_au,
+                radius_earth=p.radius_earth,
+                radius_calculated=p.radius_calculated,
+                mass_earth=p.mass_earth,
+                mass_kind=p.mass_kind,
+                eccentricity=p.eccentricity,
+                inclination_deg=p.inclination_deg,
+                discovery_year=p.discovery_year,
+                discovery_method=p.discovery_method,
+                discovery_facility=p.discovery_facility,
+                reference=p.reference,
+                controversial=p.controversial,
+                source=EXOPLANET_CATALOG + stamp("exoplanets"),
+            )
+            for p in ctx.planets
+        ],
+        nearby_planet_hosts=[
+            NearbyPlanetHost(
+                hostname=h["hostname"], separation_arcsec=h["sep_arcsec"], planets=[n for n in h["planets"] if n]
+            )
+            for h in ctx.nearby_planet_hosts
+        ],
+        photometry=[
+            ContextMagnitude(
+                mission=m.mission,
+                catalog=m.catalog,
+                designation=m.designation,
+                band=m.band,
+                wavelength_um=m.wavelength_um,
+                mag=m.mag,
+                mag_err=m.mag_err if m.mag_err is None or m.mag_err >= 0 else None,
+                system=m.system,
+                quality=m.quality,
+                contamination=m.contamination,
+                upper_limit=m.upper_limit,
+                epoch_mjd=m.epoch_mjd,
+                separation_arcsec=_finite_or_none(m.sep_arcsec),
+                identity_uncertain=m.identity_uncertain or uncertain,
+            )
+            for m in ctx.photometry
+        ],
+        warnings=warnings,
+        provenance=provenance,
+        partial=partial,
+        built_at=built_at or datetime.now(UTC),
+        note=CONTEXT_NOTE,
+    )

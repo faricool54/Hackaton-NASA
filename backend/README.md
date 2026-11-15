@@ -9,7 +9,19 @@ Datos servidos: `ERRANTE_DATA_DIR` si está definido; si no, `data/products` si 
 CORS: `ERRANTE_CORS_ORIGINS` (coma-separado, default `*`; restringir en producción).
 
 Endpoints vigentes: [CONTRACT.md](../docs/CONTRACT.md). Tests: `pytest -q backend/tests`.
-Asistencia de código/documentación: OpenAI Codex; metadata en [ai-usage.json](ai-usage.json).
+Asistencia de código/documentación: OpenAI Codex, metadata en [ai-usage.json](ai-usage.json). La ficha del
+objeto (`/api/object`) se hizo con Claude Code (trailer `Co-Authored-By` en sus commits); falta registrarla en
+el inventario de IA (coordinación): agregar claves a `ai-usage.json` rompe el espejo que exige WS2.
+
+| Endpoint | Respuesta |
+|---|---|
+| `GET /api/health`, `/api/manifest`, `/api/fields/{id}[/candidates\|/known]`, `/api/systems/{id}` | productos publicados |
+| `GET /api/search?ra&dec[&detector]`, `/api/known-objects?ra&dec&mjd` | archivo en vivo (WS1/WS3) |
+| `GET /api/resolve-name?name=` | `ResolvedRegion` (Sesame CfA) |
+| `GET /api/object?name=` o `?ra=&dec=[&epoch_mjd&radius_arcsec]` | `ObjectContextResponse`: ficha de catálogo (C05, abajo) |
+| `POST /api/jobs`, `GET /api/jobs/{id}` | construcción por coordenadas |
+| `POST /api/spectra`, `POST /api/fields/{id}/comparisons` | espectros y comparaciones (0.4.0) |
+| `GET /data/...` | PNG y análisis publicados |
 
 ## Implementado en WS4
 
@@ -201,3 +213,31 @@ La identidad incluye parámetros, campo/época, fuentes, schema, huella del pipe
 Un PNG ausente/dañado invalida la reutilización. Admisión hasta 1 GiB de staging + análisis publicados y
 512 MiB libres; los productos públicos no se eliminan automáticamente. Para liberar espacio, detener el
 servicio y archivar/eliminar análisis viejos; nunca limpiar los campos originales para renovar esta caché.
+
+## Ficha del objeto (15/11, C05)
+
+`GET /api/object?name=Barnard%27s%20Star` o `GET /api/object?ra=331.09665&dec=-56.80066` (exactamente uno de
+`name` o `ra`+`dec`; opcionales `epoch_mjd` de la posición, default MJD 61000 = era SPHEREx, y `radius_arcsec`
+0–12, default 8 ≈ 1.3 píxeles SPHEREx; WS3 adopta una fuente mucho más brillante del radio porque "domina el
+píxel", lo que deja de valer con radios grandes). Devuelve `ObjectContextResponse` (contrato 0.5.0): identidad
+SIMBAD/Gaia DR3 con estado de match (`name`, `matched`, `ambiguous`, `loose`, `none`, `unavailable`), `facts`
+(`Fact`, `unknown` si no se midió), variabilidad VSX, planetas confirmados, huéspedes cercanos que NO son el
+objeto, fotometría 2MASS/AllWISE marcada `other_mission: true`, advertencias y procedencia por servicio. **Contexto de catálogo, no mediciones
+SPHEREx.** La ciencia está en WS3 (`errante.science.context.object_context` + `to_response`); el backend solo la acota.
+
+- Fuera del event loop, en un `LiveService` propio: `ERRANTE_OBJECT_MAX_CONCURRENT` (4) llamadas activas,
+  single-flight por consulta, caché validada en memoria/disco (`ERRANTE_API_CACHE_DIR/object-context`, TTL
+  `ERRANTE_API_CACHE_TTL_S`) más la caché cruda de WS3 (`ERRANTE_CONTEXT_CACHE_DIR`, default `data/cache/context`,
+  TTL `ERRANTE_CONTEXT_CACHE_TTL_S` = 7 días). La clave incluye el hash de `science/context.py`.
+- Plazos por debajo de `ERRANTE_API_TIMEOUT_S` (30 s): búsqueda completa `ERRANTE_OBJECT_DEADLINE_S` (default
+  timeout − min(5 s, 20 %) = 25 s), timeout de transporte por servicio `ERRANTE_OBJECT_SERVICE_TIMEOUT_S`
+  (default min(25 s, plazo/2) = 12.5 s). Al vencer el plazo la búsqueda sigue en segundo plano y la respuesta es
+  **parcial**: se re-lee offline lo que ya llegó a la caché de WS3 y los servicios pendientes figuran con
+  `status: "error"` y nota "no answer within the N s API deadline" (desconocido, no negativo). Un resultado
+  `partial: true` nunca se sirve desde la caché de la API: el reintento recalcula y usa la caché de WS3.
+- Códigos: 200 (también para un punto sin nada catalogado: `match: "none"`, nunca 404), 404 solo si SIMBAD/Sesame
+  no conoce el NOMBRE, 422 parámetros inválidos, 502 resolvedor de nombres inalcanzable o fallo inesperado,
+  503 cupo ocupado (`Retry-After: 2`), 504 solo si al vencer el plazo ni siquiera se había resuelto el nombre.
+- Tests (`backend/tests/test_object.py`): búsqueda de WS3 simulada (validación, plazos, single-flight, caché,
+  errores, parcial por plazo, cupo) y código real de WS3 re-leyendo offline las respuestas grabadas en
+  `pipeline/tests/fixtures/ws3/context/` (Barnard por nombre, centro del campo eps Ind B, cielo vacío), sin red.

@@ -16,5 +16,22 @@
   "generated_media": [],
   "scientific_R05_validation": false,
   "human_review": "pending",
-  "repository_disclosure": "AI_USAGE.md"
+  "repository_disclosure": "AI_USAGE.md",
+  "other_tools": [
+    {
+      "tool": "Anthropic Claude Code",
+      "updated_on": "2026-11-15",
+      "scope": "Object card (catalog context of the chosen position/name, GET /api/object): ObjectCard component, pure formatting/state module and vitest tests, client method, preset SIMBAD names, styles; checked in the browser against a local API",
+      "affected_paths": [
+        "frontend/src/components/ObjectCard.tsx",
+        "frontend/src/api/objectCard.ts",
+        "frontend/src/api/objectCard.test.ts",
+        "frontend/src/api/client.ts",
+        "frontend/src/api/showcase.ts",
+        "frontend/src/components/SkyExplorer.tsx",
+        "frontend/src/styles.css"
+      ],
+      "human_review": "pending"
+    }
+  ]
 }
