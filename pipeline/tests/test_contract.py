@@ -12,11 +12,16 @@ from errante.cli import main
 from errante.models import (
     ALL_MODELS,
     SCHEMA_VERSION,
+    ComparisonImage,
+    ComparisonRequest,
     Composite,
     CompositeChannel,
     JobStatusResponse,
     JobSubmitRequest,
     SkyField,
+    SpectralMeasurement,
+    SpectrumRequest,
+    SpectrumResponse,
 )
 from errante.products import ProductStore
 
@@ -258,3 +263,60 @@ def test_composite_channel_mean_wavelength_must_lie_in_its_range_and_ids_are_slu
     assert ok.image == "color/jhk_S1.png"
     with pytest.raises(ValueError):
         Composite(id="a/b", mode="jhk", season=1, mjd_min=1, mjd_max=2, image="color/jhk_S1.png", channels=ch)
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {"mjd_min": 60000},
+        {"ra": 360},
+        {"dec": float("nan")},
+        {"max_frames": 61},
+        {"aperture_px": 4},
+        {"field_id": "../secret"},
+        {"source": "l2_exposures", "aperture_px": 2},
+        {"source": "l2_exposures", "mjd_min": 60001, "mjd_max": 60000},
+    ],
+)
+def test_spectrum_selection_is_bounded_and_source_aware(extra):
+    with pytest.raises(ValueError):
+        SpectrumRequest.model_validate({"ra": 10, "dec": 0, **extra})
+
+
+def test_spectrum_does_not_invent_errors_or_drop_negative_flux():
+    point = SpectralMeasurement(id="p1", detector=1, wavelength_um=1.0, flux=-0.2, usable=True)
+    response = SpectrumResponse(
+        center={"ra": 10, "dec": 0},
+        source="dr1_cube",
+        unit="MJy/sr",
+        static_coadd=True,
+        points=[point],
+        built_at="2026-11-15T02:00:00Z",
+        aperture_px=0,
+        background_subtracted=False,
+    )
+    assert response.points[0].flux_err is None
+    assert response.points[0].flux == -0.2
+    with pytest.raises(ValueError):
+        SpectrumResponse.model_validate({**response.model_dump(), "unit": "mJy"})
+    with pytest.raises(ValueError):
+        SpectralMeasurement(id="bad", detector=1, wavelength_um=1, flux=float("inf"), usable=True)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "../x.png",
+        "/x.png",
+        "analyses/" + "a" * 64 + "/compare/../x.png",
+        "analyses/" + "a" * 64 + "/compare/x.png?token=y",
+    ],
+)
+def test_comparison_images_are_contained(path):
+    with pytest.raises(ValueError):
+        ComparisonImage(id="one", kind="weighted_mean", detector=1, image=path, frame_ids=["one"], mjd_min=1, mjd_max=2)
+
+
+def test_comparison_request_rejects_duplicate_frames():
+    with pytest.raises(ValueError):
+        ComparisonRequest(frame_ids=["a", "a"])
