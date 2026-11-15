@@ -1,7 +1,8 @@
 """Real Errante UI shots. Recheck selectors against the deployed version before filming.
 
-Preparation/loading happens off camera. No API writes, fake results, synthetic images,
-motion amplification or added annotations. Existing scientific labels stay in frame.
+Preparation/loading happens off camera. The only allowed POST prepares the real
+Barnard comparison; no coordinate jobs, fake results, synthetic images, motion
+amplification or added annotations. Existing scientific labels stay in frame.
 """
 import json
 import re
@@ -24,13 +25,15 @@ async def hold_measured(t, ref):
 
 async def d1(t):
     await t.goto("/#/")
-    query = t.page.get_by_role("searchbox", name="Search the sky")
+    query = t.page.get_by_role("combobox", name="Search the sky").or_(
+        t.page.get_by_role("searchbox", name="Search the sky"))
     await query.fill("Barnard")
-    match = t.page.get_by_role("button", name=re.compile("Barnard.*frames", re.I))
+    match = t.page.get_by_role("option", name=re.compile("Barnard.*frames", re.I)).or_(
+        t.page.get_by_role("button", name=re.compile("Barnard.*frames", re.I))).first
     await match.wait_for(state="visible", timeout=30000)
     # A loaded input alone does not establish that the WebGL map is ready.
     await t.page.locator('select[aria-label="Map wavelength"]:not([disabled])').wait_for(state="attached", timeout=45000)
-    await t.start(ready="#sky-query")
+    await t.start(ready=query)
     await t.hover(query, hold_s=0.3)
     await t.click(match)
     await hold_measured(t, "D1")

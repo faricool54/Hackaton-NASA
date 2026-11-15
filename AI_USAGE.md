@@ -156,6 +156,9 @@ repairs, season coadds and flux-matched differences, forced photometry, false-co
 The contribution also includes the composites contract (#39), image-mode toggle (#40), published-product
 checks and demonstration animations. The current contributor record lists #13, #16, #17, #19, #25, #31,
 #35, #37, #39, #40, #41, #48, #68–#72 and #88; later changes require their own inventory updates.
+Follow-ups confirmed by WS2's review of #130 include the record refresh (#112) and the season-coadd
+S/N check (#115). The frame-quality contract #119 was prepared by mateoa007 with
+OpenAI Codex; it is separate from the Claude-authored WS2 contribution. WS2 maintains its own JSON record.
 
 The five golden fields were built from real SPHEREx DR1/QR3 exposures. PNG frames and composites render
 measured pixel values; they are not AI-generated sky imagery. Saturated cores and detector-defect pixels
@@ -163,7 +166,9 @@ may be repaired from neighbours for display only; pixels invalid in every compos
 The products disclose these operations in their provenance. Display repairs are not scientific measurements.
 
 V0id47 directed the work and merged the listed PRs; several reviews were performed by AI agents.
-Line-by-line human review and formal human R05 approval are not claimed. #88 was authored and merged by
+Line-by-line human review of WS2 code is not claimed. The separate R05 records now have DankoLiv's guided
+human-review sign-off dated November 15, 2026 (#126); the analyses were not rerun. This later sign-off is
+not a claim that WS2's display-product checks independently establish R05 validation. #88 was authored and merged by
 faricool54 with Claude Code to synchronize descriptions and is also disclosed in WS3's record.
 The formal validation records remain in `docs/validation/` with their own review status.
 

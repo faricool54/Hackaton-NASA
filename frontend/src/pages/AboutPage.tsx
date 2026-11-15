@@ -32,8 +32,9 @@ export function AboutPage() {
       <p>
         Offline analyses of the scientific FITS files recover known motion in Barnard’s Star, Epsilon Indi B
         and WISE 0855-0714, and brightness changes in RW Aurigae and R Draconis. Separate agents re-measured
-        the results; human review remains pending. These records are distinct from browser playback and
-        technical deployment checks. No new astronomical discovery is claimed.
+        the results. DankoLiv signed the five records after a guided human review on November 15, 2026;
+        the analyses were not rerun during that review. This sign-off is distinct from browser playback,
+        deployment checks and a line-by-line code review. No new astronomical discovery is claimed.
       </p>
       <p>
         Motion is only about 1–2 native pixels over the available baselines. Saturation and faint sources

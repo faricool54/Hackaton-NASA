@@ -96,7 +96,12 @@
       "rendered_products_ai_generated_imagery": false,
       "rendered_products_origin": "The PNG frames and false-color composites are renders of measured NASA SPHEREx DR1/QR3 pixel values (IMAGE - ZODI, from IRSA), produced by running the AI-assisted WS2 code, not AI-generated imagery; saturated star cores that SPHEREx left empty and detector-defect pixels are filled from their neighbours for display only (in the composites, a pixel bad in every frame of a channel is drawn neutral, display only), as each field.json's provenance.notes state",
       "real_target_validation": false,
-      "human_review": "V0id47 directed the work and approved and merged each pull request; a line-by-line human review of the code, tests or products is not claimed"
+      "human_review": "V0id47 directed and merged the listed work; line-by-line code review is not claimed. Separate R05 records carry DankoLiv guided sign-off on 2026-11-15 (#126), without rerunning analyses.",
+      "follow_up_pull_requests": [
+        112,
+        115
+      ],
+      "follow_up_basis": "Confirmed by WS2 review on #130; the contributor-authored source JSON is maintained separately by WS2"
     }
   ]
 }

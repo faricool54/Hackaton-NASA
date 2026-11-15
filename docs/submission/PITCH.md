@@ -17,7 +17,7 @@ No usar futuro o una pantalla de demo sintética para insinuar que se procesaron
 |---|---|---|
 | 00:00-00:06 | Errante, equipo/integrantes/reto visibles y entrada a la app | "Errante connects real NASA images, spectra, and light curves in one public explorer." |
 | 00:06-00:10 | Búsqueda de Barnard y selección de su secuencia real | "Search the infrared sky and investigate how it changes." |
-| 00:10-00:18 | Compare seasons: Barnard D2, S2 − escala × S0, dipolo naranja/cian con fechas y límites | "Season differences reveal Barnard's shift: orange and cyan mark the change." |
+| 00:10-00:18 | Compare seasons: Barnard D2, S2 − escala × S0; imagen, leyenda y aviso del núcleo marcado dentro de cuadro | "Barnard shifts between seasons. Its flagged core limits brightness measurements." |
 | 00:18-00:25 | Curva real de R Draconis con ejes, incertidumbres y advertencias | "Inspect brightness measurements and uncertainties in a light curve." |
 | 00:25-00:29 | URL pública, equipo y créditos NASA/IRSA/voz; metadatos y descripción con citas completas | "Explore the changing sky with Errante." |
 
@@ -28,6 +28,7 @@ La resta S2−S0 es la toma propuesta por WS2 en #100 y contrastada con #70. Su 
 verse aunque el movimiento sea pequeño en el blink: no implica paralaje, órbitas ni una
 nueva detección. Mantener escala, detector, fechas y avisos. Preparar cargas/cálculos fuera
 de cámara y hacer cortes honestos. El perfil ejecutable está en [VIDEO_SKILL.md](VIDEO_SKILL.md).
+Captura de aceptación a 1920×1080: [imagen y advertencia completas](figures/demo-barnard-d2.png).
 Si al grabar solo existe el demo sintético, decirlo de forma audible/visible y explicar qué falta.
 Para R05, mostrar un ensayo real cuando exista; la evidencia de los cinco queda en la descripción escrita,
 no hace falta meter cinco pruebas ilegibles en 30 s.

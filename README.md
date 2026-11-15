@@ -10,7 +10,8 @@ images of the same region from different dates.
 
 ## Current status
 
-Updated **November 15, 2026**, against `main` **3ed5c91** (#97), also verified on the public deployment.
+Updated **November 15, 2026**. Merged changes reach the public app through coordinated deployments;
+release instructions and verification are in [backend/deploy/README.md](backend/deploy/README.md).
 
 The home displays the SPHEREx DR1 sky through Aladin Lite/IRSA. Its wavelength selector and optional AllWISE
 context layer do not represent time. In live API mode, a map click or form submission builds real exposures
@@ -21,19 +22,21 @@ defaults to real data and the live API. Shared contract: **0.7.0**.
 
 The image build runs without automatic analysis; `--analyze` opts into detection/catalog matching. Empty
 candidate lists without analysis are not evidence that nothing was detected. All
-five targets (R05) have offline FITS records and separate agent re-measurements. **Human review remains
-pending**; image playback and deployment tests do not certify those scientific results.
+five targets (R05) have offline FITS records and separate agent re-measurements. **DankoLiv signed the five
+records after a guided human review on November 15, 2026** ([#126](https://github.com/faricool54/Hackaton-NASA/pull/126));
+the analyses were not rerun. This sign-off does not claim line-by-line code review. Image playback and
+deployment tests remain separate from scientific validation.
 
 Implemented features include position spectra, catalog object cards, season comparisons (196 precomputed
 PNG products), two real precomputed light curves, and image zoom. Barnard's reticle predicts catalog
 position; it is not a position measurement from the displayed image. The catalog-based 3D gallery cites
-sources and representation limits; SPHEREx-derived temperature/radius and physical reconstruction are
-not implemented. WS7's further model corrections are in open PR #90, not in this release.
+sources and representation limits. The spectral API can provide conditional color-temperature estimates
+when quality checks permit; these are not calibrated stellar effective temperatures or a measured
+SPHEREx radius. Catalog-based 3D is available for cataloged map selections; unknown parameters remain unknown.
 
-Remaining work includes the compact view, additional curve views, quality/map enhancements, human validation and final
-submission materials. #97 adds visible curve warnings/floors/data selection and loading of exported
-static curves when their JSON has been exported. Its limits and data-selection blocks were checked
-on the public app. Static comparison UI remains separate work. Automatic detection, detection limits and
+Remaining work includes the frontend UX packages, the final demo, team/source inventory and final submission.
+Curve warnings/floors/data selection and loading of exported static curves are implemented. Static comparison
+UI remains separate work. Automatic detection, detection limits and
 Planet X remain extensions. See [the current plan](docs/PARALLEL_PLAN.md) for dependencies and owners.
 
 ## Run the demonstration
@@ -136,6 +139,10 @@ The data sets are [DR1 spectral images, DOI 10.26131/IRSA678](https://doi.org/10
 This research has made use of the NASA/IPAC Infrared Science Archive, which is funded by the
 National Aeronautics and Space Administration and operated by the California Institute of Technology.
 See [IRSA's acknowledgment and citation guidance](https://irsa.ipac.caltech.edu/ack.html).
+
+This publication makes use of data products from the Spectro-Photometer for the History of the Universe,
+Epoch of Reionization and Ices Explorer (SPHEREx), which is a joint project of the Jet Propulsion Laboratory
+and the California Institute of Technology, and is funded by the National Aeronautics and Space Administration.
 
 [IRSA tutorial notebooks](https://caltech-ipac.github.io/irsa-tutorials/spherex/) informed development.
 Aladin Lite 3.8.2 (CDS, GPL-3) displays the sky; AllWISE provides separate-mission context through ESA's

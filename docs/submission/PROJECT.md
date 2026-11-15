@@ -76,7 +76,10 @@ run together behind HTTPS; the application does not depend on a teammate's local
 
 These results summarize the [five validation records](../validation/) and [WS3's review](../SCIENCE.md).
 They are offline FITS analyses with separate agent-based re-measurements, not five visual detections in
-the browser. Human review remains pending. Technical deployment checks do not certify scientific results.
+the browser. DankoLiv signed the five records after a guided human review on November 15, 2026
+([#126](https://github.com/faricool54/Hackaton-NASA/pull/126)); the analyses were not rerun.
+That sign-off does not claim line-by-line review of the implementation. Technical deployment checks
+remain separate from scientific validation.
 
 | Target | Offline result and interpretation limit |
 |---|---|

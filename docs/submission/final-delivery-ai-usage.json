@@ -27,5 +27,11 @@
     "https://www.ipac.caltech.edu/doi/10.26131/IRSA662",
     "https://www.ipac.caltech.edu/doi/10.26131/IRSA679"
   ],
-  "source_and_team_review": "Pending final team review; rights/eligibility and complete authorship are not certified"
+  "source_and_team_review": "Pending final team review; rights/eligibility and complete authorship are not certified",
+  "validation_capture": {
+    "path": "docs/submission/figures/demo-barnard-d2.png",
+    "origin": "Screenshot of the real public application and its SPHEREx difference product; no AI-image-model generation",
+    "recording_frame": "1920x1080 with full difference, legend and flagged-core warning visible"
+  },
+  "existing_human_review": "DankoLiv signed the five R05 records on 2026-11-15 (#126), with guided review and no analysis rerun; this contribution adds no new human scientific approval"
 }
