@@ -33,6 +33,20 @@
         "frontend/src/styles.css"
       ],
       "human_review": "pending"
+    },
+    {
+      "tool": "Anthropic Claude Code",
+      "updated_on": "2026-11-15",
+      "scope": "Light-curve panel fixes from the WS3 review (docs/SCIENCE.md LC1-LC5 UI parts, LC7 UI, LC21, LC22): product notes as visible limits, data selection (collections, wide-survey-only flag, search counts, dates, failures, build date), statistical-only bars with the comparison-star control or the wing fit floor, saturated fluxes as lower limits, false-alarm probability as a permutation count, significance worded as time-correlated variability with aliases, first-to-last as a phase difference, relative % column, static-mode loading of exported products; pure helper module with vitest tests built from the bundled product values; review follow-ups: 0% stated as the band mean magnitude with the sign convention, wing statistical bars marked as a lower bound when no VARIANCE plane was read, non-significant and untested period wording, neutral search-status wording, and render tests of the panel from the bundled products; checked with typecheck, vitest, build and the static export script",
+      "affected_paths": [
+        "frontend/src/components/LightCurvePanel.tsx",
+        "frontend/src/api/lightcurve.ts",
+        "frontend/src/api/lightcurve.test.ts",
+        "frontend/src/api/client.ts",
+        "frontend/src/api/client.test.ts",
+        "frontend/src/styles.css"
+      ],
+      "human_review": "pending"
     }
   ]
 }
