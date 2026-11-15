@@ -90,7 +90,8 @@ NOISY_FRACTION = 0.03
 # (black point ~0.3 sigma below the sky), WISE 0855's D6 made ~28 % of all pixels red-dominant.
 NOISY_BLACK_SIGMAS = 2.0
 # In a noisy channel the target counts as not detected below this aperture S/N (5x5 px at the field centre
-# over the scatter of the same aperture on blank sky); the composite then says it cannot be seen there.
+# over the scatter of the same aperture on blank sky); the composite then says it is not significantly detected
+# there, which is not evidence that it is absent (few frames: a marginal signal stays indistinguishable from noise).
 TARGET_MIN_SNR = 3.0
 TARGET_SEARCH_PX = 1.5  # aperture centres this close to the field centre are tried (pointing and motion slack)
 COMPLEMENT = {"red": "cyan", "green": "magenta", "blue": "yellow"}  # what a star missing that colour looks like
@@ -106,7 +107,7 @@ _EPS_INDI_B_D6_BAND = (
     "Curated caveat (checked by eye on 2026-11-15, not an automatic test): both D6 exposures of this season "
     "(2025W40_1A_0559_1D6, 2025W44_2B_0494_1D6) show a red band about 35 px long from the target toward the lower "
     "right that no other season shows. In the original detector images it runs along the detector rows, and no "
-    "SPHEREx flag marks it: an instrumental artifact of unknown cause, not motion of the target."
+    "SPHEREx ghost or streak flag marks it: an instrumental artifact of unknown cause, not motion of the target."
 )
 CURATED_FRAME_CAVEATS: dict[str, str] = {
     "2025W40_1A_0559_1D6": _EPS_INDI_B_D6_BAND,
@@ -115,8 +116,8 @@ CURATED_FRAME_CAVEATS: dict[str, str] = {
 
 FALSE_COLOR_NOTE = "False color: SPHEREx infrared wavelengths mapped to red, green and blue (infrared, not true color)."
 RELATIVE_NOTE = (
-    "Colours are relative to the field: typical field stars look roughly white and an object redder than they are "
-    "looks red."
+    "Colours are relative to the field: typical bright field stars look roughly white and an object redder than "
+    "they are looks red."
 )
 JHK_NOTE = (
     "2MASS-like: each channel holds narrow SPHEREx samples near J, H or Ks, not the 2MASS filters or 2MASS photometry."
@@ -487,7 +488,7 @@ def color_balance(composites: Sequence[SeasonComposite]) -> Balance:
     3. A channel whose pixel noise exceeds ``NOISY_FRACTION`` of that range gets its black point raised to
        its sky + ``NOISY_BLACK_SIGMAS`` x its pixel noise (white point kept), so its speckle goes black
        (the sky there loses that colour; faint sources too), and a note. Its target S/N is measured: a
-       target not detected there (``TARGET_MIN_SNR``) gets a note saying it cannot be seen in that channel.
+       target not detected there (``TARGET_MIN_SNR``) gets a note that it is not significantly detected (not evidence of absence).
     """
     discs = {c.id: _target_disc(c) for c in composites}
     base, skips = _base_limits(composites, discs)
@@ -535,9 +536,16 @@ def _balance_notes(
     else:
         parts = ", ".join(f"{c} x{ratios[(comp.id, c)]:.3g}" for c in done)
         seasons = max(n_fits.get((_config(comp), c), 0) for c in done)
+        noisy = [ch.color for ch in comp.channels if _is_noisy(noise[(comp.id, ch.color)])]
+        looks = (
+            f"so bright field stars look white; fainter ones look {COMPLEMENT[noisy[0]]} because the {noisy[0]} "
+            "black point is raised (see below)."
+            if noisy
+            else "so typical field stars look white."
+        )
         text = (
             f"Colour balance: {' and '.join(done)} scaled to green by the median flux ratio of the field stars "
-            f"({parts}; median of {seasons} season fit(s)), so typical field stars look white."
+            f"({parts}; median of {seasons} season fit(s)), {looks}"
         )
         missing = [c for c in ("red", "blue") if c not in done]
         if missing:
@@ -560,9 +568,9 @@ def _noisy_notes(ch: Channel, fraction: float, snr: float | None) -> list[str]:
     ]
     if snr is not None and snr < TARGET_MIN_SNR:
         notes.append(
-            f"The target is not detected in the {c} channel ({source} aperture S/N {snr:.1f} at the field centre, "
-            f"below {TARGET_MIN_SNR:g}): it cannot be seen in this single-season {source} coadd, and {c} specks "
-            "near the centre are noise."
+            f"The target is not significantly detected in the {c} channel of this {len(ch.frame_ids)}-frame "
+            f"{source} coadd (aperture S/N {snr:.1f} at the field centre, below {TARGET_MIN_SNR:g}). This is not "
+            f"evidence that it is absent: a {c} speck at its position cannot be told apart from noise here."
         )
     return notes
 
@@ -638,10 +646,11 @@ def provenance_note(plan: ColorPlan) -> str:
         "Each channel: one weight per frame, sky removed, bad pixels left out; a pixel bad in every frame of a "
         "channel (saturated core, detector defect, ramp-fit error) is drawn neutral at the brightest channel's "
         "level, so saturated cores look white (display only). Green spans 2 sigma below the sky to the bright end of its usable pixels; red and blue are "
-        "scaled to green by the median field-star flux ratio (target halo excluded), so typical field stars look "
-        "white; limits shared by every season with the same detectors; a noisy channel (pixel noise above "
-        f"{100 * NOISY_FRACTION:g}% of its range) has its black point raised to the sky + {NOISY_BLACK_SIGMAS:g} sigma, "
-        f"so its speckle goes black; colour-preserving asinh (Lupton et al. 2004).{skipped}"
+        "scaled to green by the median field-star flux ratio (target halo excluded), so typical bright field stars "
+        "look white; limits shared by every season with the same detectors, except that a noisy channel (pixel "
+        f"noise above {100 * NOISY_FRACTION:g}% of its range) has its black point set per season at its own sky + "
+        f"{NOISY_BLACK_SIGMAS:g} sigma, so its speckle goes black (fainter field stars then look the complementary "
+        f"colour); colour-preserving asinh (Lupton et al. 2004).{skipped}"
     )
 
 

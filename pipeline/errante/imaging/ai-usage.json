@@ -40,7 +40,7 @@
   ],
   "generated_media": [],
   "real_target_validation": false,
-  "real_target_validation_basis": "The formal R05 per-target validation records are the coordinator's (docs/validation/, chore PRs #36 and #46) and their human review is pending (docs/VALIDATION.md); the golden fields being real SPHEREx data is not that validation",
+  "real_target_validation_basis": "The formal R05 per-target validation records are the coordinator's (docs/validation/, chore PRs #36 and #46); their human review was signed by DankoLiv on 2026-11-15 (#126), not by WS2. WS2 does not claim that validation: the golden fields being real SPHEREx data is not it",
   "human_review": "V0id47 directed the work and approved and merged each of their pull requests (and approved #119 by mateoa007 as WS2 owner); a line-by-line human review of the code, tests or products is not claimed",
   "repository_disclosure": "AI_USAGE.md",
   "integration_validation": {
