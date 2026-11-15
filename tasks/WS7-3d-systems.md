@@ -188,6 +188,14 @@ guardia de ownership los marca (precedentes #47 y #64, declarados en el PR).
     by SPHEREx" como fuente dibujada hasta V18).
   - [ ] Revisión visual en el navegador (escritorio y 375 px) de R Dra, ε Ind Ba/Bb en gris o con marcador fijo, los
     chips de origen y la ausencia del toggle; y revisión humana de DankoLiv antes del PR.
+- [ ] **WS7-11 (P1) 3D para cualquier objeto elegido en el mapa (V14 de `PARALLEL_PLAN.md`)** — EN CURSO (DankoLiv +
+  Claude, rama `ws7/v14-any-object`, PR en borrador; 2026-11-15 15:15 ART). Al elegir una posición en el mapa, la
+  pestaña 3D del panel de #103 arma el modelo en el navegador desde la ficha del objeto (`GET /api/object`, V6): estrella
+  o enana marrón con Teff, radio, luminosidad y distancia verificados de Gaia DR3 / SIMBAD (lo demás "unknown", en gris o
+  con marcador fijo), y solo planetas confirmados del NASA Exoplanet Archive con período y semieje publicados. Otros
+  tipos de objeto (galaxias, nebulosas, cúmulos) y cuerpos del sistema solar (asteroides y cometas: falta SkyBoT/JPL)
+  no se dibujan y la pestaña dice por qué. Solo en modo API en vivo. Archivos: `frontend/src/three/**` (nuevo módulo y
+  componente) y una línea de `frontend/src/components/PositionResults.tsx` (WS5, #103).
 
 ## Revisión del 3D (#65) y revisión de textos
 
