@@ -227,8 +227,10 @@ Verificado por WS1 (Claude) la noche del 14/11 (≈ 02 UTC del 15/11) desde una 
 - `backend/Dockerfile.dockerignore` no excluye `data/index`, así que el `COPY` funciona (5 JSON, 492 KB).
 - `ERRANTE_SEARCH_SNAPSHOTS` se lee **al importar** `errante.data.irsa` (`irsa.SNAPSHOT_DIR`): definila en el entorno
   del proceso. `0`/`off` apaga el respaldo sin warning.
-- **TODO(WS4):** agregar `COPY data/index /app/data/index` junto a `COPY data/demo` (o copiarlos a otra ruta y definir
-  `ERRANTE_SEARCH_SNAPSHOTS`). WS1 no edita el Dockerfile.
+- ~~**TODO(WS4):** agregar `COPY data/index /app/data/index` junto a `COPY data/demo` (o copiarlos a otra ruta y definir
+  `ERRANTE_SEARCH_SNAPSHOTS`). WS1 no edita el Dockerfile.~~ ✅ Hecho por WS4 en #82 (15/11): `backend/Dockerfile`
+  tiene `COPY data/index /app/data/index`, `ERRANTE_SEARCH_SNAPSHOTS=/app/data/index/search` y
+  `ERRANTE_SEARCH_DEADLINE_S=25` (leído en el Dockerfile de `main`; no se probó una caída de IRSA en el contenedor).
 
 **b) Presupuestos de tiempo frente a `ERRANTE_API_TIMEOUT_S` (30 s).**
 
@@ -248,7 +250,7 @@ estas variables se leen al importar (cambiarlas = reiniciar el proceso).
 | `ERRANTE_CUBE_DEADLINE_S` | 20 **por fuente** (`cube.py`) | `cube_spectrum`: S3 y, si falla, la copia de IRSA → peor caso 40 s | **12** (2 × 12 = 24 s). Medido: 0,7–2,6 s. |
 | `ERRANTE_CUBE_TIMEOUT_S` | 10 (conexión: mín(5, valor)) | Cada Range del cubo (4 B–64 KB) | Dejar. |
 | `ERRANTE_CUBE_PARALLEL` | 32 | Requests en vuelo por fuente, en todo el proceso | Dejar. |
-| `point_series(deadline_s=...)` | sin límite. **No hay variable**: es un parámetro (CLI `errante point --deadline`) | Lecturas de la serie. La búsqueda interna **no** queda acotada por `deadline_s` (solo por `ERRANTE_SEARCH_*`), pero su tiempo se descuenta de él | Si WS4 la expone en vivo: pasar `deadline_s` ≤ 25 y usar `ERRANTE_SEARCH_DEADLINE_S` ≤ 15. Los frames que no llegan quedan como `TimeoutError` y esa serie no se cachea. |
+| `point_series(deadline_s=...)` | sin límite. **No hay variable**: es un parámetro (CLI `errante point --deadline`) | Toda la llamada, búsqueda incluida (actualizado: #50 y #92, 15/11): la búsqueda recibe lo que queda del presupuesto, nunca más que `deadline_s`, y con menos de ~2 s no se consulta a IRSA. Si la búsqueda lo agota, no empieza ninguna lectura | Si WS4 la expone en vivo: pasar `deadline_s` ≤ 25. Los frames que no llegan quedan como `TimeoutError` y esa serie no se cachea. |
 | `ERRANTE_POINT_MAX_PARALLEL` | 48 (tope 64) | Requests S3 en vuelo por serie | Dejar (medido en laptop). ❓ CPU del host de deploy. |
 | `ERRANTE_HTTP_TIMEOUT_S` | 120 | Timeout (conexión y lectura) de cada request de `s3range` (que usa `point`) y de `cache`; también de los requests que siguen en segundo plano tras el deadline de una serie | Considerar 30 en la API (❓ no medido; los jobs de build bajan archivos más grandes). |
 
@@ -375,6 +377,32 @@ estrella saturada: no usarla.
 | SIMBAD | https://simbad.cds.unistra.fr/ | estrellas/enanas marrones con movimiento propio (⚠ CDS degradado: usar Sesame de CfA) |
 | Sesame / VizieR (CfA) ✅ | https://vizier.cfa.harvard.edu/viz-bin/nph-sesame/-oxp/SNV?NOMBRE | resolver nombres con pm; Gaia DR3 `I/355/gaiadr3` (con CORS). ⚠️ `GJ 699` responde solo con VizieR local: 17:57:51.47 +04:33:03.2, a 514,8″ (**8,6′**) de la posición J2000 de Barnard (una posición de época antigua). Resolver con «Barnard's Star» o con el `source_id` Gaia DR3 4472832130942575872 ([`validation/barnards-star.md`](validation/barnards-star.md), #46) |
 
+### 5.1 ESA Gaia TAP y ESASky sin respuesta (2026-11-15) ❌
+
+- **~14:15 ART (17:15 UTC):** al probar la app, el TAP del archivo Gaia de ESA (`gea.esac.esa.int`) y ESASky
+  (`skies.esac.esa.int`, la capa de color AllWISE del mapa) no respondían: la ficha cayó a VizieR CfA y la capa
+  AllWISE dio error. Los comandos, resultados y horas exactas de abajo son de la re-medición.
+- **Re-medido desde una laptop en Buenos Aires** con `curl -s -m 20 -o /dev/null -w '%{http_code} %{time_total}'`:
+
+  | Hora (ART / UTC) | `https://gea.esac.esa.int/tap-server/tap/availability` | `https://skies.esac.esa.int/AllWISEColor/properties` |
+  |---|---|---|
+  | 14:50 / 17:50 | `000 20.006065` | `000 20.016906` |
+  | 14:51 / 17:51 (con `-S`) | `000 20.014897`, `curl: (28) Connection timed out after 20014 milliseconds` | `000 20.000238`, `(28) ... after 20000 milliseconds` |
+  | 14:58–14:59 / 17:58–17:59 | `000 20.010528`, `(28)` | `000 20.014160`, `(28)` |
+
+  El DNS resolvió en ~0,25 s y la conexión TCP nunca se estableció. Control a las 17:51 UTC: IRSA SIA **200** (0,9 s),
+  VizieR CfA **200** (1,9 s) y `www.esa.int` **200** (1,3 s), así que no es la red local. No se sabe cuándo vuelven.
+- **Ficha del objeto (WS3, `science/context.py`):** `errante object --name "Barnard's Star" --no-cache --json` a las
+  17:52 UTC dio `gaia-esa` = `error` (`ConnectTimeout` a `gea.esac.esa.int`) y tomó Gaia DR3 4472832130942575872 de
+  **VizieR CfA** (`I/355/gaiadr3`, sin FLAME, Bailer-Jones ni LPV), con el warning "ESA Gaia archive unreachable:
+  Gaia DR3 from VizieR CfA (no FLAME, Bailer-Jones or LPV)". `to_response` marca la respuesta `partial` cuando algún
+  servicio queda en `error`. En esa misma corrida VSX, 2MASS y AllWISE (VizieR CfA) también dieron `error` ("answer
+  without '#Table' (transient empty answer)") aunque CfA respondía 200 al control: ❓ no investigado.
+- **Capa AllWISE del mapa (`frontend/public/sky-map.html`):** pide `https://skies.esac.esa.int/AllWISEColor` y, si
+  falla, el mapa emite `AllWISE context layer unavailable`. No se volvió a mirar en el navegador en esta medición.
+  IRSA sirve `data/hips/CDS/AllWISE/W1/properties` (200, una banda), pero `.../AllWISE/Color/properties` da 404: no
+  hay un espejo de color verificado.
+
 ## 6. Abierto ❓
 
 - ✅ Resuelto: colecciones y tablas reales, `irsa_uri` ↔ key S3 (§3.0).
@@ -386,7 +414,8 @@ estrella saturada: no usarla.
 - ✅ WISE 0855 visible en D5/D6 y ✅ saturación de R Dra, RW Aur y **Barnard** (§3.2; Barnard cerrado con #46).
   ❓ Throughput a S3 y tiempos de `cube_spectrum`/`point_series` desde el host de deploy (§3.3 solo midió desde
   Buenos Aires).
-- ❓ Snapshots de búsqueda en la imagen de deploy: hoy no entran (§3.3 a, `TODO(WS4)`).
+- ✅ Snapshots de búsqueda en la imagen de deploy: entran desde WS4 #82 (§3.3 a).
+- ❓ ESA Gaia TAP y ESASky sin respuesta el 15/11 (§5.1): volver a probar antes de la demo.
 
 ## 7. Comprobación de los enlaces del enunciado (2026-11-14)
 
