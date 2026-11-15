@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { client } from '../api/client';
 import {
-  describeObjectError, factRows, isEmptySky, lookupKey, lookupLabel, matchSummary, photometryGroups, planetLine,
-  planetsSummary, serviceRows, servicesSummary, variabilityText, type ObjectLookup,
+  describeObjectError, factRows, identityCaveat, isEmptySky, lookupKey, lookupLabel, matchSummary, photometryGroups,
+  planetLine, planetsSummary, serviceRows, servicesSummary, variabilityText, type ObjectLookup,
 } from '../api/objectCard';
 import type { ObjectContextResponse } from '../api/types';
 
@@ -55,6 +55,7 @@ function ObjectCardBody({ data, onRetry }: { data: ObjectContextResponse; onRetr
     .filter(Boolean).join(' ');
   const services = serviceRows(data.provenance);
   const photometry = photometryGroups(data.photometry);
+  const caveat = identityCaveat(data);
   return <>
     <p className="object-name">{id.display_name ?? (empty ? 'No catalogued source' : 'Unidentified position')}</p>
     {(type || id.spectral_type) && <p className="small">{type || 'Type not given'}{id.spectral_type ? ` · spectral type ${id.spectral_type}` : ''}</p>}
@@ -76,7 +77,7 @@ function ObjectCardBody({ data, onRetry }: { data: ObjectContextResponse; onRetr
       </ul>
       {data.variability && <p className="small"><strong>Variability (AAVSO VSX):</strong> {variabilityText(data.variability)}
         {' · '}{data.variability.url ? <a href={data.variability.url} target="_blank" rel="noreferrer">{data.variability.name}</a>
-          : data.variability.name}</p>}
+          : data.variability.name}{caveat && <span className="tone-warn"> · {caveat}</span>}</p>}
       <p className="small"><strong>{planetsSummary(data)}</strong></p>
       {data.planets.length > 0 && <ul className="small object-list">{data.planets.map((p) => <li key={p.name}>{planetLine(p)}</li>)}</ul>}
       {data.nearby_planet_hosts.length > 0 && <p className="small muted">Nearby planet host, NOT this object:{' '}

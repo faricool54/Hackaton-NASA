@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiError, createClient } from './client';
+import { parseCoordinate, positionUrl, readPosition } from './jobs';
 import {
-  describeObjectError, factRows, formatArcsec, isEmptySky, lookupKey, lookupLabel, magnitudeText, matchSummary,
-  nameLookup, photometryGroups, planetLine, planetsSummary, positionLookup, serviceRows, servicesSummary,
-  variabilityText,
+  coordinateLookup, describeObjectError, factRows, formatArcsec, identityCaveat, isEmptySky, lookupKey, lookupLabel,
+  magnitudeText, matchSummary, nameLookup, photometryGroups, planetLine, planetsSummary, positionLookup, serviceRows,
+  servicesSummary, variabilityText,
 } from './objectCard';
+import { SHOWCASE_TARGETS } from './showcase';
 import type { ContextMagnitude, ContextService, ObjectContextResponse, ObjectIdentity, ObjectPlanet } from './types';
 
 afterEach(() => vi.unstubAllGlobals());
@@ -45,6 +47,22 @@ describe('object lookups', () => {
     expect(lookupKey({ name: 'R Dra' })).not.toBe(lookupKey({ name: 'RW Aur' }));
     expect(lookupLabel({ ra: 331.09665, dec: -56.80066 })).toBe('331.09665°, -56.80066°');
     expect(lookupLabel({ name: 'eps Ind B' })).toBe('“eps Ind B”');
+  });
+
+  it('keeps a preset NAME lookup for its untouched position (Build, shared link); edits and clicks go by position', () => {
+    // Regression (review 2026-11-15): Build after the WISE 0855 preset looked its position up and showed a G = 16
+    // field star 6.9" away; RW Aur became RW Aur B. Build parses the ra/dec text the preset wrote.
+    for (const t of SHOWCASE_TARGETS) {
+      expect(coordinateLookup(parseCoordinate(String(t.ra), true), parseCoordinate(String(t.dec), false)))
+        .toEqual({ name: t.catalogName });
+      const shared = readPosition(new URL(positionUrl('http://x/?mode=api', { ra: t.ra, dec: t.dec, size_deg: 0.15,
+        detectors: [t.detector] })).search);
+      expect(coordinateLookup(shared.ra, shared.dec)).toEqual({ name: t.catalogName });
+    }
+    const wise = SHOWCASE_TARGETS[2];
+    expect(coordinateLookup(wise.ra + 1e-4, wise.dec)).toEqual({ ra: wise.ra + 1e-4, dec: wise.dec }); // edited
+    expect(coordinateLookup(200, 40.1)).toEqual({ ra: 200, dec: 40.1 });
+    expect(coordinateLookup(360, 0)).toBeNull();
   });
 
   it('builds the API URL and refuses static mode', async () => {
@@ -90,9 +108,38 @@ describe('identity and match status', () => {
     const named = matchSummary(response({ match: 'name', gaia_source_id: '4472832130942575872', gaia_method: 'simbad_crossid' }));
     expect(named).toMatchObject({ tone: 'ok', label: 'Identified by name (SIMBAD)' });
     expect(named.detail).toContain('Gaia DR3 4472832130942575872 (SIMBAD cross-identification)');
+    expect(matchSummary(response({ match: 'name' }))).toMatchObject({ tone: 'ok' });
     expect(matchSummary(response({ match: 'name' })).detail).toContain('No Gaia DR3 counterpart');
-    expect(matchSummary(response({ match: 'matched', gaia_source_id: '6412596012146801152', separation_arcsec: 0.51 })).detail)
-      .toContain('0.5″ from the clicked position');
+    const matched = matchSummary(response({ match: 'matched', gaia_source_id: '6412596012146801152', separation_arcsec: 0.51 }));
+    expect(matched.detail).toContain('0.5″ from the requested position');
+    // a positional match cannot see an object Gaia lacks (WISE 0855 next to a G = 16 field star)
+    expect(matched.detail).toContain('absent from Gaia DR3');
+  });
+
+  it('never turns a Gaia outage into "no Gaia DR3 counterpart" for a name', () => {
+    // Regression (review 2026-11-15): ESA and VizieR down, or the API deadline, gave match 'name' with no Gaia id.
+    const gaiaDown: ContextService[] = ['gaia-esa', 'gaia-vizier'].map((service) => ({ service, catalog: 'Gaia DR3',
+      url: null, status: 'error', retrieved_utc: null, cached: false, stale: false, note: 'no answer within the 25 s API deadline' }));
+    const name = { ra: null, dec: null, name: 'R Dra', epoch_mjd: 61000, radius_arcsec: 8 };
+    const down = matchSummary(response({ match: 'name', n_gaia_within_radius: null, display_name: 'R Dra' },
+      { query: name, provenance: gaiaDown, partial: true }));
+    expect(down.tone).toBe('warn');
+    expect(down.detail).toContain('could not be reached');
+    expect(down.detail).toContain('not a negative result');
+    expect(down.detail).not.toContain('No Gaia DR3 counterpart');
+    // the ESA cone answered nothing, but SIMBAD's Gaia id could not be fetched: not a firm negative either
+    const half = matchSummary(response({ match: 'name', n_gaia_within_radius: 0 },
+      { query: name, provenance: [{ ...gaiaDown[0], status: 'ok' }, gaiaDown[0]], partial: true }));
+    expect(half).toMatchObject({ tone: 'warn' });
+    expect(half.detail).toContain('not a firm negative');
+    // ESA down, the VizieR CfA copy of Gaia DR3 answered (WISE 0855 by name, live 2026-11-15): an answered negative
+    const fallback = matchSummary(response({ match: 'name', n_gaia_within_radius: 0 },
+      { query: name, provenance: [gaiaDown[0], { ...gaiaDown[1], status: 'ok' }, { ...gaiaDown[1], status: 'ok' }] }));
+    expect(fallback).toMatchObject({ tone: 'ok' });
+    expect(fallback.detail).toBe('No Gaia DR3 counterpart: values come from SIMBAD and the other catalogs only.');
+    // ...but not when one of the VizieR queries failed too
+    expect(matchSummary(response({ match: 'name', n_gaia_within_radius: 0 },
+      { query: name, provenance: [gaiaDown[0], { ...gaiaDown[1], status: 'ok' }, gaiaDown[1]] })).tone).toBe('warn');
   });
 });
 
@@ -127,6 +174,12 @@ describe('facts, variability, planets and photometry', () => {
     const down: ContextService = { service: 'exoplanets', catalog: 'NASA Exoplanet Archive', url: null, status: 'error',
       retrieved_utc: null, cached: false, stale: false, note: 'ReadTimeout' };
     expect(planetsSummary(response({}, { provenance: [down] }))).toContain('did not answer');
+    // a loose/ambiguous identity: the planets and VSX entry belong to the ADOPTED source, which may be a neighbour
+    const loose = response({ match: 'loose', identity_uncertain: true, separation_arcsec: 5 }, { planets: [planet] });
+    expect(planetsSummary(loose)).toBe('1 confirmed planet (NASA Exoplanet Archive) · of the adopted source; identity uncertain (may be a neighbour)');
+    expect(identityCaveat(loose)).toContain('identity uncertain');
+    expect(identityCaveat(response())).toBeNull();
+    expect(planetsSummary(response({ match: 'ambiguous', identity_uncertain: true }))).toContain('identity uncertain');
   });
 
   it('labels 2MASS/AllWISE as other missions and keeps upper limits and flags', () => {

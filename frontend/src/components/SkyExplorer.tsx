@@ -3,7 +3,7 @@ import { client } from '../api/client';
 import type { JobStatusResponse, JobSubmitRequest, SkyCoord } from '../api/types';
 import { isTerminal, parseCoordinate, positionUrl, readPosition, watchJob } from '../api/jobs';
 import { DETECTOR_BANDS } from '../api/format';
-import { nameLookup, positionLookup, type ObjectLookup } from '../api/objectCard';
+import { coordinateLookup, nameLookup, positionLookup, type ObjectLookup } from '../api/objectCard';
 import { SHOWCASE_TARGETS } from '../api/showcase';
 import { FieldPage } from '../pages/FieldPage';
 import { ExplorerMap } from './ExplorerMap';
@@ -15,10 +15,11 @@ function initialPosition(): { request: JobSubmitRequest; error: string } {
   catch (e) { return { request: readPosition(''), error: `Invalid shared position: ${(e as Error).message}` }; }
 }
 
-/** A shared link with an explicit position opens its catalog card; the default position does not. */
+/** A shared link with an explicit position opens its catalog card (a preset's link by the preset's name);
+ *  the default position does not. */
 function initialLookup(request: JobSubmitRequest, error: string): ObjectLookup | null {
   const params = new URLSearchParams(location.search);
-  return !error && params.has('ra') && params.has('dec') ? positionLookup(request.ra, request.dec) : null;
+  return !error && params.has('ra') && params.has('dec') ? coordinateLookup(request.ra, request.dec) : null;
 }
 
 export function SkyExplorer() {
@@ -36,7 +37,8 @@ export function SkyExplorer() {
   const [error, setError] = useState(initial.error);
   const [notice, setNotice] = useState('');
   const [shareUrl, setShareUrl] = useState(location.href);
-  // Catalog card: names (presets, name search) by NAME for a better identity, map clicks and coordinates by position.
+  // Catalog card: names (presets, name search) by NAME for a better identity, map clicks and coordinates by position;
+  // a preset's untouched position (Build, shared link) stays a NAME lookup (coordinateLookup).
   const [lookup, setLookup] = useState<ObjectLookup | null>(() => initialLookup(initial.request, initial.error));
   const controller = useRef<AbortController | null>(null);
   const live = client.config.mode === 'api';
@@ -62,7 +64,7 @@ export function SkyExplorer() {
     if (!live) return;
     if (!position) { // the card starts at once, in parallel with the build (a map click already set it)
       if (inputMode === 'name') { const next = nameLookup(name); if (next) setLookup(next); }
-      else { try { setLookup(positionLookup(parseCoordinate(ra, true), parseCoordinate(dec, false))); } catch { /* reported below */ } }
+      else { try { setLookup(coordinateLookup(parseCoordinate(ra, true), parseCoordinate(dec, false))); } catch { /* reported below */ } }
     }
     controller.current?.abort();
     const abort = new AbortController();

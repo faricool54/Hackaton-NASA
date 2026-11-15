@@ -4,6 +4,7 @@ import { ApiError } from './client';
 import type {
   ContextMagnitude, ContextService, Fact, ObjectContextResponse, ObjectPlanet, ObjectVariability,
 } from './types';
+import { SHOWCASE_TARGETS } from './showcase';
 
 /** What the card looks up: presets and name searches by NAME (better identity), map clicks by position. */
 export type ObjectLookup = { name: string } | { ra: number; dec: number };
@@ -17,6 +18,20 @@ export function nameLookup(name: string): ObjectLookup | null {
 export function positionLookup(ra: number, dec: number): ObjectLookup | null {
   return Number.isFinite(ra) && Number.isFinite(dec) && ra >= 0 && ra < 360 && dec >= -90 && dec <= 90
     ? { ra, dec } : null;
+}
+
+// Presets carry 5 decimals: half the last digit (0.018″) tells "the preset's own position" from any edit.
+const PRESET_MATCH_DEG = 5e-6;
+
+interface NamedPosition { ra: number; dec: number; catalogName: string }
+
+/** A TYPED or SHARED position (never a map click): a challenge preset's exact position keeps the preset's NAME
+ *  lookup, so building its sequence or reopening its link does not swap the identity for the nearest Gaia source
+ *  (at WISE 0855's position that is an unrelated G = 16 field star 6.9″ away). Any other position: by position. */
+export function coordinateLookup(ra: number, dec: number,
+  presets: readonly NamedPosition[] = SHOWCASE_TARGETS): ObjectLookup | null {
+  const preset = presets.find((t) => Math.abs(t.ra - ra) <= PRESET_MATCH_DEG && Math.abs(t.dec - dec) <= PRESET_MATCH_DEG);
+  return preset ? nameLookup(preset.catalogName) : positionLookup(ra, dec);
 }
 
 /** Stable identity of a lookup (effect dependency); '' when nothing is chosen. */
@@ -44,24 +59,43 @@ export function isEmptySky(r: ObjectContextResponse): boolean {
     && !r.provenance.some((p) => p.status === 'error' && ['vsx', '2mass', 'allwise'].includes(p.service));
 }
 
+/** A Gaia DR3 query did not answer and nothing answered in its place: an ESA failure is covered when the VizieR CfA
+ *  copy of Gaia DR3 (I/355/gaiadr3) answered instead; an ESA error with no VizieR answer is e.g. SIMBAD's Gaia
+ *  cross-id that could not be fetched after the cone answered. */
+function gaiaGap(r: ObjectContextResponse): boolean {
+  const failed = (s: string) => r.provenance.some((p) => p.service === s && p.status === 'error');
+  const answered = (s: string) => r.provenance.some((p) => p.service === s && (p.status === 'ok' || p.status === 'no_match'));
+  return failed('gaia-vizier') || (failed('gaia-esa') && !answered('gaia-vizier'));
+}
+
 export function matchSummary(r: ObjectContextResponse): { label: string; tone: Tone; detail: string } {
   const id = r.identity;
   const radius = formatArcsec(r.query.radius_arcsec);
   const gaia = id.gaia_source_id ? `Gaia DR3 ${id.gaia_source_id}` : null;
   switch (id.match) {
-    case 'name':
-      return { label: 'Identified by name (SIMBAD)', tone: id.identity_uncertain ? 'warn' : 'ok',
-        detail: gaia ? `${gaia}${id.gaia_method === 'simbad_crossid' ? ' (SIMBAD cross-identification)' : ''}.`
-          : 'No Gaia DR3 counterpart: values come from SIMBAD and the other catalogs only.' };
+    case 'name': {
+      const label = 'Identified by name (SIMBAD)';
+      if (gaia) return { label, tone: id.identity_uncertain ? 'warn' : 'ok',
+        detail: `${gaia}${id.gaia_method === 'simbad_crossid' ? ' (SIMBAD cross-identification)' : ''}.` };
+      // n_gaia_within_radius null = no Gaia DR3 cone answered (outage or API deadline): unknown, never a negative.
+      if (id.n_gaia_within_radius === null || id.n_gaia_within_radius === undefined) return { label, tone: 'warn',
+        detail: 'Gaia DR3 could not be reached: whether it has a Gaia DR3 counterpart is unknown (not a negative result), '
+          + 'and so are its Gaia distance and parameters. Retry later.' };
+      if (gaiaGap(r)) return { label, tone: 'warn',
+        detail: 'No Gaia DR3 counterpart found, but a Gaia DR3 query did not answer (see catalog services): not a firm negative.' };
+      return { label, tone: id.identity_uncertain ? 'warn' : 'ok',
+        detail: 'No Gaia DR3 counterpart: values come from SIMBAD and the other catalogs only.' };
+    }
     case 'matched':
       return { label: 'Matched to one Gaia DR3 source', tone: 'ok',
-        detail: `${gaia ?? 'Gaia DR3 source'}, ${formatArcsec(id.separation_arcsec)} from the clicked position at the epoch (after proper motion).` };
+        detail: `${gaia ?? 'Gaia DR3 source'}, ${formatArcsec(id.separation_arcsec)} from the requested position at the epoch (after proper motion). `
+          + 'A match by position: an object absent from Gaia DR3 (such as a cold brown dwarf) in the same SPHEREx pixel would not be found.' };
     case 'ambiguous':
       return { label: 'Ambiguous identification', tone: 'warn',
         detail: `Several Gaia DR3 sources of similar brightness within ${radius}: values that depend on the identity are not verified.` };
     case 'loose':
       return { label: 'Loose match', tone: 'warn',
-        detail: `The adopted Gaia DR3 source is ${formatArcsec(id.separation_arcsec)} from the click: it may not be the object you clicked.` };
+        detail: `The adopted Gaia DR3 source is ${formatArcsec(id.separation_arcsec)} from the requested position: it may not be the object you meant.` };
     case 'unavailable':
       return { label: 'Identity unknown', tone: 'warn',
         detail: 'Gaia DR3 could not be reached: this is a gap, not a negative result. Retry later.' };
@@ -115,11 +149,17 @@ function serviceFailed(r: ObjectContextResponse, service: string): boolean {
   return r.provenance.some((p) => p.service === service && p.status === 'error');
 }
 
+/** Caveat for values attached to an adopted source whose identity is not secure (loose/ambiguous/unresolved). */
+export function identityCaveat(r: ObjectContextResponse): string | null {
+  return r.identity.identity_uncertain ? 'of the adopted source; identity uncertain (may be a neighbour)' : null;
+}
+
 export function planetsSummary(r: ObjectContextResponse): string {
   const n = r.planets.length;
-  if (n) return `${n} confirmed planet${n === 1 ? '' : 's'} (NASA Exoplanet Archive)`;
+  const caveat = identityCaveat(r);
+  if (n) return `${n} confirmed planet${n === 1 ? '' : 's'} (NASA Exoplanet Archive)${caveat ? ` · ${caveat}` : ''}`;
   if (serviceFailed(r, 'exoplanets')) return 'Confirmed planets unknown: the NASA Exoplanet Archive did not answer';
-  return 'No confirmed planets listed for this object';
+  return caveat ? 'No confirmed planets listed for the adopted source (identity uncertain)' : 'No confirmed planets listed for this object';
 }
 
 export function planetLine(p: ObjectPlanet): string {
