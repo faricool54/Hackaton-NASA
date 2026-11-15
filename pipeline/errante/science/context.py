@@ -79,6 +79,10 @@ CONTEXT_TIMEOUT_S = float(os.environ.get("ERRANTE_CONTEXT_TIMEOUT_S", "25"))
 # the ESA Gaia TAP stopped accepting connections and every lookup paid a full connect timeout before the VizieR
 # fallback. Skipped calls are reported as errors (unknown, not negative), so the stale cache / fallbacks still apply.
 CONTEXT_HOST_BACKOFF_S = float(os.environ.get("ERRANTE_CONTEXT_HOST_BACKOFF_S", "120"))
+# Only hosts with a fallback are skipped. The CfA host serves Sesame (the only name resolver), the VizieR Gaia
+# fallback, VSX, 2MASS and AllWISE: skipping it after one dropped connection made every name lookup fail for 120 s
+# (review 2026-11-15). Hosts without a fallback pay their own transport timeout, bounded by the API deadline.
+BACKOFF_HOSTS = frozenset({urlsplit(GAIA_TAP_SYNC).netloc})
 _DOWN_HOSTS: dict[str, tuple[float, str]] = {}
 _DOWN_LOCK = threading.Lock()
 
@@ -276,7 +280,8 @@ class _Http:
     def _fetch(self, url: str, params: dict | None, require: str | None) -> tuple[str, str | None, bool]:
         """(text, error or None, worth retrying once)."""
         host = urlsplit(url).netloc
-        down = _host_down(host)
+        backoff = host in BACKOFF_HOSTS
+        down = _host_down(host) if backoff else None
         if down is not None:
             return "", down, False
         try:
@@ -284,7 +289,7 @@ class _Http:
 
             r = requests.get(url, params=params, timeout=self.timeout_s, headers={"User-Agent": "errante/0.1"})
         except Exception as e:  # noqa: BLE001 - any transport failure is a service error, reported in provenance
-            if type(e).__name__ == "ConnectTimeout":
+            if backoff and type(e).__name__ == "ConnectTimeout":
                 _mark_down(host, type(e).__name__)
             return "", f"{type(e).__name__}: {e}", "timeout" not in type(e).__name__.lower()
         _mark_up(host)

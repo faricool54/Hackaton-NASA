@@ -14,6 +14,7 @@ import re
 import shutil
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import pytest
 
@@ -529,6 +530,48 @@ def test_a_host_that_did_not_accept_a_connection_is_skipped_for_a_while(tmp_path
     for error in (requests.exceptions.ReadTimeout("slow"), requests.ConnectionError("refused")):
         monkeypatch.setattr(requests, "get", lambda *a, e=error, **k: (_ for _ in ()).throw(e))
         assert not http.get("gaia-esa", C.GAIA_TAP_SYNC, {"q": "4"}).ok and C._DOWN_HOSTS == {}
+
+
+def test_one_dropped_connection_to_cfa_does_not_block_the_name_resolver(tmp_path, monkeypatch):
+    # Regression (review 2026-11-15): Sesame, the VizieR Gaia fallback, VSX, 2MASS and AllWISE share the CfA host.
+    # Backing it off after one ConnectTimeout made every name lookup fail (502) for 120 s without a network call.
+    import requests
+
+    calls = []
+
+    def first_cfa_call_times_out(url, *a, **k):
+        calls.append(url)
+        if len(calls) == 1:
+            raise requests.exceptions.ConnectTimeout("connect timeout")
+        raise requests.exceptions.ReadTimeout("slow")  # a later call reached the network (not retried)
+
+    monkeypatch.setattr(C, "_DOWN_HOSTS", {})
+    monkeypatch.setattr(requests, "get", first_cfa_call_times_out)
+    http = C._Http(tmp_path, use_cache=True, offline=False, ttl_s=1e9, timeout_s=1.0)
+    assert not http.get("vsx", C.VIZIER_TSV, {"q": "1"}).ok and len(calls) == 1
+    assert C._DOWN_HOSTS == {}
+    sesame = http.get("sesame", C.SESAME_URL + "SNV?R%20Dra")
+    assert len(calls) == 2 and not sesame.error.startswith("skipped")  # attempted, not skipped
+    assert urlsplit(C.SESAME_URL).netloc not in C.BACKOFF_HOSTS
+    assert urlsplit(C.GAIA_TAP_SYNC).netloc in C.BACKOFF_HOSTS  # the one host with a fallback (VizieR CfA)
+
+
+def test_a_name_whose_gaia_lookups_all_failed_reports_no_gaia_answer_not_a_negative(tmp_path):
+    # Regression (review 2026-11-15): the UI read match 'name' + no Gaia id as "no Gaia DR3 counterpart". When no
+    # Gaia service answered, the response must say so: n_gaia_within_radius null, gaia-* errors, a warning.
+    for f in FIXTURES.glob("*.json"):
+        if not f.name.startswith("gaia-"):
+            shutil.copy(f, tmp_path / f.name)
+    for name in ("Barnard's Star", "eps Ind B", "R Dra"):
+        doc = _response_json(C.object_context(name=name, cache_dir=tmp_path, offline=True))
+        ident = doc["identity"]
+        assert ident["match"] == "name" and ident["gaia_source_id"] is None
+        assert ident["n_gaia_within_radius"] is None  # no cone answered: unknown (WISE 0855 by name gives 0)
+        gaia = [p for p in doc["provenance"] if p["service"].startswith("gaia")]
+        assert gaia and all(p["status"] == "error" for p in gaia) and doc["partial"]
+        assert any(w.startswith("Gaia DR3 unreachable") for w in doc["warnings"])
+    wise = _response_json(by_name("WISE J085510.83-071442.5"))["identity"]
+    assert wise["gaia_source_id"] is None and wise["n_gaia_within_radius"] is not None  # answered: a real negative
 
 
 # --- contract adapter: ObjectContext -> models.ObjectContextResponse (GET /api/object) -------------------------
