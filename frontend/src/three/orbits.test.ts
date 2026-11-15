@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Body, Orbit } from '../api/types';
 import { compressDistance, displayRadius, kelvinToRgb } from './appearance';
-import { J2000_MJD, orbitalPosition, solveKepler, topoOrder, variabilityFactor } from './orbits';
+import { J2000_MJD, meanAnomalyAt, orbitalPosition, positionAtMeanAnomaly, solveKepler, topoOrder, variabilityFactor } from './orbits';
 
 const orbit = (o: Partial<Orbit>): Orbit => ({
   parent: 'sun',
@@ -59,6 +59,28 @@ describe('orbits', () => {
     expect(Math.hypot(...p)).toBeCloseTo(1.5, 9);
     const q = orbitalPosition(orbit({ inclination_deg: 90 }), J2000_MJD + 365.25 / 4);
     expect(q[2]).toBeCloseTo(1, 9);
+  });
+
+  it('puts a dated orbit at its epoch mean anomaly (M5 conjunction convention: M = 270° → AU (0, −a, 0))', () => {
+    const o = orbit({ semi_major_axis_au: 0.0229, period_days: 3.1542, mean_anomaly_deg: 270, epoch_mjd: 60242.88 });
+    const p = orbitalPosition(o, 60242.88);
+    expect(p[0]).toBeCloseTo(0, 12);
+    expect(p[1]).toBeCloseTo(-0.0229, 12);
+    expect(p[2]).toBeCloseTo(0, 15);
+    // Whole periods later it is back on the line of sight; a quarter period later at +x (counter-clockwise).
+    const later = orbitalPosition(o, 60242.88 + 100 * 3.1542);
+    expect(later[1]).toBeCloseTo(-0.0229, 9);
+    expect(orbitalPosition(o, 60242.88 + 3.1542 / 4)[0]).toBeCloseTo(0.0229, 9);
+    expect(meanAnomalyAt(o, 60242.88)).toBeCloseTo((3 * Math.PI) / 2, 12);
+    // Without an epoch the phase is a J2000 drawing convention.
+    expect(meanAnomalyAt(orbit({}), J2000_MJD)).toBe(0);
+  });
+
+  it('positionAtMeanAnomaly agrees with orbitalPosition', () => {
+    const o = orbit({ semi_major_axis_au: 3, eccentricity: 0.6, inclination_deg: 30, ascending_node_deg: 40, arg_periapsis_deg: 50 });
+    for (const t of [J2000_MJD, J2000_MJD + 100, J2000_MJD + 1000]) {
+      expect(positionAtMeanAnomaly(o, meanAnomalyAt(o, t))).toEqual(orbitalPosition(o, t));
+    }
   });
 
   it('orders parents before children', () => {
