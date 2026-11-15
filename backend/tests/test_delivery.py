@@ -7,6 +7,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from errante import settings as core
+from errante.models import FrameFlagSummary
 from errante.products import ProductStore
 from errante_api import comparison_snapshots
 from errante_api.bootstrap import seed_products
@@ -36,6 +37,38 @@ def test_production_seed_rejects_synthetic_and_overlapping_paths(tmp_path):
         seed_products(core.DEMO_DIR, tmp_path / "runtime")
     with pytest.raises(ValueError, match="separate"):
         seed_products(core.PRODUCTS_DIR, core.PRODUCTS_DIR)
+
+
+def test_seed_adds_curated_flags_without_replacing_a_different_build(tmp_path):
+    source = tmp_path / "source"
+    runtime = tmp_path / "runtime"
+    seed_products(core.PRODUCTS_DIR, source)
+    seed_products(source, runtime)
+
+    source_store, runtime_store = ProductStore(source), ProductStore(runtime)
+    barnard = source_store.read_field("barnards-star")
+    legacy = runtime_store.read_field("barnards-star")
+    frame_id = legacy.frames[0].id
+    legacy.frame_flags.pop(frame_id, None)
+    runtime_store.write_field(legacy)
+    flags = FrameFlagSummary(coverage_fraction=1, fractions={"OVERFLOW": 0.02, "GHOST": 0})
+    barnard.frame_flags[frame_id] = flags
+    source_store.write_field(barnard)
+
+    replaced = runtime_store.read_field("r-draconis")
+    replaced.provenance.built_at = replaced.provenance.built_at.replace(year=2027)
+    replaced.frame_flags.clear()
+    runtime_store.write_field(replaced)
+    replacement_path = runtime_store.field_dir(replaced.id) / "field.json"
+    replacement_bytes = replacement_path.read_bytes()
+
+    seed_products(source, runtime)
+    assert runtime_store.read_field("barnards-star").frame_flags[frame_id] == flags
+    assert replacement_path.read_bytes() == replacement_bytes
+    app = create_app(Settings(data_dir=runtime, live_cache_dir=tmp_path / "cache"))
+    with TestClient(app) as client:
+        assert client.get("/api/fields/barnards-star").json()["frame_flags"][frame_id] == flags.model_dump()
+        assert client.get("/api/fields/r-draconis").json()["frame_flags"] == {}
 
 
 def test_frontend_fallback_preserves_api_data_and_asset_errors(tmp_path):

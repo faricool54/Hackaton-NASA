@@ -8,7 +8,13 @@ from astropy.wcs import WCS, Sip
 from errante.data.fits_io import SpherexImage
 from errante.imaging.flags import FLAG_BITS
 from errante.imaging.grid import make_grid, sky_to_png_xy
-from errante.imaging.reproject import bilinear_sample, display_defects, repair_for_display, reproject_to_grid
+from errante.imaging.reproject import (
+    bilinear_sample,
+    display_defects,
+    repair_for_display,
+    reproject_to_grid,
+    summarize_flags,
+)
 
 RA0, DEC0 = 269.45, 4.77
 PIXEL_DEG = 6.15 / 3600
@@ -116,6 +122,29 @@ def test_outside_the_cutout_is_nan_and_bad():
     finite = np.isfinite(data)
     assert 0.0 < finite.mean() < 0.5
     assert np.array_equal(bad[finite], np.zeros(finite.sum(), dtype=bool))
+
+
+def test_flag_fractions_use_only_covered_grid_pixels_and_declared_bits(tmp_path):
+    img = fake_image(shape=(20, 20))
+    grid = make_grid(RA0, DEC0, 0.09)
+    path = tmp_path / "cutout.fits"
+    assert summarize_flags(img, grid, path) is None
+
+    # Deliberately advertise a different bit number for OVERFLOW. SOURCE and
+    # OVERFLOW overlap, and a declared but unused bit differs from a missing one.
+    header = fits.Header({"MSKN0004": "OVERFLOW", "MSKN0017": "PERSIST", "MSKN0021": "SOURCE"})
+    img.flags[:] = 1 << 21
+    img.flags[:, :10] |= 1 << 4
+    fits.HDUList([fits.PrimaryHDU(), fits.ImageHDU(img.flags, header=header, name="FLAGS")]).writeto(path)
+    summary = summarize_flags(img, grid, path)
+    assert summary is not None
+    assert 0 < summary.coverage_fraction < 1
+    assert summary.fractions["OVERFLOW"] == pytest.approx(0.5, abs=0.04)
+    assert summary.fractions["SOURCE"] == 1
+    assert summary.fractions["PERSIST"] == 0
+    assert "GHOST" not in summary.fractions
+    img.flags = None
+    assert summarize_flags(img, grid, path) is None
 
 
 def test_bad_flags_are_masked_but_source_is_not_and_data_is_kept():

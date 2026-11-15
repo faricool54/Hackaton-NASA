@@ -63,6 +63,6 @@ def bits_from_header(header) -> dict[str, int]:
     """Read {name: bit} from a FLAGS HDU header (MSKNnnnn = name, plane n)."""
     out: dict[str, int] = {}
     for key in header:
-        if key.startswith("MSKN"):
+        if key.startswith("MSKN") and key[4:].isdigit() and int(key[4:]) < 32:
             out[str(header[key])] = int(key[4:])
     return out

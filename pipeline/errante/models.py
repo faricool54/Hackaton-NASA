@@ -25,7 +25,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, field_validator, model_validator
 
-SCHEMA_VERSION = "0.7.0"
+SCHEMA_VERSION = "0.8.0"
 
 Release = Literal["dr1", "qr2", "qr3", "synthetic"]
 """SPHEREx data release a frame comes from (see docs/DATA.md)."""
@@ -75,6 +75,19 @@ class Stretch(_Model):
     vmax: float
     unit: str = "MJy/sr"
     method: Literal["linear", "asinh", "log", "zscale"] = "asinh"
+
+
+PixelFraction = Annotated[FiniteFloat, Field(ge=0, le=1)]
+
+
+class FrameFlagSummary(_Model):
+    """Archive FLAGS sampled at the nearest detector pixel for each grid centre."""
+
+    coverage_fraction: FiniteFloat = Field(gt=0, le=1, description="Fraction of the whole grid with a FLAGS sample")
+    fractions: dict[str, PixelFraction] = Field(
+        description="Fraction of covered grid pixels carrying each named archive bit. Keys may be absent. "
+        "Zero means measured zero; flags can overlap."
+    )
 
 
 class Frame(_Model):
@@ -283,6 +296,10 @@ class SkyField(_Model):
     size_deg: float = Field(gt=0)
     grid: Grid
     frames: list[Frame]
+    frame_flags: dict[str, FrameFlagSummary] = Field(
+        default_factory=dict,
+        description="Archive flag summaries by frame ID on this field grid. Missing entries mean unknown.",
+    )
     provenance: Provenance
     composites: list[Composite] = Field(
         default_factory=list,
