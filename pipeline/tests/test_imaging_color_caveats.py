@@ -125,7 +125,7 @@ def test_detector_composites_say_when_seasons_use_different_detectors():
     comps = by_id(plan)
     expected = (
         "Seasons use different detectors (red/green/blue = S0, S2: D6/D3/D1; S1: D5/D4/D1): colour differences "
-        "between them are instrumental (other wavelengths), not evidence of a colour change of the object."
+        "between them can be instrumental (other wavelengths), so they are not evidence of a colour change of the object."
     )
     for cid in ("detectors_S0", "detectors_S1", "detectors_S2"):
         assert expected in comps[cid].notes, cid

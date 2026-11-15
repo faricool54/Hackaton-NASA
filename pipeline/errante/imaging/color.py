@@ -45,7 +45,7 @@ point raised to its sky + ``NOISY_BLACK_SIGMAS`` x its pixel noise, so its speck
 goes black instead of covering the picture in coloured dots; if the target is not
 detected in that channel (aperture S/N below ``TARGET_MIN_SNR``) the composite
 says so. Detector composites say when the field's seasons use different detectors
-(fallbacks): their colours then differ for instrumental reasons. Exposures listed
+(fallbacks): their colours can then differ for instrumental reasons. Exposures listed
 in ``CURATED_FRAME_CAVEATS`` (artifacts checked by eye, not an automatic test) add
 their caveat to every composite that uses them. Pixels with no colour information
 are drawn neutral: a pixel that is bad in every frame of a channel (a saturated core,
@@ -300,8 +300,9 @@ def _with_note(comp: SeasonComposite, note: str) -> SeasonComposite:
 
 def _mixed_detectors(composites: Sequence[SeasonComposite]) -> list[SeasonComposite]:
     """Detector composites, when the field's seasons use different detectors, say that colour changes between
-    them are instrumental: on the real R Draconis field S0 is D6/D3/D1 and S1, S4 are D5/D4/D1 (fallbacks),
-    so the Mira turns from yellow-green to orange between seasons only because the wavelengths change."""
+    them can be instrumental: on the real R Draconis field S0 is D6/D3/D1 and S1, S4 are D5/D4/D1 (fallbacks),
+    so the Mira turns from yellow-green to orange between seasons partly or wholly because the wavelengths change
+    (a Mira's colour also changes with its pulsation phase, which these composites cannot separate)."""
     assignment = {
         c.season: "/".join(f"D{ch.detector}" for ch in c.channels) for c in composites if c.mode == "detectors"
     }
@@ -312,8 +313,8 @@ def _mixed_detectors(composites: Sequence[SeasonComposite]) -> list[SeasonCompos
         seasons[detectors].append(season)
     listing = "; ".join(f"{', '.join(f'S{s}' for s in ss)}: {dets}" for dets, ss in seasons.items())
     note = (
-        f"Seasons use different detectors (red/green/blue = {listing}): colour differences between them are "
-        "instrumental (other wavelengths), not evidence of a colour change of the object."
+        f"Seasons use different detectors (red/green/blue = {listing}): colour differences between them can be "
+        "instrumental (other wavelengths), so they are not evidence of a colour change of the object."
     )
     return [_with_note(c, note) if c.mode == "detectors" else c for c in composites]
 
