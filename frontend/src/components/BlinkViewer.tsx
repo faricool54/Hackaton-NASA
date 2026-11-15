@@ -37,6 +37,14 @@ const STATUS_COLOR: Record<string, string> = {
 
 const ZOOM_LEVELS = [1, 2, 4] as const;
 
+function formatValidPixels(fraction: Frame['valid_fraction'] | undefined): string {
+  if (fraction == null) return 'valid coverage unknown';
+  const percent = fraction * 100;
+  if (percent > 0 && percent < 0.1) return '<0.1% valid pixels';
+  if (percent > 99.9 && percent < 100) return '>99.9% valid pixels';
+  return `${percent.toFixed(1)}% valid pixels`;
+}
+
 export function BlinkViewer({ field, frames, composites, imageUrl, candidates, known, prediction, selectedId, onSelect }: Props) {
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(true);
@@ -359,14 +367,10 @@ export function BlinkViewer({ field, frames, composites, imageUrl, candidates, k
       {current && (
         <details className="object-details small" onKeyDown={(e) => e.stopPropagation()}
           onToggle={(e) => { if (e.currentTarget.open) setPlaying(false); }}>
-          <summary>
-            Frame quality · {current.valid_fraction == null
-              ? 'valid coverage unknown'
-              : `${(current.valid_fraction * 100).toFixed(1)}% valid pixels`}
-          </summary>
+          <summary>Frame quality · {formatValidPixels(current.valid_fraction)}</summary>
           <p className="small muted">
-            Valid coverage is the fraction of this image grid with usable, unflagged pixels.
-            Individual contamination flags are unavailable in the frame metadata.
+            Valid coverage counts usable pixels across the whole image after masking.
+            Individual saturation and contamination flags are unavailable in the frame metadata.
           </p>
           <p className="provenance-row small">
             MJD {current.mjd.toFixed(5)} · Observation {current.obs_id}

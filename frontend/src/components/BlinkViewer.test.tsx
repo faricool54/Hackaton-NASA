@@ -22,7 +22,14 @@ describe('frame quality in the blink viewer', () => {
     expect(html).toContain('87.5% valid pixels');
     expect(frame.source_uri).toMatch(/^ibe\/data\/spherex\//);
     expect(html).toContain(`href="https://irsa.ipac.caltech.edu/${frame.source_uri}"`);
-    expect(html).toContain('Individual contamination flags are unavailable');
+    expect(html).toContain('across the whole image');
+    expect(html).toContain('Individual saturation and contamination flags are unavailable');
+  });
+
+  it('keeps near-total and near-zero coverage distinct from the endpoints', () => {
+    expect(renderFrame({ valid_fraction: 0.9999 })).toContain('&gt;99.9% valid pixels');
+    expect(renderFrame({ valid_fraction: 0.0001 })).toContain('&lt;0.1% valid pixels');
+    expect(renderFrame({ valid_fraction: 1 })).toContain('100.0% valid pixels');
   });
 
   it('distinguishes zero valid pixels from missing metadata', () => {
