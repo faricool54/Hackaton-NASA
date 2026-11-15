@@ -50,7 +50,7 @@
       "valid_fraction": 0.9567407024793388,
       "stretch": {
         "vmin": -0.30013394355773926,
-        "vmax": 28.333615601062775,
+        "vmax": 28.37378054857254,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -88,7 +88,7 @@
       "valid_fraction": 0.9624225206611571,
       "stretch": {
         "vmin": -0.20798975229263306,
-        "vmax": 28.42575979232788,
+        "vmax": 28.465924739837646,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -107,7 +107,7 @@
       "valid_fraction": 0.6153150826446281,
       "stretch": {
         "vmin": 0.15878484398126602,
-        "vmax": 9.275954127311707,
+        "vmax": 9.284501910209656,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -126,7 +126,7 @@
       "valid_fraction": 0.6580578512396694,
       "stretch": {
         "vmin": 0.01225239783525467,
-        "vmax": 23.120218470692635,
+        "vmax": 23.1931621581316,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -145,7 +145,7 @@
       "valid_fraction": 0.6040805785123967,
       "stretch": {
         "vmin": 0.21555504947900772,
-        "vmax": 9.332724332809448,
+        "vmax": 9.341272115707397,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -164,7 +164,7 @@
       "valid_fraction": 0.640495867768595,
       "stretch": {
         "vmin": 0.018580444157123566,
-        "vmax": 23.126546517014503,
+        "vmax": 23.19949020445347,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -183,7 +183,7 @@
       "valid_fraction": 0.9554493801652892,
       "stretch": {
         "vmin": 0.005403697490692139,
-        "vmax": 10.582066085189581,
+        "vmax": 10.599540494382381,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -237,10 +237,10 @@
       "release": "dr1",
       "image": "frames/2025W28_1B_0100_1D4.png",
       "source_uri": "ibe/data/spherex/dr1/level2/2025W28_1B/l2b-v27-2026-215/4/level2_2025W28_1B_0100_1D4_spx_l2b-v27-2026-215.fits",
-      "valid_fraction": 0.9443440082644629,
+      "valid_fraction": 0.9425361570247934,
       "stretch": {
-        "vmin": 0.024350062012672424,
-        "vmax": 10.601012449711561,
+        "vmin": 0.02401314675807953,
+        "vmax": 10.618149943649769,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -278,7 +278,7 @@
       "valid_fraction": 0.956095041322314,
       "stretch": {
         "vmin": -0.040663719177246094,
-        "vmax": 10.535998668521643,
+        "vmax": 10.553473077714443,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -316,7 +316,7 @@
       "valid_fraction": 0.9580320247933884,
       "stretch": {
         "vmin": 0.01000833511352539,
-        "vmax": 10.586670722812414,
+        "vmax": 10.604145132005215,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -354,7 +354,7 @@
       "valid_fraction": 0.9681043388429752,
       "stretch": {
         "vmin": -0.08684318512678146,
-        "vmax": 10.489819202572107,
+        "vmax": 10.507293611764908,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -392,7 +392,7 @@
       "valid_fraction": 0.9666838842975206,
       "stretch": {
         "vmin": -0.09518603980541229,
-        "vmax": 10.481476347893476,
+        "vmax": 10.498950757086277,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -411,7 +411,7 @@
       "valid_fraction": 0.9672004132231405,
       "stretch": {
         "vmin": -0.07189074903726578,
-        "vmax": 23.036075323820114,
+        "vmax": 23.10901901125908,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -430,7 +430,7 @@
       "valid_fraction": 0.984375,
       "stretch": {
         "vmin": -0.05686626583337784,
-        "vmax": 9.060303017497063,
+        "vmax": 9.068850800395012,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -449,7 +449,7 @@
       "valid_fraction": 0.9733987603305785,
       "stretch": {
         "vmin": -0.0657699927687645,
-        "vmax": 23.042196080088615,
+        "vmax": 23.11513976752758,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -468,7 +468,7 @@
       "valid_fraction": 0.9744318181818182,
       "stretch": {
         "vmin": -0.07993444055318832,
-        "vmax": 9.037234842777252,
+        "vmax": 9.045782625675201,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -506,7 +506,7 @@
       "valid_fraction": 0.9731404958677686,
       "stretch": {
         "vmin": -0.24006503820419312,
-        "vmax": 28.39368450641632,
+        "vmax": 28.433849453926086,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -525,7 +525,7 @@
       "valid_fraction": 0.9692665289256198,
       "stretch": {
         "vmin": -0.1956372857093811,
-        "vmax": 28.438112258911133,
+        "vmax": 28.4782772064209,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -544,7 +544,7 @@
       "valid_fraction": 0.9776601239669421,
       "stretch": {
         "vmin": -0.4523136168718338,
-        "vmax": 28.18143592774868,
+        "vmax": 28.221600875258446,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -582,7 +582,7 @@
       "valid_fraction": 0.9730113636363636,
       "stretch": {
         "vmin": -0.09076329320669174,
-        "vmax": 23.017202779650688,
+        "vmax": 23.090146467089653,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -601,7 +601,7 @@
       "valid_fraction": 0.9715909090909091,
       "stretch": {
         "vmin": -0.045578740537166595,
-        "vmax": 9.071590542793274,
+        "vmax": 9.080138325691223,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -620,7 +620,7 @@
       "valid_fraction": 0.9722365702479339,
       "stretch": {
         "vmin": -0.09307131916284561,
-        "vmax": 23.014894753694534,
+        "vmax": 23.0878384411335,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -639,7 +639,7 @@
       "valid_fraction": 0.9786931818181818,
       "stretch": {
         "vmin": -0.06982328742742538,
-        "vmax": 9.047345995903015,
+        "vmax": 9.055893778800964,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -658,7 +658,7 @@
       "valid_fraction": 0.9758522727272727,
       "stretch": {
         "vmin": -0.10025236755609512,
-        "vmax": 23.007713705301285,
+        "vmax": 23.08065739274025,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -677,7 +677,7 @@
       "valid_fraction": 0.9865702479338843,
       "stretch": {
         "vmin": -0.1195293441414833,
-        "vmax": 8.997639939188957,
+        "vmax": 9.006187722086906,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -696,7 +696,7 @@
       "valid_fraction": 0.9700413223140496,
       "stretch": {
         "vmin": -0.11014110594987869,
-        "vmax": 22.9978249669075,
+        "vmax": 23.070768654346466,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -715,7 +715,7 @@
       "valid_fraction": 0.9832128099173554,
       "stretch": {
         "vmin": -0.11601968854665756,
-        "vmax": 9.001149594783783,
+        "vmax": 9.009697377681732,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -753,7 +753,7 @@
       "valid_fraction": 0.9581611570247934,
       "stretch": {
         "vmin": -0.08487603068351746,
-        "vmax": 10.491786357015371,
+        "vmax": 10.509260766208172,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -791,7 +791,7 @@
       "valid_fraction": 0.9577737603305785,
       "stretch": {
         "vmin": -0.08338563144207001,
-        "vmax": 10.493276756256819,
+        "vmax": 10.51075116544962,
         "unit": "MJy/sr",
         "method": "asinh"
       }
@@ -799,7 +799,7 @@
   ],
   "provenance": {
     "pipeline_version": "0.1.0",
-    "built_at": "2026-11-15T00:25:15.107488Z",
+    "built_at": "2026-11-15T03:30:40.250465Z",
     "synthetic": false,
     "data_releases": [
       "dr1",
@@ -807,10 +807,10 @@
     ],
     "notes": [
       "Automatic detection and catalog matching were not run.",
-      "Pixel values and stretch limits are IMAGE - ZODI (SPHEREx zodiacal model subtracted) in MJy/sr; PNGs use an asinh mapping with the same contrast for every frame of a detector, and transparent pixels mean no data. Saturated star cores and detector-defect pixels are filled from their neighbours for display only; they count as invalid in valid_fraction.",
+      "Pixel values and stretch limits are IMAGE - ZODI (SPHEREx zodiacal model subtracted) in MJy/sr; PNGs use an asinh mapping with the same contrast for every frame of a detector, and transparent pixels mean no data. Saturated star cores that SPHEREx left empty (NaN) and detector-defect pixels (NONFUNC, HOT, COLD, PERSIST, SNOWBALL, and SUR_ERROR that is not part of a star's profile, e.g. cosmic-ray hits) are filled from their neighbours for display only; SUR_ERROR pixels on a star and finite OVERFLOW pixels are shown as recorded. All of them count as invalid in valid_fraction. thumb.png is a D2 frame.",
       "Frame selection: downloaded 80 candidate frame(s) (up to 2 x max_frames=40) and kept 40, spread round-robin over seasons x detectors; inside each (season, detector) the frames whose wavelength at the field centre is closest to a per-detector reference (D1 0.898 um, D2 1.347 um, D3 2.145 um, D4 2.991 um, D5 4.089 um, D6 4.767 um) come first, then those nearest the season middle; frames without a known wavelength rank last. Rejected 0 bad frame(s) whose IMAGE - ZODI robust scatter exceeds 15x the noise of their VARIANCE plane (background steps). Downloaded 104 more D2/D3 frame(s) only to find J/H/Ks wavelengths for the false-color composites; they are not blink frames.",
       "Registration check: every frame's field stars were compared with their median position over the field's candidate frames (all detectors: a correct WCS puts a star at the same grid position at every wavelength); 55 of 80 blink candidate frame(s) and 77 of 104 J/H/Ks top-up frame(s) checked (kept: median 0.05 px, max 0.16 px); the others had fewer than 3 field stars measurable to 0.15 px (e.g. around a saturated target) and were kept unchecked.",
-      "False-color composites: 3 'detectors' and 1 'jhk' season composite(s) (infrared, not true color). detectors = full range: blue = D1 (fallback D2), green = D3 (D4), red = D6 (D5), coadds of the season's published frames. jhk = 2MASS-like: blue / green / red = coadd of the season's downloaded exposures (including unpublished candidates) within 0.06 um of J 1.25 / H 1.65 / Ks 2.17 um at the field centre, else the nearest one within 0.12 um. Each channel: one weight per frame, sky removed, bad pixels left out (saturated cores drawn white, for display only). Green spans 2 sigma below the sky to the bright end of its usable pixels; red and blue are scaled to green by the median field-star flux ratio (target halo excluded), so typical field stars look white; limits shared by every season with the same detectors; colour-preserving asinh (Lupton et al. 2004). Skipped: detectors S2: no usable frame of D1 or D2 for blue; detectors S3: no usable frame of D1 or D2 for blue; jhk S1: no exposure within 0.12 um of red (Ks 2.17 um); nearest 2.406 um; jhk S2: no exposure within 0.12 um of blue (J 1.25 um); nearest 1.633 um; jhk S3: no exposure within 0.12 um of blue (J 1.25 um); nearest 1.645 um; jhk S4: no exposure within 0.12 um of red (Ks 2.17 um); nearest 2.546 um."
+      "False-color composites: 3 'detectors' and 1 'jhk' season composite(s) (infrared, not true color). detectors = full range: blue = D1 (fallback D2), green = D3 (D4), red = D6 (D5), coadds of the season's published frames. jhk = 2MASS-like: blue / green / red = coadd of the season's downloaded exposures (including unpublished candidates) within 0.06 um of J 1.25 / H 1.65 / Ks 2.17 um at the field centre, else the nearest one within 0.12 um. Each channel: one weight per frame, sky removed, bad pixels left out; a pixel bad in every frame of a channel (saturated core, detector defect, ramp-fit error) is drawn neutral at the brightest channel's level, so saturated cores look white (display only). Green spans 2 sigma below the sky to the bright end of its usable pixels; red and blue are scaled to green by the median field-star flux ratio (target halo excluded), so typical field stars look white; limits shared by every season with the same detectors; colour-preserving asinh (Lupton et al. 2004). Skipped: detectors S2: no usable frame of D1 or D2 for blue; detectors S3: no usable frame of D1 or D2 for blue; jhk S1: no exposure within 0.12 um of red (Ks 2.17 um); nearest 2.406 um; jhk S2: no exposure within 0.12 um of blue (J 1.25 um); nearest 1.633 um; jhk S3: no exposure within 0.12 um of blue (J 1.25 um); nearest 1.645 um; jhk S4: no exposure within 0.12 um of red (Ks 2.17 um); nearest 2.546 um."
     ]
   },
   "composites": [

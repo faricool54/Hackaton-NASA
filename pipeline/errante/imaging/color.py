@@ -24,9 +24,9 @@ joins the season of the final frame nearest in time, if it is within
 channels exist.
 
 Channels use ``compare.weighted_stack``: one weight per frame, each frame's sky
-removed, bad pixels left out. Saturated cores and detector defects that
-``reproject_to_grid`` repaired for display only fill the holes of the
-displayed image.
+removed, bad pixels left out. The flagged pixels' display values (saturated cores
+and detector defects that ``reproject_to_grid`` repaired, ramp-fit errors on a
+star kept as recorded) only fill the holes of the displayed image.
 
 Rendering (``color_balance``, ``composite_rgb``): green gets limits like the
 grey frames, from 2 sigma below the sky to the bright end of its usable pixels
@@ -40,8 +40,10 @@ the same three detectors, so blinking seasons does not flicker. The asinh curve
 is applied to the mean of the three normalised channels and scales all three
 by the same factor (Lupton et al. 2004, PASP 116, 133), so a bright star keeps
 its colour instead of clipping to white. Pixels with no colour information are
-drawn neutral: saturated cores white, and pixels that only some channels cover
-grey. Pixels without data in all three channels are transparent.
+drawn neutral: a pixel that is bad in every frame of a channel (a saturated core,
+a detector defect, a ramp-fit error) takes the brightest channel's value, so a
+saturated core is white, and pixels that only some channels cover are grey.
+Pixels without data in all three channels are transparent.
 """
 
 from __future__ import annotations
@@ -91,7 +93,7 @@ class Channel:
 
     color: str
     stack: Stack  # science coadd: bad pixels left out (NaN where no frame has a usable pixel)
-    display: np.ndarray  # the coadd, with display-repaired pixels (saturated cores) filling its holes
+    display: np.ndarray  # the coadd, with the flagged pixels' display values filling its holes
 
     @property
     def frame_ids(self) -> list[str]:
@@ -438,8 +440,9 @@ def composite_rgb(
 ) -> np.ndarray:
     """uint8 RGB image of ``comp`` (RGBA, alpha 0 where no channel has data, if there is such a pixel).
 
-    Pixels without colour information are drawn neutral: saturated cores (display-repaired in a channel)
-    white at the brightest channel, and pixels that only some channels cover grey from those channels.
+    Pixels without colour information are drawn neutral: a pixel that is bad in every frame of a channel
+    (saturated core, detector defect, ramp-fit error; its display value comes from the repaired or recorded
+    frames) takes the brightest channel's value, and pixels that only some channels cover are grey from those.
     """
     x = np.stack([_normalised(ch.display, stretches[(comp.id, ch.color)]) for ch in comp.channels])
     has = np.stack([np.isfinite(ch.display) for ch in comp.channels])
@@ -495,8 +498,9 @@ def provenance_note(plan: ColorPlan) -> str:
         "red = D6 (D5), coadds of the season's published frames. jhk = 2MASS-like: blue / green / red = coadd of "
         f"the season's downloaded exposures (including unpublished candidates) within {JHK_TOLERANCE_UM:g} um of "
         f"J 1.25 / H 1.65 / Ks 2.17 um at the field centre, else the nearest one within {JHK_FALLBACK_UM:g} um. "
-        "Each channel: one weight per frame, sky removed, bad pixels left out (saturated cores drawn white, for "
-        "display only). Green spans 2 sigma below the sky to the bright end of its usable pixels; red and blue are "
+        "Each channel: one weight per frame, sky removed, bad pixels left out; a pixel bad in every frame of a "
+        "channel (saturated core, detector defect, ramp-fit error) is drawn neutral at the brightest channel's "
+        "level, so saturated cores look white (display only). Green spans 2 sigma below the sky to the bright end of its usable pixels; red and blue are "
         "scaled to green by the median field-star flux ratio (target halo excluded), so typical field stars look "
         "white; limits shared by every season with the same detectors; colour-preserving asinh (Lupton et al. "
         f"2004).{skipped}"
