@@ -14,8 +14,6 @@ import { PositionSpectrum } from '../components/PositionSpectrum';
 import { LightCurvePanel } from '../components/LightCurvePanel';
 import { trackAstrometry, type TrackAstrometry } from '../three/skyTrack';
 
-const BARNARD_FIELD_ID = 'barnards-star';
-
 export function FieldPage({ fieldId, embedded = false }: { fieldId: string; embedded?: boolean }) {
   const [field, setField] = useState<Field | null>(null);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
@@ -44,16 +42,19 @@ export function FieldPage({ fieldId, embedded = false }: { fieldId: string; embe
       .catch(() => setSystemId(null));
   }, [fieldId]);
 
+  // Every field with a 3D system gets the catalog prediction (WS7: the five targets, e.g. eps Ind B's own
+  // Gaia solution and WISE 0855's Kirkpatrick 2021 one, from skyTrack.ts), not only Barnard's Star.
   useEffect(() => {
-    if (fieldId !== BARNARD_FIELD_ID) return;
+    setPrediction(null);
+    if (!systemId) return;
     let active = true;
-    client.getSystem(BARNARD_FIELD_ID).then((system) => {
-      if (active && system.id === BARNARD_FIELD_ID && system.field_id === fieldId && !system.provenance.synthetic) {
+    client.getSystem(systemId).then((system) => {
+      if (active && system.id === systemId && system.field_id === fieldId && !system.provenance.synthetic) {
         setPrediction(trackAstrometry(system));
       }
     }).catch(() => { /* The image sequence still works if the catalog model is unavailable. */ });
     return () => { active = false; };
-  }, [fieldId]);
+  }, [fieldId, systemId]);
 
   const frames = useMemo(() => {
     const all = [...(field?.frames ?? [])].sort((a, b) => a.mjd - b.mjd);
@@ -133,7 +134,7 @@ export function FieldPage({ fieldId, embedded = false }: { fieldId: string; embe
             imageUrl={(image) => client.fieldFileUrl(field.id, image)}
             candidates={candidates}
             known={known}
-            prediction={field.id === BARNARD_FIELD_ID && !field.provenance.synthetic ? prediction : null}
+            prediction={!field.provenance.synthetic ? prediction : null}
             selectedId={selectedId}
             onSelect={setSelectedId}
           />
