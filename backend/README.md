@@ -281,7 +281,8 @@ python -m errante_api.lightcurve_build --preset r-draconis --out data/products/l
 Use the worktree's virtual environment (`.venv/Scripts/python.exe` on Windows). The CLI requires an explicit
 publication directory. Presets use DR1 + QR3, fixed sky coordinates and a historical MJD cutoff (RW: 61300,
 Dra: 61315). RW uses detector 1 aperture photometry; Dra uses all detectors and PSF-wing photometry with a
-period search over 20–800 days, 100 bootstraps and 100 visit permutations. Defaults: 600 frames (allowed
+period search over 20–800 days, 100 bootstraps and 100 visit permutations by default (the packaged products use
+`--bootstrap 1000 --permutations 999`). Defaults: 600 frames (allowed
 2–2500), archive deadline 180 s, total deadline 600 s (up to 1800 s), private staging budget 2 GiB and log
 limit 1 MiB. CLI flags: `--max-frames`, `--bootstrap`, `--permutations`, `--archive-deadline`, `--deadline`,
 `--max-bytes`, `--work-dir`. Private work and public output directories must be separate.
@@ -297,7 +298,8 @@ Old packaged snapshots remain explicitly dated snapshots; refreshing them is an 
 
 ### Real-data acceptance and interpretation
 
-The two packaged JSON products were calculated from real SPHEREx FITS on 2026-11-15. Both preserve
+The two packaged JSON products were calculated from real SPHEREx FITS on 2026-11-15 and recalculated after the WS3
+light-curve fixes (#93): same frames and relative magnitudes; new notes, floors and pair ensembles. Both preserve
 `synthetic: false`, `stale_search: true` and `partial: true`: archive selection used a cached search snapshot;
 these are not fresh exhaustive archive queries. Inspect `n_found`, `n_selected`, failures and sources before
 interpreting the curve. Selection truncation, stale searches and failed measurements remain explicit.
@@ -305,7 +307,7 @@ interpreting the curve. Selection truncation, stale searches and failed measurem
 | Target | Measured / usable | Interpretation |
 |---|---:|---|
 | RW Aurigae | 56 / 10 | Uncorrected aperture flux in **mJy**; 8 matched pairs; excluded saturation/bad pixels/bin cuts retained; no period fitted |
-| R Draconis | 538 / 450 | Relative PSF-wing surface brightness in **MJy/sr**, not total flux; best period ≈259 d, bootstrap 95% ≈240–276 d, FAP 1/101 with 100 permutations; aliases retained |
+| R Draconis | 538 / 450 | Relative PSF-wing surface brightness in **MJy/sr**, not total flux; best period ≈262 d, bootstrap 95% ≈241–276 d (1000 resamples), FAP 1/1000 (0 of 999 permutations reached the peak); aliases retained; catalog periods 245.6–247.2 d lie inside the interval |
 
 Relative magnitudes are normalized separately per detector/wavelength bin; negative means brighter.
 `zero_point_mag` is reported but not applied. Statistical `rel_mag_err` does not include comparison-star
