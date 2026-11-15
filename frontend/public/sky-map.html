@@ -57,7 +57,9 @@
     // SPHEREx source colour (--src-spherex): the outline is the SPHEREx sequence grid; violet is for 3D models.
     const footprint = A.graphicOverlay({ name: 'Sequence footprint', color: '#7cc4ff', lineWidth: 2 });
     map.addOverlay(footprint);
-    const gaia = A.catalog({ name: 'Gaia DR3 predictions', color: '#6ff4f1', shape: 'circle', sourceSize: 4 });
+    // sourceSize 8 + hoverColor: Aladin picks objects within 5 px, and 4 px circles were hard to point at (FE-4).
+    const gaia = A.catalog({ name: 'Gaia DR3 predictions', color: '#6ff4f1', hoverColor: '#ffffff', selectionColor: '#ffffff',
+      shape: 'circle', sourceSize: 8 });
     map.addCatalog(gaia);
     map.on('click', (p) => {
       // Aladin also emits click when a drag ends.
@@ -90,7 +92,7 @@
         gaia.addSources(p.markers.slice(0, 500).filter((m) => m && typeof m.sourceId === 'string' &&
           /^\d+$/.test(m.sourceId) && Number.isFinite(m.ra) && m.ra >= 0 && m.ra < 360 &&
           Number.isFinite(m.dec) && Math.abs(m.dec) <= 90)
-          .map(({ ra, dec, sourceId }) => A.source(ra, dec, { name: `Gaia DR3 ${sourceId}` })));
+          .map(({ ra, dec, sourceId }) => A.source(ra, dec, { name: `Gaia DR3 ${sourceId}`, id: sourceId, layer: 'gaia' })));
       }
       if (p.type === 'allwise') {
         allwiseVisible = !!p.show;
@@ -102,7 +104,145 @@
           .catch(() => { allwiseLoading = false; send({ type: 'error', message: 'AllWISE context layer unavailable' }); });
       }
     });
+    // FE-4 (FRONTEND_PLAN §6.2): hover, cursor, precise marker clicks, the view and the challenge targets. Aladin keeps
+    // one callback per event name (§4.12), so these are the only objectHovered, objectHoveredStop, objectClicked,
+    // mouseMove, positionChanged and zoomChanged handlers. Only ids and numbers leave this page: the parent draws every
+    // text (no innerHTML, no Aladin showPopup). The challenge target labels are canvas text. Aladin 3.8.2 fires
+    // objectClicked on touch only for taps shorter than 100 ms: the parent snaps longer taps to the nearest marker.
+    const targets = A.catalog({ name: 'Challenge targets', color: '#f5c26b', hoverColor: '#ffffff', selectionColor: '#ffffff',
+      shape: 'square', sourceSize: 8, displayLabel: true, labelColumn: 'label', labelColor: '#f5c26b',
+      labelFont: '12px system-ui, sans-serif' });
+    map.addCatalog(targets);
+    const markerOf = (k) => {
+      if (!k || typeof k.isFootprint !== 'function' || k.isFootprint()) return null;
+      const d = k.data || {};
+      const ok = d.layer === 'gaia' ? /^\d{1,20}$/.test(d.id) : d.layer === 'targets' && /^[a-z0-9-]{1,40}$/.test(d.id);
+      return ok && Number.isFinite(k.ra) && Number.isFinite(k.dec) ? { layer: d.layer, id: d.id, ra: k.ra, dec: k.dec } : null;
+    };
+    const at = (e) => ({ x: Number.isFinite(e?.x) ? e.x : 0, y: Number.isFinite(e?.y) ? e.y : 0 });
+    // hover-tracker:begin (ExplorerMap.test.tsx runs this function on its own)
+    // Hover bookkeeping per Aladin object, never per id. Aladin compares objects, not ids: when the parent replaces
+    // the Gaia markers (every settled view in FE-4b), the star under the cursor comes back as a new object with the
+    // same id, and Aladin reports objectHovered(new) before objectHoveredStop(old). Aladin also keeps its own list of
+    // hovered objects across view changes and does not report them again, so hide() keeps them and resume() shows
+    // the card again at the next pointer position.
+    function createHoverTracker(post) {
+      const hovered = new Map();
+      let shown = null, hoverEvent = null;
+      return {
+        get busy() { return hovered.size > 0; },
+        enter(object, marker, event, xy) {
+          hovered.set(object, marker);
+          // Called once per new object under the cursor: one hover per mouse event.
+          if (event && event === hoverEvent) return;
+          hoverEvent = event;
+          shown = object;
+          post({ type: 'hover', ...marker, ...xy });
+        },
+        leave(object, xy) {
+          const marker = hovered.get(object);
+          if (!marker) return;
+          hovered.delete(object);
+          if (object !== shown) return;
+          const next = hovered.entries().next().value;
+          shown = next ? next[0] : null;
+          post(next ? { type: 'hover', ...next[1], ...xy } : { type: 'hover-end', id: marker.id });
+        },
+        hide() {
+          if (shown && hovered.has(shown)) post({ type: 'hover-end', id: hovered.get(shown).id });
+          shown = null;
+        },
+        resume(xy) {
+          if (shown || !hovered.size) return false;
+          const [object, marker] = hovered.entries().next().value;
+          shown = object;
+          post({ type: 'hover', ...marker, ...xy });
+          return true;
+        },
+      };
+    }
+    // hover-tracker:end
+    const hover = createHoverTracker(send);
+    let clickEvent = null;
+    map.on('objectHovered', (k, e) => {
+      const m = markerOf(k);
+      if (m) hover.enter(k, m, e, at(e));
+    });
+    map.on('objectHoveredStop', (k, e) => {
+      if (markerOf(k)) hover.leave(k, at(e));
+    });
+    // objectClicked runs for every object near the click (footprints too, null on empty sky) and before 'click'
+    // above: one precise select per click; the parent drops the generic select that follows it.
+    map.on('objectClicked', (k, e) => {
+      const m = markerOf(k);
+      if (!m || (e && e === clickEvent)) return;
+      clickEvent = e;
+      send({ type: 'select', ra: m.ra, dec: m.dec, sourceId: m.id, layer: m.layer, ...at(e) });
+    });
+    // Cursor readout: at most one message per animation frame, and none while a marker is under the cursor. Aladin
+    // calls mouseMove before objectHovered/objectHoveredStop for the same event, so the frame sees the final state.
+    let pointer = null, pointerFrame = 0;
+    const sendCursor = () => {
+      pointerFrame = 0;
+      if (!pointer || hover.resume(pointer) || hover.busy) return;
+      const w = map.pix2world(pointer.x, pointer.y, 'icrs');
+      const ok = Array.isArray(w) && Number.isFinite(w[0]) && Number.isFinite(w[1]);
+      send({ type: 'cursor', ra: ok ? ((w[0] % 360) + 360) % 360 : null, dec: ok ? w[1] : null, x: pointer.x, y: pointer.y });
+    };
+    map.on('mouseMove', (p) => {
+      if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y)) return;
+      pointer = { x: p.x, y: p.y };
+      if (!pointerFrame) pointerFrame = requestAnimationFrame(sendCursor);
+    });
+    // Aladin does not report the mouse leaving the map.
+    document.getElementById('map').addEventListener('mouseleave', () => {
+      cancelAnimationFrame(pointerFrame);
+      pointer = null; pointerFrame = 0;
+      hover.hide();
+      send({ type: 'cursor', ra: null, dec: null, x: 0, y: 0 });
+    });
+    let viewTimer = 0, lastView = '';
+    const sendView = () => {
+      clearTimeout(viewTimer);
+      viewTimer = 0;
+      const [ra, dec] = map.getRaDec();
+      // getFov() is [horizontal, vertical] in degrees; fov is the larger side.
+      const [fovX, fovY] = map.getFov();
+      const fov = Math.max(fovX, fovY);
+      if (![ra, dec, fovX, fovY].every(Number.isFinite)) return;
+      const view = { ra: ((ra % 360) + 360) % 360, dec, fov, fovX, fovY };
+      const key = `${view.ra.toFixed(7)} ${dec.toFixed(7)} ${fovX.toPrecision(6)} ${fovY.toPrecision(6)}`;
+      if (key === lastView) return;
+      lastView = key;
+      send({ type: 'view', ...view });
+    };
+    const viewChanged = () => {
+      // A card next to the cursor no longer matches the sky under it.
+      hover.hide();
+      // 'move' (once per burst of changes) closes a pinned card at once; only the debounced 'view' queries Gaia.
+      if (!viewTimer) {
+        const [ra, dec] = map.getRaDec();
+        if (Number.isFinite(ra) && Number.isFinite(dec)) send({ type: 'move', ra: ((ra % 360) + 360) % 360, dec });
+      }
+      clearTimeout(viewTimer);
+      viewTimer = setTimeout(sendView, 500);
+    };
+    map.on('positionChanged', viewChanged);
+    map.on('zoomChanged', viewChanged);
+    // A click on the map moves the focus here, so Esc for the pinned card has to be forwarded.
+    addEventListener('keydown', (event) => { if (event.key === 'Escape') send({ type: 'escape' }); }, true);
+    addEventListener('message', (event) => {
+      if (event.source !== parent || event.origin !== location.origin || event.data?.source !== 'errante-ui') return;
+      const p = event.data;
+      if (p.type !== 'targets' || !Array.isArray(p.markers)) return;
+      targets.removeAll();
+      targets.addSources(p.markers.slice(0, 20).filter((m) => m && typeof m.id === 'string' && /^[a-z0-9-]{1,40}$/.test(m.id) &&
+        typeof m.label === 'string' && m.label.length <= 40 && !/[\u0000-\u001f<>]/.test(m.label) &&
+        Number.isFinite(m.ra) && m.ra >= 0 && m.ra < 360 && Number.isFinite(m.dec) && Math.abs(m.dec) <= 90)
+        .map(({ id, ra, dec, label }) => A.source(ra, dec, { id, layer: 'targets', label })));
+    });
     send({ type: 'ready', wavelengths });
+    sendView();
   } catch (error) { send({ type: 'error', message: String(error) }); }
 </script>
 </html>
