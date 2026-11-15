@@ -2,6 +2,11 @@
 
 Lectura obligatoria para WS2 y WS3; recomendada para todos (sirve para el pitch).
 
+> **Actualizado el 2026-11-15 (WS3-7).** El §0 incorpora lo que establecieron los cinco registros de
+> [`validation/`](validation/); 🆕 marca lo que cambió respecto de la versión del 14/11. Al final está la
+> [revisión científica de textos](#revisión-científica-de-textos-ws3-7-2026-11-15), con cambios listos para pegar
+> por cada dueño.
+
 **Alcance prioritario:** R05 exige ensayar Barnard's Star, Epsilon Indi B, WISE 0855, RW Aurigae y R Draconis.
 Ver `VALIDATION.md`: movimiento propio y variabilidad se validan sin requerir detección automática.
 Las estimaciones de distancia y Planeta X que siguen son contexto/extensiones P2; no definen el MVP.
@@ -12,19 +17,40 @@ El enunciado pide probar la herramienta con estos cinco ([`CHALLENGE.md`](CHALLE
 (movimiento propio) y dos **cambian de brillo** (variables). **Ninguno se mueve más de ~2 píxeles SPHEREx** en todos
 los datos que hay hoy (DR1 + QR3).
 
+🆕 **Los cinco tienen registro de validación con resultado `success`** (§0.0). Son análisis offline de los FITS
+reales, cada uno repetido por una revisión adversarial independiente con código propio. La revisión humana y el paso 6
+de [`VALIDATION.md`](VALIDATION.md) (recorrido en la URL pública) siguen pendientes. Ninguno es un descubrimiento: se
+recuperan movimientos y variabilidad ya catalogados.
+
+### 0.0 Qué establecieron los registros de validación 🆕
+
+Resumen para citar en la UI y en la entrega. Los números salen de los registros enlazados; (A) es el análisis
+original y (R) la revisión independiente. «px» = píxel SPHEREx de 6,15″.
+
+| Objetivo | Registro | Identidad de la fuente medida | Qué se midió con SPHEREx | Saturación | Qué **no** se puede afirmar |
+|---|---|---|---|---|---|
+| Barnard's Star | [barnards-star.md](validation/barnards-star.md) (#46) | Gaia DR3 4472832130942575872 (G = 8,19). Fuente dominante: todas las fuentes Gaia a ≤ 30″ son ≥ 6,8 mag más débiles | 358 exposiciones (dr1 239 + qr3 119), 2025-08-15 → 2026-09-22. S0→S2 (misma orientación, 0,98 años entre medias): **10,24 ± 0,11″ = 1,665 ± 0,018 px a PA 354,1 ± 2,1°** (A) y **10,18 ± 0,09″ = 1,655 ± 0,014 px a PA 355,4 ± 0,6°** (R); esperado 10,24″ = 1,665 px a PA 355,7°. «Sin movimiento» descartado a 93σ (A) y 119σ (R). µ (R): (−858 ± 117, +10311 ± 87) mas/año; catálogo (−803, +10375) | `OVERFLOW` en el núcleo en **357 de 358**; `NONLINEAR` nunca; NaN en 240 (en D5/D6 solo 4 de 119). Astrometría desde el ala de la PSF | La **paralaje** (el giro de 180° de S1 es degenerado con su fase). El brillo del núcleo. En los 40 PNG el movimiento está (la meseta se corre 1,60 px; se esperaban 1,68), pero no se ve a simple vista: disco blanco de ~7 px y sin marcador |
+| ε Indi B | [eps-indi-b.md](validation/eps-indi-b.md) (#36) | Gaia DR3 6412596012146801152 (G = 18,03, RUWE 4,30). Ba+Bb = **una sola fuente** | 458 frames en SIA en vivo (dr1 338 + qr3 120; 2026-11-14 19:24 UTC), 2025-04-24 → 2026-10-02, 4 temporadas. Detectada en ~440 de 458; **no en D1 por debajo de ~0,83 µm** (espectro de enana T, INFERIDO). S0→S3 (1,385 años entre medias): **1,031 ± 0,006 px** (A) y **1,026 ± 0,007 px** (R), ± ~0,016 px de sistemático, a PA 126,5–126,7 ± 0,4°; esperado 1,028–1,030 px a PA 125,8–125,9°; > 50σ con el sistemático | No satura | Separar Ba de Bb; la órbita Ba–Bb. Hay un offset constante de ~0,6″ entre fotocentro y catálogo, de causa INFERIDA. ε Ind A (402,6″ al oeste) queda **fuera** de la grilla publicada de 9′: solo se ve su halo en el borde oeste |
+| WISE 0855−0714 | [wise-0855.md](validation/wise-0855.md) (#36) | Sin contraparte Gaia DR3. SIMBAD: Y2. **Mezclada** con Gaia DR3 5756956644387831296 (G = 16,3), a 1,85 / 1,32 / 0,70 px en S0/S1/S2 | 258 frames, **solo DR1**, 2025-05-05 → 2026-05-14. **Solo se ve en D5/D6 (3,8–5,0 µm)**: SNR mediana por exposición 3,4–3,8 (≥ 5σ en 22 de 93 frames D5/D6) y **SNR 21–25** sumando por detector; en D1–D4 el flujo es compatible con 0. S0→S2 (360 d): **8,51 ± 0,39″ = 1,38 ± 0,06 px a PA 278,5 ± 2,6°** (A) y **8,41 ± 0,35″ a PA 277,5 ± 2,4°** (R); esperado 8,03″ = 1,31 px a PA 274,6°. Modelo estático rechazado (Δχ² 258–412) | No satura | Que se vea en el blink publicado (12 frames D5/D6, SNR mediana 2,1). µδ sale 1,6–3,1σ por encima del catálogo por la mezcla (INFERIDO). Los flujos absolutos dependen del modelo de PSF (~11 %) |
+| RW Aurigae | [rw-aurigae.md](validation/rw-aurigae.md) (#36) | A+B sin resolver (1,49″). 🆕 **A = Gaia DR3 156430817820015232, B = 156430822114424576** (verificado en esta revisión, §0.3) | 335 frames (dr1 226 + qr3 109), 2025-09-01 → 2026-09-16. Variabilidad **solo en D1 (0,74–0,88 µm)**, en pares del mismo detector con \|Δλ\|/λ < 1 % y sin flags: **se abrillanta ~1 mag a 0,75–0,77 µm entre el 2025-09-02 y el 2026-09-08** (−1,005 y −1,031 mag; −0,99 y −0,97 con punto cero). Estrellas de comparación: σ robusta 0,046–0,049 mag, máximo 0,27 | `OVERFLOW` en **304 de 335**: todo D2–D6 y 37 de 56 en D1. Quedan 17 frames limpios y 8 pares | La causa física. Un «brillo medio de temporada» (dentro de S0 también parece cambiar, INFERIDO). Variabilidad en D2–D6. Los 40 PNG no muestran el cambio: la estrella vale 255 en todos |
+| R Draconis | [r-draconis.md](validation/r-draconis.md) (#36) | Gaia DR3 1648328016354496384 (G = 6,37, VARIABLE). Sin mezcla: dentro de 45″ solo hay dos fuentes de G ≈ 19 | 2493 frames (dr1 413, qr3 126, dr1_deep 1225, qr3_deep 729), MJD 60790–61310 (520 d). Fotometría **relativa del ala de la PSF**, mismo detector y λ en bins de 1–1,5 %: **0,5–1,3 mag pico a pico** según el detector; permutación p ≤ 0,003 (D2 marginal); sigue la curva V contemporánea de AAVSO con retrasos de −1 a +47 d. **Período efectivo ~260 d** (bootstrap 95 %: 255–265 d), igual al último ciclo AAVSO (258 d; el anterior duró 235 d) y compatible con Gaia DR3 (247,2 ± 6,0 d) | `OVERFLOW` en **2488 de 2488** frames con la estrella en el detector; `NONLINEAR` nunca | Fotometría del núcleo o flujo absoluto. Decir que SPHEREx «midió 247 d». El campo publicado (40 PNG, ninguno deep) no muestra la variabilidad, y no hay producto de curva de luz |
+
+Comunes a los cinco: scripts en el scratch local (no versionados), figuras en [`validation/figures/`](validation/figures/),
+revisión humana pendiente, paso 6 pendiente. Los registros no usan detección automática.
+
 ### 0.1 Astrometría de referencia
 
 ✅ Sesame/SIMBAD en CfA, 2026-11-14 (CDS Estrasburgo está degradado). ICRS, **época de referencia J2000.0**,
 `µα*` = µα·cos δ. Está copiada en los comentarios de `pipeline/errante/config/fields.toml` para no depender de
-SIMBAD en vivo.
+SIMBAD en vivo. 🆕 Ojo: el comentario de RW Aur en `fields.toml` (línea 70) tiene A y B invertidos (ver la fila y §0.3).
 
 | `id` (fields.toml) | Objetivo | Tipo | J2000 (°) | J2000 (sexagesimal) | µα*, µδ (mas/año) | plx (mas) |
 |---|---|---|---|---|---|---|
 | `barnards-star` | Barnard's Star | enana roja M4V, el mayor movimiento propio | 269.45207696, +4.69336497 | 17h57m48.498s +04°41′36.11″ | −801.551, +10362.394 | 546.976 |
 | `eps-indi-b` | ε Indi B (Ba+Bb) | par de enanas marrones T1V+T6V que orbita ε Ind A | 331.04414659, −56.7828442 | 22h04m10.595s −56°46′58.24″ | +3981.977, −2466.832 | 270.658 (Gaia DR3) |
-| `wise-0855` | WISE 0855−0714 | enana marrón Y2 | 133.81890825, −7.247048 | 08h55m16.538s −07°14′49.37″ | −8123.7, +673.2 | 439.0 |
-| `rw-aurigae` | RW Aurigae | estrella T Tauri (K1/5e+K5e), variable irregular | 76.95652603, +30.40143817 | 05h07m49.566s +30°24′05.18″ | +7.23, −20.33 (Hipparcos) | 15.42 (Hipparcos); Gaia DR3: A 6.406, B 5.454 |
-| `r-draconis` | R Draconis | variable Mira (M4.5–6e), P ≈ 247 d | 248.16761083, +66.75497942 | 16h32m40.227s +66°45′17.93″ | −20.643, +6.149 | 1.2509 |
+| `wise-0855` | WISE 0855−0714 | enana marrón Y2 (SIMBAD); 🆕 WS7 usa ~Y4 citando Kirkpatrick+2021 y Luhman+2024 (no re-verificado aquí) | 133.81890825, −7.247048 | 08h55m16.538s −07°14′49.37″ | −8123.7, +673.2 | 439.0 |
+| `rw-aurigae` | RW Aurigae | estrella T Tauri (K1/5e+K5e), variable irregular | 76.95652603, +30.40143817 | 05h07m49.566s +30°24′05.18″ | +7.23, −20.33 (Hipparcos) | 15.42 (Hipparcos); 🆕 Gaia DR3 (corregido): **A 5.454 ± 0.332 (RUWE 16,4, no fiable), B 6.406 ± 0.044** → ~156 pc con la de B |
+| `r-draconis` | R Draconis | variable Mira; tipo espectral M4.5–6e (SIMBAD) o M5e–M9eIII (GCVS y VSX); 🆕 P de catálogo 245,6 d (GCVS), 246,12 d (VSX), 247,2 ± 6,0 d (Gaia DR3) | 248.16761083, +66.75497942 | 16h32m40.227s +66°45′17.93″ | −20.643, +6.149 | 1.2509 |
 
 ### 0.2 Qué esperar en los datos SPHEREx
 
@@ -36,7 +62,7 @@ frame − primer frame); píxel = 6,15″.
 | Objetivo | Época media | 🧮 Posición a la época media (°) | Línea de base | 🧮 Desplazamiento total | Frames | Temporadas | 🧮 Lat. eclíptica |
 |---|---|---|---|---|---|---|---|
 | Barnard | MJD 61104 (2026.17) | 269.44623, +4.76870 | 1,10 años | 11,5″ = **1,86 px** | 358 | 3 | +28,2° |
-| ε Ind B | MJD 61042 (2026.00) | 331.09665, −56.80066 | 1,44 años | 6,7″ = **1,10 px** | 460 | 4 | −41,5° |
+| ε Ind B | MJD 61042 (2026.00) | 331.09665, −56.80066 | 1,44 años | 6,7″ = **1,10 px** | 460 (🆕 458 en SIA en vivo el 2026-11-14 19:24 UTC; causa sin verificar, [DATA.md](DATA.md) §3.0) | 4 | −41,5° |
 | WISE 0855 | MJD 61035 (2025.99) | 133.75980, −7.24219 | 1,02 años | 8,3″ = **1,36 px** | 258 (solo DR1) | 3 | −23,6° |
 | RW Aur | MJD 61107 (2026.18) | 76.95659, +30.40129 | 1,04 años | 0,02″ ≈ **0 px** | 335 | 3 | +7,5° |
 | R Dra | MJD 61115 (2026.20) | 248.16723, +66.75502 | 1,43 años | 0,03″ ≈ **0 px** | 2493 (1954 deep) | cobertura casi continua | +81,4° |
@@ -46,34 +72,85 @@ Cómo leer esto:
 - Por año: Barnard ~1,7 px, WISE 0855 ~1,3 px, ε Ind B ~0,8 px. La PSF tiene FWHM ≈ 7,5″ ≈ 1,2 px (D1): el
   desplazamiento total es del orden de un ancho de PSF. **A escala nativa no se ve nada**: hacen falta zoom
   pixelado, retícula, posición predicha en cada época y resta de temporadas (aparece un dipolo +/−).
-- Paralaje: amplitud = plx ≤ 0,55″ (≤ 0,09 px). Despreciable frente al movimiento propio.
-- La propagación lineal ignora la aceleración de perspectiva (~0,4″ en 26 años para Barnard): despreciable.
+  🆕 Confirmado en los registros: en los 40 PNG de Barnard la meseta saturada se corre 1,60 px, pero es un disco
+  blanco de ~7 px, y ninguno de los cinco campos marca el objetivo (`known.json` vacío). Las diferencias de temporada muestran el dipolo de ε Ind B y de
+  WISE 0855 (este último solo con todos los frames D5/D6, no con los 40 del build).
+- 🆕 Paralaje: amplitud = plx ≤ 0,55″ (≤ 0,09 px). Es chica frente al movimiento propio, pero **no es despreciable
+  para astrometría por debajo de 0,1 px**: en WISE 0855 alterna −0,43 / +0,41 / −0,43″ en E entre temporadas
+  (0,14 px pico a pico) y los registros la incluyen. En Barnard (±0,55″ en E) **no se puede medir** con estos datos: el
+  detector está girado 180° en S1 justo en la fase opuesta de paralaje, y el sesgo de centroide que depende de la
+  orientación es degenerado con ella ([registro](validation/barnards-star.md), problema 5). Se fija en Gaia.
+- La propagación lineal ignora la aceleración de perspectiva (~0,4″ en 26 años para Barnard): despreciable. 🆕 En la
+  época media de Barnard suma +0,066″ en Dec (< 0,02 px).
 - Una sola exposición de RW Aur o R Dra "parpadea" en brillo aunque la estrella no cambie: ver §0.4.
 
 ### 0.3 Notas por objetivo
 
-- **Barnard's Star.** Muy brillante en el infrarrojo (K = 4,5): ❓ puede saturar (bits `OVERFLOW`/`NONLINEAR`).
-  Es la prueba de cordura principal y el plan B del video. Gaia DR3 4472832130942575872 (época 2016.0) coincide con
-  SIMBAD propagado ✅. El centro anterior de `fields.toml` (2025.5) estaba a 1,0″ de la propagación con Gaia.
+- **Barnard's Star.** Muy brillante en el infrarrojo (K = 4,5). 🆕 ✅ **Satura**: `OVERFLOW` en el núcleo en 357 de
+  358 exposiciones (la única limpia es `2025W34_2B_0030_1D6`, 4,58 µm), `NONLINEAR` nunca; NaN en 240, pero píxeles
+  `OVERFLOW` finitos en 339 ([registro](validation/barnards-star.md); [DATA.md](DATA.md) §3.2). Es la prueba de cordura
+  principal y el plan B del video. Gaia DR3 4472832130942575872 (época 2016.0) coincide con SIMBAD propagado ✅. El
+  centro anterior de `fields.toml` (2025.5) estaba a 1,0″ de la propagación con Gaia.
+  - 🆕 Movimiento medido entre S0 y S2: 1,655–1,665 px a PA 354–355°, contra 1,665 px a PA 355,7° esperados (§0.0).
+    Para estrellas saturadas hay que enmascarar `SUR_ERROR` junto al núcleo y re-centrar; una gaussiana deja un
+    residuo hacia el oeste de 0,2–0,3″ que el perfil radial libre no deja.
+  - 🆕 **La paralaje no se puede medir con estos datos** (ver §0.2). El movimiento propio se cita desde S0→S2.
+  - 🆕 `GJ 699` en Sesame CfA devuelve una posición de época antigua, a 8,6′: resolver por «Barnard's Star» o por el
+    `source_id` de Gaia.
 - **ε Indi B.** SIMBAD no tiene entradas separadas para Ba y Bb ✅: **SPHEREx no separa el par** con píxeles de
   6,15″ (verá una sola fuente; conviene decirlo en la UI). **ε Ind A**, brillante, está a **~402″ (~6,7′) al oeste**
-  ✅: entra en un FOV ≥ ~14′ y es un buen ejemplo de flags de contaminación (GHOST/HALO/BLOOM, ❓ INFERIDO).
-  Cobertura despareja: D1/D4 tienen 3 frames en la 1.ª temporada y 0 en la última ✅. Gaia DR3 6412596012146801152,
-  G = 18,03; J = 11,9, H = 11,3, K = 11,2 ✅.
+  ✅: entra en un FOV ≥ ~14′. 🆕 En la grilla publicada de 9′ queda afuera; su halo se ve en el borde oeste de los PNG,
+  marcado `HALO`, y el `BLOOM` es suyo. No hay píxeles `GHOST` en los 498 patches revisados (antes figuraba como
+  ejemplo de GHOST, INFERIDO: no se confirmó). Cobertura despareja: D1/D4 tienen 3 frames en la 1.ª temporada y 0 en la
+  última ✅. Gaia DR3 6412596012146801152, G = 18,03; J = 11,9, H = 11,3, K = 11,2 ✅.
+  - 🆕 Medido: 1,026–1,031 px entre S0 y S3, contra 1,028–1,030 px esperados (§0.0). **No se detecta en D1 por debajo
+    de ~0,83 µm** (3 de los 5 D1 publicados, incluidos los dos de S1): no es un error de datos.
+  - 🆕 Offset constante de ~0,6″ (0,1 px) entre fotocentro y catálogo, mayor en D6; INFERIDO, sin verificar: el
+    fotocentro infrarrojo de Ba+Bb no es el de Gaia, o el movimiento orbital del par desde 2016 (RUWE 4,3).
 - **WISE 0855−0714.** La coordenada del enunciado (08h55m10.831s −7°14′42.53″ = 133.79513, −7.24515) es de época
   **~2010** (🧮 retro-propagación: 2010,45 por RA, 2010,16 por Dec). A la época media de los datos el objeto está
-  **~126″ (~20 px) al oeste** de esa coordenada (🧮; entra en un FOV ≥ ~8′ centrado en la del enunciado). Está a
-  ~2,3 pc (plx 439 mas). Es extremadamente rojo: J = 25,0 y H = 23,8 (SIMBAD), W1 = 16,23 y W2 = 13,70 (AllWISE,
-  Vega) ✅ → **probablemente solo visible en coadds de D5/D6 — INFERIDO, hay que medirlo** antes de elegirlo para el
-  video. No tiene frames en QR3 ✅. CatWISE (`catwise_2020` en IRSA TAP) lo lista con pmRA ≈ −7,9 a −8,0″/año ✅.
+  **~126″ (~20 px) al oeste** de esa coordenada (🧮; 126,6″ en el [registro](validation/wise-0855.md); entra en un FOV ≥
+  ~8′ centrado en la del enunciado). Está a ~2,3 pc (plx 439 mas). Es extremadamente rojo: J = 25,0 y H = 23,8 (SIMBAD),
+  W1 = 16,23 y W2 = 13,70 (AllWISE, Vega) ✅. No tiene frames en QR3 ✅. CatWISE (`catwise_2020` en IRSA TAP) lo lista
+  con pmRA ≈ −7,9 a −8,0″/año ✅ (el registro lo re-verificó: el objeto aparece partido en varias entradas CatWISE2020).
+  - 🆕 ✅ **Visibilidad medida** (antes: «probablemente solo en coadds, INFERIDO»): se ve **solo en D5/D6** (3,8–5,0 µm)
+    y **también en exposiciones sueltas**, con SNR mediana 3,4–3,8 por exposición (≥ 5σ en 22 de 93); sumando por
+    detector, SNR 21–25. En D1–D4 no hay señal. Flujos: 0,28–0,32 mJy en D5 y 0,49–0,54 mJy en D6 según el modelo de
+    PSF.
+  - 🆕 **Mezcla** con Gaia DR3 5756956644387831296 (G = 16,3; su W2 es el 29 % del de WISE 0855), a 0,70 px en S2. La
+    posición de S2 depende de cómo se modelen la estrella y la PSF.
+  - 🆕 Medido: 8,41–8,51″ (1,37–1,38 px) entre S0 y S2, contra 8,03″ esperados (§0.0). En el blink publicado (2 frames
+    por temporada y detector, SNR mediana 2,1) **no se ve de forma convincente**: hace falta un coadd o una selección
+    por λ en el máximo del espectro (4,25–4,70 µm).
 - **RW Aurigae.** T Tauri (SIMBAD: `TT*`, sin período) ✅: **no se mueve, cambia de brillo** de forma irregular.
-  J = 8,4, K = 7,0. La paralaje de Hipparcos (15,42 ± 3,69 mas) no coincide con Gaia DR3 (A: 6,406 mas ≈ 156 pc;
-  B: 5,454 mas): usar Gaia. Latitud eclíptica +7,5°: pueden cruzar asteroides (SkyBoT, P1). Con 3 temporadas hay 3
-  puntos de comparación por detector.
-- **R Draconis.** Mira con período ≈ 247 d (Gaia DR3: 247,2 d; otras fuentes de SIMBAD: 247,0 y 246,0 d) ✅. A
-  8,6° del polo eclíptico norte, tiene 2493 frames (1954 de las colecciones deep) y cobertura casi continua entre MJD
-  60916 y 61310 ✅. 🧮 La línea de base (520 d) cubre ~2,1 ciclos: **el mejor caso para una curva de luz**. D2/D5
-  tienen solo ~89 frames contra ~580 de los otros detectores. ❓ Puede saturar.
+  J = 8,4, K = 7,0. VSX (`B/vsx`): tipo CTTS/ROT+CTTS, V 9,2–13,6. La paralaje de Hipparcos (15,42 ± 3,69 mas) no
+  coincide con Gaia DR3: usar Gaia. Latitud eclíptica +7,5°: pueden cruzar asteroides (SkyBoT, P1).
+  - 🆕 ✅ **Identidad A/B en Gaia DR3, corregida** (antes este documento decía A = 6,406 mas y B = 5,454 mas, al revés).
+    Verificado en esta revisión (2026-11-15 03:29 UTC): según Gaia DR3 (TAP de ESA), la fuente 156430822114424576
+    (G = 12,18, plx 6,406 ± 0,044 mas, RUWE 1,50) está a **1,493″ y PA 254,4°** de 156430817820015232 (G = 13,04, plx
+    5,454 ± 0,332 mas, RUWE 16,4). El WDS (VizieR CfA `B/wds`, 05078+3024 JOY 5) da para **A→BC** PA 254° y 1,50″
+    (2022), con A más débil (13,0 contra 12,2) por sus oscurecimientos. Por lo tanto **A = 156430817820015232 y B =
+    156430822114424576**, como usa WS7 (`systems/catalog.py`, citando a Kurtovic et al. 2024). La distancia sale de la
+    paralaje de **B** (~156 pc), porque la de A no es fiable.
+  - 🆕 ✅ **Satura** en 304 de 335 frames: todo D2–D6 y 37 de 56 en D1. **Solo D1 es medible** (17 frames limpios, 8
+    pares). Ya **no** vale «con 3 temporadas hay 3 puntos de comparación por detector».
+  - 🆕 Medido en D1: se abrillanta ~1 mag a 0,75–0,77 µm entre el 2025-09-02 y el 2026-09-08 (§0.0). Hay además un
+    salto de +0,38 mag sin explicar entre dos exposiciones consecutivas separadas 2,15 min (registro, limitaciones).
+  - 🆕 El centroide medido cae más cerca del fotocentro Gaia A+B que de la posición SIMBAD/Hipparcos del centro de
+    `fields.toml` (0,9–1,1″ de diferencia, ≤ 0,18 px): cosmético.
+- **R Draconis.** Mira; período de catálogo 🆕 ✅ 245,6 d (GCVS, VizieR CfA `B/gcvs`, re-consultado el 2026-11-15 03:33
+  UTC; el primer intento de las 03:29 dio «database is not currently reachable»), 246,12 d (VSX, OID 13673), 247,2 ±
+  6,0 d (Gaia DR3 LPV, archivo de ESA); otras fuentes de SIMBAD: 247,0 y 246,0 d. A 8,6° del polo eclíptico norte, tiene
+  2493 frames (1954 de las colecciones deep) y cobertura casi continua entre MJD 60916 y 61310 ✅. 🧮 La línea de base
+  (520 d) cubre ~2,1 ciclos: **el mejor caso para una curva de luz**. D2/D5 tienen solo ~89 frames contra ~580 de los
+  otros detectores.
+  - 🆕 ✅ **Satura en todos los frames** (`OVERFLOW` en 2488 de 2488). La variabilidad se midió en el ala de la PSF
+    (§0.4).
+  - 🆕 **Período efectivo medido con SPHEREx: ~260 d** (95 %: 255–265 d), no 247 d. Coincide con el último ciclo de
+    AAVSO (258 d; el anterior fue de 235 d): las Miras cambian de ciclo a ciclo. Citar 247 d solo como valor de
+    catálogo. Para la fase, usar la curva AAVSO contemporánea, no la efeméride VSX extrapolada (se desvía hasta 15 d).
+  - 🆕 La búsqueda por defecto (`spherex_dr1,spherex_qr3`) excluye las colecciones deep, que aportan casi todo el
+    muestreo: el campo publicado (40 frames) no tiene ninguno.
 
 ### 0.4 Variabilidad con un filtro lineal variable
 
@@ -83,7 +160,9 @@ cambia de exposición a exposición **aunque la estrella sea constante**. Un vid
 "parpadea" y no permite distinguir variabilidad de color. Además, el PNG no es una medida: el stretch actual satura
 las fuentes brillantes (✅ un cambio ×2 de la estrella central da el mismo pico 255).
 
-**Método** (❓ INFERIDO, a validar con datos; los hechos que lo sostienen son ✅):
+**Método** (❓ INFERIDO, a validar con datos; los hechos que lo sostienen son ✅; 🆕 los pasos 3 y 4 quedaron
+validados en RW Aur y R Dra y el paso 1 no sirvió para estrellas saturadas: ver «Lo que de verdad se validó» al final
+de esta sección):
 
 1. **Coadds por temporada × detector** (frame por defecto del video). En cada temporada cada detector junta
    ~17–25 exposiciones del objetivo (Barnard, RW Aur ✅), del orden de sus 17 canales. Cada coadd promedia
@@ -97,13 +176,30 @@ las fuentes brillantes (✅ un cambio ×2 de la estrella central da el mismo pic
 3. **Curva de luz corregida por λ.** Para cada exposición, `flujo / espectro medio del objetivo interpolado en esa λ`,
    graficado contra MJD por detector y normalizado con estrellas de comparación (mismo campo, brillo parecido, no
    variables). R Dra: cobertura densa, ~2 ciclos → curva de luz real. RW Aur: 3 temporadas → 3 puntos por detector
-   (variabilidad irregular, sin período).
-4. **Cuidados.** Saturación (`OVERFLOW`/`NONLINEAR` en el objetivo, ❓), flags de vecinas brillantes
-   (GHOST/HALO/BLOOM), apertura acorde a la PSF de cada frame (`PSF_FWHM` cambia por detector). Los pares D1/D4,
-   D2/D5 y D3/D6 se toman a la vez ✅: dan color simultáneo.
+   (variabilidad irregular, sin período). 🆕 En la práctica solo D1 tiene frames sin saturar (8 pares útiles).
+4. **Cuidados.** Saturación (`OVERFLOW` en el objetivo; 🆕 ✅ verificada en Barnard, RW Aur y R Dra, `NONLINEAR` no
+   aparece nunca), flags de vecinas brillantes (GHOST/HALO/BLOOM), apertura acorde a la PSF de cada frame (`PSF_FWHM`
+   cambia por detector; 🆕 ✅ el del header es más ancho que el núcleo real: la mejor gaussiana mide 0,70–0,86 × header).
+   Los pares D1/D4, D2/D5 y D3/D6 se toman a la vez ✅: dan color simultáneo.
+
+🆕 **Lo que de verdad se validó (registros del 14 y 15/11).** El paso 1 (coadds por temporada) **no** se usó para medir
+la variabilidad de ninguno de los dos blancos variables, porque están saturados: los coadds de `errante compare` tienen
+el núcleo vacío o a 255 y mezclan λ distintas. Lo que funcionó fue:
+
+- **RW Aur** ([registro](validation/rw-aurigae.md)): fotometría de apertura (r = 3 px, fondo en 6–10 px) en
+  **exposiciones individuales** de D1 sin flags, comparadas **de a pares** del mismo detector con \|Δλ\|/λ < 1 % y
+  temporadas distintas. Control: las estrellas de comparación Gaia del mismo campo, cada una a su propia λ, más un punto
+  cero por frame. Es la variante "λ compatible" del paso 3, sin coadds.
+- **R Dra** ([registro](validation/r-draconis.md)): flujo **relativo del ala de la PSF** (anillo de 10–20 px fuera de
+  `BLOOM`, menos un fondo en 40–60 px). Modelo por detector: una constante por bin de λ (1–1,5 %) más una señal temporal
+  (sinusoide, curva V de AAVSO escalada o bloques libres). Significancia por permutación de visitas, con controles y
+  la curva AAVSO contemporánea como prueba independiente de fase.
+- **WISE 0855** ([registro](validation/wise-0855.md)): los coadds por temporada con **todos** los frames D5/D6 sí
+  sirvieron, pero para ver el movimiento (dipolo), no la variabilidad.
 
 En la UI conviene distinguir "exposiciones individuales (el brillo cambia por λ)" de "coadds por temporada
-(comparables)".
+(comparables)". 🆕 Y, para Barnard, RW Aur y R Dra, avisar que **el brillo del PNG no es una medida**: el núcleo está
+saturado y el stretch lo lleva a 255.
 
 ## 1. ¿Por qué se mueven las cosas en el cielo?
 
@@ -152,7 +248,8 @@ a 90° `≈ 147.8″/h / (√r · √(r² − 1))`; paralaje entre pasadas `≈ 
 - Predicciones para el Planeta Nueve (Brown & Batygin 2021, AJ 162, 219): semieje ≈ 380 UA (perihelio
   ≈ 300 UA, hoy probablemente cerca del afelio, a varios cientos de UA), ≈ 6 masas terrestres, inclinación
   ≈ 16°, brillo en el visible del orden de **V ≈ 20–23** según distancia y albedo. **Verificar los números en
-  el paper antes de citarlos** en la UI o el pitch (tarea de WS3).
+  el paper antes de citarlos** en la UI o el pitch (tarea de WS3). 🆕 2026-11-15: siguen sin verificar, y ningún
+  texto de la UI ni de la entrega los usa (revisado en WS3-7).
 - SPHEREx no está optimizado para objetos tan débiles en una sola exposición. **No sabemos** su profundidad
   real para nuestros métodos → la medimos con **inyección-recuperación** (WS2): plantamos objetos falsos en
   imágenes reales y vemos cuáles recuperamos. Esa tabla de límites es parte central del producto.
@@ -178,6 +275,10 @@ mismo detector no basta. Para RW Aurigae y R Draconis usar fotometría del FITS,
 - Validación obligatoria: los cinco blancos de `VALIDATION.md`, incluidos Epsilon Indi B y las dos variables.
   Asteroides/TNOs son ensayos adicionales. Separar intentos realizados de recuperaciones demostradas;
   citar métodos, épocas, calidad e incertidumbres al informar resultados.
+- 🆕 Los cinco blancos son objetos conocidos: recuperar su movimiento o su variabilidad es una **validación**, no un
+  descubrimiento. Decir «medido offline en los FITS» cuando el número no sale del producto publicado, y «revisión humana
+  pendiente» mientras lo esté.
+- 🆕 Para estrellas saturadas (Barnard, RW Aur, R Dra), el brillo del PNG no es una medida.
 
 ## 5. Glosario rápido
 
@@ -187,3 +288,246 @@ del cinturón de Kuiper. **Blink comparator**: alternar imágenes de distintas f
 descubrió Plutón en 1930). **Cutout**: recorte de una imagen. **HiPS**: formato de imágenes de todo el cielo por
 teselas (lo usa Aladin). **Shift-and-stack**: sumar imágenes desplazadas según un movimiento supuesto para
 detectar objetos débiles.
+
+## Revisión científica de textos (WS3-7, 2026-11-15)
+
+Revisión de todo texto que ve un usuario o un jurado, en `main` `3713d3b`: la UI (`frontend/src`, `frontend/index.html`,
+`frontend/public/sky-map.html`), los facts 3D (`pipeline/errante/systems/catalog.py`), las descripciones de los campos
+(`fields.toml` → `field.json`), las notas de los productos publicados, `README.md`, `AI_USAGE.md` y `docs/submission/`.
+Cada afirmación se contrastó con los registros de [`validation/`](validation/), [`DATA.md`](DATA.md), §0 de este
+documento y, cuando hizo falta, con un servicio en vivo (lista al final). WS3 no edita esos archivos: cada dueño aplica
+su fila. El texto sugerido está en inglés para la UI y la entrega, y en español para los documentos internos.
+
+**Resumen.** No hay exageraciones: nada dice «discover», «new object» ni «Planet X found». El problema es el opuesto.
+Varios textos que leen los jueces siguen diciendo que **no hay datos SPHEREx reales ni ensayos de los cinco
+blancos**, cuando hay cinco campos reales y cinco registros `success`. También faltan créditos (Gaia/ESA, AllWISE,
+CfA, AAVSO), la declaración de uso de Claude está incompleta, hay un enlace de crédito roto y ningún texto avisa que
+Barnard, RW Aur y R Dra están saturados.
+
+Severidad: **bloquea** = corregir antes de enviar (texto falso en materiales de evaluación); **importante** =
+corregir antes del freeze si se puede; **menor** = mejora. La tabla tiene 47 filas: 8 bloquean, 24 son importantes y 15
+menores.
+
+Todo texto sugerido que cite un número de validación dice «offline»: esos números salen de análisis de los FITS, y el
+producto publicado todavía no los muestra (§4). `pipeline/tests/test_science_review_texts.py` comprueba esa regla, los
+conteos de arriba y que los facts del bloque **A5** se lean bien con su unidad.
+
+| archivo:línea | texto actual | problema | texto sugerido | severidad | dueño |
+|---|---|---|---|---|---|
+| `frontend/src/pages/AboutPage.tsx:20-23` | «currently demonstrates temporal playback with numerically simulated data … validation of the five challenge targets are still being developed» | Falso hoy: hay cinco campos reales en `data/products`, mapa SPHEREx DR1, jobs por coordenadas (modo API) y cinco registros `success` (§0.0) | Reemplazar ese párrafo (líneas 19-24) por el bloque **A1** y agregar el bloque **A2** como sección nueva «Validation of the five challenge targets». El párrafo del 3D sigue en la fila siguiente | bloquea | WS6 (texto), WS5 (archivo) |
+| `frontend/src/pages/AboutPage.tsx:26-27` | «illustrates the challenge targets with hand-entered, unverified parameters» | Contradice `catalog.py` (WS7-2: cada valor contrastado con su fuente el 14/11, marcado `unverified` si no). Lo que sí falta es que ningún valor sale de SPHEREx | "The optional 3D gallery draws the challenge targets from published catalog and literature values; every value shows its source and whether it was verified. These models are not SPHEREx images, and none of their values is measured by SPHEREx yet." | importante | WS6, WS5 |
+| `frontend/src/pages/AboutPage.tsx:41` | «Real SPHEREx products from NASA/JPL-Caltech/IPAC have not yet been integrated into this demonstration.» | Falso hoy. Además faltan los créditos de lo que sí se usa (SPHEREx con el texto que pide IRSA, IRSA, Gaia/ESA, AllWISE, CfA, Aladin, AAVSO, NASA Exoplanet Archive) | Reemplazar el párrafo de «Sources and acknowledgments» por el bloque **A3** | bloquea | WS6, WS5 |
+| `frontend/src/pages/AboutPage.tsx:45-48` | «OpenAI Codex assisted with … The imported 3D contribution declares Claude assistance» | Incompleto: Claude Code escribió código de WS1, midió los cinco registros de validación y redactó VISION.md ([`AI_USAGE.md`](../AI_USAGE.md) líneas 22-56). Regla 14 / S08 | "OpenAI Codex and Anthropic Claude Code assisted with source review, documentation, code, tests and the validation measurements of the five targets (each re-measured by an independent AI review). The team defined the product vision. Details and pending human review: AI_USAGE.md in the repository." | importante | WS6, WS5 |
+| `frontend/src/pages/HomePage.tsx:56` | «{f.n_candidates} candidates» | En los cinco campos reales muestra «0 candidates», pero la detección no se corrió (lo dice la nota de procedencia). Una lista vacía sin análisis no es un resultado negativo (regla 12) | Si el campo es real y `n_candidates === 0`: "detection not run"; o quitar el contador de las tarjetas reales | importante | WS5 |
+| `frontend/index.html:6` | «…with NASA SPHEREx data and find what moves.» | Sugiere detección automática, que es P2 y no se corrió en los campos reales | "Watch the infrared sky change over time with NASA SPHEREx data: motion and brightness changes, date by date." | menor | WS5 |
+| `frontend/src/components/SkyExplorer.tsx:114` | «This preset is not a validated detection.» | Desactualizado: los cinco tienen registro `success` | `` `${target.name}: position propagated to MJD ${target.mjd} (Sesame/SIMBAD at CfA, checked 14 Nov 2026). Offline validation on the SPHEREx FITS files: docs/validation/ (human review pending). Bright targets saturate: image brightness is not a measurement.` `` | importante | WS5 |
+| `frontend/src/api/showcase.ts:8` | RW Aurigae con `detector: 2` | RW Aur satura en todos los frames de D2-D6; el cambio de ~1 mag solo se midió en D1 (0,74-0,88 µm) | `detector: 1`, y en el aviso del preset: "RW Aurigae: brightness change measured offline in D1 (about 1 mag brighter at 0.75–0.77 µm from Sep 2025 to Sep 2026). The star saturates D2–D6, and the images do not show the change." | importante | WS5 |
+| `frontend/src/api/showcase.ts:9` | R Draconis con `detector: 2` | D2 es el detector con menos frames (89, sin deep) y con la variabilidad más débil (Δχ² 23 contra un máximo nulo de 19) | `detector: 1` (D1: 1,19 ± 0,04 mag pico a pico, retraso −1 d respecto de la V de AAVSO), con el aviso de saturación | menor | WS5 |
+| `frontend/src/components/ExplorerMap.tsx:54` | `href="https://irsa.ipac.caltech.edu/data/SPHEREx/"` | **Enlace roto**: HTTP 404 (2026-11-15 03:30 UTC). La página de la misión responde 200 | `https://irsa.ipac.caltech.edu/Missions/spherex.html` | importante | WS5 |
+| `frontend/src/components/ExplorerMap.tsx:53` | «This map is a static coadd, not a video.» | Correcto en esencia. El `properties` del HiPS lo describe como cubo DR1 «for visualization» con datos de MJD 60789,75-61174,49; conviene decir que no es una medida | "This map is the SPHEREx DR1 all-sky cube made for visualization (data from Apr 2025 to May 2026): not a video, and not a measurement." | menor | WS5 |
+| `frontend/src/pages/FieldPage.tsx:104` | leyenda «catalog prediction» | `known.json` está vacío en los cinco campos reales: la leyenda anuncia un marcador que nunca aparece, y el objetivo no se puede ubicar (registros de Barnard, problema 1, y de ε Ind B, problema 4) | Ocultar la entrada si `known.length === 0`. Dibujar la retícula del objetivo (TODO de `BlinkViewer.tsx:237`) con la trayectoria que WS3 agregue a `known.json` | importante | WS5, WS3 |
+| `frontend/src/pages/FieldPage.tsx:57` y `frontend/src/components/BlinkViewer.tsx:158-163` | sin aviso de saturación | Barnard (357/358), RW Aur (304/335) y R Dra (2488/2488) saturan; el PNG lleva el núcleo a 255 (§0.0) | Badge o nota por campo: "Saturated: image brightness is not a measurement." Puede venir de la descripción de `fields.toml` (filas de abajo) | importante | WS5, WS3 |
+| `frontend/src/components/BlinkViewer.tsx:229` | `{(1000 / intervalMs).toFixed(1)}×` | Muestra cuadros por segundo con «×»: parece un multiplicador de velocidad | `{(1000 / intervalMs).toFixed(1)} fps` | menor | WS5 |
+| `frontend/src/components/BlinkViewer.tsx:107` | ``alt={`SPHEREx frame ${f.id}`}`` | En los campos sintéticos llama «SPHEREx» a una simulación | `Synthetic frame …` si `field.provenance.synthetic`; si no, `SPHEREx frame …` | menor | WS5 |
+| `frontend/src/components/SpectrumChart.tsx:93` y `:130` | «Observed measurement» / «Observed: …» | En el demo sintético los puntos son simulados | "Measurement" (o "Simulated measurement" si el campo es sintético) | menor | WS5 |
+| `frontend/src/components/SpectrumChart.tsx:135` | «Measurements may come from separate exposures.» | Falta lo que importa para RW Aur y R Dra: las exposiciones son de fechas distintas y la variabilidad se mezcla con la forma del espectro (§3) | "Each point is a separate exposure taken on its own date; for variable stars, brightness changes between dates mix with the spectral shape." | menor | WS5 |
+| `frontend/src/pages/SystemsPage.tsx:23-26` | «Their parameters were checked against the NASA Exoplanet Archive, SIMBAD, Gaia DR3 and the cited papers» | Correcto (WS7-2; en esta revisión Barnard b-e y ε Ind A b coinciden con el Exoplanet Archive en vivo). Pero la visión pide 3D desde mediciones y todavía no hay ningún valor SPHEREx | Agregar: "No value in these models is measured by SPHEREx yet." Cuando entren los facts del bloque **A5**: "What SPHEREx measured for each target is listed as \"Seen by SPHEREx\"." | menor | WS7 |
+| `pipeline/errante/systems/catalog.py:219`, `:419`, `:489` | `field_id=None  # TODO(WS3/WS7): add an … field to config/fields.toml` | Los campos ya existen (`fields.toml:34`, `:80`, `:66`). Sin `field_id` la página 3D no enlaza a las imágenes SPHEREx. Además `data/products/manifest.json` no tiene `systems`, así que el dataset real no muestra el 3D | `field_id="eps-indi-b"`, `"r-draconis"` y `"rw-aurigae"`. Publicar los sistemas también en el dataset real | importante | WS7 (+ WS4) |
+| `pipeline/errante/systems/catalog.py:208` | «a Sun-like star, a cold giant planet and a pair of brown dwarfs» | ε Ind A es K5V, 4700 K y 0,80 M☉; el propio cuerpo dice «a bit smaller and cooler than the Sun» | "Challenge test target: an orange dwarf star, a cold giant planet and a pair of brown dwarfs." | menor | WS7 |
+| `pipeline/errante/systems/catalog.py:378` | `"Spectral type", "~Y4"` | SIMBAD da Y2 ([registro](validation/wise-0855.md); §0.1 y `fields.toml:53`). Las dos son de literatura: hay que decir de dónde sale cada una | "~Y4 (Kirkpatrick et al. 2021); SIMBAD lists Y2" | menor | WS7 (+ WS3) |
+| `pipeline/errante/systems/catalog.py:459-461` | «much smaller in the infrared SPHEREx sees. It is not a measured or SPHEREx light curve.» | Correcto, pero ya hay medida: 0,5-1,3 mag y ~260 d. El período del modelo (245,6 d, GCVS) quedó ✅ verificado en esta revisión | "…much smaller in the infrared: offline measurements on the SPHEREx FITS files give 0.5–1.3 mag peak-to-peak at 0.74–5.0 µm and a ~260-day cycle in 2025–2026 (docs/validation/r-draconis.md). The animation is not that light curve, and the SPHEREx images in this app do not show it." | importante | WS7 |
+| `pipeline/errante/systems/catalog.py:339` | «Gaia DR3 measures Ba+Bb as one unresolved source (RUWE 4.3)» | Correcto; falta lo mismo para SPHEREx. 🧮 Con a = 2,4058 UA, e = 0,5404 (Chen et al. 2022) y 3,64 pc: a = 0,66″ (semieje mayor), a(1 − e) = 0,30″ y a(1 + e) = 1,02″; la separación proyectada nunca supera la real | Agregar: "SPHEREx also sees Ba+Bb as one source: they are never more than about 1″ apart (orbit semi-major axis 2.4 AU, 0.66″ at 3.64 pc; eccentricity 0.54), and a SPHEREx pixel is 6.15″." | menor | WS7 |
+| `pipeline/errante/systems/catalog.py` (los cinco sistemas) | ningún fact con valores SPHEREx | La visión («El 3D: realista y sin inventar nada») pide valores medidos; ya hay medidas SPHEREx validadas de los cinco | Agregar los facts del bloque **A5** | importante | WS7 |
+| `pipeline/errante/config/fields.toml:68` | «Compare season coadds or per-season spectra, not single exposures.» | Contradicho por el registro: satura en D2-D6 y el cambio se midió con **exposiciones individuales** de D1 emparejadas en λ; los coadds tienen el núcleo saturado | "Official test target. Young T Tauri star (A+B unresolved): it does not move, it changes brightness. Saturated in D2–D6; measured offline on unsaturated D1 exposures at matched wavelength, it brightened by about 1 mag (0.75–0.77 µm) from Sep 2025 to Sep 2026. The images here do not show that change." | importante | WS3 |
+| `pipeline/errante/config/fields.toml:82` | «Mira variable (period ~247 d) … the best light-curve case.» | No dice que satura en todos los frames ni que el campo publicado no tiene frames deep; SPHEREx midió ~260 d | "Official test target. Mira variable (catalog period 245.6–247.2 d), 8.6° from the north ecliptic pole. Saturated in every exposure: measured offline in the PSF wings on the SPHEREx FITS files, it shows a 0.5–1.3 mag cycle of ~260 d in 2025–2026, in phase with AAVSO. Image brightness here is not a measurement." | importante | WS3 |
+| `pipeline/errante/config/fields.toml:52` | «Extremely red (J=25, W2=13.7): look at the longest wavelengths.» | Ya está medido: solo D5/D6 | "…Extremely red (J=25, W2=13.7): SPHEREx sees it only at 3.8–5.0 µm (D5–D6), faint in single exposures. Only DR1 data so far: ~1.4 SPHEREx pixels of motion." | menor | WS3 |
+| `pipeline/errante/config/fields.toml:23` | «~1.9 SPHEREx pixels over the DR1+QR3 baseline.» | Correcto (1,86 px solo con movimiento propio), pero falta la saturación y el valor medido | "…~1.9 SPHEREx pixels over the DR1+QR3 baseline (1.66 px measured offline on the FITS files between the Aug 2025 and Aug 2026 seasons). Saturated core: image brightness is not a measurement." | menor | WS3 |
+| `pipeline/errante/config/fields.toml:70`, `:59` y `:13` (comentarios) | «RW Aur A plx 6.406 …; RW Aur B plx 5.454»; «Probably only visible in D5/D6 coadds (INFERRED…)»; «NOT completed validation runs» | A y B invertidos (§0.3); la visibilidad ya está medida; los registros existen. No se ven en la UI, pero son la fuente de §0 | "Gaia DR3: RW Aur A = 156430817820015232 (plx 5.454, RUWE 16.4, unreliable); B = 156430822114424576 (plx 6.406)"; "Visible only in D5/D6, also in single exposures (docs/validation/wise-0855.md)"; "Validation records: docs/validation/" | menor | WS3 |
+| `data/products/fields/rw-aurigae/field.json:809` (la misma nota en los cinco campos) | «Saturated star cores and detector-defect pixels are filled from their neighbours for display only» | Es la nota de la build del 14/11. El registro de RW Aur (problemas 4 y 7) mostró que los `OVERFLOW` finitos se ven tal cual y que se reemplazaban píxeles `SUR_ERROR` del núcleo. #48 corrigió el código y la nota (`pipeline/errante/build.py:501-511`), pero los productos no se reconstruyeron; además declaran `schema_version` 0.2.1 contra 0.3.0 del código | Reconstruir los cinco campos con `errante build <id>` para publicar la nota nueva | importante | WS2 (+ WS4) |
+| `README.md:20-21` | «Scientific validation of all five targets (R05) and a verified public deployment are still pending.» | Desactualizado: hay cinco registros `success` | "All five targets (R05) have validation records with offline measurements on the SPHEREx FITS files (docs/validation/); human review of those records and a verified public deployment are still pending." | importante | coordinación, WS6 |
+| `README.md:23-24` y `:55` | «illustrative, unverified models»; «currently unverified parameters» | Igual que la fila de `AboutPage.tsx:26-27` | "The 3D gallery draws the challenge targets from published catalog values (each with its source and verification flag), plus one synthetic system; none of its values is measured by SPHEREx yet." y `# write 3D models from catalog values (source per fact)` | menor | coordinación, WS7 |
+| `README.md:116-119` | «Real SPHEREx observations have not yet been integrated into the committed demonstration. Catalog services, WISE/Gaia context … are planned» | Contradice `README.md:11` y `:73` (cinco campos reales). Gaia DR3, AllWISE, Sesame/VizieR en CfA y AAVSO ya se usaron | Reemplazar el párrafo por el bloque **A3** | bloquea | coordinación, WS6 |
+| `README.md:121-124` | «OpenAI Codex assisted … The imported 3D contribution declares Claude assistance» | Omite el uso de Claude Code (WS1, validaciones, VISION) | El mismo texto que la fila de `AboutPage.tsx:45-48`, con enlace a AI_USAGE.md | importante | coordinación, WS6 |
+| `AI_USAGE.md:66-67` | «The 3D presets remain hand-entered and unverified.» | Contradice el `VERIFIED_NOTE` de `catalog.py` (WS7-2) | "The 3D presets were cross-checked on 2026-11-14 against the cited catalogs and papers (WS7-2, AI-assisted; each fact carries a verified flag). They are not SPHEREx observations or measured orbits, and human review is pending." | importante | coordinación, WS6 |
+| `AI_USAGE.md:71-74` | «The committed demonstration fields are numerical simulations…» | Desactualizado: `data/demo` es sintético y `data/products` tiene cinco campos SPHEREx reales | "data/demo holds labelled numerical simulations generated by errante.synthetic. data/products holds five real SPHEREx fields built from IRSA DR1/QR3 Level 2 images." | importante | coordinación, WS6 |
+| `docs/submission/PROJECT.md:19-26` | «Users will enter … The current application is a labelled synthetic demonstration; real-data access, public coordinate requests and the five validation runs are still pending.» | Falso hoy, y es el texto que leen los jueces | Bloque **A4** | bloquea | WS6 |
+| `docs/submission/PROJECT.md:54-58` | «hand-entered, unverified parameters»; «Pending: archive search/cutouts/reprojection, coordinate-build jobs, public deployment and five real tests.» | La búsqueda en IRSA, los recortes, la reproyección, los jobs (modo API local) y los cinco ensayos están hechos; falta el deploy público | "- Available: SPHEREx DR1 sky map (Aladin Lite + IRSA HiPS) with name and coordinate search; real SPHEREx sequences built from IRSA Level 2 images (live API mode); five prebuilt real challenge fields; synthetic examples labelled as such. - Available extension: a 3D gallery of the five targets from published catalog values (source per value), not yet built from SPHEREx measurements. - Pending: public deployment and human review of the validation records." | bloquea | WS6 |
+| `docs/submission/PROJECT.md:67` | «The public service for arbitrary coordinates is not implemented yet.» | Implementado (jobs con `ERRANTE_ENABLE_JOBS`); falta alojarlo | "Arbitrary coordinates are built by background jobs on the API; public hosting is pending." | importante | WS6 |
+| `docs/submission/PROJECT.md:71-77` | tabla con «Pending real-data test» en los cinco | Los cinco tienen resultado | Tabla del bloque **A2b** | bloquea | WS6 |
+| `docs/submission/PROJECT.md:99-100` | «Real archive/image processing and validation are pending»; «NASA observations are not yet integrated into the committed demo» | Desactualizado | Validity: "Five validation records (offline FITS measurements, independently re-measured); human review and user tests pending." Relevance: "Five real SPHEREx fields (DR1/QR3) and live builds from IRSA; public URL pending." | importante | WS6 |
+| `docs/submission/PROJECT.md:117-122` | «Yes. OpenAI Codex assisted … The imported 3D contribution declares Claude assistance…» | La declaración SI del formulario omite Claude Code | Agregar: "Anthropic Claude Code assisted team member faricool54 with data-access code (WS1), the validation measurements and records of the five targets (each re-measured by an independent AI review; human review pending), documentation and the scientific review of this text. The team defined the product vision; Claude checked its feasibility and wrote it down (AI_USAGE.md)." | bloquea | WS6 |
+| `docs/submission/PROJECT.md:139-141` | «**No real SPHEREx observations have yet been integrated into the committed demonstration.**» | Falso hoy | Bloque **A6** | bloquea | WS6 |
+| `docs/submission/PROJECT.md:153-156` | «no processing of those datasets is claimed»; «Aladin integration and JPL/SkyBoT analysis remain planned» | Gaia DR3 (archivo de ESA) se procesó como referencia astrométrica en los cinco registros; Aladin Lite 3.8.2 está integrado; AllWISE es capa de contexto; AAVSO se usó para la fase de R Dra; 2MASS y CatWISE2020 para identidad | Bloque **A3**, más: "Gaia DR3 (ESA) positions were the astrometric reference in the five validation records. Aladin Lite 3.8.2 displays the IRSA SPHEREx HiPS. JPL/SkyBoT analysis remains planned." | importante | WS6 |
+| `docs/submission/PITCH.md:21-22` | «[Describe the implemented workflow…]»; «[State one verified result…]» | Faltan las frases; tienen que ser reales y entrar en ~10 s y ~8 s | 00:10-00:20: "Type a name or click the map, and Errante plays the SPHEREx images of that spot, date by date." 00:20-00:28: "Measured offline in the SPHEREx files, Barnard's Star moves ten arcseconds a year, as Gaia predicts. Known motion, not a discovery." Imagen de ese tramo: una figura del registro (p. ej. `docs/validation/figures/barnards-star/fig2_track.png`), no el blink, donde la estrella saturada es un disco blanco sin marcador. Cronometrar: ~20 palabras | importante | WS6 |
+| `docs/submission/JUDGING_REVIEW.md:14-15` y `:21-22` | «acceso/procesamiento real y cinco ensayos pendientes»; «imágenes SPHEREx reales pendientes»; «La galería de seis modelos 3D tiene parámetros sin verificar» | Desactualizado (registros, campos reales, WS7-2) | Validity: «Cinco registros `success` (análisis offline y revisión IA independiente) en docs/validation/; faltan la revisión humana y el paso 6.» Relevance: «Mapa SPHEREx DR1, cinco campos reales y builds en vivo (modo API); falta la URL pública.» 3D: «Los modelos usan valores de catálogo verificados (WS7-2), no mediciones SPHEREx; no cuentan para R05.» | importante | WS6 |
+| `docs/submission/CHECKLIST.md:79-83` y `:85` | casillas de R05 sin marcar; «parámetros no verificados» | Los cinco registros existen; faltan la revisión humana y el paso 6 | Marcar cada R05 con la nota «registro hecho (IA, con revisión independiente); revisión humana y paso 6 pendientes». En `:85`: «Modelos 3D identificados como modelos de catálogo (no mediciones SPHEREx); no cuentan como ensayos.» | importante | WS6 |
+
+**Revisado sin cambios** (correcto contra las fuentes): «102 infrared colors» y la descripción de SPHEREx en
+`AboutPage.tsx:6-11`; el crédito de la capa AllWISE en `ExplorerMap.tsx:56` (el `properties` del HiPS de ESA dice R =
+W4, G = W2, B = W1, creado por CDS, © IPAC/NASA); `sky-map.html` (centro en Barnard a la época media, enlace de Aladin
+con 200); «the fastest-moving star in our sky» (Barnard), «the coldest known brown dwarf» (WISE 0855), «every ~8
+months» (R Dra); los planetas de Barnard y ε Ind A b contra el NASA Exoplanet Archive; la identidad A/B de RW Aur en
+`catalog.py`; los avisos de candidatos `unconfirmed` y la nota de `FieldPage.tsx:98-100`; el placeholder sexagesimal de
+`SkyExplorer.tsx:129-131` (269,44623° = 17h57m47,1s; +4,76870° = +04°46′07,3″).
+
+### Textos listos para pegar
+
+**A1. About, «Current project status»** (reemplaza el primer párrafo, `AboutPage.tsx:19-24`):
+
+```text
+Errante shows real NASA SPHEREx observations. The sky map is the SPHEREx DR1 all-sky cube served by
+NASA/IPAC IRSA. In live mode, clicking a position or searching a name builds a sequence from the SPHEREx
+Level 2 images that cover it; five prebuilt fields cover the challenge targets. Each frame shows its date,
+detector, wavelength and data release. Separate example fields are numerical simulations, labelled
+SYNTHETIC DATA · NOT SPHEREx. Automatic detection and catalog matching are optional and were not run on the
+five real fields: an empty candidate list there is not a negative result.
+```
+
+**A2. About, sección nueva «Validation of the five challenge targets»** (fuente: §0.0):
+
+```text
+We validated the five challenge targets with offline measurements on the SPHEREx FITS files, each
+repeated by an independent second analysis (human review pending). All five are known objects, so these
+are recoveries of known behaviour, not discoveries.
+
+- Barnard's Star moves 10.2″ (1.66 SPHEREx pixels) between the August 2025 and August 2026 seasons, in the
+  direction Gaia DR3 predicts (10.24″). The star saturates the detector, so positions come from the wings
+  of its image; its parallax cannot be measured with these data.
+- Epsilon Indi B: the brown-dwarf pair Ba+Bb appears as one source and moves 1.03 pixels (6.3″) between May
+  2025 and September 2026, as the catalog predicts.
+- WISE 0855−0714 is visible only at 3.8–5.0 µm. It is faint in single exposures and clear when they are
+  combined, and it moves 8.4–8.5″ in a year (8.0″ expected).
+- RW Aurigae brightened by about 1 magnitude at 0.75–0.77 µm between September 2025 and September 2026,
+  measured on unsaturated exposures at matched wavelengths. Comparison stars scatter by 0.05 mag.
+- R Draconis saturates every exposure. Measured in the wings of its image, it varies by 0.5–1.3 magnitudes
+  with a cycle of about 260 days that follows contemporaneous AAVSO observations (catalog: 245.6–247.2 d).
+
+The motions are 1–2 pixels, and saturated stars look white in the viewer, where image brightness is not a
+measurement. The viewer does not yet mark the targets or show these measurements. Full records:
+docs/validation/ in the project repository.
+```
+
+**A2b. Tabla de `PROJECT.md` «Validation and limitations»** (reemplaza `PROJECT.md:71-77`):
+
+```markdown
+| Target | Observed result (SPHEREx DR1/QR3, offline FITS analysis; human review pending) |
+|---|---|
+| Barnard's Star | Proper motion recovered: 10.2″ (1.66 SPHEREx pixels) between the Aug 2025 and Aug 2026 seasons at PA 354–355°, vs 10.24″ at PA 355.7° from Gaia DR3; 358 exposures. Saturated in 357/358: positions from the PSF wings. Parallax not measurable with these data. |
+| Epsilon Indi B | Ba+Bb seen as one source in ~440 of 458 frames (not below ~0.83 µm); moved 1.03 pixels between May 2025 and Sep 2026, matching the catalog prediction within its uncertainty. |
+| WISE 0855−0714 | Detected only at 3.8–5.0 µm (detectors D5–D6): signal-to-noise ~3–4 per exposure, 21–25 combined; moved 8.4–8.5″ in 360 days vs 8.0″ expected; blended with a G = 16.3 background star. DR1 data only. |
+| RW Aurigae | Brightened ~1.0 mag at 0.75–0.77 µm between 2 Sep 2025 and 8 Sep 2026, from unsaturated D1 exposures at matched wavelength (comparison stars: 0.05 mag robust scatter). Saturated in D2–D6. |
+| R Draconis | Saturated in all 2,488 exposures. PSF-wing photometry shows a 0.5–1.3 mag cycle of ~260 d (95%: 255–265 d), in phase with contemporaneous AAVSO V data; catalog periods 245.6–247.2 d. |
+```
+
+**A3. Créditos** (About «Sources and acknowledgments», `README.md` y `PROJECT.md`). Las frases entre comillas son
+literales de la fuente indicada, consultada el 2026-11-15; las demás hay que copiarlas de su fuente antes de enviar.
+
+```text
+Sources and acknowledgments
+- "This publication makes use of data products from the Spectro-Photometer for the History of the Universe,
+  Epoch of Reionization and Ices Explorer (SPHEREx), which is a joint project of the Jet Propulsion
+  Laboratory and the California Institute of Technology, and is funded by the National Aeronautics and Space
+  Administration."
+- SPHEREx images, search and the DR1 sky cube: NASA/IPAC Infrared Science Archive (IRSA),
+  https://irsa.ipac.caltech.edu/Missions/spherex.html
+- "This work has made use of data from the European Space Agency (ESA) mission Gaia
+  (https://www.cosmos.esa.int/gaia), processed by the Gaia Data Processing and Analysis Consortium (DPAC,
+  https://www.cosmos.esa.int/web/gaia/dpac/consortium). Funding for the DPAC has been provided by national
+  institutions, in particular the institutions participating in the Gaia Multilateral Agreement."
+- Map context layer: AllWISE color (W4/W2/W1) from NASA's WISE and NEOWISE (IPAC/NASA), HiPS by CDS, served by
+  ESA ESASky. Not SPHEREx data.
+- Name resolution and catalogs: Sesame, SIMBAD and VizieR (CDS, Strasbourg), through the CfA mirror. 2MASS
+  and CatWISE2020 were used for identity checks.
+- Variable-star observations from the AAVSO International Database (R Draconis phase check).
+- "This research has made use of the NASA Exoplanet Archive, which is operated by the California Institute of
+  Technology, under contract with the National Aeronautics and Space Administration under the Exoplanet
+  Exploration Program." (3D gallery)
+- Sky viewer: Aladin Lite 3.8.2 (CDS), GPL-3.
+```
+
+Pendientes de A3: la frase de reconocimiento de IRSA (las URLs probadas dieron 404), la de AAVSO (el PDF de
+https://www.aavso.org/data-usage-guidelines dio 404), y el `obs_ack` completo de WISE/NEOWISE, que está en
+https://skies.esac.esa.int/AllWISEColor/properties.
+
+**A4. `PROJECT.md`, «High-Level Project Summary»** (reemplaza `PROJECT.md:19-26`):
+
+```text
+Errante is a web explorer for NASA SPHEREx images over time. On a map of the real SPHEREx sky, a user
+searches a name or coordinates, or clicks a point, and Errante builds and plays the SPHEREx Level 2 images
+of that spot date by date, showing each frame's date, detector, wavelength and data release. We validated
+the five challenge targets with offline measurements on the SPHEREx FITS files, each repeated by an
+independent second analysis (human review pending): the SPHEREx data recover the known proper motions of
+Barnard's Star (1.66 pixels in a year), Epsilon Indi B and WISE 0855−0714, and the brightness changes of
+RW Aurigae (about 1 magnitude) and R Draconis (a cycle of about 260 days). These are recoveries of known
+behaviour, not discoveries. The viewer does not yet mark the targets, and saturated stars appear white, so
+these measurements are not yet visible in the app. Remaining work: showing them in the viewer, public
+deployment and human review of the validation records.
+```
+
+**A5. Facts SPHEREx para el 3D** (`catalog.py`, con su helper `_vfact`; la fuente es el registro, cuyos valores se
+copian tal cual). `BodyPanel.tsx` muestra cada fact como «valor unidad»: si hay unidad, el valor es solo el número.
+La fuente dice «offline» porque el producto publicado no muestra estas medidas. Al agregarlos, `VERIFIED_NOTE`
+tiene que decir que los facts «seen by SPHEREx» se copiaron de los registros de validación (análisis de IA con
+revisión independiente; revisión humana pendiente), no del cruce con catálogos del 14/11.
+
+```python
+# barnards_star(), cuerpo "barnards-star"
+_vfact("Motion seen by SPHEREx", "10.2″ (1.66 px) between the Aug 2025 and Aug 2026 seasons, PA 354–355°", None,
+       "SPHEREx DR1+QR3, 358 exposures, offline FITS analysis; docs/validation/barnards-star.md "
+       "(saturated core: wing astrometry)"),
+# epsilon_indi(), cuerpo "eps-indi-ba" (o una nota del sistema)
+_vfact("Motion seen by SPHEREx (Ba+Bb as one source)", "1.03 px (6.3″) between May 2025 and Sep 2026", None,
+       "SPHEREx DR1+QR3, offline FITS analysis; docs/validation/eps-indi-b.md"),
+# wise_0855()
+_vfact("Seen by SPHEREx", "only at 3.8–5.0 µm: ~0.3 mJy at 3.8–4.4 µm, ~0.5 mJy at 4.4–5.0 µm", None,
+       "SPHEREx DR1, 258 frames, offline FITS analysis; docs/validation/wise-0855.md "
+       "(fluxes depend on the PSF model, ~11 %)"),
+# rw_aurigae(), cuerpo "rw-aur-a" (A+B sin resolver: decirlo en el label)
+_vfact("Brightness change seen by SPHEREx (A+B)", "about 1.0 mag brighter at 0.75–0.77 µm, Sep 2025 → Sep 2026",
+       None, "SPHEREx DR1+QR3, unsaturated D1 exposures, offline FITS analysis; docs/validation/rw-aurigae.md"),
+# r_draconis(): dos facts, para que cada unidad quede junto a su número
+_vfact("Cycle seen by SPHEREx", "~260 (95 %: 255–265)", "days",
+       "SPHEREx DR1+QR3+deep, offline PSF-wing photometry; docs/validation/r-draconis.md"),
+_vfact("Brightness range seen by SPHEREx (0.74–5.0 µm, by detector)", "0.5–1.3", "mag peak-to-peak",
+       "SPHEREx DR1+QR3+deep, offline PSF-wing photometry; docs/validation/r-draconis.md"),
+```
+
+**A6. `PROJECT.md`, «NASA Data»** (reemplaza `PROJECT.md:139-141`):
+
+```text
+Errante's images are NASA SPHEREx data: Level 2 spectral images from the DR1 and QR3 releases (archive:
+NASA/IPAC IRSA), found with IRSA's SIA2 search and read from the public nasa-irsa-spherex AWS S3 bucket,
+plus the SPHEREx DR1 all-sky cube (HiPS) for the map. The five prebuilt challenge fields use 40 frames each
+from 2025–2026. The offline validation analyses used every exposure covering each target (258 to 2,493 per
+target). For each target, docs/validation/ gives the exposure counts by release and detector, the date
+ranges, the wavelengths, and the observation IDs of the 40 published frames. Gaia DR3 (ESA) positions were
+the astrometric reference.
+```
+
+### Comprobaciones en vivo de esta revisión (2026-11-15, UTC)
+
+- **03:29, Gaia DR3** (TAP del archivo de ESA, `gaiadr3.gaia_source`): 156430822114424576 → RA 76.95608120, Dec
+  +30.40120459, G 12,184, plx 6,406 ± 0,044 mas, µ (+2,641, −27,398) mas/año, RUWE 1,50, RV −20,9 km/s.
+  156430817820015232 → RA 76.95654431, Dec +30.40131615, G 13,035, plx 5,454 ± 0,332 mas, µ (+4,906, −24,578) mas/año,
+  RUWE 16,42. 🧮 La primera está a 1,493″ y PA 254,4° de la segunda.
+- **03:29, WDS** (VizieR CfA `B/wds/wds`, cono de 30″): 05078+3024, JOY 5, componentes A,BC, 1944-2022, 24
+  observaciones, PA 254°, separación 1,50″, magnitudes 13,0 y 12,2. Hay además un par GHE 16 BC a 0,1″ (1990). →
+  RW Aur **A = 156430817820015232**, **B = 156430822114424576**.
+- **03:29 y 03:33, GCVS y VSX** (VizieR CfA `B/gcvs/gcvs_cat` y `B/vsx/vsx`): a las 03:29 VizieR CfA respondió «The
+  database is not currently reachable»; a las 03:33 respondió. GCVS: R Dra, tipo M, máx. 6,7, P = 245,6 d,
+  M5e-M9eIII. VSX: OID 13673, V 6,7-13,2, P = 246,12 d, M5e-M9eIII.
+- **03:31, NASA Exoplanet Archive** (TAP, `pscomppars` con caja `ra/dec BETWEEN`): Barnard b, c, d, e con P = 3,1542 /
+  4,1244 / 2,3402 / 6,7392 d, masa mínima 0,299 / 0,335 / 0,263 / 0,193 M⊕ y a = 0,0229 / 0,0274 / 0,0188 / 0,0381 UA;
+  Teff 3195 K, 1,827 pc. ε Ind A b: P = 25 450 d, 6,5 MJ, a = 15,76 UA, e = 0,25; estrella de 4700 K a 3,639 pc.
+  Coinciden con `catalog.py`.
+- **03:29-03:30, páginas de créditos:** la página SPHEREx de IRSA (200) trae el texto de reconocimiento citado en A3;
+  `https://irsa.ipac.caltech.edu/data/SPHEREx/` da **404**. La documentación de Gaia DR3 en ESA da el texto citado en
+  A3, y la página de reconocimiento del NASA Exoplanet Archive, el suyo.
+- **03:30, `properties` de los HiPS:** SPHEREx DR1 en IRSA: «SPHEREx DR1 all-sky data cube», «for visualization», ©
+  NASA/SPHEREx, creador SPHEREx Science Data Center, `t_min` 60789,75 y `t_max` 61174,49 (2025-04-24 → 2026-05-14).
+  AllWISEColor en ESA: rojo W4, verde W2, azul W1, creador CDS, © IPAC/NASA.
+
+**Sin verificar en esta revisión** (no inventar): la frase de reconocimiento genérica de IRSA y la de AAVSO (URLs
+con 404); el tipo espectral ~Y4 de WISE 0855 en Kirkpatrick+2021 y Luhman+2024; los números del Planeta Nueve del §2;
+la VR de RW Aur (Gaia DR3 da −20,9 km/s para B y `catalog.py` usa +15 km/s de SIMBAD, Nguyen et al. 2012: no se ve en
+la UI). Los registros de validación son análisis de IA con revisión independiente; la revisión humana sigue pendiente.
