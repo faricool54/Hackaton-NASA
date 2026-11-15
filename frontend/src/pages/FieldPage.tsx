@@ -3,6 +3,8 @@ import { client } from '../api/client';
 import type { Candidate, Field, KnownObject } from '../api/types';
 import { DETECTOR_BANDS, formatRaDec } from '../api/format';
 import { BlinkViewer } from '../components/BlinkViewer';
+import type { BlinkMode } from '../components/blinkModes';
+import { BLINK_MODES, compositesForMode, effectiveMode, isModeAvailable, modeHints, modeTitle } from '../components/blinkModes';
 import { CandidateList } from '../components/CandidateList';
 import { CandidatePanel } from '../components/CandidatePanel';
 import { SkyMap } from '../components/SkyMap';
@@ -15,6 +17,7 @@ export function FieldPage({ fieldId, embedded = false }: { fieldId: string; embe
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detector, setDetector] = useState<number | 'all'>('all');
+  const [mode, setMode] = useState<BlinkMode>('bw');
   const [systemId, setSystemId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -38,6 +41,12 @@ export function FieldPage({ fieldId, embedded = false }: { fieldId: string; embe
     const all = [...(field?.frames ?? [])].sort((a, b) => a.mjd - b.mjd);
     return detector === 'all' ? all : all.filter((f) => f.detector === detector);
   }, [field, detector]);
+  // A mode the current field has no composites for (e.g. after switching fields) shows B/W.
+  const shownMode = effectiveMode(mode, field?.composites);
+  const composites = useMemo(
+    () => (shownMode === 'bw' ? null : compositesForMode(field?.composites, shownMode)),
+    [field, shownMode],
+  );
   const detectors = useMemo(() => [...new Set(field?.frames.map((f) => f.detector))].sort(), [field]);
   const selected = candidates.find((c) => c.id === selectedId) ?? null;
 
@@ -64,10 +73,25 @@ export function FieldPage({ fieldId, embedded = false }: { fieldId: string; embe
       <div className="field-layout">
         <section>
           <div className="toolbar">
-            <label>
+            <div className="segmented" role="group" aria-label="Image mode">
+              {BLINK_MODES.map(({ mode: m, label }) => (
+                <button
+                  key={m}
+                  type="button"
+                  aria-pressed={shownMode === m}
+                  disabled={!isModeAvailable(m, field.composites)}
+                  title={modeTitle(m, field.composites)}
+                  onClick={() => setMode(m)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <label title={shownMode === 'bw' ? undefined : 'The detector filter applies to the B/W frames only'}>
               Detector{' '}
               <select
                 value={String(detector)}
+                disabled={shownMode !== 'bw'}
                 onChange={(e) => setDetector(e.target.value === 'all' ? 'all' : Number(e.target.value))}
               >
                 <option value="all">all ({field.frames.length} frames)</option>
@@ -80,11 +104,15 @@ export function FieldPage({ fieldId, embedded = false }: { fieldId: string; embe
             </label>
             <span className="muted small">Space = play/pause · ←/→ = step</span>
           </div>
+          <p className="mode-hint muted small" aria-live="polite">
+            {modeHints(mode, field.composites).join(' ')}
+          </p>
           <BlinkViewer
-            key={`${field.id}/${detector}`}
+            key={`${field.id}/${detector}/${shownMode}`}
             field={field}
             frames={frames}
-            imageUrl={(f) => client.frameImageUrl(field.id, f)}
+            composites={composites}
+            imageUrl={(image) => client.fieldFileUrl(field.id, image)}
             candidates={candidates}
             known={known}
             selectedId={selectedId}
