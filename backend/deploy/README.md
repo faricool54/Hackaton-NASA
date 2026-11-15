@@ -1,6 +1,16 @@
 # Full-stack delivery (WS4, R01–R04/S03)
 
 Public deployment verified 2026-11-15: **https://errante.34-148-242-13.sslip.io**.
+La vitrina pública de `/api/manifest` excluye `job-*`; el catálogo completo se consulta
+con `?include_jobs=true`. No es necesario vaciar el volumen para limpiar la portada.
+El seed inicial conserva los productos existentes. Un cambio posterior de `fields.toml`
+o del bundle `data/products` no actualiza por sí solo la copia persistida de un campo.
+Después de que WS3/WS2 publiquen un campo corregido, usar el publicador validado de WS4
+para ese ID curado: `publish_field(seed, field_id, runtime, replace=True)` de
+`errante_api.publication`. Esto reemplaza el campo y reconstruye el manifest bajo el
+lock de publicación; conserva jobs y el resto de los campos. Verificar su descripción,
+frames y comparaciones públicamente después. No copiar JSON sueltos sobre un build
+distinto ni marcar como publicada una corrección que solo está en el repositorio.
 Project `project-4c470287-a034-43da-bf6`, VM `errante`, zone `us-east1-b`, reserved IP `34.148.242.13`.
 Initial application release: `642ea686ce54a1460d6e2d7e6c102bc8b99c8540` (includes WS5 light-curve panel #83).
 See [production.json](production.json) for acceptance evidence and limitations. The sslip.io hostname is
