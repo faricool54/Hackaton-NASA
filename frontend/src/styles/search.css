@@ -1,0 +1,77 @@
+.sx-search {
+  position: relative;
+  min-width: 0;
+  z-index: var(--z-popover, 40);
+}
+.sx-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  height: 44px;
+  align-items: center;
+}
+.sx-form input {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--line-control, var(--border));
+  border-radius: var(--r-sm, 6px);
+  background: var(--surface-0, var(--bg));
+  color: var(--text);
+  font: inherit;
+}
+.sx-form button { padding-inline: 10px; }
+.sx-popover {
+  position: absolute;
+  inset: 100% 0 auto;
+  margin-top: 4px;
+  max-height: min(50vh, 280px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--line-strong, var(--border));
+  border-radius: var(--r-md, 10px);
+  background: var(--surface-1, var(--panel));
+  box-shadow: var(--shadow-2, 0 6px 20px rgb(0 0 0 / 0.45));
+}
+.sx-popover p { margin: 8px 10px; }
+.sx-results { list-style: none; margin: 0; padding: 4px; }
+.sx-results li {
+  cursor: pointer;
+  display: grid;
+  gap: 2px;
+  padding: 6px 8px;
+  border-radius: var(--r-sm, 6px);
+  overflow-wrap: anywhere;
+}
+.sx-results li[aria-selected="true"], .sx-results li:hover {
+  background: var(--surface-2, #171e31);
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+.sx-targets {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+.sx-target {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  border-color: var(--line-control, var(--border));
+  border-radius: var(--r-pill, 999px);
+  background: var(--surface-1, var(--panel));
+  font-size: var(--fs-sm, 0.8125rem);
+  line-height: 1.25;
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+.sx-target[aria-pressed="true"] { border-color: var(--accent); }
+.sx-target-detail { color: var(--text-2, var(--muted)); font-size: 0.75rem; }
+@media (max-width: 600px) {
+  .sx-targets { display: flex; overflow-x: auto; overscroll-behavior-inline: contain; padding: 3px; }
+}
