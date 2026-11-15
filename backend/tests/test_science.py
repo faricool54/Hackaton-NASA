@@ -4,6 +4,7 @@ import asyncio
 import json
 import subprocess
 import threading
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -14,13 +15,52 @@ from pydantic import TypeAdapter
 from errante import settings as core
 from errante.data.cube import CubeSpectrum
 from errante.imaging.compare import GridFrame
-from errante.models import SpectrumRequest
+from errante.models import SpectrumRequest, SpectrumResponse
 from errante.products import ProductStore
 from errante_api import science_ops
 from errante_api.live_service import LiveService
 from errante_api.main import create_app
 from errante_api.science_service import ScienceService
 from errante_api.settings import Settings
+
+
+def test_real_exposure_interpretation_reaches_existing_notes_without_inventing_a_temperature(monkeypatch):
+    record = json.loads((Path(core.__file__).parents[1] / "tests/fixtures/ws3/continuum/eps-indi-b.json").read_bytes())
+    data = record["spectrum"]
+    measured = SpectrumResponse.model_validate(
+        {
+            "center": {"ra": data["ra"], "dec": data["dec"]},
+            "source": "l2_exposures",
+            "unit": "mJy",
+            "background_subtracted": True,
+            "static_coadd": False,
+            "aperture_px": 2,
+            "built_at": record["recorded_utc"],
+            "points": [
+                {
+                    "id": p["frame_id"],
+                    "frame_id": p["frame_id"],
+                    "detector": p["detector"],
+                    "release": p["release"],
+                    "mjd": p["mjd"],
+                    "wavelength_um": p["wavelength_um"],
+                    "bandwidth_um": p["bandwidth_um"],
+                    "flux": p["flux_mjy"],
+                    "flux_err": p["flux_err_mjy"],
+                    "usable": p["usable"],
+                    "flags": p["flags"],
+                    "aperture_correction": p["aperture_correction"],
+                }
+                for p in data["samples"]
+            ],
+        }
+    )
+    monkeypatch.setattr(science_ops, "exposure_spectrum", lambda request, field: measured)
+    result = science_ops.spectrum(SpectrumRequest(ra=data["ra"], dec=data["dec"], source="l2_exposures"))
+    assert len(result.points) == 40 and sum(p.usable for p in result.points) == 35
+    assert any("not stellar effective temperature" in note for note in result.notes)
+    assert any("colour temperature unknown (poor_fit)" in note for note in result.notes)
+    assert not any("conditional interval" in note for note in result.notes)
 
 
 @pytest.fixture
@@ -78,6 +118,7 @@ def test_cube_preserves_recorded_nulls_flags_and_units(science_client):
     client, _, calls, _, cube, _ = science_client
     body = {"ra": cube.ra, "dec": cube.dec, "aperture_px": 2}
     response = client.post("/api/spectra", json=body)
+    assert any("colour temperature unknown (unsupported_product)" in note for note in response.json()["notes"])
     assert response.status_code == 200, response.text
     data = response.json()
     assert data["unit"] == "MJy/sr" and data["static_coadd"]

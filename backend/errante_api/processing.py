@@ -11,11 +11,11 @@ import errante
 BUILD_REVISION = "display-mask-v4"
 
 
-def source_fingerprint(root: Path | None = None) -> str:
+def source_fingerprint(root: Path | None = None, *, include_science: bool = False) -> str:
     root = root or Path(errante.__file__).resolve().parent
     files = [root / name for name in ("build.py", "settings.py", "models.py", "products.py")]
     # Registration and color rendering depend on detect helpers even without --analyze.
-    for name in ("data", "imaging", "detect"):
+    for name in ("data", "imaging", "detect", *(("science",) if include_science else ())):
         files.extend((root / name).rglob("*.py"))
     digest = hashlib.sha256()
     for path in sorted(set(files)):
