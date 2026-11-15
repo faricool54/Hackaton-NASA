@@ -17,14 +17,6 @@ import { trackAstrometry, type TrackAstrometry } from '../three/skyTrack';
 
 const BARNARD_FIELD_ID = 'barnards-star';
 
-function FieldModelPanel({ systemId }: { systemId: string }) {
-  const [open, setOpen] = useState(false);
-  return <details className="panel system-preview-panel" onToggle={(event) => setOpen(event.currentTarget.open)}>
-    <summary>3D model</summary>
-    {open && <SystemPreview systemId={systemId} allowSynthetic />}
-  </details>;
-}
-
 export function FieldPage({ fieldId, embedded = false }: { fieldId: string; embedded?: boolean }) {
   const [field, setField] = useState<Field | null>(null);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
@@ -49,14 +41,12 @@ export function FieldPage({ fieldId, embedded = false }: { fieldId: string; embe
         setKnown(k.objects);
       })
       .catch((e: Error) => { if (current) setError(e.message); });
-    if (!embedded) {
-      // The standalone field looks up its model. The explorer already has the manifest.
-      client.getManifest().then((m) => {
-        if (current) setSystemId((m.systems ?? []).find((s) => s.field_id === fieldId)?.id ?? null);
-      }).catch(() => { /* The field and science panels remain available. */ });
-    }
+    // Both display modes can use the associated system for the blink prediction.
+    client.getManifest().then((m) => {
+      if (current) setSystemId((m.systems ?? []).find((s) => s.field_id === fieldId)?.id ?? null);
+    }).catch(() => { /* The field and science panels remain available. */ });
     return () => { current = false; };
-  }, [fieldId, embedded]);
+  }, [fieldId]);
 
   useEffect(() => {
     if (fieldId !== BARNARD_FIELD_ID) return;
@@ -173,4 +163,12 @@ export function FieldPage({ fieldId, embedded = false }: { fieldId: string; embe
       <FieldComparisons field={field} />
     </Container>
   );
+}
+
+function FieldModelPanel({ systemId }: { systemId: string }) {
+  const [open, setOpen] = useState(false);
+  return <details className="panel system-preview-panel" onToggle={(event) => setOpen(event.currentTarget.open)}>
+    <summary>3D model</summary>
+    {open && <SystemPreview systemId={systemId} allowSynthetic />}
+  </details>;
 }
