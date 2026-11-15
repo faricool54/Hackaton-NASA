@@ -56,3 +56,16 @@ describe('FE-2 explorer flow', () => {
     expect(html).not.toContain('SYNTHETIC DATA');
   });
 });
+
+describe('FE-2 welcome', () => {
+  it('shows three steps and how labels read before any selection', () => {
+    const html = renderToStaticMarkup(createElement(PositionResults, {
+      position: { ra: 0, dec: 0 }, sequences: [], systems: [], job: null, quickLook: false, lookup: null,
+      view: 'Object', onView: () => {}, label: '', note: '', synthetic: false, notice: '', onCopyLink: () => {},
+      object: null, build: null,
+    }));
+    expect(html).toContain('aria-label="How to use the explorer"');
+    expect(text(html)).toContain('plays the real SPHEREx exposures of that spot, date by date');
+    expect(text(html)).toContain('a SPHEREx measurement, a catalog value or a model');
+  });
+});
