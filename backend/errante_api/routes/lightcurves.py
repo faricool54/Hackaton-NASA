@@ -9,7 +9,7 @@ router = APIRouter(tags=["light curves"])
 
 @router.get("/lightcurves", response_model=LightCurveIndex)
 def lightcurve_index(request: Request):
-    """Available validated products (including explicit no-usable-points results)."""
+    """Schema-checked snapshots (including explicit no-usable-points results), not R05 certification."""
     return request.app.state.lightcurves.index()
 
 
@@ -17,7 +17,7 @@ def lightcurve_index(request: Request):
 def lightcurve(request: Request, target_id: str = Path(pattern=r"^[a-z0-9][a-z0-9-]{0,79}$")):
     """Snapshot of the WS3 calculation, with statistical errors, controls and exclusions.
 
-    A best-fit sinusoid is a candidate unless period.significant is true. Wing
+    A best-fit sinusoid remains a candidate even when variability is significant. Wing
     values are relative PSF-wing surface brightness, never total source flux.
     404: no precomputed product; 503: invalid/unreadable product. No archive I/O.
     """

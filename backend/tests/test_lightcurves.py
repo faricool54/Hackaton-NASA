@@ -35,13 +35,19 @@ def test_real_bundles_keep_quality_provenance_and_native_period():
         assert p.provenance.sources and all(s.source_uri.startswith("https://") for s in p.provenance.sources)
         assert any(x.rel_mag is not None for x in p.curve.points)
         assert p.curve.excluded and p.curve.comparisons and p.curve.control
-        assert p.provenance.partial and p.provenance.stale_search
+        # A fresh archive rebuild is allowed to be complete; snapshot fallback must remain explicit.
+        if p.provenance.stale_search or p.provenance.truncated_search:
+            assert p.provenance.partial
     rw, _, _ = store.read("rw-aurigae")
     assert rw.curve.unit == "mJy" and not rw.curve.relative_only and rw.curve.matched_pairs
     dra, _, _ = store.read("r-draconis")
     assert dra.curve.unit == "MJy/sr" and dra.curve.relative_only
     assert dra.curve.period.significant and dra.curve.period.false_alarm <= 0.01
     assert len(dra.curve.period.peaks) > 1 and dra.curve.period.bootstrap_95_days
+    assert dra.parameters.n_bootstrap == 1000 and dra.parameters.n_permutations == 999
+    assert dra.curve.period.n_permutations == 999
+    assert any("wide survey only" in n for n in dra.provenance.notes)
+    assert any("A+BC is unresolved" in n for n in rw.provenance.notes)
 
 
 def test_api_reads_offline_and_etag_is_checked_after_validation(tmp_path, monkeypatch, product):
@@ -177,6 +183,8 @@ def test_worker_result_is_validated_against_requested_identity(tmp_path, monkeyp
     real_popen = subprocess.Popen
 
     def launch(args, **kwargs):
+        assert kwargs["env"]["ERRANTE_SEARCH_DEADLINE_S"] == "7"
+        assert kwargs["env"]["ERRANTE_SEARCH_FALLBACK_DEADLINE_S"] == "7"
         return real_popen(
             [args[0], "-c", "import shutil,sys; shutil.copyfile(sys.argv[1],sys.argv[2])", str(fixture), args[-1]],
             **kwargs,
@@ -188,6 +196,7 @@ def test_worker_result_is_validated_against_requested_identity(tmp_path, monkeyp
         "target_name": product.target_name,
         "parameters": product.parameters.model_dump(mode="json"),
         "processing_fingerprint": product.provenance.processing_fingerprint,
+        "archive_deadline_s": 7,
     }
     work = tmp_path / "work"
     if mismatch:
@@ -237,6 +246,7 @@ def test_native_ws3_adapter_preserves_controls_pairs_and_sanitizes_failures(tmp_
             samples=[None] * len(exposures),
             failures=[(FrameRef(obs_id="lost", detector=1, mjd=61000, release="dr1"), "TimeoutError: /secret")],
             search={"n_found": 30, "n_selected": 19, "stale": True},
+            timings={"timed_out": 1},
         )
 
     monkeypatch.setattr("errante.data.point.point_series", series)
@@ -263,3 +273,89 @@ def test_native_ws3_adapter_preserves_controls_pairs_and_sanitizes_failures(tmp_
     pairs = [p for p in result.curve.matched_pairs if p.season_a == 0 and p.season_b == 2]
     assert len(pairs) == 12
     assert all(p.delta_mag == pytest.approx(-0.995, abs=0.01) for p in pairs)
+    # Keep the 32-worker/provenance adapter tied to WS3's public CLI calculation (LC12).
+    expected = ws3.light_curve(
+        params.ra, params.dec, max_frames=30, deadline_s=10, period=False, n_permutations=params.n_permutations
+    )
+    from errante.models import LightCurveData
+
+    native = expected.to_dict()
+    native.pop("search")
+    native.pop("timings")
+    native.update(unit="mJy", relative_only=False, failures=[], matched_pairs=ws3.matched_pairs(expected))
+    typed = LightCurveData.model_validate(native)
+    for key in ("points", "bins", "comparisons", "control", "summary", "period", "matched_pairs"):
+        assert getattr(result.curve, key) == getattr(typed, key), key
+    assert any("1 exposures were not read" in note for note in result.provenance.notes)
+
+
+@pytest.mark.parametrize(
+    ("reason", "partial", "public_reason"),
+    [
+        ("NoOverlap: /secret", False, "no_overlap"),
+        ("TimeoutError: /secret", True, "download_failed"),
+        ("ValueError: truncated FITS /secret", True, "invalid_pixels"),
+    ],
+)
+def test_partial_selection_distinguishes_footprints_from_missing_data(monkeypatch, reason, partial, public_reason):
+    from errante.models import FrameRef
+    from errante.science import variability as ws3
+
+    monkeypatch.setattr(
+        "errante.data.point.point_series",
+        lambda *a, **kw: SimpleNamespace(
+            samples=[],
+            failures=[(FrameRef(obs_id="missing", detector=1, mjd=61000, release="dr1"), reason)],
+            search={"service": "sia", "n_found": 1, "n_selected": 1},
+            timings={},
+        ),
+    )
+    monkeypatch.setattr(ws3, "exposures_from_series", lambda _: ([], []))
+    result = build.calculate(
+        {
+            "target_id": "test-only",
+            "target_name": "No samples",
+            "parameters": {"ra": 10, "dec": 0},
+            "archive_deadline_s": 10,
+            "processing_fingerprint": "a" * 64,
+        }
+    )
+    assert result.provenance.partial is partial
+    assert result.curve.failures[0].reason == public_reason
+    assert "/secret" not in result.model_dump_json()
+
+
+def test_snapshot_notes_keep_actual_query_date_without_publishing_raw_warnings():
+    from errante_api.lightcurve_metadata import acquisition_notes
+
+    notes = acquisition_notes(
+        {
+            "service": "snapshot",
+            "from_cache": False,
+            "stale": True,
+            "warnings": [
+                "IRSA unavailable: frames come from the committed search snapshot 'r-draconis' "
+                "(SIA answer of 2026-11-14 19:20:30+00:00); frames published after that date are missing",
+                "/secret",
+            ],
+        },
+        {},
+        box_px=81,
+        planes=("IMAGE", "FLAGS"),
+        deadline_s=180,
+    )
+    assert any("2026-11-14T19:20:30+00:00" in note for note in notes)
+    assert any("service: snapshot" in note and "stale=True" in note for note in notes)
+    assert "/secret" not in " ".join(notes)
+
+
+def test_preset_warnings_describe_actual_selection_and_brightness_censoring(product):
+    from errante_api.lightcurve_metadata import target_notes
+
+    notes = target_notes("rw-aurigae", product.parameters, product.curve)
+    assert any("A+BC is unresolved" in n for n in notes)
+    assert any(f"{product.curve.excluded['saturated']} saturated" in n and "bright states" in n for n in notes)
+    wide = LightCurveParameters(ra=1, dec=0)
+    assert any("wide survey only" in n for n in target_notes("r-draconis", wide, product.curve))
+    deep = wide.model_copy(update={"collections": ["spherex_dr1_deep"]})
+    assert not any("wide survey only" in n for n in target_notes("r-draconis", deep, product.curve))

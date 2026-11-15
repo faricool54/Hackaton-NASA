@@ -298,21 +298,23 @@ Old packaged snapshots remain explicitly dated snapshots; refreshing them is an 
 ### Real-data acceptance and interpretation
 
 The two packaged JSON products were calculated from real SPHEREx FITS on 2026-11-15. Both preserve
-`synthetic: false`, `stale_search: true` and `partial: true`: archive selection used a cached search snapshot;
-these are not fresh exhaustive archive queries. Inspect `n_found`, `n_selected`, failures and sources before
-interpreting the curve. Selection truncation, stale searches and failed measurements remain explicit.
+`synthetic: false`. Rebuilt after WS3's review fixes (#93), both now use live SIA searches with
+`stale_search: false`, `partial: false`. R Dra retains one `no_overlap` footprint: the target is outside
+that detector, rather than a failed download. Fresh queries are bounded selections, not proof of future
+archive completeness. Inspect `n_found`, `n_selected`, failures, source URIs and acquisition notes.
 
 | Target | Measured / usable | Interpretation |
 |---|---:|---|
-| RW Aurigae | 56 / 10 | Uncorrected aperture flux in **mJy**; 8 matched pairs; excluded saturation/bad pixels/bin cuts retained; no period fitted |
-| R Draconis | 538 / 450 | Relative PSF-wing surface brightness in **MJy/sr**, not total flux; best period ≈259 d, bootstrap 95% ≈240–276 d, FAP 1/101 with 100 permutations; aliases retained |
+| RW Aurigae | 56 / 10 | Uncorrected 3-pixel aperture flux in **mJy**, A+BC unresolved; 8 matched pairs; 37 saturated exposures excluded, preferentially removing bright states; D1 only, no period fitted |
+| R Draconis | 538 / 450 | Wide-survey DR1+QR3 only (539 selected; no deep collections), ending 2026-07-16; relative PSF-wing surface brightness in **MJy/sr**, not total flux; candidate period ≈262 d, bootstrap 95% ≈241–276 d from 1000 resamples, permutation FAP 1/1000 from 999 permutations; aliases retained |
 
 Relative magnitudes are normalized separately per detector/wavelength bin; negative means brighter.
 `zero_point_mag` is reported but not applied. Statistical `rel_mag_err` does not include comparison-star
 systematics; read the control scatter as well. Null uncertainties stay null. Fixed-position measurements do
 not track proper motion/parallax, and wavelength and time vary together. These products provide technical
-acceptance of the WS4 adapter; independent scientific R05 validation remains with WS3. A significant grid
-sinusoid still needs comparison with independent observations/catalog periods.
+acceptance of the WS4 adapter; WS3's scientific review is recorded in `docs/SCIENCE.md` (#85, #93).
+Human R05 review remains separate. A significant grid sinusoid indicates time-ordered variability and
+still needs comparison with independent observations/catalog periods; it does not establish a unique period.
 
 WS5's light-curve panel is integrated in #83 and included in the public deployment; scientific interpretation
 still requires coordination with WS3. Static deployments may copy these JSON snapshots explicitly.
@@ -323,6 +325,31 @@ invalid overrides, content-cache invalidation, atomic publication, real child te
 disk admission and native WS3 integration on explicitly synthetic test stamps. Synthetic test products are
 never bundled. Code/document assistance: OpenAI Codex; numerical products come from the unchanged WS3
 algorithms applied to real FITS, not generated imagery. Human scientific review remains pending.
+
+### Review follow-ups LC4/5 and LC8–LC14
+
+The offline CLI now defaults to `--bootstrap 1000 --permutations 999`. Its child receives both search
+deadline settings from `--archive-deadline`; interactive API deadlines are unaffected. Snapshot fallback
+retains its actual query date in public notes. Timeouts remain failed reads, corrupt FITS inputs map to
+`invalid_pixels`, and `no_overlap` alone does not mark an otherwise complete selection as partial.
+The current contract groups timeout/network failures as `download_failed`; a sanitized timeout count
+and archive deadline are recorded in notes rather than exposing exception text.
+
+`provenance.notes` records search service/cache status, stamp size/planes, effective package versions,
+native unit qualifications and target-specific interpretation limits. `id` is an opaque content identity,
+not a Git commit or independently reproducible provenance certificate; `processing_fingerprint` is the
+cache/build identity. The bounded publication limit remains 8 MiB; oversized results preserve the old product.
+
+The adapter intentionally retains the lower-level WS3 call to preserve the exact input FITS URIs and
+32-worker acquisition. WS3's public `light_curve()` currently does not return those input URIs or expose
+worker count. A regression runs both paths on the same explicit test stamps and compares points, bins,
+comparisons, controls, summaries, period and matched pairs. No scientific formula is reimplemented here.
+Native notes/unit qualifications and acquisition timeout information are retained. The contract's bool
+`period` still cannot express WS3's automatic mode; presets explicitly choose a mode.
+
+For WS5: render **both** `curve.notes` and `provenance.notes` next to the plot (LC1/4/5). Saturated fluxes
+are lower limits, not usable calibrated measurements; show that qualifier if listing excluded values.
+The wider offline R Dra validation record must not be described as the sample behind this published curve.
 
 ## WS4 closeout: motion and offline comparisons (0.7.0)
 

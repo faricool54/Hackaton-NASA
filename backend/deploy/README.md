@@ -112,6 +112,36 @@ Public HTTPS/API acceptance is recorded in production.json. Edge rendered all fi
 mobile viewport sizes; the mobile screenshot showed horizontal overflow in the existing WS5 layout. This
 is not full mobile usability certification: WS5 should fix that layout and the team should review on a phone.
 
+## Cross-origin embedding: WS4 handoff for V19/C06
+
+The public full-stack origin supports being loaded inside an iframe on another origin. The embedded
+document still makes API/image requests to its own application origin; embedding alone needs no extra
+CORS origin entry. The existing deployment does not impose a frame-blocking policy.
+
+```html
+<iframe src="https://errante.34-148-242-13.sslip.io/#/field/barnards-star"
+        title="Errante SPHEREx sequence" width="100%" height="1050"></iframe>
+```
+
+Repeat the browser acceptance from a separate local HTTP parent (optional developer dependency):
+
+```bash
+python -m pip install playwright
+python scripts/smoke_embed.py https://errante.34-148-242-13.sslip.io --out-dir data/cache/embed-check
+# Explicitly submit a real coordinate job through the iframe UI:
+python scripts/smoke_embed.py https://errante.34-148-242-13.sslip.io --live-job --out-dir data/cache/embed-job
+```
+
+The script defaults to installed Edge; `--browser-path` accepts another Chromium executable. It checks
+40 image loads and frame stepping. `--live-job` checks submission/polling/result display from inside the
+frame; `--job-id ID` resumes a saved job, including after a redeploy. Screenshots/JSON are saved only in
+the requested output directory. The parent server and browser are closed after the check.
+
+**WS4 delivery is ready; WS5's compact view is still separate.** The current field URL embeds the full
+application. WS5 should add the compact URL/layout, retain date/mission/provenance and synthetic labels,
+and then run this check against that view. No `embed` parameter or automatic cross-origin `postMessage`
+control API is claimed here. R05 human review is not established by this technical acceptance.
+
 ## GitHub administration handoff
 
 At the 2026-11-15 check, `rpccp` has push access but `admin: false`; the repo is private and Pages is disabled.
