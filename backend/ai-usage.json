@@ -1,7 +1,7 @@
 {
   "updated_on": "2026-11-15",
   "tool": "OpenAI Codex",
-  "scope": "WS4 review fixes: transactional admission, matching served/build roots, CORS, verified atomic publication/recovery, bounded child execution and regression tests; processing fingerprint invalidation; bounded spectra/photometry and season-comparison API, publication, singleflight and regression tests; precomputed light-curve API/CLI, draft shared-contract proposal for WS3 review, documentation and tests; bundled RW Aurigae/R Draconis JSON calculated by unchanged WS3 algorithms from real SPHEREx FITS, with stale-search/partial provenance, not generated imagery and not independent R05 scientific validation",
+  "scope": "WS4 review fixes: transactional jobs, atomic publication/recovery, CORS and bounded child execution; fingerprint invalidation; bounded spectra/photometry and season-comparison API; precomputed light-curve API/CLI and real FITS products; WS3 review follow-ups LC4/5/8-14: target warnings, acquisition provenance, offline deadlines, partial/failure classification, public-WS3 parity regression and fresh SIA rebuilds after #93 with 999 permutations and 1000 bootstrap resamples; reproducible external-origin iframe acceptance and WS5 compact-view handoff. No generated sky imagery or independent human R05 certification",
   "affected_paths": [
     "backend/",
     "scripts/build_fields.py",
