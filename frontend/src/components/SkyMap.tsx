@@ -8,13 +8,9 @@ export function SkyMap({ field }: { field: Field }) {
   const map = positionUrl(location.href, { ra, dec, size_deg: Math.min(0.5, Math.max(0.01, field.size_deg)),
     detectors: [field.frames[0]?.detector ?? 2] });
   return (
-    <div className="panel skymap-placeholder">
-      <p>
-        Field center {formatRaDec(ra, dec)} · {field.size_deg}° wide
-      </p>
-      <a href={map}>
-        Explore this position on the SPHEREx map →
-      </a>
-    </div>
+    <p className="fd-skymap small">
+      <span>Field center <span className="u-mono">{formatRaDec(ra, dec)}</span> · {field.size_deg}° wide</span>
+      <a href={map}>Explore this position on the SPHEREx map →</a>
+    </p>
   );
 }
