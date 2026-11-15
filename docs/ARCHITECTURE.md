@@ -127,11 +127,31 @@ Verificar los valores y publicar sus fuentes es condición para presentarlos com
 ## Contrato y compatibilidad
 
 Se mantiene `models.py` → `shared/schema/` → `frontend/src/api/types.ts` como contrato vigente.
-La versión integrada es **0.3.0**: sistemas 3D previos más solicitud/estado de jobs y resolver, con schema y espejo TS sincronizados.
+Jobs/resolver usan **0.3.0**. La integración científica **0.4.0** (#53) agrega espectros/comparaciones,
+preservando composites 0.3.1 (#39); schema y espejo TS sincronizados. Ver orden en CONTRACT.md.
 La separación del build usa los campos actuales, sin otro cambio de schema.
 WS4-10 coordina las próximas ampliaciones aditivas para cobertura/calidad, productos combinados y espectros en
 posiciones arbitrarias. Cada cambio real requiere versión, schema, tipos TS y pruebas en el mismo PR.
 No escribir campos propuestos en los JSON publicados hasta implementar su contrato.
+
+### Servicio científico y caché (15/11/2026)
+
+El mapa/campo solicita espectro sin candidato; el campo real selecciona entradas para comparar temporadas.
+FastAPI valida los modelos compartidos y ejecuta WS1/WS2 en un proceso científico supervisado independiente
+del worker de jobs (un cupo por instancia, 140 s, 512 MiB staging, log 1 MiB). Peticiones idénticas comparten
+trabajo; cancelar la espera del cliente no libera un cupo aún ocupado. No se agregó otro sistema de colas.
+
+La caché de jobs usa `display-mask-v4` y SHA-256 de código/dependencias del procesamiento; no reutiliza
+renders anteriores cuando cambia WS2. La caché científica incluye también inputs/campo/época y adaptador.
+TTL memoria/disco; PNG ausente/dañado fuerza regeneración. Análisis se publican con lock/rename atómico en
+`data/analyses/{sha256}`, sin mutar campos ni manifest. Directorios de trabajo/cache permanecen privados.
+Límites de disco/deadline son supervisados; cuotas duras pertenecen al entorno. Configuración y errores:
+[backend/README.md](../backend/README.md). Uso local no necesita contratar hosting.
+
+El cubo mide brillo superficial estático sin errores; L2 mide flujo de apertura por exposición con flags,
+error y cielo local. La UI separa unidades, conserva negativos/huecos y advierte mezcla temporal/espectral.
+Las comparaciones son medias ponderadas y restas escaladas por detector, con procedencia y limitaciones;
+no afirman variabilidad ni reconstruyen por sí solas un sistema físico 3D.
 
 ## Hitos y dependencias
 

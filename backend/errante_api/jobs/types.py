@@ -37,10 +37,13 @@ class JobStatus(str, Enum):  # noqa: UP042 — StrEnum requires Python 3.11+; ke
 def _build_context():
     from errante import settings
 
+    from ..processing import BUILD_REVISION, source_fingerprint
+
     return {
         "collections": list(settings.IRSA_COLLECTIONS),
         "sources": [settings.IRSA_SIA, settings.IRSA_TAP_SYNC, settings.S3_HTTPS],
-        "build_revision": "wavelength-pool-v3",
+        "build_revision": BUILD_REVISION,
+        "processing": source_fingerprint(),
     }
 
 

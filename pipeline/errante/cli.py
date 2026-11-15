@@ -48,7 +48,8 @@ def cmd_validate(args: argparse.Namespace) -> int:
         field = store.read_field(fs.id)
         store.read_candidates(fs.id)
         store.read_known(fs.id)
-        missing = [f.image for f in field.frames if not (store.field_dir(fs.id) / f.image).exists()]
+        images = [f.image for f in field.frames] + [c.image for c in field.composites]
+        missing = [image for image in images if not (store.field_dir(fs.id) / image).exists()]
         if missing:
             print(f"{fs.id}: missing images {missing}", file=sys.stderr)
             return 1
@@ -383,7 +384,13 @@ def cmd_build(args: argparse.Namespace) -> int:
     if args.detectors:
         overrides["detectors"] = sorted(set(args.detectors))
     try:
-        build_field(cfgs[args.field_id], Path(args.out), analyze=args.analyze, overrides=overrides)
+        build_field(
+            cfgs[args.field_id],
+            Path(args.out),
+            analyze=args.analyze,
+            overrides=overrides,
+            jhk_topup=not args.no_jhk_topup,
+        )
     except NotImplementedError as e:
         print(f"Build stopped at a stage that is not implemented yet: {e}", file=sys.stderr)
         return 3
@@ -588,6 +595,11 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("field_id")
     s.add_argument("--out", default=str(settings.PRODUCTS_DIR))
     s.add_argument("--analyze", action="store_true", help="also run automatic detection and catalog matching")
+    s.add_argument(
+        "--no-jhk-topup",
+        action="store_true",
+        help="do not download extra D2/D3 frames for the J/H/Ks false-color composites (faster)",
+    )
     s.add_argument(
         "--max-frames", type=_positive_int, default=None, metavar="N", help="override max_frames of fields.toml"
     )
