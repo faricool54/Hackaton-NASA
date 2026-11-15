@@ -1047,9 +1047,9 @@ Controles deliberados, no umbrales validados como calibración de SPHEREx:
 - Errores positivos/finítos, S/N ≥ 3 y flujos positivos. Nada de convertir negativos o cotas en detecciones.
 - ≥ 6 grupos espectrales y alcance en λ ≥ 2×. Agrupación de repeticiones en 2,5 %; piso de modelado supuesto
   del 5 % por grupo, que no se reduce artificialmente al repetir un frame. Incluye dispersión de las repeticiones.
-- Con más del 20 % de entradas rechazadas, sin corrección de apertura o calidad insuficiente, no informa temperatura.
+- Con cualquier exposición saturada, más del 20 % de entradas rechazadas, sin corrección de apertura o calidad insuficiente, no informa temperatura.
 - Rechaza chi² reducido > 5, intervalos que alcanzan los límites de búsqueda o amplitud del intervalo > 50 % de T.
-- El intervalo de Δchi²=1 es **condicional al modelo y al piso supuesto**; no es incertidumbre astrofísica total.
+- El rango usa Δchi²=max(1, chi² reducido) y un piso supuesto de ±10 % en temperatura, que no se promedia entre canales. Es **condicional al modelo y a esos supuestos**, no un intervalo de confianza calibrado ni incertidumbre astrofísica total.
 - `spectra.interpret_spectrum` separa temporadas: jamás entrega una temperatura global de una fuente variable.
   Una temporada agrupa huecos ≤30 días; no prueba simultaneidad ni constancia dentro de ese intervalo.
 - Cubos MJy/sr sin sustracción local de fondo/errores no se ajustan como espectro de una estrella. La guía de
@@ -1057,7 +1057,7 @@ Controles deliberados, no umbrales validados como calibración de SPHEREx:
   el drill de una extracción fotométrica con fondo/PSF. El adaptador devuelve `unsupported_product`.
 
 `color_class` describe la mediana F_nu(4–5 µm) / mediana F_nu(1–2 µm), con ≥3 grupos por ventana:
-<0,25 `star-like`; <1 `neutral`; <4 `red`; ≥4 `very-red`; sin cobertura/calidad, `unknown`.
+<0,25 `blue`; ≤1 `neutral`; <4 `red`; ≥4 `very-red`; sin cobertura/calidad, `unknown`. Cada ventana debe cubrir ambos extremos (1,2 a 1,8 µm y 4,2 a 4,8 µm como mínimo).
 Son categorías de visualización declaradas, **no clases estelares calibradas ni color visible**. La extinción,
 los discos, las bandas moleculares, la mezcla y la variabilidad pueden cambiar ese cociente.
 
@@ -1093,3 +1093,14 @@ No cambia los flujos, magnitudes relativas ni pares medidos. El control de pares
 la referencia para pares en apertura. Los productos ya empaquetados necesitan rebuild WS4 para reflejar el
 resumen nuevo; no se presentan como regenerados por este PR. LC23 estructurado y otros cambios de modelo
 requieren contrato separado. P2 (SkyBoT/JPL/Planeta X) y la aprobación humana R05 permanecen fuera de este cierre.
+
+
+### Seguimiento de la revisión de Farid sobre #102
+
+Antes de exponer los diagnósticos en la API se aplicaron los menores 1–4/6 de la revisión WS3:
+Δchi² reescalado, piso explícito de ±10 % en T, tolerancia al borde real de 0,74996 µm,
+`blue` descriptivo con cobertura de ventanas, rechazo de cualquier temporada con saturación y motivos
+correctos en cubos/épocas desconocidas (sin heredar «no positive fluxes»). El piso de temperatura es
+una precaución declarada, **no una calibración de atmósferas o covarianzas por detector**. Los tests
+incluyen dispersión adicional, 1/40 y 8/40 saturados y datos insuficientes en las ventanas de color.
+La revisión de notas/controles de LC24 y la CLI con n=0 la implementa Farid en #106; no se duplica aquí.

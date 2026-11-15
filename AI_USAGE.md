@@ -112,3 +112,15 @@ The implementation calls existing WS1/WS2 extraction and photometry/comparison m
 generating sky data. Live integration checked Barnard cube/season comparisons and RW Aurigae exposure
 photometry; saturated/invalid measurements were retained and excluded from usable plots. These are
 technical acceptance checks, not R05 validation. No AI image-model output, video or audio was generated.
+
+
+## Conditional spectral interpretation (November 15, 2026)
+
+Codex assisted with the user-requested WS3 V18 colour-temperature/IR-colour diagnostics and the remaining
+LC24 scatter summary, building on Farid's earlier science work. The independent WS3 review by
+faricool54 with Claude Code requested conservative uncertainty floors and additional quality/coverage
+rejection; those follow-ups were implemented before API integration. The component record is
+[pipeline/errante/science/continuum-ai-usage.json](pipeline/errante/science/continuum-ai-usage.json).
+The native FITS fixture is observed photometry, not generated sky imagery. Algorithm tests, review by
+agents and browser checks do not constitute human R05 approval or a calibrated stellar Teff measurement.
+Farid's RW Aur identity correction (#101) and LC24 follow-up (#106) retain their own authorship.
