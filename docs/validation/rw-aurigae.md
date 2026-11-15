@@ -191,7 +191,7 @@ La revisión encontró dos problemas nuevos:
     - 3,3 veces su percentil 95;
     - 1,4 veces su máximo (0,27 mag).
   - No se afirma la causa física.
-  - El recorrido público (paso 6) sigue pendiente: los PNG no muestran el cambio y no hay URL pública.
+  - Los PNG no muestran el cambio. Paso 6 en la URL pública (desde #84): ver el addendum del 2026-11-15, 15:00 ART.
 - **Limitations and failed downloads:**
   - 0 descargas fallidas: 0 de 40 en el build; 335 de 335 patches de 8′ presentes en caché.
   - Solo D1 es medible: ningún frame de D2–D6 queda limpio (`OVERFLOW`, otros flags o borde). Hay 17 frames limpios, todos D1, que dan 8 pares emparejados.
@@ -207,8 +207,8 @@ La revisión encontró dos problemas nuevos:
   - No se verificó la identificación A/B en Gaia.
   - La visualización pública no muestra el cambio: PNG en 255 y sin marcador del objetivo.
 - **Product field ID / public URL / screenshot or animation:**
-  - Field ID: `rw-aurigae` (`data/products/fields/rw-aurigae/`). URL pública: pendiente del deploy (WS4).
-  - Recorrido revisado solo en la vista local `/?dataset=real#/field/rw-aurigae` (paso 6 de VALIDATION.md pendiente en la URL pública).
+  - Field ID: `rw-aurigae` (`data/products/fields/rw-aurigae/`). URL pública: https://errante.34-148-242-13.sslip.io/#/field/rw-aurigae (desde #84; ver el addendum del paso 6).
+  - Recorrido revisado solo en la vista local `/?dataset=real#/field/rw-aurigae` (paso 6 en la URL pública: ver el addendum del 2026-11-15, 15:00 ART).
     La revisión comprobó en el DOM que se cargan 40 imágenes, que `svg.blink-overlay` existe con 0 elementos (no hay
     marcador del objetivo) y que el caption mostraba solo la banda nominal del detector.
   - Figuras (gráficos generados con código a partir de los FITS reales de SPHEREx):
@@ -384,10 +384,36 @@ vecina con G < G+1,5 a menos de 15″. Las cifras son de sus propios pares a λ 
   (#83), usa las mismas 56 exposiciones D1 y los métodos de WS3 de este registro.
 - **Coincide con este registro:** los 17 frames limpios (10 usados + 7 sin pareja en λ) y los 8 pares emparejados en
   λ, con ≤ 0,003 mag de diferencia (−1,008 y −1,034 mag a 0,75–0,77 µm entre el 2025-09-02 y el 2026-09-08).
-- **Límites que el producto no declara** (LC4 de la revisión):
-  - A y B (1,5″) caen en el mismo píxel;
-  - la saturación crece con el brillo (S0 7/19, S1 14/19, S2 16/18) y saca de la curva casi todo el estado brillante;
-  - el `summary` sale de bins de 2 puntos, así que es descriptivo y no una significancia;
-  - para los pares, el piso de las comparaciones es 0,033 mag (pares), no 0,018 (por punto).
+- **Límites** (LC4 de la revisión). Desde #93, #95 y #97 el producto los declara en sus notas y el panel los muestra:
+  - A y B (1,5″) caen en el mismo píxel (nota de #95);
+  - la saturación crece con el brillo (S0 7/19, S1 14/19, S2 16/18) y saca de la curva casi todo el estado brillante
+    (nota de #93);
+  - para los pares, el piso de las comparaciones es 0,033 mag (pares), no 0,018 (por punto) (nota de #93).
+  - Sigue sin declararse: el `summary` sale de bins de 2 puntos, así que es descriptivo y no una significancia.
+  - La ficha del objeto nombra A y B según el WDS desde #101 (antes seguía el cross-id invertido de SIMBAD).
 - **Revisión completa:** `docs/SCIENCE.md` § «Revisión científica de las curvas de luz» (#85). No es una validación
   nueva ni reemplaza este registro.
+
+## Addendum 2026-11-15 (15:00 ART): productos publicados (#70) y recorrido público (paso 6)
+
+- **Chequeo de productos publicados (#70).** `python -m errante.imaging.productcheck --products data/products --out <dir>`,
+  regenerado el 2026-11-15 sobre `main` (`data/products` sin cambios de imagen desde #41; #88 solo cambió textos): da las
+  mismas cifras que el cuerpo de #70. Es nivel de display sobre PNG de 8 bits, no fotometría ni astrometría científica.
+  - **Límite común a los cinco.** Este chequeo mira los PNG del build reconstruido después de #17. Los registros
+    analizaron el build de #17 (2026-11-14), con una selección de frames en parte distinta, así que sus cifras por frame y
+    de «solo los frames del build» no corresponden a estos PNG. Lo esperado del chequeo usa solo el movimiento propio de
+    `fields.toml` y no incluye la paralaje.
+  - La hipótesis D1 2025W36_1A_0233_3D1 → 2026W37_1A_0234_3D1 (~2.6×, de la fotometría FITS de este registro: 76.2 →
+    197.0 mJy) se confirma a nivel de display: cociente 2.59 contra 2.60 ± 0.39; las estrellas de campo dan
+    0.996 ± 0.047 (n = 42).
+  - 24 pares a λ emparejada: 4 con cociente medible (todos en D1, el único detector con roll-off) y 7 con un cambio
+    visible en el blink. El núcleo es blanco en todos los frames de D2–D6.
+  - El cambio visible en los 3 pares D6 depende de un único frame (2026W38_1A_0162_2D6, disco blanco de 20 px contra
+    25–30 px en los otros), vecino de una exposición que el build rechazó por mal registrada: tratarlo con cautela.
+  - Registro de campo en los PNG: 40 de 40 frames, mediana 0.041 px, máximo 0.138 px.
+- **Paso 6, recorrido público (parte técnica hecha; falta la prueba humana).** En
+  https://errante.34-148-242-13.sslip.io (deploy `3ed5c91`), el 2026-11-15 ~15:00 ART, en navegador de escritorio:
+  - `#/field/rw-aurigae` carga la secuencia publicada de 40 frames (PNG servidos);
+  - reproducir, pausar, «Next frame» y «Previous frame» funcionan (por ejemplo, 10 → 11 → 10).
+  - Un job nuevo por RA/Dec en la URL pública devolvió frames reales en 49 s (auditoría del 15/11; también #91 y #95).
+  - **Falta:** que una persona lo recorra en incógnito y en celular, y la revisión humana de este registro.

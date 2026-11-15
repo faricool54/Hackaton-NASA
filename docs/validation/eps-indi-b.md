@@ -154,8 +154,8 @@ Convención: **VERIFICADO** = medido en esta sesión (script en scratch); **INFE
   - El movimiento propio medido es instantáneo (2025–2026); no se modeló la órbita Ba–Bb.
   - Los 40 frames publicados usan 1–2 frames por (temporada, detector) y no tienen λ en `field.json`.
 - **Product field ID / public URL / screenshot or animation:**
-  - Field ID: `eps-indi-b` (`data/products/fields/eps-indi-b/`). URL pública: pendiente del deploy (WS4).
-  - Recorrido revisado solo en la vista local `/?dataset=real#/field/eps-indi-b` (paso 6 de VALIDATION.md pendiente en la URL pública).
+  - Field ID: `eps-indi-b` (`data/products/fields/eps-indi-b/`). URL pública: https://errante.34-148-242-13.sslip.io/#/field/eps-indi-b (desde #84; ver el addendum del paso 6).
+  - Recorrido revisado solo en la vista local `/?dataset=real#/field/eps-indi-b` (paso 6 en la URL pública: ver el addendum del 2026-11-15, 15:00 ART).
   - Figuras (gráficos generados con código a partir de los FITS reales de SPHEREx):
     - [rev_fig1_season_stacks.png](figures/eps-indi-b/rev_fig1_season_stacks.png): Revisión: apilados por temporada con las posiciones de catálogo y el dipolo S3 − S0
     - [rev_fig2_residuals.png](figures/eps-indi-b/rev_fig2_residuals.png): Revisión: residuos por frame y trayectoria
@@ -332,3 +332,27 @@ Sin problema (VERIFICADO por A y R):
 - No hay píxeles GHOST.
 - Tiempos: el `mjd` de `field.json` es igual a `MJD-AVG`.
 - No hay fuentes de catálogo que contaminen la trayectoria del objetivo.
+
+## Addendum 2026-11-15 (15:00 ART): productos publicados (#70) y recorrido público (paso 6)
+
+- **Chequeo de productos publicados (#70).** `python -m errante.imaging.productcheck --products data/products --out <dir>`,
+  regenerado el 2026-11-15 sobre `main` (`data/products` sin cambios de imagen desde #41; #88 solo cambió textos): da las
+  mismas cifras que el cuerpo de #70. Es nivel de display sobre PNG de 8 bits, no fotometría ni astrometría científica.
+  - **Límite común a los cinco.** Este chequeo mira los PNG del build reconstruido después de #17. Los registros
+    analizaron el build de #17 (2026-11-14), con una selección de frames en parte distinta, así que sus cifras por frame y
+    de «solo los frames del build» no corresponden a estos PNG. Lo esperado del chequeo usa solo el movimiento propio de
+    `fields.toml` y no incluye la paralaje.
+  - S0→S3 en D2, D3, D5 y D6 (núcleo, 507 d) da 1.067 ± 0.035 px = 6.56 ± 0.21″ a PA 130.6°, contra 1.058 px = 6.51″
+    a PA 121.8° esperados solo con movimiento propio. El largo coincide (0.3σ); el PA se corre 8.8°, unos 4° de los
+    cuales son la paralaje que el chequeo ignora.
+  - Frente a la cifra FITS de este registro (S0→S3 1.026–1.031 px a PA 126.5–126.7°), el PNG queda entre +0.036 y
+    +0.041 px y entre +3.9 y +4.1°.
+  - Pares dentro de la misma orientación del parche: S0→S2 0.037 px (2.5σ) y S1→S3 0.026 px (1.0σ). Los que cruzan la
+    orientación dan 0.163–0.188 px (4.7–8.2σ).
+  - Registro de campo en los PNG: 40 de 40 frames, mediana 0.035 px, máximo 0.239 px.
+- **Paso 6, recorrido público (parte técnica hecha; falta la prueba humana).** En
+  https://errante.34-148-242-13.sslip.io (deploy `3ed5c91`), el 2026-11-15 ~15:00 ART, en navegador de escritorio:
+  - `#/field/eps-indi-b` carga la secuencia publicada de 40 frames (PNG servidos);
+  - reproducir, pausar, «Next frame» y «Previous frame» funcionan (por ejemplo, 10 → 11 → 10).
+  - Un job nuevo por RA/Dec en la URL pública devolvió frames reales en 49 s (auditoría del 15/11; también #91 y #95).
+  - **Falta:** que una persona lo recorra en incógnito y en celular, y la revisión humana de este registro.
