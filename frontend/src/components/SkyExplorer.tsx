@@ -6,6 +6,7 @@ import { DETECTOR_BANDS } from '../api/format';
 import { coordinateLookup, nameLookup, positionLookup, type ObjectLookup } from '../api/objectCard';
 import { SHOWCASE_TARGETS } from '../api/showcase';
 import { localTargetSequences, type SearchSequence } from '../api/skySearch';
+import type { MapSelection } from '../api/mapHover';
 import { ExplorerMap } from './ExplorerMap';
 import type { ExplorerView } from './ExplorerDock';
 import { ObjectCard } from './ObjectCard';
@@ -65,6 +66,8 @@ export function SkyExplorer({ sequences, systems, synthetic, manifestError }: Pr
   const [initial] = useState(initialPosition);
   const [position, setPosition] = useState<SkyCoord>(initial.request);
   const [mapCenter, setMapCenter] = useState<SkyCoord>(initial.request);
+  // Bumped on every non-map selection, so picking the same target again recentres a panned map (FE-4).
+  const [recenter, setRecenter] = useState(0);
   const [ra, setRa] = useState(String(initial.request.ra));
   const [dec, setDec] = useState(String(initial.request.dec));
   const [fov, setFov] = useState(String(initial.request.size_deg));
@@ -136,7 +139,10 @@ export function SkyExplorer({ sequences, systems, synthetic, manifestError }: Pr
     setPosition(point);
     setRa(String(point.ra));
     setDec(String(point.dec));
-    if (origin !== 'map') setMapCenter(point);
+    if (origin !== 'map') {
+      setMapCenter(point);
+      setRecenter((n) => n + 1);
+    }
     const fieldId = options.fieldId ?? localTargetSequences(sequences, point)[0]?.field.id;
     setExplicitFieldId(fieldId);
     setLabel(options.label ?? '');
@@ -232,9 +238,20 @@ export function SkyExplorer({ sequences, systems, synthetic, manifestError }: Pr
 
   return <section className="xp-explorer" aria-label="SPHEREx sky explorer">
     <div className="xp-map">
-      <ExplorerMap layout="fill" center={mapCenter} footprintFieldId={footprintFieldId}
-        onSelect={(point: SkyCoord & { insideFieldId?: string }) => {
-          select(point, 'map', { fieldId: point.insideFieldId === footprintFieldId ? footprintFieldId : undefined });
+      <ExplorerMap layout="fill" center={mapCenter} footprintFieldId={footprintFieldId} recenterKey={recenter}
+        onSelect={(point: MapSelection) => {
+          // A challenge-target marker opens its saved sequence like its chip (no job); a Gaia star keeps its id.
+          const target = SHOWCASE_TARGETS.find((t) => t.fieldId === point.targetId);
+          if (target) {
+            select(target, 'preset', {
+              label: target.name, catalogName: target.catalogName, detector: target.detector, size: 0.15, note: presetNote(target),
+            });
+            return;
+          }
+          select({ ra: point.ra, dec: point.dec }, 'map', {
+            fieldId: point.insideFieldId === footprintFieldId ? footprintFieldId : undefined,
+            label: point.sourceId ? `Gaia DR3 ${point.sourceId}` : undefined,
+          });
         }} />
       <div className="xp-search">
         <SkySearch sequences={sequences} onSelectSequence={selectSearchSequence}
