@@ -88,7 +88,7 @@ def test_absorption_and_temperature_boundaries_do_not_get_a_physical_value():
     assert hot.temperature_k is None and hot.status in {"unconstrained", "poor_fit"}
 
 
-@pytest.mark.parametrize("ratio,label", [(0.1, "star-like"), (0.5, "neutral"), (2, "red"), (5, "very-red")])
+@pytest.mark.parametrize("ratio,label", [(0.1, "blue"), (0.5, "neutral"), (1, "neutral"), (2, "red"), (5, "very-red")])
 def test_colours_are_declared_fnu_display_categories(ratio, label):
     pts = source(wavelengths=[1.1, 1.4, 1.8, 4.1, 4.5, 4.9])
     pts = [p.model_copy(update={"flux_mjy": 1.0 if p.wavelength_um < 2 else ratio, "flux_err_mjy": 0.01}) for p in pts]
@@ -167,8 +167,37 @@ def test_api_adapter_keeps_cube_unknown_and_exposure_results_per_season():
     assert "conditional interval" in s.interpretation_notes([row])[1]
     (cube,) = s.interpret_measurements(points, unit="MJy/sr", background_subtracted=False, static_coadd=True)
     assert cube["temperature"]["status"] == "unsupported_product" and cube["temperature"]["temperature_k"] is None
+    assert not any("No positive source fluxes" in note for note in cube["temperature"]["notes"])
     points[0].mjd = None
     assert s.interpret_measurements(points, **kw)[0]["temperature"]["status"] == "unknown_epoch"
+
+
+def test_systematic_temperature_allowance_cannot_average_down_with_many_channels():
+    pts = source(3000)
+    rng = np.random.default_rng(7)
+    noisy = [p.model_copy(update={"flux_mjy": p.flux_mjy * (1 + rng.normal(0, 0.08))}) for p in pts]
+    for fit in (c.estimate_temperature(pts), c.estimate_temperature(noisy)):
+        assert fit.status == "ok"
+        assert fit.lower_k <= fit.temperature_k * 0.9
+        assert fit.upper_k >= fit.temperature_k * 1.1
+    assert c.estimate_temperature(noisy).reduced_chi2 > 1
+
+
+def test_real_detector_edge_has_tolerance_and_colour_windows_need_broad_coverage():
+    pts = source(wavelengths=[0.74996, 1.1, 1.4, 1.8, 4.1, 4.5, 4.9])
+    assert "outside_spherex_wavelength" not in c.estimate_temperature(pts).excluded
+    narrow = source(wavelengths=[1.3, 1.4, 1.5, 4.3, 4.5, 4.7])
+    assert c.color_class(narrow) == "unknown"
+
+
+@pytest.mark.parametrize("n_saturated", [1, 8])
+def test_even_a_small_censored_peak_is_not_fitted_as_an_uncensored_sed(n_saturated):
+    spec = as_spectrum()
+    spec.samples[:n_saturated] = [replace(p, saturated=True, usable=False) for p in spec.samples[:n_saturated]]
+    first, second = s.interpret_spectrum(spec)
+    assert first["temperature"]["status"] == "quality_rejected" and first["color_class"] == "unknown"
+    assert first["temperature"]["temperature_k"] is None
+    assert second["temperature"]["status"] == "ok"
 
 
 def test_replay_real_eps_indi_photometry_does_not_invent_an_effective_temperature():
