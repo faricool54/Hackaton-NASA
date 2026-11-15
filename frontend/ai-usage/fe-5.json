@@ -1,0 +1,5 @@
+{
+  "tool": "Anthropic Claude Code",
+  "scope": "FE-5 compact catalog object card for the explorer dock (dock/full variants, key facts grid, folded details, FE-9 skeleton), session cache of GET /api/object (LRU 50, single-flight with waiter ref-count, errors and partial answers not cached), header match badge and visible caveat markers, six-line ObjectSummary for the pinned popup, object-card.css and vitest tests (DankoLiv with Anthropic Claude Code). No new external assets",
+  "human_review": "pending"
+}

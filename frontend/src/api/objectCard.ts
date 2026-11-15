@@ -245,3 +245,118 @@ export function describeObjectError(error: unknown): string {
   if (error instanceof DOMException && error.name === 'TimeoutError') return 'Catalog context did not arrive in time; retry.';
   return 'Could not reach the API for catalog context.';
 }
+
+// --- FE-5 compact card: at-a-glance rows and the pinned-popup summary (added; nothing above changed) ---
+
+/** One row of the card's two-column grid: value and status on one line, the source as an 11 px note. */
+export interface KeyRow {
+  label: string; value: string; unknown: boolean; status: FactRow['status'] | null; source: string;
+  /** The backend's caveat on this value (e.g. "GSP-Phot temperatures of M dwarfs … indicative only"), or null.
+   *  The dock clips the source note to one line, so the card marks a caveat on the value line itself. */
+  caveat: string | null;
+  /** Link for the source note (the AAVSO VSX page of a variability value that came from VSX). */
+  href: string | null;
+}
+
+/** The backend appends a fact's caveats to its source as "<source> | <method> | Caveat: <text>"
+ *  (PhysicalParameter.to_fact in pipeline/errante/science/context.py). */
+export function splitCaveat(source: string): { source: string; caveat: string | null } {
+  const found = /(?:^|\s\|\s)Caveat:\s*/.exec(source);
+  if (!found) return { source, caveat: null };
+  return { source: source.slice(0, found.index), caveat: source.slice(found.index + found[0].length).trim() || null };
+}
+
+/** Facts the dock shows at a glance, in this order (backend labels, pipeline/errante/science/context.py). Proper
+ *  motion is not part of the /api/object contract (0.5.0), so the card does not show one rather than guess it. */
+export const KEY_FACT_LABELS = ['Distance', 'Effective temperature', 'Spectral type', 'Variability type', 'Variability period'] as const;
+const VARIABILITY_LABELS: readonly string[] = ['Variability type', 'Variability period'];
+
+function toKeyRow(r: ObjectContextResponse, f: FactRow): KeyRow {
+  // Only a value that came from VSX links to the VSX page: a period from Gaia DR3's long-period-variable table
+  // (VSX listed the star without a period) must not point at VSX as its source.
+  const fromVsx = VARIABILITY_LABELS.includes(f.label) && !f.unknown && f.source.startsWith('AAVSO VSX');
+  return { ...f, caveat: splitCaveat(f.source).caveat, href: fromVsx ? r.variability?.url ?? null : null };
+}
+
+/** Confirmed planets as a grid row: a count, never a negative when the archive did not answer. */
+export function planetsRow(r: ObjectContextResponse): KeyRow {
+  const n = r.planets.length;
+  const caveat = identityCaveat(r);
+  const row = { label: 'Planets', status: null, href: null, caveat };
+  if (n) return { ...row, value: `${n} confirmed`, unknown: false, source: `NASA Exoplanet Archive${caveat ? ` · ${caveat}` : ''}` };
+  if (serviceFailed(r, 'exoplanets')) return { ...row, value: 'unknown', unknown: true, caveat: null,
+    source: 'The NASA Exoplanet Archive did not answer: unknown, not a negative result' };
+  return { ...row, value: 'none listed', unknown: false,
+    source: caveat ? 'NASA Exoplanet Archive · adopted source; identity uncertain' : 'NASA Exoplanet Archive' };
+}
+
+/** Grid rows of the card. `dock`: the key facts (a variability period only when known) plus planets; `full`: every
+ *  fact the backend sent, in its order, plus planets. Facts with an unexpected label only appear in `full` (and in
+ *  the dock's folded "all parameters" list). */
+export function keyRows(r: ObjectContextResponse, variant: 'dock' | 'full' = 'dock'): KeyRow[] {
+  const facts = factRows(r.facts);
+  const picked = variant === 'full' ? facts : KEY_FACT_LABELS
+    .map((label) => facts.find((f) => f.label === label))
+    .filter((f): f is FactRow => f !== undefined && !(f.label === 'Variability period' && f.unknown));
+  return [...picked.map((f) => toKeyRow(r, f)), planetsRow(r)];
+}
+
+/** Display name of the card header; empty sky and unidentified positions say so instead of inventing a name. */
+export function objectTitle(r: ObjectContextResponse): string {
+  return r.identity.display_name ?? (isEmptySky(r) ? 'No catalogued source' : 'Unidentified position');
+}
+
+/** "Type label (code) · spectral type X", or '' when SIMBAD gave neither. */
+export function objectTypeLine(r: ObjectContextResponse): string {
+  const id = r.identity;
+  const type = [id.object_type_label ?? id.object_type, id.object_type && id.object_type_label ? `(${id.object_type})` : '']
+    .filter(Boolean).join(' ');
+  if (!type && !id.spectral_type) return '';
+  return `${type || 'Type not given'}${id.spectral_type ? ` · spectral type ${id.spectral_type}` : ''}`;
+}
+
+/** Short text label of the match for the card header (tone colour plus text: colour is never the only signal).
+ *  The callout under the header keeps the full explanation (matchSummary). */
+export function matchBadge(r: ObjectContextResponse): { label: string; tone: Tone; title: string } {
+  const { label: title, tone } = matchSummary(r);
+  const labels: Record<ObjectContextResponse['identity']['match'], string> = {
+    name: 'Name match', matched: 'Gaia match', ambiguous: 'Ambiguous', loose: 'Loose match',
+    unavailable: 'Identity unknown', none: r.query.name !== null ? 'Not identified' : 'No source',
+  };
+  return { label: labels[r.identity.match] ?? title, tone, title };
+}
+
+/** The identity warning shown next to the match (not repeated for ambiguous/loose, whose match label says it). */
+export function identityNotSecure(r: ObjectContextResponse): boolean {
+  return r.identity.identity_uncertain && r.identity.match !== 'ambiguous' && r.identity.match !== 'loose';
+}
+
+/** At most six short lines for the pinned map popup (<ObjectSummary>): same values and caveats as the card. */
+export function summaryLines(r: ObjectContextResponse): { text: string; tone: Tone }[] {
+  const match = matchSummary(r);
+  const lines: { text: string; tone: Tone }[] = [];
+  const type = objectTypeLine(r);
+  if (type) lines.push({ text: type, tone: 'none' });
+  lines.push({ text: match.label, tone: match.tone });
+  if (isEmptySky(r)) {
+    lines.push({ text: `Nothing catalogued within ${formatArcsec(r.query.radius_arcsec)}; SPHEREx may still show emission.`, tone: 'none' });
+  } else {
+    const facts = factRows(r.facts);
+    // A distance or Teff that carries a backend caveat (GSP-Phot Teff of an M dwarf: "indicative only") is left out
+    // of the popup: its one clipped line has no room for the caveat. The card shows the value with its caveat.
+    const glance = ['Distance', 'Effective temperature']
+      .map((label) => facts.find((f) => f.label === label && !f.unknown && !splitCaveat(f.source).caveat))
+      .filter((f): f is FactRow => f !== undefined)
+      .map((f) => `${f.label === 'Effective temperature' ? 'Teff' : f.label} ${f.value} (${f.status})`);
+    if (glance.length) lines.push({ text: glance.join(' · '), tone: 'none' });
+    const variable = facts.find((f) => f.label === 'Variability type' && !f.unknown);
+    const variableText = variable ? `Variable: ${variable.value}${splitCaveat(variable.source).caveat ? ' (caveat)' : ''}` : '';
+    const planets = planetsRow(r);
+    lines.push({ text: [variableText, `Planets: ${planets.value}${planets.caveat ? ' (caveat)' : ''}`].filter(Boolean).join(' · '),
+      tone: 'none' });
+  }
+  const caveats = [r.partial ? 'Partial: some catalogs did not answer' : '', identityNotSecure(r) ? 'Identity not secure' : '']
+    .filter(Boolean);
+  if (caveats.length) lines.push({ text: caveats.join(' · '), tone: 'warn' });
+  return lines; // at most 5 (type, match, facts, variability/planets, caveats) + the title line = 6
+}
