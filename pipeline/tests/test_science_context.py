@@ -496,6 +496,41 @@ def test_transient_empty_vizier_answer_is_retried_and_never_cached(tmp_path, mon
     assert len(list(tmp_path.iterdir())) == 1  # only the good answer was cached
 
 
+def test_a_host_that_did_not_accept_a_connection_is_skipped_for_a_while(tmp_path, monkeypatch):
+    import requests
+
+    calls = []
+
+    def unreachable(url, *a, **k):
+        calls.append(url)
+        raise requests.exceptions.ConnectTimeout("connect timeout")
+
+    monkeypatch.setattr(C, "_DOWN_HOSTS", {})
+    monkeypatch.setattr(requests, "get", unreachable)
+    http = C._Http(tmp_path, use_cache=True, offline=False, ttl_s=1e9, timeout_s=1.0)
+    first = http.get("gaia-esa", C.GAIA_TAP_SYNC, {"q": "1"})
+    second = http.get("gaia-esa", C.GAIA_TAP_SYNC, {"q": "2"})  # another query to the same host: not attempted
+    assert not first.ok and "ConnectTimeout" in first.error and len(calls) == 1
+    assert not second.ok and second.error.startswith("skipped: gea.esac.esa.int") and len(calls) == 1
+    other = http.get("vsx", C.VIZIER_TSV, {"q": "3"})  # other hosts are unaffected
+    assert not other.ok and len(calls) == 2
+    # the skip ends after the back-off, and an answer clears it
+    monkeypatch.setattr(C, "CONTEXT_HOST_BACKOFF_S", 0.0)
+
+    class R:
+        status_code, text = 200, "source_id\n1\n"
+
+    monkeypatch.setattr(requests, "get", lambda *a, **k: R())
+    assert http.get("gaia-esa", C.GAIA_TAP_SYNC, {"q": "2"}, require="source_id").ok
+    assert "gea.esac.esa.int" not in C._DOWN_HOSTS
+    C._DOWN_HOSTS.clear()
+    # a read timeout (slow server, connection accepted) or a refused connection does not trip it
+    monkeypatch.setattr(C, "CONTEXT_HOST_BACKOFF_S", 120.0)
+    for error in (requests.exceptions.ReadTimeout("slow"), requests.ConnectionError("refused")):
+        monkeypatch.setattr(requests, "get", lambda *a, e=error, **k: (_ for _ in ()).throw(e))
+        assert not http.get("gaia-esa", C.GAIA_TAP_SYNC, {"q": "4"}).ok and C._DOWN_HOSTS == {}
+
+
 # --- contract adapter: ObjectContext -> models.ObjectContextResponse (GET /api/object) -------------------------
 
 

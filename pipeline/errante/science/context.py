@@ -44,12 +44,14 @@ import json
 import math
 import os
 import re
+import threading
+import time
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from urllib.parse import quote, urlencode
+from urllib.parse import quote, urlencode, urlsplit
 
 from .. import settings
 from ..models import (
@@ -73,6 +75,35 @@ EXOPLANET_TAP_SYNC = "https://exoplanetarchive.ipac.caltech.edu/TAP/sync"
 
 CONTEXT_CACHE_TTL_S = float(os.environ.get("ERRANTE_CONTEXT_CACHE_TTL_S", str(7 * 86400)))
 CONTEXT_TIMEOUT_S = float(os.environ.get("ERRANTE_CONTEXT_TIMEOUT_S", "25"))
+# A host that did not accept a connection within the timeout is skipped for this long (per process): on 2026-11-15
+# the ESA Gaia TAP stopped accepting connections and every lookup paid a full connect timeout before the VizieR
+# fallback. Skipped calls are reported as errors (unknown, not negative), so the stale cache / fallbacks still apply.
+CONTEXT_HOST_BACKOFF_S = float(os.environ.get("ERRANTE_CONTEXT_HOST_BACKOFF_S", "120"))
+_DOWN_HOSTS: dict[str, tuple[float, str]] = {}
+_DOWN_LOCK = threading.Lock()
+
+
+def _host_down(host: str) -> str | None:
+    with _DOWN_LOCK:
+        entry = _DOWN_HOSTS.get(host)
+        if entry is None:
+            return None
+        age = time.monotonic() - entry[0]
+        if age >= CONTEXT_HOST_BACKOFF_S:
+            _DOWN_HOSTS.pop(host, None)
+            return None
+    return f"skipped: {host} did not accept a connection {age:.0f} s ago ({entry[1]}); retried after {CONTEXT_HOST_BACKOFF_S:.0f} s"
+
+
+def _mark_down(host: str, why: str) -> None:
+    with _DOWN_LOCK:
+        _DOWN_HOSTS[host] = (time.monotonic(), why)
+
+
+def _mark_up(host: str) -> None:
+    with _DOWN_LOCK:
+        _DOWN_HOSTS.pop(host, None)
+
 
 # --- epochs and matching -------------------------------------------------------------------------------------
 J2000_MJD = 51544.5
@@ -244,12 +275,19 @@ class _Http:
 
     def _fetch(self, url: str, params: dict | None, require: str | None) -> tuple[str, str | None, bool]:
         """(text, error or None, worth retrying once)."""
+        host = urlsplit(url).netloc
+        down = _host_down(host)
+        if down is not None:
+            return "", down, False
         try:
             import requests
 
             r = requests.get(url, params=params, timeout=self.timeout_s, headers={"User-Agent": "errante/0.1"})
         except Exception as e:  # noqa: BLE001 - any transport failure is a service error, reported in provenance
+            if type(e).__name__ == "ConnectTimeout":
+                _mark_down(host, type(e).__name__)
             return "", f"{type(e).__name__}: {e}", "timeout" not in type(e).__name__.lower()
+        _mark_up(host)
         text = r.text
         if r.status_code >= 400:
             return text, f"HTTP {r.status_code}: {_short(text)}", r.status_code >= 500
