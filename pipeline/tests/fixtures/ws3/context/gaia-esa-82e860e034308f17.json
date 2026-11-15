@@ -1,0 +1,12 @@
+{
+ "service": "gaia-esa",
+ "url": "https://gea.esac.esa.int/tap-server/tap/sync",
+ "params": {
+  "REQUEST": "doQuery",
+  "LANG": "ADQL",
+  "FORMAT": "csv",
+  "QUERY": "SELECT g.source_id, ap.teff_gspphot, ap.teff_gspphot_lower, ap.teff_gspphot_upper, ap.teff_gspspec, ap.teff_espucd, ap.radius_flame, ap.radius_flame_lower, ap.radius_flame_upper, ap.lum_flame, ap.lum_flame_lower, ap.lum_flame_upper, ap.mass_flame, ap.mass_flame_lower, ap.mass_flame_upper, ap.flags_flame, ap.distance_gspphot, ap.distance_gspphot_lower, ap.distance_gspphot_upper, d.r_med_geo, d.r_lo_geo, d.r_hi_geo, d.r_med_photogeo, d.r_lo_photogeo, d.r_hi_photogeo, lpv.frequency, lpv.frequency_error, lpv.amplitude FROM gaiadr3.gaia_source AS g LEFT OUTER JOIN gaiadr3.astrophysical_parameters AS ap ON ap.source_id = g.source_id LEFT OUTER JOIN external.gaiaedr3_distance AS d ON d.source_id = g.source_id LEFT OUTER JOIN gaiadr3.vari_long_period_variable AS lpv ON lpv.source_id = g.source_id WHERE g.source_id = 156430817820015232"
+ },
+ "retrieved_utc": "2026-11-15T03:44:49Z",
+ "text": "source_id,teff_gspphot,teff_gspphot_lower,teff_gspphot_upper,teff_gspspec,teff_espucd,radius_flame,radius_flame_lower,radius_flame_upper,lum_flame,lum_flame_lower,lum_flame_upper,mass_flame,mass_flame_lower,mass_flame_upper,flags_flame,distance_gspphot,distance_gspphot_lower,distance_gspphot_upper,r_med_geo,r_lo_geo,r_hi_geo,r_med_photogeo,r_lo_photogeo,r_hi_photogeo,frequency,frequency_error,amplitude\n156430817820015232,,,,,,,,,,,,,,,,,,,185.41841,174.68132,194.67397,215.09407,205.90208,225.18689,,,\n"
+}
