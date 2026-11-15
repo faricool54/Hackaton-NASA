@@ -30,12 +30,12 @@ Claude Code (Anthropic) assisted team member faricool54 (workstream WS1) with:
   - AI agents implemented each part, other AI agents reviewed it adversarially, and the result was
     integration-tested on real SPHEREx data.
   - Human review of this code is pending.
-- **Validation of the five challenge targets:** records for four targets in `docs/validation/` (Epsilon Indi B,
-  WISE 0855, RW Aurigae, R Draconis).
+- **Validation of the five challenge targets:** records for all five targets in `docs/validation/` (Barnard's Star,
+  Epsilon Indi B, WISE 0855, RW Aurigae, R Draconis).
   - AI agents measured the real SPHEREx FITS files, and separate AI agents re-measured the key numbers with
     their own code.
   - The figures are plots drawn by code the agents wrote from real SPHEREx data, not generated images.
-  - Human review of these records is pending; Barnard's Star has no record yet.
+  - Human review of these records is pending.
 
 ## Origin of the product vision (November 14, 2026)
 
