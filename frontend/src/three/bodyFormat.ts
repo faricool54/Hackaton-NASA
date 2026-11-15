@@ -60,11 +60,16 @@ export function variabilityText(v: Variability): string {
   return parts.join(', ');
 }
 
-/** How the 3D view renders this variability (mirrors variabilityFactor in orbits.ts). */
+/**
+ * How the 3D view renders this variability, in both clocks: free-running = variabilityFactor in
+ * orbits.ts (a sinusoid, arbitrary phase); Dataset time = a catalogue ephemeris where one is tabulated
+ * (ephemerides.ts, R Dra), otherwise the mean. Generic on purpose: this module is in the main chunk
+ * and must not import the ephemeris table; the drawing notes give the per-body details.
+ */
 export function variabilityAnimationNote(v: Variability): string | null {
   if (!v.amplitude_mag) return null;
   return v.period_days
-    ? 'The 3D view animates it as a simple sinusoid.'
+    ? 'Free-running, the 3D view animates it as a simple sinusoid with an arbitrary phase (not a prediction for a date). In Dataset time it follows a catalogue ephemeris where one is tabulated (see How this body is drawn), otherwise it is held at the mean.'
     : 'Not animated in the 3D view (no periodic model).';
 }
 

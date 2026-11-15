@@ -4,7 +4,7 @@ import { client } from '../api/client';
 import type { Manifest } from '../api/types';
 import { formatRaDec } from '../api/format';
 import { SyntheticBadge } from '../components/SyntheticBadge';
-import { KIND_LABEL } from '../three/appearance';
+import { KIND_LABEL } from '../three/kindLabels'; // astro-free: appearance.ts would pull astro.ts into the main chunk
 
 export function SystemsPage() {
   const [manifest, setManifest] = useState<Manifest | null>(null);

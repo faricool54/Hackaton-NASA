@@ -1,5 +1,5 @@
 // #/system/<id>[/<bodyId>] — 3D view of one system; a body id "enters" that body.
-import { useEffect, useState, type CSSProperties } from 'react';
+import { lazy, Suspense, useEffect, useState, type CSSProperties } from 'react';
 import { client } from '../api/client';
 import type { SystemModel } from '../api/types';
 import { formatRaDec } from '../api/format';
@@ -7,6 +7,11 @@ import { BodyPanel } from '../components/BodyPanel';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { SyntheticBadge } from '../components/SyntheticBadge';
 import { SystemViewer } from '../components/SystemViewer';
+import { SystemViewerContext } from '../three/viewerLink';
+
+// The sky-track panel and its astrometry module load on demand, like the 3D scene, so the
+// main chunk does not grow.
+const SkyTrackPanel = lazy(() => import('../three/SkyTrackPanel').then((m) => ({ default: m.SkyTrackPanel })));
 
 const infoPanelStyle: CSSProperties = {
   padding: 18,
@@ -46,6 +51,8 @@ export function SystemPage({ systemId, bodyId }: { systemId: string; bodyId: str
   // Field id -> synthetic flag, from the manifest (a field from a synthetic manifest is synthetic).
   const [fields, setFields] = useState<Map<string, boolean>>(new Map());
   const [error, setError] = useState<string | null>(null);
+  // Dataset-time date of the 3D view (null in free-running), marked on the sky-track panel.
+  const [datasetMjd, setDatasetMjd] = useState<number | null>(null);
 
   useEffect(() => {
     setSystem(null);
@@ -92,7 +99,10 @@ export function SystemPage({ systemId, bodyId }: { systemId: string; bodyId: str
       <div className="field-layout">
         <section>
           <ErrorBoundary what="The 3D view">
+            {/* The page already knows whether the field exists (no second manifest fetch) and shows the 3D view's date. */}
+            <SystemViewerContext.Provider value={{ fieldExists, onDatasetMjd: setDatasetMjd }}>
             <SystemViewer system={system} selectedId={body?.id ?? null} onSelect={select} />
+            </SystemViewerContext.Provider>
           </ErrorBoundary>
           <p className="muted small">{system.representation_note}</p>
         </section>
@@ -237,6 +247,14 @@ export function SystemPage({ systemId, bodyId }: { systemId: string; bodyId: str
               </ul>
             )}
           </div>
+          {m && (
+            // Where SPHEREx should see the target on its pass dates (prediction from catalog astrometry).
+            <ErrorBoundary what="The sky-track panel">
+              <Suspense fallback={<div className="panel small muted" style={infoPanelStyle}>Loading the predicted sky track…</div>}>
+                <SkyTrackPanel system={system} mjd={datasetMjd} />
+              </Suspense>
+            </ErrorBoundary>
+          )}
         </aside>
       </div>
     </main>

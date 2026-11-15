@@ -95,17 +95,44 @@ def _provenance(*, synthetic: bool, notes: list[str]) -> Provenance:
 
 # --- Barnard's Star: nearest single star to the Sun, four small planets -------
 
+BJD_MINUS_MJD = 2400000.5  # MJD = JD - 2400000.5; BJD_TDB vs UTC (~69 s) is negligible at this precision
+
+# Mean anomaly at the time of inferior conjunction of a circular orbit drawn with i = Omega = omega = 0
+# (M5). The WS7 scene maps the AU frame (x, y, z-up) to three.js (x, z, -y), and the default camera
+# looks from scene +z, so AU -y = scene +z is "toward Earth" (the line of sight projected on the orbit
+# plane; the inclination is unknown). E = M = 270 deg puts the planet at (0, -a, 0): in front of the star.
+CONJUNCTION_MEAN_ANOMALY_DEG = 270.0
+
+# Dates at which the orbit notes quote the 1-sigma phase spread: DR1 start and the last QR3 frame
+# (frontend/src/three/spherexCoverage.ts DR1_START_MJD, QR3_LAST_MJD).
+PHASE_SPREAD_DATES = ((60789.75, "2025-04-24"), (61318.0, "2026-10-05"))
+
+
+def phase_sigma_deg(
+    t_mjd: float, t0_mjd: float, t0_err_days: float, period_days: float, period_err_days: float
+) -> float:
+    """First-order 1-sigma orbital phase spread (deg) at ``t_mjd`` from a published t0 and P.
+
+    sigma_phi = sqrt(sigma_t0^2 + N^2 sigma_P^2) / P with N = (t - t0) / P (linear propagation; Taylor
+    1997; Zellem et al. 2020, PASP 132, 054401). The t0-P covariance is not published and is ignored.
+    """
+    n = (t_mjd - t0_mjd) / period_days
+    return 360.0 * ((t0_err_days**2 + (n * period_err_days) ** 2) ** 0.5) / period_days
+
 
 def barnards_star() -> SystemModel:
     star_src = f"{EXOPLANET_ARCHIVE} (González Hernández et al. 2024, A&A 690, A79)"
     planet_src = f"{EXOPLANET_ARCHIVE} (Basant et al. 2025, ApJL 982, L1)"
+    basant_t3 = "Basant et al. 2025, ApJL 982, L1, Table 3 (arXiv:2503.08095)"
     gaia = f"{GAIA_DR3} 4472832130942575872"
     planets = [
-        # (id, name, period_days, min_mass_earth, a_au, archive radius estimate [R_earth])
-        ("barnard-d", "Barnard d", 2.3402, 0.263, 0.0188, 0.694),
-        ("barnard-b", "Barnard b", 3.1542, 0.299, 0.0229, 0.720),
-        ("barnard-c", "Barnard c", 4.1244, 0.335, 0.0274, 0.743),
-        ("barnard-e", "Barnard e", 6.7392, 0.193, 0.0381, 0.637),
+        # (id, name, period_days, period_err_days, min_mass_earth, a_au, archive radius estimate [R_earth],
+        #  t0 [BJD], t0 text as published, t0 1-sigma [d] = the larger side of an asymmetric error)
+        # Periods, t0 and their errors: Basant et al. 2025 Table 3 (t0 is listed there as BJD - 2450000).
+        ("barnard-d", "Barnard d", 2.3402, 0.0003, 0.263, 0.0188, 0.694, 2460243.70, "+0.08/−0.07", 0.08),
+        ("barnard-b", "Barnard b", 3.1542, 0.0004, 0.299, 0.0229, 0.720, 2460243.38, "± 0.09", 0.09),
+        ("barnard-c", "Barnard c", 4.1244, 0.0006, 0.335, 0.0274, 0.743, 2460242.92, "± 0.10", 0.10),
+        ("barnard-e", "Barnard e", 6.7392, 0.0028, 0.193, 0.0381, 0.637, 2460245.30, "+0.37/−0.36", 0.37),
     ]
     bodies = [
         Body(
@@ -116,6 +143,7 @@ def barnards_star() -> SystemModel:
             radius_km=0.185 * R_SUN_KM,
             mass_kg=0.162 * M_SUN_KG,
             teff_k=3195,
+            rotation_period_hours=145 * 24,  # Toledo-Padrón et al. 2019: 145 ± 15 d
             spectral_type="M4V",
             appearance=Appearance(model="star"),
             facts=[
@@ -126,10 +154,20 @@ def barnards_star() -> SystemModel:
                 _vfact("Distance", "1.828", "pc", f"{gaia} (parallax 546.976 ± 0.040 mas)"),
                 _vfact("Proper motion", "10.39", "arcsec/yr", gaia),
                 _vfact("Radial velocity", "−110.47 ± 0.13", "km/s", gaia),
+                _vfact(
+                    "Rotation period",
+                    "145 ± 15",
+                    "days",
+                    "Toledo-Padrón et al. 2019, MNRAS 488, 5145 (activity indices + 15 yr of photometry)",
+                ),
             ],
         )
     ]
-    for pid, name, period, mmin, a_au, r_est in planets:
+    for pid, name, period, period_err, mmin, a_au, r_est, t0_bjd, t0_text, t0_err in planets:
+        t0_mjd = round(t0_bjd - BJD_MINUS_MJD, 5)
+        spread = ", ".join(
+            f"±{phase_sigma_deg(t, t0_mjd, t0_err, period, period_err):.0f}° on {iso}" for t, iso in PHASE_SPREAD_DATES
+        )
         bodies.append(
             Body(
                 id=pid,
@@ -145,14 +183,30 @@ def barnards_star() -> SystemModel:
                     parent="barnards-star",
                     semi_major_axis_au=a_au,
                     period_days=period,
+                    mean_anomaly_deg=CONJUNCTION_MEAN_ANOMALY_DEG,
+                    epoch_mjd=t0_mjd,
                     note=(
                         "Drawn circular: the fitted eccentricities are consistent with zero (Basant et al. 2025 "
-                        "favour e < 0.02). Orbit inclination unknown (radial-velocity detection)."
+                        "favour e < 0.02). Orbit inclination unknown (radial-velocity detection). "
+                        f"Phase: the planet is drawn in front of the star (on the 'toward Earth' arrow) at "
+                        f"t0 = BJD {t0_bjd:.2f} {t0_text} (Basant et al. 2025, Table 3), read as the time of "
+                        "inferior conjunction as used by juliet/RadVel (tc); the paper text says periastron. "
+                        f"1-sigma phase spread from t0 and P ({period} ± {period_err} d): {spread} (linear "
+                        "propagation; the t0-P covariance is not published and is ignored). The sense of motion "
+                        "on the sky is unknown: drawn counter-clockwise seen from above."
                     ),
                 ),
                 appearance=Appearance(model="rocky"),
                 facts=[
-                    _vfact("Orbital period", f"{period}", "days", planet_src),
+                    _vfact("Orbital period", f"{period} ± {period_err}", "days", basant_t3),
+                    _vfact(
+                        "Reference time t0",
+                        f"{t0_bjd:.2f} {t0_text}",
+                        "BJD",
+                        f"{basant_t3}, listed as BJD − 2450000. Verified for the value only: the paper calls t0 "
+                        "the time of periastron, the fitting code (juliet, RadVel 'tc') the time of conjunction; "
+                        "see the orbit note",
+                    ),
                     _vfact("Minimum mass", f"{mmin}", "Earth masses", planet_src),
                     _vfact("Orbit size", f"{a_au}", "AU", planet_src),
                     _vfact(
@@ -185,7 +239,9 @@ def barnards_star() -> SystemModel:
             synthetic=False,
             notes=[
                 VERIFIED_NOTE,
-                PHASE_NOTE,
+                "Planet phases follow the t0 and periods of Basant et al. 2025 (Table 3), read as times of inferior "
+                "conjunction: a position on a real date is a prediction with the 1-sigma spread given in each orbit "
+                "note. The star's rotational phase is not known.",
                 "Planet masses are minimum masses (M sin i) and planet radii are estimates: radial velocity measures "
                 "neither the inclination nor the size.",
             ],
@@ -216,7 +272,7 @@ def epsilon_indi() -> SystemModel:
             radial_velocity_km_s=-40.43,
             epoch="J2016.0",  # Gaia DR3 reference epoch
         ),
-        field_id=None,  # TODO(WS3/WS7): add an epsilon-indi field to config/fields.toml
+        field_id="eps-indi-b",  # WS3 field centred on the unresolved Ba+Bb pair (A is ~402 arcsec west)
         bodies=[
             Body(
                 id="eps-indi-a",
@@ -291,7 +347,12 @@ def epsilon_indi() -> SystemModel:
                 facts=[
                     _vfact("Spectral type", "T1", None, f"SIMBAD; {chen}"),
                     _vfact("Mass", "66.92 ± 0.36", "Jupiter masses", chen),
-                    _vfact("Temperature", "~1300", "K", "King et al. 2010, as adopted by Chen et al. 2022"),
+                    _vfact(
+                        "Temperature (model-dependent)",
+                        "~1300",
+                        "K",
+                        "King et al. 2010 (evolutionary models), adopted by Chen et al. 2022",
+                    ),
                     _vfact(
                         "Separation from A",
                         "~1460 (projected)",
@@ -320,7 +381,12 @@ def epsilon_indi() -> SystemModel:
                 facts=[
                     _vfact("Spectral type", "T6", None, f"SIMBAD; {chen}"),
                     _vfact("Mass", "53.25 ± 0.29", "Jupiter masses", chen),
-                    _vfact("Temperature", "~900", "K", "King et al. 2010, as adopted by Chen et al. 2022"),
+                    _vfact(
+                        "Temperature (model-dependent)",
+                        "~900",
+                        "K",
+                        "King et al. 2010 (evolutionary models), adopted by Chen et al. 2022",
+                    ),
                     _vfact("Orbital period around Ba", "11.0197 ± 0.0076", "years", chen),
                     _vfact("Orbit size", "2.406", "AU", chen),
                     _vfact("Eccentricity", "0.540", None, chen),
@@ -399,9 +465,39 @@ def wise_0855() -> SystemModel:
 
 # --- R Draconis: a pulsating Mira variable --------------------------------------
 
+# The viewer draws R Dra's pulsation on two clocks. Free-running: a sine at the catalog (GCVS) period
+# with an arbitrary phase. Dataset time: the AAVSO VSX ephemeris of maximum light, held with its
+# timing band in the WS7 table frontend/src/three/ephemerides.ts (MIRA_EPHEMERIDES); the contract has
+# no field for a Variability epoch. tests/test_systems.py checks that these values match that table.
+RDRA_GCVS_PERIOD_DAYS = 245.6
+RDRA_VSX_EPOCH_HJD = 2457370.00  # epoch of maximum light (V)
+RDRA_VSX_PERIOD_DAYS = 246.12
+RDRA_VSX_RISE_PERCENT = 45  # rise from minimum to maximum, % of the period
+RDRA_PULSATION_NOTE = (
+    "The pulsation is drawn on two clocks. Free-running: the size/brightness animation is a sine wave at "
+    f"the GCVS period ({RDRA_GCVS_PERIOD_DAYS} d) spanning the V-band range, with an arbitrary phase (no "
+    "epoch): it is not a prediction for a real date. Dataset time: R Dra is drawn at the phase predicted "
+    f"by the AAVSO VSX ephemeris (epoch of maximum HJD {RDRA_VSX_EPOCH_HJD:.2f}, P = {RDRA_VSX_PERIOD_DAYS} d) "
+    f"on an asymmetric curve that rises in {RDRA_VSX_RISE_PERCENT} % of the cycle, with the timing band "
+    "of the WS7 table frontend/src/three/ephemerides.ts (from the O−C of observed maxima against that "
+    "ephemeris). Both are V-band drawings, not a measured or SPHEREx light curve: real Mira cycles change "
+    "from cycle to cycle, the infrared amplitude SPHEREx sees is much smaller and infrared maxima lag the "
+    "visual ones. The size change is drawn in phase with the light for display only."
+)
+
 
 def r_draconis() -> SystemModel:
     gcvs = "GCVS 5.1 (Samus et al. 2017)"
+    # No dynamical mass exists for R Dra. Feast (2009) ties the initial mass of a Mira to its period:
+    # O-rich Miras of log P ~ 2.3 have initial masses < 1 M_sun, the bulk (log P ~ 2.5) are ~7 Gyr old,
+    # and C-Miras at log P ~ 2.7 have ~1.8 M_sun. R Dra (P = 245.6 d) has log P = 2.39, so a class-typical
+    # mass of ~1 M_sun. It is an INITIAL mass and only sizes the drawn convection cells.
+    feast = (
+        "Feast 2009, AGB Stars and Related Phenomena (Tokyo 2008), arXiv:0812.0250, Sect. 3: O-rich Miras with "
+        "log P ~2.3 have initial masses < 1 M_sun, those with log P ~2.5 are ~7 Gyr old, and C-Miras at log P ~2.7 "
+        "have ~1.8 M_sun; R Dra has log P = 2.39. Class-typical initial mass for its period, not a measurement of "
+        "this star (its present mass is lower after mass loss); used only to size the drawn convection cells"
+    )
     return SystemModel(
         id="r-draconis",
         name="R Draconis",
@@ -416,7 +512,7 @@ def r_draconis() -> SystemModel:
             radial_velocity_km_s=-132.8,
             epoch="J2016.0",  # Gaia DR3 reference epoch
         ),
-        field_id=None,  # TODO(WS3/WS7): add an r-draconis field to config/fields.toml
+        field_id="r-draconis",  # WS3 field (config/fields.toml)
         bodies=[
             Body(
                 id="r-draconis",
@@ -424,9 +520,12 @@ def r_draconis() -> SystemModel:
                 kind="star",
                 description="A Mira variable: an old red giant whose visible brightness changes by hundreds of times.",
                 radius_km=250 * R_SUN_KM,  # illustrative; varies during the cycle
+                mass_kg=1.0 * M_SUN_KG,  # class-typical Mira mass for P = 245.6 d (Feast 2009); unverified
                 teff_k=3000,  # representative drawing value inside the published range
                 spectral_type="M5e–M9eIII",
-                variability=Variability(kind="pulsation", period_days=245.6, amplitude_mag=6.5, band="V"),
+                variability=Variability(
+                    kind="pulsation", period_days=RDRA_GCVS_PERIOD_DAYS, amplitude_mag=6.5, band="V"
+                ),
                 appearance=Appearance(model="star"),
                 facts=[
                     _vfact("Variable type", "Mira", None, f"{gcvs}; AAVSO VSX"),
@@ -447,6 +546,7 @@ def r_draconis() -> SystemModel:
                         "solar radii",
                         "drawing value: published sizes depend strongly on the assumed distance and the pulsation phase",
                     ),
+                    _fact("Mass (class-typical)", "~1", "solar masses", feast),
                 ],
             )
         ],
@@ -455,10 +555,7 @@ def r_draconis() -> SystemModel:
             synthetic=False,
             notes=[
                 VERIFIED_NOTE,
-                PHASE_NOTE,
-                "The size/brightness animation is a sine wave spanning the V-band range: real Mira cycles are "
-                "asymmetric, change from cycle to cycle and are much smaller in the infrared SPHEREx sees. It is "
-                "not a measured or SPHEREx light curve.",
+                RDRA_PULSATION_NOTE,  # replaces PHASE_NOTE: R Dra has no orbit, and its phase is dated in Dataset time
                 "Radial velocity −132.8 km/s from SIMBAD (Wilson 1953); optical lines of a Mira move with the pulsation.",
             ],
         ),
@@ -486,7 +583,7 @@ def rw_aurigae() -> SystemModel:
             radial_velocity_km_s=15.0,
             epoch="J2016.0",  # Gaia DR3 reference epoch
         ),
-        field_id=None,  # TODO(WS3/WS7): add an rw-aurigae field to config/fields.toml
+        field_id="rw-aurigae",  # WS3 field (config/fields.toml)
         bodies=[
             Body(
                 id="rw-aur-a",
@@ -501,6 +598,12 @@ def rw_aurigae() -> SystemModel:
                 appearance=Appearance(model="star"),
                 facts=[
                     _vfact("Type", "Classical T Tauri star", None, "SIMBAD; AAVSO VSX"),
+                    _vfact(
+                        "Distance",
+                        "156.1",
+                        "pc",
+                        "Gaia DR3 parallax of B (6.406 ± 0.044 mas), adopted for the system by Kurtovic et al. 2024",
+                    ),
                     _vfact("Mass (dynamical)", "1.24", "solar masses", f"{kurtovic}, gas disk rotation"),
                     _vfact("Temperature", "4900", "K", "Testi et al. 2022, A&A 663, A98"),
                     _vfact("Visual range (A+B)", "9.2–13.6", "mag (V)", "AAVSO VSX"),
