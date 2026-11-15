@@ -1,4 +1,4 @@
-import type { ComparisonImage, Field, SpectralMeasurement } from './types';
+import type { ComparisonImage, Field, SpectralMeasurement, SpectrumResponse } from './types';
 
 export function plotMeasurements(points: SpectralMeasurement[]) {
   return points.filter((p) => p.usable && p.wavelength_um !== null && Number.isFinite(p.wavelength_um)
@@ -18,4 +18,25 @@ export function comparisonSelection(field: Field, detector: number, from: string
 export function comparisonTitle(image: ComparisonImage): string {
   return image.kind === 'weighted_mean' ? `D${image.detector} · season ${image.season} weighted mean`
     : `D${image.detector} · ${image.later} − ${image.flux_scale?.toFixed(3)} × ${image.earlier}`;
+}
+
+export type SpectrumSource = SpectrumResponse['source'];
+
+/** Labels of the two spectrum sources (FE-8: shared by the options menu and the result summary). */
+export const SPECTRUM_SOURCE_LABELS: Record<SpectrumSource, string> = {
+  dr1_cube: 'DR1 cube · static quick look',
+  l2_exposures: 'L2 exposures · aperture photometry',
+};
+
+/** The honesty legend of each source; it must stay visible next to any plot of that source. */
+export function spectrumCaveat(source: SpectrumSource): string {
+  return source === 'dr1_cube'
+    ? 'Static surface brightness (MJy/sr), without background subtraction or flux errors. Saturated cores can be missing.'
+    : 'Background-subtracted aperture flux (mJy) at each exposure date. Wavelength and time vary together; do not interpret a mixed-epoch curve as a simultaneous spectrum.';
+}
+
+/** One-line result summary: "N usable / M measured points · K failed inputs". */
+export function spectrumSummary(result: Pick<SpectrumResponse, 'points' | 'failures'>): string {
+  return `${result.points.filter((p) => p.usable).length} usable / ${result.points.length} measured points · `
+    + `${result.failures.length} failed inputs`;
 }

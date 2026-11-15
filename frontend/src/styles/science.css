@@ -1,0 +1,134 @@
+/* FE-8 · science panels (spectrum, light curve). Prefix: .sci- (docs/FRONTEND_PLAN.md §4.3). */
+
+/* Plot frame shared by the spectrum and the light curve. Two classes beat the old .measurement-plot rules. */
+.measurement-plot.sci-plot { max-width: 900px; margin: var(--sp-2, 8px) auto var(--sp-3, 12px); }
+.measurement-plot.sci-plot--compact { margin: var(--sp-1, 4px) 0 var(--sp-2, 8px); }
+.sci-plot-box {
+  position: relative;
+  border: 1px solid var(--line, #232a3d);
+  border-radius: var(--r-md, 10px);
+  background: radial-gradient(ellipse at 85% 0%, rgb(124 196 255 / 0.07), transparent 60%), var(--surface-0, #07090f);
+  padding: var(--sp-1, 4px) var(--sp-1, 4px) 0;
+}
+.sci-plot svg { display: block; width: 100%; height: auto; color: var(--text-2, #b4bdd1); overflow: visible; }
+.sci-plot--compact svg { max-height: 240px; }
+.sci-plot svg text { fill: var(--muted, #8e97ad); font-size: 11px; font-variant-numeric: tabular-nums; }
+.sci-plot .sci-grid { stroke: var(--line, #232a3d); stroke-width: 1; stroke-dasharray: 2 4; fill: none; }
+.sci-plot .sci-axis { stroke: var(--line-strong, #34405e); stroke-width: 1; }
+.sci-plot .sci-zero { stroke: var(--line-control, #626d88); stroke-dasharray: 4 4; fill: none; }
+.sci-plot .sci-err { stroke: var(--text-2, #b4bdd1); stroke-width: 1.2; opacity: 0.75; }
+.sci-plot .sci-floor { fill: var(--src-spherex, #7cc4ff); }
+.sci-plot .sci-dot {
+  fill: var(--src-spherex, #7cc4ff);
+  stroke: var(--surface-0, #07090f);
+  stroke-width: 1;
+  transition: r var(--dur-fast, 120ms) var(--ease-out, ease-out);
+}
+.sci-plot .sci-point { cursor: crosshair; }
+.sci-plot .sci-point:hover .sci-dot { r: 5.5; fill: var(--accent-strong, #a6e0ff); }
+.sci-plot .sci-point:hover .sci-err { opacity: 1; }
+.sci-plot figcaption { margin-top: var(--sp-1, 4px); line-height: var(--lh, 1.45); }
+
+/* Hover tooltip (glass), positioned in % of the plot box by SciencePlot.tsx. */
+.sci-tip {
+  position: absolute;
+  z-index: var(--z-popover, 40);
+  transform: translate(12px, -50%);
+  display: grid;
+  gap: 1px;
+  padding: 6px 9px;
+  min-width: max-content;
+  pointer-events: none;
+  border: 1px solid var(--line-strong, #34405e);
+  border-radius: var(--r-sm, 6px);
+  background: var(--surface-glass, rgb(9 13 24 / 0.9));
+  backdrop-filter: blur(var(--glass-blur, 10px));
+  box-shadow: var(--shadow-2, 0 6px 20px rgb(0 0 0 / 0.45));
+  color: var(--text, #e6e9f2);
+  font-size: var(--fs-xs, 0.75rem);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.35;
+}
+.sci-tip span:first-child { font-weight: var(--fw-bold, 650); }
+.sci-tip span:not(:first-child) { color: var(--text-2, #b4bdd1); }
+.sci-tip--left { transform: translate(calc(-100% - 12px), -50%); }
+.sci-tip--below { transform: translate(12px, 8px); }
+.sci-tip--left.sci-tip--below { transform: translate(calc(-100% - 12px), 8px); }
+
+/* Spectrum panel. */
+.science-panel.sci-spectrum--compact { margin: 0; display: flex; flex-direction: column; gap: var(--sp-2, 8px); }
+.sci-spectrum--compact > p { margin: 0; }
+.sci-summary { margin: 0; font-weight: var(--fw-medium, 500); font-variant-numeric: tabular-nums; color: var(--text, #e6e9f2); }
+.sci-caveat {
+  margin: 0;
+  padding: 2px 0 2px var(--sp-2, 8px);
+  border-left: 2px solid var(--src-spherex, #7cc4ff);
+  color: var(--text-2, #b4bdd1);
+  line-height: var(--lh, 1.45);
+}
+.sci-source {
+  display: inline-block;
+  margin-right: 4px;
+  padding: 0 7px;
+  border: 1px solid var(--src-spherex, #7cc4ff);
+  border-radius: var(--r-pill, 999px);
+  color: var(--src-spherex, #7cc4ff);
+  font-size: var(--fs-2xs, 0.6875rem);
+  line-height: 1.6;
+  white-space: nowrap;
+}
+.sci-empty { color: var(--text-2, #b4bdd1); }
+
+/* Folded sections: one visible line each, so a caveat never disappears without a trace. */
+.sci-more > summary, .sci-options > summary {
+  cursor: pointer;
+  padding: 6px 0;
+  color: var(--text-2, #b4bdd1);
+  font-size: var(--fs-sm, 0.8125rem);
+}
+.sci-more > summary:hover, .sci-options > summary:hover { color: var(--text, #e6e9f2); }
+.sci-options {
+  border: 1px solid var(--line, #232a3d);
+  border-radius: var(--r-md, 10px);
+  padding: 0 var(--sp-3, 12px);
+  background: var(--surface-1, #0f1422);
+}
+.sci-options[open] { padding-bottom: var(--sp-3, 12px); }
+.sci-options > summary { font-weight: var(--fw-medium, 500); color: var(--text, #e6e9f2); }
+.sci-form .science-controls > label { flex: 1 1 140px; }
+.science-panel .sci-run { margin: var(--sp-2, 8px) 0 0; }
+
+/* Loading: animated dot plus a plot-shaped skeleton. */
+.sci-busy { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2, 8px); margin: 0; color: var(--text-2, #b4bdd1); }
+.science-panel .sci-busy .link-button { margin: 0 0 0 auto; }
+.sci-busy-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--src-spherex, #7cc4ff);
+  animation: sci-pulse 1.2s ease-in-out infinite;
+}
+@keyframes sci-pulse { 0%, 100% { opacity: 0.25; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.15); } }
+@media (prefers-reduced-motion: reduce) { .sci-busy-dot { animation: none; } }
+
+/* Light curve, inline variant. */
+.science-panel.sci-lc-inline { margin: 0; }
+.sci-lc { display: flex; flex-direction: column; gap: var(--sp-2, 8px); }
+.sci-lc > p { margin: 0; }
+.sci-lc-meta { color: var(--text-2, #b4bdd1); font-size: var(--fs-sm, 0.8125rem); }
+.sci-lc-meta strong { color: var(--text, #e6e9f2); }
+.sci-headline { font-size: var(--fs-md, 0.9375rem); line-height: var(--lh, 1.45); color: var(--text, #e6e9f2); }
+.sci-change { color: var(--text-2, #b4bdd1); }
+.science-panel .sci-band { margin: 0; }
+.sci-limits h4 { margin: var(--sp-3, 12px) 0 var(--sp-1, 4px); font-size: var(--fs-sm, 0.8125rem); }
+.sci-skeleton {
+  height: 200px;
+  border: 1px solid var(--line, #232a3d);
+  border-radius: var(--r-md, 10px);
+  background: linear-gradient(100deg, var(--surface-1, #0f1422) 30%, var(--surface-2, #171e31) 50%, var(--surface-1, #0f1422) 70%) 0 0 / 300% 100%;
+  animation: sci-shimmer 1.6s linear infinite;
+}
+@keyframes sci-shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+@media (prefers-reduced-motion: reduce) { .sci-skeleton { animation: none; } }
+.sci-start { display: grid; gap: var(--sp-2, 8px); padding: var(--sp-3, 12px); border: 1px dashed var(--line-strong, #34405e); border-radius: var(--r-md, 10px); }
+.sci-start p { margin: 0; }
+.science-panel .sci-start .sci-run { margin: 0; justify-self: start; }
+.sci-plot figcaption.small, .sci-caveat.small { font-size: var(--fs-xs, 0.75rem); }

@@ -285,7 +285,8 @@ export function SystemViewer(props: Props) {
     </button>
   );
 
-  const legends = (
+  // Long legends (colour, surface, spin): behind a disclosure in compact.
+  const colourLegend = (
     <>
       <div className="muted small s3d-legend" aria-live="polite">
         {kit && modeChip && colorMode && kit.isInfraredMode(colorMode) && (
@@ -301,6 +302,11 @@ export function SystemViewer(props: Props) {
         ))}
         {spinLine && <p>{spinLine}</p>}
       </div>
+    </>
+  );
+  // Short honesty lines kept visible in compact too (AGENTS.md rule 3: phase and parameter limits; faricool54 on #147).
+  const orbitLegend = (
+    <>
       {kit && notFitted && (notFitted.assumed.length > 0 || notFitted.hypothetical.length > 0) && (
         // Explained here too, not only inside the body panel: the whole-system view shows these orbits.
         <p className="muted small orbit-legend">
@@ -326,6 +332,11 @@ export function SystemViewer(props: Props) {
           )}
         </p>
       )}
+    </>
+  );
+  // Dataset-time legend (On this date, arcs, rings, line of sight): long, behind the disclosure in compact.
+  const cloudLegend_ = (
+    <>
       {kit && dataset && cloudLegend && (
         <div className="muted small s3d-legend">
           {dateLines.length > 0 && (
@@ -375,6 +386,11 @@ export function SystemViewer(props: Props) {
           )}
         </div>
       )}
+    </>
+  );
+  // Model time / arbitrary phase: always visible.
+  const timeLine = (
+    <>
       <p className="muted small">
         {dataset && mjd !== null ? (
           <>
@@ -390,6 +406,14 @@ export function SystemViewer(props: Props) {
         )}{' '}
         · drag to rotate, scroll to zoom, click a body to enter it
       </p>
+    </>
+  );
+  const legends = (
+    <>
+      {colourLegend}
+      {orbitLegend}
+      {cloudLegend_}
+      {timeLine}
     </>
   );
 
@@ -502,10 +526,17 @@ export function SystemViewer(props: Props) {
         )}
       </div>
       {compact ? (
-        <details className="s3d-disclosure s3d-legend-details">
-          <summary>Legend and model time</summary>
-          {legends}
-        </details>
+        <>
+          <div className="s3d-legends s3d-legends--compact">
+            {orbitLegend}
+            {timeLine}
+          </div>
+          <details className="s3d-disclosure s3d-legend-details">
+            <summary>Colour, surface and date legends</summary>
+            {colourLegend}
+            {cloudLegend_}
+          </details>
+        </>
       ) : (
         <div className="s3d-legends">{legends}</div>
       )}

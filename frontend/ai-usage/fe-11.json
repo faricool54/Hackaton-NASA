@@ -1,0 +1,19 @@
+{
+  "updated_on": "2026-11-15",
+  "tool": "Anthropic Claude Code",
+  "package": "FE-11 (docs/FRONTEND_PLAN.md): keyboard shortcuts and their help dialog",
+  "scope": "New useShortcut(key | keys, handler, { when }) hook on document keydown with a pure shouldHandleShortcut filter: it ignores keys pressed with Ctrl, Meta or Alt, events another handler already consumed (defaultPrevented), IME composition, targets that are or sit inside an input, textarea, select, iframe, contenteditable element, [role=textbox] or open modal dialog, and targets from another document or detached from the page; it calls preventDefault when it acts. The explorer dock (ExplorerDock.tsx, the only existing file changed) answers 1-4 by selecting the Object, Time, Spectrum and 3D tabs through its existing onView and moving the focus to that tab; the tabs keep their ids and ARIA and gain aria-keyshortcuts. A new ShortcutsHelp component adds a small 'Shortcuts' button (aria-haspopup=dialog, aria-keyshortcuts='?') next to the dock tablist and opens, from that button or from '?', a modal dialog (role=dialog, aria-modal, aria-labelledby, rendered in a portal on body, focus moved to its Close button and kept inside with Tab, returned to the opener on close, closed by Esc, the Close button or a click that starts and ends on the backdrop). Its Esc listener sits on the window in the capture phase, registered when the dock mounts, so it runs before the map card's Esc listener and marks the event with preventDefault: one Esc closes only the dialog. Keys pressed inside the dialog do not reach the page shortcuts (such as '/'). The dialog only documents the existing shortcuts without re-implementing them: '/' (SkySearch, FE-3), 1-4 (dock tabs), Space and the left/right arrows (Time player, when it has the focus), Esc (dialog, map Layers menu, pinned map card) and '?'. The button is hidden on devices without hover and with a coarse pointer. New prefixed stylesheet (.kb-, as FRONTEND_PLAN section 4 assigns to FE-11) using the shared tokens with fallbacks; vitest unit tests of the filter and the 1-4 mapping and server-rendered tests of the dock tabs, the button and the shortcut list. No Lighthouse audit and no keyboard-only walkthrough of the full demo yet (FE-11 acceptance items still open).",
+  "affected_paths": [
+    "frontend/src/components/useShortcuts.ts",
+    "frontend/src/components/useShortcuts.test.ts",
+    "frontend/src/components/ShortcutsHelp.tsx",
+    "frontend/src/components/ExplorerDock.tsx",
+    "frontend/src/styles/shortcuts.css",
+    "frontend/ai-usage/fe-11.json"
+  ],
+  "external_assets": [],
+  "generated_media": [],
+  "scientific_R05_validation": false,
+  "human_review": "pending",
+  "repository_disclosure": "AI_USAGE.md"
+}

@@ -1,0 +1,170 @@
+/* FE-7 · compact blink player (BlinkViewer). Prefix: .pl-
+   The player root is a size container: under 520 px of width (the home dock) the compact rules apply on their
+   own; `.pl-compact` (prop `compact`) forces them. The compact block is written twice (container query + class)
+   because a container cannot query itself. Shared classes (.transport-btn, .segmented, .overlay-toggle) keep
+   their styles.css rules; they are only refined here under .pl-root. */
+
+.pl-root {
+  container: pl / inline-size;
+  min-width: 0;
+  outline: none;
+}
+.pl-root:focus-visible { border-radius: var(--r-md, 10px); box-shadow: 0 0 0 2px var(--accent, #7cc4ff); }
+
+.pl-alert { margin: 0 0 var(--sp-2, 8px); }
+
+/* --- stage ------------------------------------------------------------------ */
+/* Stage budget. Pages can set `--pl-stage-max` (max side of the image) from their own CSS, e.g. the field page
+   after its title bar; the fallback is today's layout. Below the image the player needs: crosshair note
+   (--pl-note-h, only when the Gaia toggle exists) + transport, about 144 px wide / 109 px compact with margins. */
+.pl-root .pl-stage {
+  /* Wide (field page): the image, the crosshair note and the transport fit in the viewport; never under 360 px. */
+  width: min(100%, var(--pl-stage-max, max(360px, calc(100dvh - var(--topbar-h, 48px) - 150px - var(--pl-note-h, 0px)))));
+  margin-inline: auto;
+}
+.pl-root.pl-has-note .pl-stage { --pl-note-h: 24px; }
+.pl-root .pl-caption { z-index: 2; line-height: 1.35; }
+
+.pl-zoom {
+  position: absolute; z-index: 3; top: 8px; right: 8px;
+  display: flex; align-items: center; gap: 6px;
+  padding: 3px 3px 3px 9px;
+  color: var(--text-2, #b4bdd1); font-size: var(--fs-2xs, 0.6875rem); letter-spacing: 0.06em; text-transform: uppercase;
+  background: var(--surface-glass, rgb(9 13 24 / 0.9));
+  border: 1px solid rgba(184, 199, 218, 0.16); border-radius: var(--r-pill, 999px);
+  box-shadow: var(--shadow-1, 0 1px 2px rgb(0 0 0 / 0.35));
+}
+.pl-zoom .segmented { padding: 0; background: transparent; border: 0; }
+.pl-root .pl-zoom .segmented button { min-height: 26px; padding: 2px 9px; font-size: 0.75rem; letter-spacing: 0; text-transform: none; }
+
+.pl-loading {
+  position: absolute; z-index: 3; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  display: grid; gap: 6px; min-width: 180px; padding: 8px 12px;
+  text-align: center; color: var(--text-2, #b4bdd1);
+  background: var(--surface-glass, rgb(9 13 24 / 0.9));
+  border: 1px solid rgba(124, 196, 255, 0.18); border-radius: var(--r-md, 10px);
+}
+.pl-loading p { margin: 0; }
+.pl-loading-bar { display: block; height: 3px; background: #293248; border-radius: 999px; overflow: hidden; }
+.pl-loading-bar i { display: block; height: 100%; background: var(--accent, #7cc4ff); transition: width var(--dur, 200ms) var(--ease-out, ease-out); }
+
+/* --- transport ---------------------------------------------------------------- */
+.pl-transport {
+  display: grid; gap: 6px;
+  margin: 10px 0 var(--sp-3, 12px); padding: 8px 14px 10px;
+  background: linear-gradient(145deg, rgba(20, 28, 44, 0.96), rgba(13, 17, 28, 0.96));
+  border: 1px solid rgba(124, 196, 255, 0.12); border-radius: var(--r-lg, 14px);
+}
+.pl-row { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.pl-btns { display: flex; align-items: center; gap: 8px; flex: none; }
+.pl-scrubber { display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-width: 0; }
+.pl-scrubber .scrubber-date { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pl-row--opts {
+  flex-wrap: wrap; justify-content: flex-start; gap: 6px 16px;
+  padding-top: 6px; border-top: 1px solid rgba(184, 199, 218, 0.08);
+  color: var(--muted, #8e97ad); font-size: 0.76rem;
+}
+.pl-row--opts .pl-speed { margin-right: auto; }
+
+/* (i) keyboard help popover */
+.pl-help { position: relative; flex: none; }
+.pl-help > summary {
+  display: grid; place-items: center; width: 26px; height: 26px;
+  list-style: none; cursor: pointer;
+  color: var(--text-2, #b4bdd1); font: italic 600 0.8rem/1 Georgia, 'Times New Roman', serif;
+  border: 1px solid rgba(184, 199, 218, 0.28); border-radius: 50%;
+}
+.pl-help > summary::-webkit-details-marker { display: none; }
+.pl-help > summary:hover, .pl-help[open] > summary { color: var(--text, #e6e9f2); border-color: var(--accent, #7cc4ff); }
+.pl-help > summary:focus-visible { outline: 2px solid var(--accent, #7cc4ff); outline-offset: 2px; }
+.pl-pop {
+  position: absolute; z-index: var(--z-popover, 40); right: 0; bottom: calc(100% + 8px);
+  width: min(300px, 80vw); padding: 10px 12px;
+  color: var(--text-2, #b4bdd1); line-height: 1.45;
+  background: var(--surface-1, #0f1422); border: 1px solid var(--line-strong, #34405e);
+  border-radius: var(--r-md, 10px); box-shadow: var(--shadow-pop, 0 12px 32px rgb(0 0 0 / 0.55));
+}
+.pl-pop p { margin: 0; }
+.pl-pop p + p { margin-top: 6px; }
+.pl-pop kbd {
+  padding: 0 4px; font: 0.72rem var(--font-mono, monospace); color: var(--text, #e6e9f2);
+  border: 1px solid var(--line-strong, #34405e); border-radius: var(--r-xs, 4px);
+}
+
+/* Crosshair note right under the image, WS7 legend under the transport (texts unchanged). */
+.pl-root .pl-note { margin: 4px 0 0; line-height: 1.4; }
+.pl-root .pl-note--crosshair { margin: 6px 0 0; }
+
+/* --- compact (dock): container query ------------------------------------------- */
+@container pl (max-width: 520px) {
+  /* Square stage: the width, but never taller than the free height under the dock header and the transport. */
+  .pl-root .pl-stage { width: min(100%, var(--pl-stage-max, max(240px, calc(100dvh - 310px - var(--pl-note-h, 0px))))); }
+  .pl-root.pl-has-note .pl-stage { --pl-note-h: 32px; }
+  .pl-root .pl-note--crosshair { margin-top: 4px; line-height: 1.25; }
+  .pl-root .pl-caption { padding: 4px 8px; font-size: 0.74rem; }
+  .pl-root .pl-zoom { top: 6px; right: 6px; padding: 2px; }
+  .pl-root .pl-zoom-label { display: none; }
+  .pl-root .pl-transport { gap: 4px; margin: 8px 0 var(--sp-2, 8px); padding: 6px 8px 6px; }
+  .pl-root .pl-row { gap: 8px; }
+  .pl-root .pl-btns { gap: 4px; }
+  .pl-root .pl-btns .transport-btn { width: 34px; height: 34px; min-height: 34px; }
+  .pl-root .pl-btns .transport-btn--primary { width: 40px; height: 40px; min-height: 40px; }
+  .pl-root .pl-btns .transport-btn svg { width: 15px; height: 15px; }
+  .pl-root .pl-scrubber .scrubber-meta { gap: 6px; font-size: 0.68rem; }
+  .pl-root .pl-scrubber .scrubber-count { font-size: 0.62rem; }
+  .pl-root .pl-scrubber .scrubber-track-wrap { height: 22px; }
+  .pl-root .pl-row--opts { gap: 4px 8px; padding-top: 4px; font-size: 0.72rem; }
+  .pl-root .pl-speed { gap: 4px; }
+  .pl-root .pl-speed-label { display: none; }
+  .pl-root .pl-speed input[type='range'] { width: 58px; }
+  .pl-root .pl-row--opts .speed-value { min-width: 2.4em; }
+  .pl-root .pl-row--opts .overlay-toggle { gap: 5px; min-height: 30px; padding: 3px 7px; font-size: 0.7rem; }
+  .pl-root .pl-row--opts .toggle-indicator { width: 20px; height: 11px; }
+  .pl-root .pl-row--opts .toggle-indicator::after { width: 7px; height: 7px; }
+  .pl-root .pl-row--opts .overlay-toggle.is-on .toggle-indicator::after { transform: translateX(9px); }
+  .pl-root .pl-help > summary { width: 24px; height: 24px; }
+  .pl-root .pl-note { font-size: 0.72rem; }
+}
+
+/* --- compact forced by the prop (same rules as above) -------------------------- */
+.pl-root.pl-compact .pl-stage { width: min(100%, var(--pl-stage-max, max(240px, calc(100dvh - 310px - var(--pl-note-h, 0px))))); }
+.pl-root.pl-compact.pl-has-note .pl-stage { --pl-note-h: 32px; }
+.pl-root.pl-compact .pl-note--crosshair { margin-top: 4px; line-height: 1.25; }
+.pl-root.pl-compact .pl-caption { padding: 4px 8px; font-size: 0.74rem; }
+.pl-root.pl-compact .pl-zoom { top: 6px; right: 6px; padding: 2px; }
+.pl-root.pl-compact .pl-zoom-label { display: none; }
+.pl-root.pl-compact .pl-transport { gap: 4px; margin: 8px 0 var(--sp-2, 8px); padding: 6px 8px 6px; }
+.pl-root.pl-compact .pl-row { gap: 8px; }
+.pl-root.pl-compact .pl-btns { gap: 4px; }
+.pl-root.pl-compact .pl-btns .transport-btn { width: 34px; height: 34px; min-height: 34px; }
+.pl-root.pl-compact .pl-btns .transport-btn--primary { width: 40px; height: 40px; min-height: 40px; }
+.pl-root.pl-compact .pl-btns .transport-btn svg { width: 15px; height: 15px; }
+.pl-root.pl-compact .pl-scrubber .scrubber-meta { gap: 6px; font-size: 0.68rem; }
+.pl-root.pl-compact .pl-scrubber .scrubber-count { font-size: 0.62rem; }
+.pl-root.pl-compact .pl-scrubber .scrubber-track-wrap { height: 22px; }
+.pl-root.pl-compact .pl-row--opts { gap: 4px 8px; padding-top: 4px; font-size: 0.72rem; }
+.pl-root.pl-compact .pl-speed { gap: 4px; }
+.pl-root.pl-compact .pl-speed-label { display: none; }
+.pl-root.pl-compact .pl-speed input[type='range'] { width: 58px; }
+.pl-root.pl-compact .pl-row--opts .speed-value { min-width: 2.4em; }
+.pl-root.pl-compact .pl-row--opts .overlay-toggle { gap: 5px; min-height: 30px; padding: 3px 7px; font-size: 0.7rem; }
+.pl-root.pl-compact .pl-row--opts .toggle-indicator { width: 20px; height: 11px; }
+.pl-root.pl-compact .pl-row--opts .toggle-indicator::after { width: 7px; height: 7px; }
+.pl-root.pl-compact .pl-row--opts .overlay-toggle.is-on .toggle-indicator::after { transform: translateX(9px); }
+.pl-root.pl-compact .pl-help > summary { width: 24px; height: 24px; }
+.pl-root.pl-compact .pl-note { font-size: 0.72rem; }
+
+/* Phones (container under 360 px): keep the options on one row. */
+@container pl (max-width: 360px) {
+  .pl-root .pl-row--opts { gap: 4px 6px; }
+  .pl-root .pl-speed input[type='range'] { width: 40px; }
+  .pl-root .pl-row--opts .overlay-toggle { padding: 3px 6px; }
+}
+
+/* Touch (last, so it beats the compact rules: every phone is compact). `.blink.pl-root` adds specificity. */
+@media (pointer: coarse) {
+  .blink.pl-root .pl-zoom .segmented button,
+  .blink.pl-root .pl-row--opts .overlay-toggle { min-height: var(--touch-min, 44px); }
+  .blink.pl-root .pl-btns .transport-btn { min-width: var(--touch-min, 44px); min-height: var(--touch-min, 44px); }
+  .blink.pl-root .pl-help > summary { width: var(--touch-min, 44px); height: var(--touch-min, 44px); }
+}

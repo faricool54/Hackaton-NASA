@@ -2,9 +2,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiError, createClient } from './client';
 import { parseCoordinate, positionUrl, readPosition } from './jobs';
 import {
-  coordinateLookup, describeObjectError, factRows, formatArcsec, identityCaveat, isEmptySky, lookupKey, lookupLabel,
-  magnitudeText, matchSummary, nameLookup, photometryGroups, planetLine, planetsSummary, positionLookup, serviceRows,
-  servicesSummary, variabilityText,
+  coordinateLookup, describeObjectError, factRows, formatArcsec, identityCaveat, identityNotSecure, isEmptySky, keyRows,
+  lookupKey, lookupLabel, magnitudeText, matchBadge, matchSummary, nameLookup, objectTitle, objectTypeLine,
+  photometryGroups, planetLine, planetsRow, planetsSummary, positionLookup, serviceRows, servicesSummary, splitCaveat,
+  summaryLines, variabilityText,
 } from './objectCard';
 import { SHOWCASE_TARGETS } from './showcase';
 import type { ContextMagnitude, ContextService, ObjectContextResponse, ObjectIdentity, ObjectPlanet } from './types';
@@ -220,5 +221,101 @@ describe('services and errors', () => {
     expect(describeObjectError(new TypeError('Failed to fetch'))).toBe('Could not reach the API for catalog context.');
     expect(formatArcsec(null)).toBe('unknown');
     expect(formatArcsec(404.4)).toBe('404″');
+  });
+});
+
+describe('compact card rows (FE-5)', () => {
+  const fact = (label: string, value: string, verified = true, unit: string | null = null) =>
+    ({ label, value, unit, source: `${label} source`, verified });
+  // Source strings shaped like the backend's (PhysicalParameter.to_fact in pipeline/errante/science/context.py).
+  const VSX = 'AAVSO VSX V2500 Oph (B/vsx, VizieR CfA, retrieved 2026-11-15)';
+  const facts = [
+    fact('Effective temperature', '3195', true, 'K'), fact('Radius', '0.19', true, 'R_sun'), fact('Distance', '1.83', true, 'pc'),
+    fact('Spectral type', 'M4V'), { ...fact('Variability type', 'BY'), source: VSX }, fact('Variability period', 'unknown', false),
+  ];
+  const star = response({ display_name: "Barnard's Star", match: 'name', gaia_source_id: '1', object_type: 'BY*',
+    object_type_label: 'BY Dra variable', spectral_type: 'M4V' }, {
+    facts, variability: { name: 'V2500 Oph', var_type: 'BY', period_days: null, mag_max: null, mag_min: null,
+      min_is_amplitude: false, passband: null, separation_arcsec: 0.2, url: 'https://vsx.aavso.org/x', source: 'VSX' },
+  });
+
+  it('shows the key facts in a fixed order in the dock and every fact in the full card', () => {
+    expect(keyRows(star).map((r) => r.label)).toEqual(['Distance', 'Effective temperature', 'Spectral type', 'Variability type', 'Planets']);
+    expect(keyRows(star, 'full').map((r) => r.label)).toEqual([...facts.map((f) => f.label), 'Planets']);
+    expect(keyRows(star)[0]).toMatchObject({ value: '1.83 pc', status: 'verified', source: 'Distance source', href: null,
+      caveat: null });
+    expect(keyRows(star)[3].href).toBe('https://vsx.aavso.org/x'); // the VSX page backs the variability value
+    const known = response({}, { facts: [...facts.slice(0, 5), fact('Variability period', '130.4', true, 'days')] });
+    expect(keyRows(known).map((r) => r.label)).toContain('Variability period');
+  });
+
+  it('links a variability value to VSX only when VSX is its source', () => {
+    // VSX lists the star without a period; the period comes from Gaia DR3's long-period-variable table.
+    const lpv = { ...fact('Variability period', '412', true, 'days'),
+      source: 'Gaia DR3 123, gaiadr3.vari_long_period_variable (ESA archive) | Caveat: AAVSO VSX could not be reached.' };
+    const rows = keyRows({ ...star, facts: [...facts.slice(0, 5), lpv] });
+    expect(rows.find((r) => r.label === 'Variability type')?.href).toBe('https://vsx.aavso.org/x');
+    expect(rows.find((r) => r.label === 'Variability period')?.href).toBeNull();
+  });
+
+  it('splits the backend caveat off a source and marks it on the row', () => {
+    expect(splitCaveat('Gaia DR3 1 | GSP-Phot | Caveat: M dwarfs are unreliable: indicative only.')).toEqual({
+      source: 'Gaia DR3 1 | GSP-Phot', caveat: 'M dwarfs are unreliable: indicative only.' });
+    expect(splitCaveat('Caveat: identity uncertain.')).toEqual({ source: '', caveat: 'identity uncertain.' });
+    expect(splitCaveat('SIMBAD via Sesame')).toEqual({ source: 'SIMBAD via Sesame', caveat: null });
+    expect(splitCaveat('A note on the Caveat: word')).toEqual({ source: 'A note on the Caveat: word', caveat: null });
+    const teff = { ...fact('Effective temperature', '3100 (3099-3102)', true, 'K'),
+      source: 'Gaia DR3 1, I/355/gaiadr3 | GSP-Phot | Caveat: GSP-Phot temperatures of M dwarfs are unreliable: indicative only.' };
+    const caveated = { ...star, facts: [teff, ...facts.slice(1)] };
+    expect(keyRows(caveated).find((r) => r.label === 'Effective temperature')).toMatchObject({
+      status: 'verified', caveat: 'GSP-Phot temperatures of M dwarfs are unreliable: indicative only.' });
+    // the popup has no room for the caveat on its one clipped line: it leaves that Teff out (the card shows it)
+    expect(summaryLines(caveated).map((l) => l.text)).toContain('Distance 1.83 pc (verified)');
+    expect(summaryLines(caveated).some((l) => l.text.includes('Teff'))).toBe(false);
+  });
+
+  it('labels the match with a short text badge for the header', () => {
+    expect(matchBadge(star)).toEqual({ label: 'Name match', tone: 'ok', title: 'Identified by name (SIMBAD)' });
+    expect(matchBadge(response({ match: 'ambiguous' }))).toMatchObject({ label: 'Ambiguous', tone: 'warn' });
+    expect(matchBadge(response({ match: 'loose', separation_arcsec: 5 }))).toMatchObject({ label: 'Loose match', tone: 'warn' });
+    expect(matchBadge(response({ match: 'matched', gaia_source_id: '2' }))).toMatchObject({ label: 'Gaia match', tone: 'ok' });
+    expect(matchBadge(response({ match: 'unavailable' }))).toMatchObject({ label: 'Identity unknown', tone: 'warn' });
+    expect(matchBadge(response())).toMatchObject({ label: 'No source', tone: 'none' });
+    const named = response({}, { query: { ra: null, dec: null, name: 'Foo', epoch_mjd: 61000, radius_arcsec: 8 } });
+    expect(matchBadge(named)).toMatchObject({ label: 'Not identified', tone: 'warn' });
+  });
+
+  it('counts planets and never turns an archive outage into "none"', () => {
+    const planet = { name: 'b' } as ObjectPlanet;
+    expect(planetsRow(response({}, { planets: [planet, planet] }))).toMatchObject({ value: '2 confirmed', unknown: false });
+    expect(planetsRow(response())).toMatchObject({ value: 'none listed', unknown: false, source: 'NASA Exoplanet Archive' });
+    const down = response({}, { provenance: [{ service: 'exoplanets', catalog: 'PS', url: null, status: 'error',
+      retrieved_utc: null, cached: false, stale: false, note: null }] });
+    expect(planetsRow(down)).toMatchObject({ value: 'unknown', unknown: true, caveat: null });
+    expect(planetsRow(response({ identity_uncertain: true, match: 'loose' })).source).toContain('identity uncertain');
+    expect(planetsRow(response({ identity_uncertain: true, match: 'loose' })).caveat).toContain('identity uncertain');
+    expect(planetsRow(response()).caveat).toBeNull();
+  });
+
+  it('titles the card without inventing a name', () => {
+    expect(objectTitle(star)).toBe("Barnard's Star");
+    expect(objectTitle(response())).toBe('No catalogued source');
+    expect(objectTitle(response({ match: 'matched', gaia_source_id: '2' }))).toBe('Unidentified position');
+    expect(objectTypeLine(star)).toBe('BY Dra variable (BY*) · spectral type M4V');
+    expect(objectTypeLine(response())).toBe('');
+    expect(identityNotSecure(response({ identity_uncertain: true, match: 'name' }))).toBe(true);
+    expect(identityNotSecure(response({ identity_uncertain: true, match: 'ambiguous' }))).toBe(false);
+  });
+
+  it('summarises the card in at most five lines under the title, keeping the caveats', () => {
+    expect(summaryLines(star).map((l) => l.text)).toEqual([
+      'BY Dra variable (BY*) · spectral type M4V', 'Identified by name (SIMBAD)',
+      'Distance 1.83 pc (verified) · Teff 3195 K (verified)', 'Variable: BY · Planets: none listed']);
+    const shaky = { ...star, partial: true, identity: { ...star.identity, identity_uncertain: true } };
+    const lines = summaryLines(shaky);
+    expect(lines.length).toBeLessThanOrEqual(5);
+    expect(lines[lines.length - 1]).toEqual({ text: 'Partial: some catalogs did not answer · Identity not secure', tone: 'warn' });
+    expect(summaryLines(response()).map((l) => l.text)).toEqual([
+      'No catalogued source at this position', 'Nothing catalogued within 8.0″; SPHEREx may still show emission.']);
   });
 });
