@@ -1,0 +1,203 @@
+{
+  "updated_on": "2026-11-15",
+  "tool": "Anthropic Claude Code",
+  "scope": "WS2 imaging and comparison (pull requests by V0id47 with Claude Code): reprojection of SPHEREx frames onto the field grid, season x detector frame selection, bad-frame rejection and per-frame registration check, consistent rendering and display-only repairs, season coadds and flux-matched season differences, forced photometry, false-color season composites, their regression tests, and the five published golden fields built by running that code on real NASA SPHEREx exposures; also the additive composites contract (#39), the WS5 blink image-mode toggle (#40) and the WS2 reservation (#13)",
+  "affected_paths": [
+    "pipeline/errante/imaging/",
+    "pipeline/errante/detect/difference.py",
+    "pipeline/errante/build.py",
+    "pipeline/errante/cli.py",
+    "pipeline/tests/test_build_selection.py",
+    "pipeline/tests/test_build_robust.py",
+    "pipeline/tests/test_build_color.py",
+    "pipeline/tests/test_imaging_reproject.py",
+    "pipeline/tests/test_imaging_render.py",
+    "pipeline/tests/test_imaging_compare.py",
+    "pipeline/tests/test_imaging_photometry.py",
+    "pipeline/tests/test_imaging_color.py",
+    "pipeline/tests/test_imaging_register.py",
+    "pipeline/tests/test_imaging_display.py",
+    "pipeline/tests/test_imaging_ai_usage.py",
+    "data/products/",
+    "tasks/WS2-imaging-detection.md",
+    "pipeline/errante/models.py",
+    "pipeline/tests/test_contract.py",
+    "shared/schema/Field.schema.json",
+    "shared/schema/Manifest.schema.json",
+    "frontend/src/api/types.ts",
+    "frontend/src/components/BlinkViewer.tsx",
+    "frontend/src/components/blinkModes.ts",
+    "frontend/src/components/blinkModes.test.ts",
+    "frontend/src/pages/FieldPage.tsx",
+    "frontend/src/styles.css",
+    "docs/TEAM.md"
+  ],
+  "generated_media": [],
+  "real_target_validation": false,
+  "human_review": "V0id47 directed the work and approved and merged each pull request; a line-by-line human review of the code, tests or products is not claimed",
+  "repository_disclosure": "AI_USAGE.md",
+  "integration_validation": {
+    "source": "real SPHEREx",
+    "arbitrary_coordinate_job": "not part of the WS2 checks (coordinate jobs are WS4's)",
+    "golden_fields": "errante build for the five official targets: 40 real DR1/QR3 exposures each (200 frames), 29 false-color season composites; errante validate reports 5 valid fields",
+    "checks_reported_in_pull_requests": [
+      "#16: reprojection matched an astropy per-pixel reference to 6e-8 on 12 real Barnard's Star cutouts; Barnard's Star lands 0.10-0.20 px (median) from its proper-motion position",
+      "#31: forced photometry of a normal field star near Epsilon Indi agrees with 2MASS J/H/Ks to 2-6 %",
+      "#41: the registration check rejected 1 of 1,460 candidate frames over 7 configured fields (an RW Aurigae frame with a 1.32-1.34 px WCS offset)"
+    ],
+    "checks_basis": "Run with AI assistance and reported in the pull request bodies; not independently verified by a human",
+    "scientific_R05_validation": false
+  },
+  "cache_revision": "No WS2 change to the processing cache; WS4's processing fingerprint (backend/errante_api/processing.py) hashes the WS2 imaging and detect modules, so WS2 code changes invalidate cached products",
+  "workstream": "WS2",
+  "developer": "V0id47",
+  "provider": "Anthropic",
+  "model": "Claude Opus 5.5",
+  "model_basis": "Co-Authored-By trailers of the WS2 commits name Claude Opus 5.5; review subagents ran inside Claude Code and their individual models were not recorded",
+  "other_ai_tools": [],
+  "other_ai_tools_basis": "The commits of these pull requests carry only Claude co-author trailers; no other AI model, provider or coding tool, and no PRC-origin one, was used for this work",
+  "ai_review": "Several pull request bodies record review passes run by AI agents in Claude Code (per-target checks in #17, the ECC plugin python-reviewer agent in #31, adversarial reviewers and verifiers in #16, #19, #41 and #48); these are AI reviews, not human reviews",
+  "line_by_line_human_review": false,
+  "idea_origin": "Not covered by this record: the product vision is recorded in docs/VISION.md and AI_USAGE.md; this record covers implementation work only",
+  "nasa_branding_generated": false,
+  "rendered_products": {
+    "paths": "data/products/fields/<id>/{field.json,frames/*.png,color/*.png,thumb.png}",
+    "fields": [
+      "barnards-star",
+      "eps-indi-b",
+      "r-draconis",
+      "rw-aurigae",
+      "wise-0855"
+    ],
+    "origin": "Renders of real NASA SPHEREx DR1/QR3 exposures from IRSA, produced by running the AI-assisted WS2 code; the pixels are measured SPHEREx data, not AI-generated imagery",
+    "ai_generated_imagery": false,
+    "synthetic": false,
+    "labels": "Each field.json states its processing in provenance.notes (IMAGE - ZODI in MJy/sr, asinh stretch, display-only repairs); composites are labelled false color (infrared), not true color, in the notes and the UI",
+    "nasa_branding": "No NASA logo, flag or mission identifier was generated, added or modified"
+  },
+  "pull_requests": [
+    {
+      "number": 13,
+      "title": "chore: reserve WS2 (V0id47 + Claude)",
+      "merged_at": "2026-11-15T03:44:37Z",
+      "ai_generated": ["Docs: two-line WS2 reservation in docs/TEAM.md"],
+      "humans": "V0id47 directed the change and merged it"
+    },
+    {
+      "number": 16,
+      "title": "ws2: reproject SPHEREx frames onto the field grid, select per season x detector, consistent stretch",
+      "merged_at": "2026-11-14T18:37:40Z",
+      "ai_generated": [
+        "Code: imaging/reproject.py (TAN-SIP reprojection onto the north-up field grid, display-only repairs), imaging/render.py (shared per-detector stretch, transparent no-data pixels), season x detector frame selection in build.py",
+        "Tests: test_imaging_reproject.py, test_imaging_render.py, test_build_selection.py",
+        "Docs: tasks/WS2-imaging-detection.md",
+        "Checks on 12 real SPHEREx cutouts of Barnard's Star"
+      ],
+      "humans": "V0id47 directed the work and merged it"
+    },
+    {
+      "number": 17,
+      "title": "ws2: real SPHEREx golden fields for the five official targets (official pipeline)",
+      "merged_at": "2026-11-14T20:08:19Z",
+      "ai_generated": [
+        "Golden products: the five official-target fields in data/products (field.json, 40 PNG frames each, thumbnails, manifest), built by running errante build on real SPHEREx DR1/QR3 exposures",
+        "Per-target motion and variability checks reported in the pull request body"
+      ],
+      "humans": "V0id47 directed the work and merged it"
+    },
+    {
+      "number": 19,
+      "title": "ws2: season coadds and flux-matched season differences (WS2-7)",
+      "merged_at": "2026-11-14T20:08:23Z",
+      "ai_generated": [
+        "Code: imaging/compare.py (season coadds, flux scale fitted on field stars, season differences), reproject_variance, detect/difference.py (static_sky, fit_scale, residuals), errante compare in cli.py",
+        "Tests: test_imaging_compare.py",
+        "Docs: tasks/WS2-imaging-detection.md"
+      ],
+      "humans": "V0id47 directed the work and merged it"
+    },
+    {
+      "number": 25,
+      "title": "ws2: fill Frame.wavelength_um and bandwidth_um from WCS-WAVE at the field centre",
+      "merged_at": "2026-11-14T18:42:52Z",
+      "ai_generated": [
+        "Code: build.py fills each frame's wavelength and bandwidth at the field centre",
+        "Tests: test_build_selection.py"
+      ],
+      "humans": "V0id47 directed the work and merged it"
+    },
+    {
+      "number": 31,
+      "title": "ws2: forced photometry of a position on every SPHEREx exposure (spectrum for the panel)",
+      "merged_at": "2026-11-14T20:11:17Z",
+      "ai_generated": [
+        "Code: imaging/photometry.py (forced photometry on the native FITS pixels of every exposure), errante spectrum in cli.py",
+        "Tests: test_imaging_photometry.py",
+        "Docs: tasks/WS2-imaging-detection.md"
+      ],
+      "humans": "V0id47 directed the work and merged it"
+    },
+    {
+      "number": 35,
+      "title": "ws2: reject bad frames and pick wavelength-matched frames from a downloaded pool",
+      "merged_at": "2026-11-14T20:33:13Z",
+      "ai_generated": [
+        "Code: bad-frame rejection and wavelength-matched selection in build.py, build options in cli.py",
+        "Tests: test_build_robust.py"
+      ],
+      "humans": "V0id47 directed the work and merged it"
+    },
+    {
+      "number": 37,
+      "title": "ws2: local-sky star fluxes and adaptive target-halo exclusion for season differences",
+      "merged_at": "2026-11-14T20:33:31Z",
+      "ai_generated": [
+        "Code: local-sky star fluxes and adaptive target-halo exclusion in imaging/compare.py and detect/difference.py",
+        "Tests: test_imaging_compare.py"
+      ],
+      "humans": "V0id47 directed the work and merged it"
+    },
+    {
+      "number": 39,
+      "title": "contract: false-color season composites (Field.composites, schema 0.3.1)",
+      "merged_at": "2026-11-15T04:00:42Z",
+      "ai_generated": [
+        "Contract: Field.composites models in pipeline/errante/models.py, regenerated shared/schema, the frontend/src/api/types.ts mirror, SCHEMA_VERSION 0.3.1, the composite check in errante validate (cli.py)",
+        "Tests: test_contract.py"
+      ],
+      "humans": "V0id47 directed the work and merged it; the pull request asked WS4 or WS5 for an OK before merging, which V0id47 reports was given outside GitHub; it is not recorded as a GitHub review or comment"
+    },
+    {
+      "number": 40,
+      "title": "ws5: blink image-mode toggle (B/W, false color by detectors, 2MASS-like J/H/K)",
+      "merged_at": "2026-11-15T04:08:42Z",
+      "ai_generated": [
+        "UI code: B/W, false color (detectors) and J/H/K mode toggle in BlinkViewer.tsx, FieldPage.tsx, blinkModes.ts and styles.css",
+        "Tests: blinkModes.test.ts"
+      ],
+      "humans": "V0id47 directed the work and merged it; V0id47 reports a teammate OK given outside GitHub before merging; it is not recorded as a GitHub review or comment"
+    },
+    {
+      "number": 41,
+      "title": "ws2: false-color season composites (detectors and J/H/Ks) + golden fields rebuilt",
+      "merged_at": "2026-11-15T04:11:23Z",
+      "ai_generated": [
+        "Code: imaging/color.py (false-color season composites), imaging/register.py (per-frame registration check), changes to build.py, cli.py and imaging/compare.py",
+        "Tests: test_imaging_color.py, test_imaging_register.py, test_build_color.py, test_build_robust.py",
+        "Golden products: the five fields rebuilt from real SPHEREx exposures, with 29 false-color composites in color/*.png"
+      ],
+      "humans": "V0id47 directed the work and merged it"
+    },
+    {
+      "number": 48,
+      "title": "ws2: SNOWBALL flag, keep real star cores, highlight roll-off for clean bright targets, target thumbnail",
+      "merged_at": "2026-11-15T03:09:40Z",
+      "ai_generated": [
+        "Code: SNOWBALL flag in imaging/flags.py, display fixes in imaging/render.py and imaging/reproject.py, target thumbnail in build.py",
+        "Tests: test_imaging_display.py"
+      ],
+      "humans": "V0id47 directed the work and merged it"
+    }
+  ],
+  "trailer_note": "The squash commits of rpccp's #53-#56 also list V0id47 and Claude as co-authors because those branches contained the #39 contract commits; their own AI use is recorded by WS4/WS5 (Codex)"
+}

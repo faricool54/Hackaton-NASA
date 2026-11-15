@@ -14,6 +14,8 @@
 **Leé primero:** `docs/SCIENCE.md` §1 y §3 (velocidades y la trampa de la longitud de onda), `docs/DATA.md` §2
 (flags), `pipeline/errante/imaging/*.py`, `pipeline/errante/detect/*.py`.
 
+**Uso de IA (S08):** registro de WS2 en [`pipeline/errante/imaging/ai-usage.json`](../pipeline/errante/imaging/ai-usage.json).
+
 ## Estado actual
 - ✅ `grid.py`: grilla común TAN norte-arriba, conversiones sky↔PNG (testeado).
 - ✅ `flags.py`: bits reales de DR1, máscara de píxeles malos (SOURCE no es malo).
