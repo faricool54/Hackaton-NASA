@@ -21,6 +21,7 @@ el inventario de IA (coordinación): agregar claves a `ai-usage.json` rompe el e
 | `GET /api/object?name=` o `?ra=&dec=[&epoch_mjd&radius_arcsec]` | `ObjectContextResponse`: ficha de catálogo (C05, abajo) |
 | `POST /api/jobs`, `GET /api/jobs/{id}` | construcción por coordenadas |
 | `POST /api/spectra`, `POST /api/fields/{id}/comparisons` | espectros y comparaciones (0.4.0) |
+| `GET /api/lightcurves`, `GET /api/lightcurves/{target_id}` | offline light-curve index/product (0.6.0; independent WS3 review pending) |
 | `GET /data/...` | PNG y análisis publicados |
 
 ## Implementado en WS4
@@ -241,3 +242,82 @@ SPHEREx.** La ciencia está en WS3 (`errante.science.context.object_context` + `
 - Tests (`backend/tests/test_object.py`): búsqueda de WS3 simulada (validación, plazos, single-flight, caché,
   errores, parcial por plazo, cupo) y código real de WS3 re-leyendo offline las respuestas grabadas en
   `pipeline/tests/fixtures/ws3/context/` (Barnard por nombre, centro del campo eps Ind B, cielo vacío), sin red.
+
+## Precomputed light curves (R05/C04, contract 0.6.0)
+
+The additive **[contract #78](https://github.com/faricool54/Hackaton-NASA/pull/78)** was prepared for
+**WS3 / faricool54** and integrated following the user's explicit merge instruction. Independent WS3 review
+of units, relative-magnitude interpretation, comparison controls, period significance and completeness
+remains pending. Integration does not certify that review or scientific R05 validation.
+No WS3 algorithm or threshold has been changed.
+
+`GET /api/lightcurves` lists target IDs, method, build date, point/usable counts, readiness and partial status.
+`GET /api/lightcurves/rw-aurigae` and `/api/lightcurves/r-draconis` return validated `LightCurveProduct` JSON.
+Products contain all exposure measurements, dates/MJD, wavelength, flags/exclusions, relative magnitudes,
+statistical errors, comparison-star measurements, target/control statistics, matched-wavelength pairs,
+source FITS URLs and selection/processing provenance. Period results retain alternative peaks, bootstrap
+interval, visit-permutation false-alarm probability and the native significance flag; an untested candidate
+has `significant: null`. `ready` means at least one usable relative measurement, not a confirmed detection.
+`no_usable_points` is an explicit successful calculation without usable relative points.
+
+The API reads small packaged snapshots from `errante_api/curated/lightcurves/`. A file with the same target
+ID in `ERRANTE_DATA_DIR/lightcurves/` overrides its packaged snapshot. An invalid override returns 503 rather
+than silently serving older data. Missing products return 404; invalid path parameters return 422. Products
+are validated before every conditional response, with content-based cached validation (32 entries), a
+strong ETag, `If-None-Match`/304 and `Cache-Control: public, max-age=60, must-revalidate`. Each read is capped
+at 8 MiB and the index at 32 targets. GET performs no archive access or scientific computation.
+
+### Reproduce or refresh offline
+
+Install the local `pipeline[science]` extra and backend, then run from the repository root:
+
+```bash
+python -m errante_api.lightcurve_build --preset rw-aurigae --out data/products/lightcurves
+python -m errante_api.lightcurve_build --preset r-draconis --out data/products/lightcurves
+```
+
+Use the worktree's virtual environment (`.venv/Scripts/python.exe` on Windows). The CLI requires an explicit
+publication directory. Presets use DR1 + QR3, fixed sky coordinates and a historical MJD cutoff (RW: 61300,
+Dra: 61315). RW uses detector 1 aperture photometry; Dra uses all detectors and PSF-wing photometry with a
+period search over 20–800 days, 100 bootstraps and 100 visit permutations. Defaults: 600 frames (allowed
+2–2500), archive deadline 180 s, total deadline 600 s (up to 1800 s), private staging budget 2 GiB and log
+limit 1 MiB. CLI flags: `--max-frames`, `--bootstrap`, `--permutations`, `--archive-deadline`, `--deadline`,
+`--max-bytes`, `--work-dir`. Private work and public output directories must be separate.
+
+WS1 obtains native stamps with WS3's method-specific planes and box sizes. WS3's `exposures_from_series`,
+`light_curve_from_exposures` and `matched_pairs` do the measurements. The supervised child has a parent
+watchdog; timeout/disk overrun stops the owned process tree and removes staging. Admission requires up to
+512 MiB free space (or the smaller requested budget). Disk usage is sampled; hard memory/CPU/disk quotas
+remain a host concern. Only a complete validated result matching the requested target, parameters and
+processing fingerprint is atomically published. Failures preserve the previous product. Fields and manifest
+are not modified. The fingerprint covers science modules, the adapter, shared WS1/WS2 code and library versions.
+Old packaged snapshots remain explicitly dated snapshots; refreshing them is an offline action.
+
+### Real-data acceptance and interpretation
+
+The two packaged JSON products were calculated from real SPHEREx FITS on 2026-11-15. Both preserve
+`synthetic: false`, `stale_search: true` and `partial: true`: archive selection used a cached search snapshot;
+these are not fresh exhaustive archive queries. Inspect `n_found`, `n_selected`, failures and sources before
+interpreting the curve. Selection truncation, stale searches and failed measurements remain explicit.
+
+| Target | Measured / usable | Interpretation |
+|---|---:|---|
+| RW Aurigae | 56 / 10 | Uncorrected aperture flux in **mJy**; 8 matched pairs; excluded saturation/bad pixels/bin cuts retained; no period fitted |
+| R Draconis | 538 / 450 | Relative PSF-wing surface brightness in **MJy/sr**, not total flux; best period ≈259 d, bootstrap 95% ≈240–276 d, FAP 1/101 with 100 permutations; aliases retained |
+
+Relative magnitudes are normalized separately per detector/wavelength bin; negative means brighter.
+`zero_point_mag` is reported but not applied. Statistical `rel_mag_err` does not include comparison-star
+systematics; read the control scatter as well. Null uncertainties stay null. Fixed-position measurements do
+not track proper motion/parallax, and wavelength and time vary together. These products provide technical
+acceptance of the WS4 adapter; independent scientific R05 validation remains with WS3. A significant grid
+sinusoid still needs comparison with independent observations/catalog periods.
+
+WS5 can consume the index and typed product to add the light-curve panel, coordinating interpretation with WS3;
+no frontend panel or static-site publication is included here. Static deployments may copy these JSON
+snapshots explicitly. Recalculation never runs in a public request.
+
+Offline regression tests in `backend/tests/test_lightcurves.py` cover real snapshot integrity, API/ETags,
+invalid overrides, content-cache invalidation, atomic publication, real child termination, result identity,
+disk admission and native WS3 integration on explicitly synthetic test stamps. Synthetic test products are
+never bundled. Code/document assistance: OpenAI Codex; numerical products come from the unchanged WS3
+algorithms applied to real FITS, not generated imagery. Human scientific review remains pending.
