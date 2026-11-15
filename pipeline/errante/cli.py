@@ -48,7 +48,8 @@ def cmd_validate(args: argparse.Namespace) -> int:
         field = store.read_field(fs.id)
         store.read_candidates(fs.id)
         store.read_known(fs.id)
-        missing = [f.image for f in field.frames if not (store.field_dir(fs.id) / f.image).exists()]
+        images = [f.image for f in field.frames] + [c.image for c in field.composites]
+        missing = [image for image in images if not (store.field_dir(fs.id) / image).exists()]
         if missing:
             print(f"{fs.id}: missing images {missing}", file=sys.stderr)
             return 1

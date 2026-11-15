@@ -1,0 +1,506 @@
+{
+  "$defs": {
+    "ComparisonImage": {
+      "additionalProperties": false,
+      "properties": {
+        "detector": {
+          "maximum": 6,
+          "minimum": 1,
+          "title": "Detector",
+          "type": "integer"
+        },
+        "display_limit_mjy_sr": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Display Limit Mjy Sr"
+        },
+        "earlier": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Earlier"
+        },
+        "flux_scale": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Flux Scale"
+        },
+        "flux_scale_fitted": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Flux Scale Fitted"
+        },
+        "flux_scale_stars": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Flux Scale Stars"
+        },
+        "frame_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Frame Ids",
+          "type": "array"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "image": {
+          "description": "PNG relative to the API /data root",
+          "title": "Image",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "weighted_mean",
+            "scaled_difference"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "later": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Later"
+        },
+        "mjd_max": {
+          "title": "Mjd Max",
+          "type": "number"
+        },
+        "mjd_min": {
+          "title": "Mjd Min",
+          "type": "number"
+        },
+        "noise_mjy_sr": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Noise Mjy Sr"
+        },
+        "notes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Notes",
+          "type": "array"
+        },
+        "season": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Season"
+        },
+        "target_exclude_px": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Exclude Px"
+        },
+        "valid_fraction": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Valid Fraction"
+        },
+        "wavelength_range_um": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Wavelength Range Um"
+        },
+        "weights": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Null: individual weights not exported by WS2",
+          "title": "Weights"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "detector",
+        "image",
+        "frame_ids",
+        "mjd_min",
+        "mjd_max"
+      ],
+      "title": "ComparisonImage",
+      "type": "object"
+    },
+    "Frame": {
+      "additionalProperties": false,
+      "description": "One SPHEREx exposure (one detector), reprojected onto the field grid.",
+      "properties": {
+        "bandwidth_um": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bandwidth Um"
+        },
+        "date_obs": {
+          "description": "Same instant as mjd, ISO-8601 UTC (header DATE-AVG)",
+          "format": "date-time",
+          "title": "Date Obs",
+          "type": "string"
+        },
+        "detector": {
+          "description": "1-3 SWIR, 4-6 MWIR",
+          "maximum": 6,
+          "minimum": 1,
+          "title": "Detector",
+          "type": "integer"
+        },
+        "id": {
+          "description": "Unique within the field, e.g. '2025W19_2B_0007_1D1'",
+          "title": "Id",
+          "type": "string"
+        },
+        "image": {
+          "description": "PNG path relative to the field directory, e.g. 'frames/<id>.png'",
+          "title": "Image",
+          "type": "string"
+        },
+        "mjd": {
+          "description": "Mid-exposure time [MJD days]: header MJD-AVG (fallbacks in docs/DATA.md; MJD-OBS is the START)",
+          "title": "Mjd",
+          "type": "number"
+        },
+        "obs_id": {
+          "description": "SPHEREx OBSID header value",
+          "title": "Obs Id",
+          "type": "string"
+        },
+        "release": {
+          "enum": [
+            "dr1",
+            "qr2",
+            "qr3",
+            "synthetic"
+          ],
+          "title": "Release",
+          "type": "string"
+        },
+        "source_uri": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Original FITS (IRSA or S3 URL)",
+          "title": "Source Uri"
+        },
+        "stretch": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Stretch"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "valid_fraction": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Fraction of grid with valid, unflagged pixels",
+          "title": "Valid Fraction"
+        },
+        "wavelength_um": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Central wavelength at the field center (from WCS-WAVE)",
+          "title": "Wavelength Um"
+        }
+      },
+      "required": [
+        "id",
+        "obs_id",
+        "detector",
+        "mjd",
+        "date_obs",
+        "release",
+        "image"
+      ],
+      "title": "Frame",
+      "type": "object"
+    },
+    "MeasurementFailure": {
+      "additionalProperties": false,
+      "properties": {
+        "frame_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Frame Id"
+        },
+        "reason": {
+          "enum": [
+            "download_failed",
+            "measurement_failed",
+            "no_overlap",
+            "invalid_pixels"
+          ],
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "reason"
+      ],
+      "title": "MeasurementFailure",
+      "type": "object"
+    },
+    "Stretch": {
+      "additionalProperties": false,
+      "description": "How the PNG was scaled from physical units, so the UI can show a colorbar.",
+      "properties": {
+        "method": {
+          "default": "asinh",
+          "enum": [
+            "linear",
+            "asinh",
+            "log",
+            "zscale"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "unit": {
+          "default": "MJy/sr",
+          "title": "Unit",
+          "type": "string"
+        },
+        "vmax": {
+          "title": "Vmax",
+          "type": "number"
+        },
+        "vmin": {
+          "title": "Vmin",
+          "type": "number"
+        }
+      },
+      "required": [
+        "vmin",
+        "vmax"
+      ],
+      "title": "Stretch",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "built_at": {
+      "format": "date-time",
+      "title": "Built At",
+      "type": "string"
+    },
+    "failures": {
+      "items": {
+        "$ref": "#/$defs/MeasurementFailure"
+      },
+      "title": "Failures",
+      "type": "array"
+    },
+    "field_built_at": {
+      "format": "date-time",
+      "title": "Field Built At",
+      "type": "string"
+    },
+    "field_id": {
+      "title": "Field Id",
+      "type": "string"
+    },
+    "id": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "images": {
+      "items": {
+        "$ref": "#/$defs/ComparisonImage"
+      },
+      "title": "Images",
+      "type": "array"
+    },
+    "input_frames": {
+      "items": {
+        "$ref": "#/$defs/Frame"
+      },
+      "maxItems": 60,
+      "minItems": 2,
+      "title": "Input Frames",
+      "type": "array"
+    },
+    "method": {
+      "title": "Method",
+      "type": "string"
+    },
+    "notes": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Notes",
+      "type": "array"
+    },
+    "schema_version": {
+      "default": "0.4.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "synthetic": {
+      "const": false,
+      "default": false,
+      "title": "Synthetic",
+      "type": "boolean"
+    },
+    "unit": {
+      "const": "MJy/sr",
+      "default": "MJy/sr",
+      "title": "Unit",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "field_id",
+    "field_built_at",
+    "built_at",
+    "method",
+    "input_frames",
+    "images"
+  ],
+  "title": "ComparisonResponse",
+  "type": "object"
+}
