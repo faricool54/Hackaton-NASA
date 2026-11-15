@@ -153,3 +153,12 @@ reglas de dueños y CI usa la base del PR. Sin la variable sigue comparando con 
 
 La selección de pool con λ emparejada de WS2 #35 usa revisión `wavelength-pool-v3` en la clave de jobs.
 No se reutilizan resultados de `season-grid-v2`; los pedidos persistidos conservan su contexto original.
+
+
+### Invalidación de procesamiento (15/11)
+
+La revisión `display-mask-v4` incluye los cambios de máscara/render de WS2 #48. La clave captura también
+un SHA-256 del contenido de build/settings/models/data/imaging y versiones de las librerías de imagen.
+El hash usa nombres relativos: mover un worktree no cambia el resultado. Cambiar código o dependencias
+invalida resultados viejos sin tener que recordar subir una constante. Cada pedido conserva su contexto;
+un pedido en cola cuyo procesamiento cambió falla y debe reenviarse, en lugar de publicar bajo otra clave.
