@@ -11,6 +11,17 @@
     "Import of reusable instructions, scripts, templates and tests into the repository"
   ],
   "original_browser_behavior_preserved": true,
+  "asset_cleanup": "Review follow-up: only the neutral preset and system fonts are bundled; no third-party corporate preset or font binaries are redistributed",
+  "voice_output_rights": {
+    "status": "not_cleared_for_public_delivery",
+    "reviewed_on": "2026-11-15",
+    "checked_sources": [
+      "https://github.com/rany2/edge-tts/blob/master/README.md",
+      "https://github.com/rany2/edge-tts/blob/master/LICENSE",
+      "https://www.microsoft.com/en-us/servicesagreement"
+    ],
+    "remaining": "Confirm applicable service/output terms for the selected voice or use team-recorded English narration; complete final media and form disclosures"
+  },
   "final_video_generated": false,
   "final_voiceover_generated": false,
   "uploaded_or_submitted": false,

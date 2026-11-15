@@ -30,8 +30,9 @@ How to run it:
    `sources.notes`. Remind the user: scripts are verified against the product itself, not only its docs.
 3. **Slides?** If yes, the **design system**:
    - *Neutral* — an indigo accent and the system font. (Recommended when there is no brand.)
-   - *Rappi* — rappi-neon `#ff441f` and PP Object Sans.
    - *Custom* — ask for the accent color (hex), and optionally a font: family name plus local `.woff2` files.
+     Use only assets with established rights for the intended use and redistribution;
+     the skill itself bundles no font files or third-party corporate presets.
      Derive the light container color (a ~10 % tint of the accent) and dark-mode values yourself.
    → `deck.enabled`, `deck.design_system`, `deck.tokens`, `deck.font`.
 4. **Screen footage.** Live takes recorded automatically (Playwright drives the product), screenshots only, or

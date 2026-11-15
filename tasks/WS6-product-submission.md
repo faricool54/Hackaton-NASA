@@ -47,6 +47,8 @@ deploy público y formulario de Space Apps completo y a tiempo.
   adaptada e incorporada en `docs/submission/skills/video-tutorial/`; descarga/uso en
   [VIDEO_SKILL.md](../docs/submission/VIDEO_SKILL.md). Perfil con narración inglesa sin subtítulos,
   propuesta de valor en los primeros ~10 s, créditos y verificación estricta de 30 s sobre el MP4 final.
+  Revisión de #118: merge revertido; nueva propuesta sin preset corporativo ni fuentes empaquetadas,
+  con condiciones de publicación de la voz pendientes de confirmación y atribución final/formulario explícitas.
   No equivale a video producido, revisión humana, publicación ni envío; WS6-5 sigue pendiente.
 - [ ] **WS6-6 (P0; herramientas opcionales C08) About/Créditos**: SPHEREx/IRSA y recursos realmente usados;
   Astropy/Aladin, Gaia/WISE, CSA/CADC/NEOSSat o JPL/IMCCE solo cuando corresponda. Revisar términos de uso,

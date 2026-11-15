@@ -86,6 +86,10 @@ card, in the generated `descripcion.md` and in MP4 comment metadata. The English
 audio stream is tagged `eng`. A pre-existing description is preserved: update its
 credits when settings change. Keep the description's source/AI declarations when
 uploading. The remaining project's AI/code/source inventory still needs team review.
+Complete the submission form's AI-use field explicitly; a local metadata check does
+not fill the form. Check `voice.md` for the separate review of public-output terms
+before using a generated voice in the published demo. The default engine is not a
+claim that voice-output rights have been cleared.
 
 Real application captures and telescope observation products are not AI-generated
 astronomical imagery. If generative images/video are introduced later, the supplied

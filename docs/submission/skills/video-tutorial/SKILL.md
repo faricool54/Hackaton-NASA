@@ -98,6 +98,12 @@ verificar.py <video> [--final | --draft] [--placeholder] # final profile is stri
 
 Python 3.11+ is required. The supplied `requirements.txt` pins the default pipeline dependencies.
 
+Only the neutral preset with system fonts is bundled; `custom` accepts the team's
+own design tokens and assets with recorded rights. Do not import corporate presets
+or commercial font binaries without established redistribution permission.
+For public narration, read the publication notes in `reference/voice.md`: library
+licensing does not establish rights to republish a service's generated audio.
+
 `edge-tts imageio-ffmpeg playwright pillow pyyaml` (pytest to run `scripts/tests`). **You install them**, in the
 setup wizard (Block 3) or whenever an import fails. Use a virtual environment outside the
 skill's distributable folder. The recorder uses system Chrome (`channel="chrome"`),

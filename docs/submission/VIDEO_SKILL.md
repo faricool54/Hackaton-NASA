@@ -4,6 +4,8 @@ The complete adapted skill is in [`skills/video-tutorial/`](skills/video-tutoria
 It includes instructions, Python scripts, tests, templates and the English Errante
 demo profile. Virtual environments, caches, login profiles and generated footage
 are excluded. This is production tooling, not the submitted demo video.
+Only neutral/custom design options are supported. The distributable contains no
+third-party corporate preset or bundled font binaries; the default uses system fonts.
 
 ## Download or use with an agent
 
@@ -54,7 +56,15 @@ browser is unavailable.
 
 The original `video-tutorial` folder was supplied by the user. OpenAI Codex adapted
 the short-demo instructions, English script, cards, delivery checks and regression
-tests on November 15, 2026 at the user's request, then imported the complete folder.
+tests on November 15, 2026 at the user's request. After review of the initial import
+(#118), the premature merge was reverted and a clean replacement was prepared without
+the third-party corporate preset or commercial fonts. The replacement does not replay
+the original import commit; its proposed commits contain no font binaries. The earlier
+merge/revert remain in repository history.
 See [component metadata](skills/video-tutorial/ai-usage.json).
 No final narrated video was produced or uploaded by this import. Original asset
 rights, the wider source/AI inventory and human review remain team responsibilities.
+Generated narration requires an explicit disclosure in the final video, description,
+metadata and the submission form. See [voice publication notes](skills/video-tutorial/reference/voice.md)
+for checked source links and the remaining review of service/output terms. Package
+availability and a permissive code license do not clear voice-output rights.

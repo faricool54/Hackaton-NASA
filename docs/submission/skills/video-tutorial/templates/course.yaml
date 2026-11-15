@@ -52,11 +52,12 @@ recording:                         # demo takes recorded with Playwright (grabar
 
 deck:
   enabled: true                    # slides exported from presentacion.html
-  design_system: neutral           # neutral | rappi | custom
+  design_system: neutral           # neutral | custom; only system fonts are bundled
   # Only for custom:
   # tokens: {primary: "#0a7cff", primary_container: "#e6f1ff", on_primary_container: "#0a7cff",
   #          primary_container_dark: "#0b2545", on_primary_container_dark: "#a9cfff"}
-  # font: {family: "'Inter', system-ui, sans-serif", name: Inter, files: {400: /path/Inter-Regular.woff2}}
+  # Add a custom font only with source and redistribution permission recorded.
+  # font: {family: "'Custom', system-ui, sans-serif", name: Custom, files: {400: /path/Custom.woff2}}
 
 # Free-form context the wizard gathered: where the content comes from.
 sources:

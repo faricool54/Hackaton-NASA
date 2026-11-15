@@ -49,9 +49,9 @@ def load_preset(deck):
         preset = {"name": "Custom", "tokens": {**base["tokens"], **(deck.get("tokens") or {})},
                   "font": {**base["font"], **(deck.get("font") or {})}}
         return preset, Path.cwd()
+    if name != "neutral":
+        raise SystemExit(f"unknown design system: {name} (neutral or custom)")
     folder = PRESETS / name
-    if not (folder / "preset.yaml").is_file():
-        raise SystemExit(f"unknown design system: {name} (neutral, rappi or custom)")
     return yaml.safe_load((folder / "preset.yaml").read_text(encoding="utf-8")), folder
 
 

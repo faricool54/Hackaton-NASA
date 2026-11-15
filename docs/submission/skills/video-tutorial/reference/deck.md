@@ -6,11 +6,14 @@ recording mode (`?rec`: no help line, no cursor, no entry animation), and remove
 
 ## Design system
 
-- Chosen in the setup wizard: `deck.design_system` = `neutral`, `rappi` or `custom` (with `deck.tokens` and
+- Chosen in the setup wizard: `deck.design_system` = `neutral` or `custom` (with `deck.tokens` and
   `deck.font`). `scaffold.py deck <course>` re-applies it to `_template/` (the block between
   `/* @tokens:start */` and `/* @tokens:end */`, plus the `@font-face` block and the font files).
 - Existing videos keep their copy; re-copy the token block by hand if the user wants them updated too.
 - Colors come only from the tokens; never write a loose color in a component.
+- The distributable bundles only the neutral preset with system fonts. For custom
+  fonts or branding, record the source and redistribution permission before adding
+  assets. Do not copy third-party corporate design systems into submission materials.
 
 ## Components (in `_template/presentacion.html`, the `data-guia` example slides)
 

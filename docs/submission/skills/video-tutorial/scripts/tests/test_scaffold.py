@@ -13,7 +13,7 @@ ANSWERS = {
     "name": "Curso Demo", "language": "es", "audience": "todo el equipo", "depth": "principiante",
     "target_duration": "1-3 min", "voice": {"rate": "+5%", "pronunciation": {}},
     "recording": {"enabled": True, "base_url": "https://app.example.com"},
-    "deck": {"enabled": True, "design_system": "rappi"},
+    "deck": {"enabled": True, "design_system": "neutral"},
     "sources": {"platform": "Demo Platform", "docs": ["https://docs.example.com"]},
 }
 
@@ -38,11 +38,11 @@ def test_init_writes_the_course(course_dir):
     assert readme.startswith("# Curso Demo") and "recuadro" in readme
 
 
-def test_init_applies_the_design_system_and_copies_its_fonts(course_dir):
+def test_init_uses_system_fonts_without_bundling_font_files(course_dir):
     html = (course_dir / "_template" / "presentacion.html").read_text(encoding="utf-8")
-    assert "--primary: #ff441f;" in html and "font-family: 'PP Object Sans'; font-weight: 800" in html
-    assert sorted(p.name for p in (course_dir / "_template" / "assets" / "fonts").iterdir()) == [
-        "PPObjectSans-Bold.woff2", "PPObjectSans-Heavy.woff2", "PPObjectSans-Medium.woff2", "PPObjectSans-Regular.woff2"]
+    assert "--primary: #4f46e5;" in html and "system-ui" in html
+    assert not list((course_dir / "_template" / "assets" / "fonts").iterdir())
+    assert "@font-face" not in html
     assert "data-guia" in html   # the template keeps its example slides
 
 
@@ -70,8 +70,8 @@ def test_new_video_starts_clean(course_dir):
     deck = (video / "presentacion.html").read_text(encoding="utf-8")
     assert not re.search(r"<section[^>]*data-guia", deck) and "Example layouts" not in deck
     assert "<title>Video 01 · Intro</title>" in deck
-    assert deck.count('<section class="slide') == 1 and "--primary: #ff441f;" in deck
-    assert (video / "assets" / "fonts" / "PPObjectSans-Bold.woff2").exists()
+    assert deck.count('<section class="slide') == 1 and "--primary: #4f46e5;" in deck
+    assert not list((video / "assets" / "fonts").iterdir())
     script = (video / "guion-v1.md").read_text(encoding="utf-8")
     assert "vigente: true" in script and "Video 01 · Intro" in script and "## Hoja de montaje" in script
     assert (video / "tomas.py").exists() and (course_dir / "export" / "01 - Intro").is_dir()
@@ -116,6 +116,21 @@ def test_unknown_design_system_and_missing_font(tmp_path):
 def test_neutral_has_no_font_files(tmp_path):
     preset, _ = scaffold.load_preset({"design_system": "neutral"})
     assert scaffold.render_fonts(preset) == "/* @fonts:start */\n/* @fonts:end */"
+
+
+def test_distributable_has_only_the_neutral_preset_and_no_font_binaries():
+    assert sorted(p.name for p in scaffold.PRESETS.iterdir() if p.is_dir()) == ["neutral"]
+    for extension in ("*.woff", "*.woff2", "*.ttf", "*.otf"):
+        assert not list(scaffold.SKILL_DIR.rglob(extension))
+
+
+def test_a_locally_added_named_preset_is_not_accepted(tmp_path, monkeypatch):
+    folder = tmp_path / "external-brand"
+    folder.mkdir()
+    (folder / "preset.yaml").write_text("name: Unreviewed\n", encoding="utf-8")
+    monkeypatch.setattr(scaffold, "PRESETS", tmp_path)
+    with pytest.raises(SystemExit, match="neutral or custom"):
+        scaffold.load_preset({"design_system": "external-brand"})
 
 
 def test_main_dispatches(tmp_path, capsys):

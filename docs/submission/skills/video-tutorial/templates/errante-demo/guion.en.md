@@ -43,6 +43,9 @@ updated: '${date}'
   be clear by approximately 10 seconds. Shorten or rephrase the opening if needed;
   this is an editorial target, separate from the strict 30-second total cap.
 - Listen to the English voice and SPHEREx pronunciation; no subtitles are requested.
+- Confirm public-output terms for the chosen narration source (see reference/voice.md),
+  retain the explicit AI voice credit on the closing card/in metadata/description if
+  synthetic, and declare it in the submission form. Do not mark rights reviewed by assumption.
 - Check that all frames are real observations and no unreviewed physical claim is added.
 - If replacing the target with Barnard, retain "predicted from catalog, not a measurement".
   Its small image shift must not be exaggerated. Do not describe a catalog track as a detection.

@@ -11,6 +11,10 @@ python scripts/scaffold.py demo <carpeta-de-produccion>
 La plantilla deja nombre del equipo e integrantes pendientes de confirmar; exige esos
 datos para la entrega final. No graba ni publica nada al inicializarla. Los detalles
 y comandos de producción están en la referencia enlazada.
+La distribución incluye solo el preset neutro con fuentes del sistema; el diseño
+personalizado requiere recursos con derechos acreditados. No incluye fuentes comerciales
+ni presets corporativos de terceros. Las condiciones de publicación de la voz generada
+se revisan por separado; ver [voz](reference/voice.md).
 
 Produce cursos en video narrados, de punta a punta, y los itera línea por línea:
 **guion → deck → slides → locución IA → tomas de pantalla automáticas → montaje → publicación**.

@@ -6,7 +6,7 @@ gaps (`voice.pacing`), and writes `timings.json`: the only source of timing for 
 
 | Engine | Voice names | What it is | Pick it when |
 |---|---|---|---|
-| **edge-tts** | `es-MX-DaliaNeural`, `en-US-JennyNeural`… | Microsoft neural voices, free, no key, needs internet. Dozens of voices per language. No speaking styles. | Default. Widest choice of Spanish and Portuguese voices. |
+| **edge-tts** | `es-MX-DaliaNeural`, `en-US-JennyNeural`… | Client for Microsoft's online TTS service; no key, needs internet. Public-output rights need separate review. | Default preview voice. Check applicable terms before public delivery. |
 | **Kokoro** | `ef_dora`, `em_alex`, `em_santa` (es); `af_heart`, `am_adam`… (en); `pf_dora`, `pm_alex` (pt) | Local neural TTS (Kokoro-82M), offline, runs in its own venv. Three Spanish voices. | The voice must work offline, or English product terms inside Spanish must not sound Spanish-accented. |
 | **human** | `voice.engine: human` | A person records each row. | The course bans synthetic narration. |
 
@@ -14,6 +14,33 @@ Both AI engines take the same `course.yaml` keys: `voice.name`, `voice.rate` (`+
 1.05 speed multiplier), `voice.pronunciation`. `voice.pitch` is edge-tts only. Candidates in
 `voice.candidates` may mix engines: `voces.py` renders them all and the user picks by ear, then one voice
 for the whole course.
+
+## Public narration: source, terms and attribution
+
+The library license and the service/output terms are different questions. The
+[edge-tts README](https://github.com/rany2/edge-tts/blob/master/README.md) describes a
+client for Microsoft's online TTS service. The [package license](https://github.com/rany2/edge-tts/blob/master/LICENSE)
+covers its code; it does not establish the right to publish Microsoft's generated
+audio. Review the applicable Microsoft service/product terms for the chosen voice,
+starting with the [Microsoft Services Agreement](https://www.microsoft.com/en-us/servicesagreement).
+This review found no specific public-video permission in the cited package documents;
+do not record voice-output rights as cleared based only on installation or successful synthesis.
+These references were checked on November 15, 2026; no final voiceover was generated.
+
+Before producing the final public video, record the engine/voice, applicable terms,
+review date and reviewer's conclusion in the team's source inventory. The current
+profile is a production template, not a license clearance. If the team cannot
+establish the required rights, use a team member's English narration or a service
+with appropriate documented terms. For Kokoro, review the selected model, voice
+assets and dependencies rather than assuming offline synthesis settles all rights.
+
+For generated narration, preserve the explicit disclosure in the final video/card,
+upload description and MP4 metadata, and complete the submission form's AI field.
+Example: `Narration: AI-generated voice (Microsoft Edge TTS).` The Errante profile
+already inserts its configured disclosure into cards, description and metadata;
+the form and the final hosted asset still require team review. If switching engine,
+update the disclosure. If using a human voice, record it as human and remove synthetic
+voice attribution by selecting `voice.engine: human`, then regenerate the cards.
 
 ## Installing Kokoro
 
