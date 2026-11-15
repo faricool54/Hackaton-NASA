@@ -1780,7 +1780,8 @@ def point_series(
     search: dict
     if frames is None:
         # The search gets what is left of the call's budget (irsa: none left -> only a cache/snapshot answers).
-        budget = None if end is None else max(0.0, end - time.monotonic())
+        # Clamped to deadline_s: with a coarse clock (Windows) end - monotonic() can exceed it by a rounding ulp.
+        budget = None if end is None else min(float(deadline_s), max(0.0, end - time.monotonic()))
         rep = irsa.search_frames_report(ra, dec, 0.0, dets, mjd_min, mjd_max, collections=cols, deadline_s=budget)
         all_frames, extra_dups = _unique(rep.result.frames)
         search = {
