@@ -12,6 +12,9 @@ import { SyntheticBadge } from '../components/SyntheticBadge';
 import { FieldComparisons } from '../components/FieldComparisons';
 import { PositionSpectrum } from '../components/PositionSpectrum';
 import { LightCurvePanel } from '../components/LightCurvePanel';
+import { trackAstrometry, type TrackAstrometry } from '../three/skyTrack';
+
+const BARNARD_FIELD_ID = 'barnards-star';
 
 export function FieldPage({ fieldId, embedded = false }: { fieldId: string; embedded?: boolean }) {
   const [field, setField] = useState<Field | null>(null);
@@ -22,6 +25,7 @@ export function FieldPage({ fieldId, embedded = false }: { fieldId: string; embe
   const [detector, setDetector] = useState<number | 'all'>('all');
   const [mode, setMode] = useState<BlinkMode>('bw');
   const [systemId, setSystemId] = useState<string | null>(null);
+  const [prediction, setPrediction] = useState<TrackAstrometry | null>(null);
 
   useEffect(() => {
     setField(null);
@@ -38,6 +42,17 @@ export function FieldPage({ fieldId, embedded = false }: { fieldId: string; embe
       .getManifest()
       .then((m) => setSystemId((m.systems ?? []).find((s) => s.field_id === fieldId)?.id ?? null))
       .catch(() => setSystemId(null));
+  }, [fieldId]);
+
+  useEffect(() => {
+    if (fieldId !== BARNARD_FIELD_ID) return;
+    let active = true;
+    client.getSystem(BARNARD_FIELD_ID).then((system) => {
+      if (active && system.id === BARNARD_FIELD_ID && system.field_id === fieldId && !system.provenance.synthetic) {
+        setPrediction(trackAstrometry(system));
+      }
+    }).catch(() => { /* The image sequence still works if the catalog model is unavailable. */ });
+    return () => { active = false; };
   }, [fieldId]);
 
   const frames = useMemo(() => {
@@ -118,6 +133,7 @@ export function FieldPage({ fieldId, embedded = false }: { fieldId: string; embe
             imageUrl={(image) => client.fieldFileUrl(field.id, image)}
             candidates={candidates}
             known={known}
+            prediction={field.id === BARNARD_FIELD_ID && !field.provenance.synthetic ? prediction : null}
             selectedId={selectedId}
             onSelect={setSelectedId}
           />

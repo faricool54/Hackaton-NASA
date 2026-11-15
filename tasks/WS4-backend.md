@@ -98,8 +98,23 @@ Implementación y validación de esta etapa: [PR #6](https://github.com/faricool
   caché por contenido/ETag, CLI offline con hijo supervisado, publicación atómica y dos productos FITS reales
   (RW Aurigae y R Draconis). Conserva controles, exclusiones, errores y significancia/aliases; búsquedas
   anteriores marcadas `partial/stale_search`. Contrato 0.6.0 (#78) integrado por indicación explícita del usuario;
-  backend en #79 y panel WS5 integrado en #83. **Pendiente:** revisión científica independiente de WS3/faricool54.
+  backend en #79 y panel WS5 integrado en #83. Revisión científica WS3 en #85; ajustes de WS3 en #93.
+  Rebuild con SIA actual, 999 permutaciones y 1000 bootstrap; revisión humana R05 sigue pendiente.
   El merge no marca validación científica R05 completa.
+
+- [x] **WS4-14 (C02/R05, LC4/5/8–14): seguimiento de la revisión de curvas.** Advertencias por producto
+  (RW Aur A+BC sin resolver, saturación sesgada; R Dra solo sondeo ancho), fecha/servicio de búsqueda,
+  versiones/unidades/stamps y plazos del constructor offline. `no_overlap` separado de fallos de lectura;
+  errores sanitizados y publicación acotada/atómica. Paridad numérica con la función pública WS3 cubierta
+  por regresión; el adaptador conserva URIs y 32 workers. UI de notas/límites corresponde a WS5.
+- [x] **WS4-15 (C06/V19): entrega embebible y aceptación desde otro origen.** Harness reproducible
+  `scripts/smoke_embed.py`: iframe externo, imágenes/paso, job opcional y reanudación de un job publicado.
+  API e imágenes siguen en el mismo origen de la app. WS4 listo; falta que WS5 implemente la vista compacta.
+
+V5: WS4 aporta evidencia técnica pública, sin sustituir revisión humana de los cinco registros R05.
+V8: `Frame.valid_fraction`, fechas/detector/release/URI y nulos ya viajan en el contrato/API; nuevas
+fracciones de flags esperan WS2 + contrato. V20: `Release` sigue siendo cerrado en el contrato; WS1/WS3
+deben definir ese cambio antes de integrar compatibilidad. `/api/limits` sigue dependiendo de medidas WS2.
 
 - WS1: búsqueda/recortes/λ implementados; WS2: reproyección y épocas por temporada × detector implementadas.
 - WS4: CORS POST, productos servidos en el destino del motor, locks entre procesos y manifest atómico.

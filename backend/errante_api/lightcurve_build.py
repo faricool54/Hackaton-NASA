@@ -23,6 +23,7 @@ from errante import settings as core
 from errante.models import LightCurveParameters, LightCurveProduct, MeasurementFailure
 
 from .jobs.process import collect_log, kill_tree, tree_bytes
+from .lightcurve_metadata import acquisition_notes, target_notes
 from .lightcurve_store import MAX_PRODUCT_BYTES
 from .processing import source_fingerprint
 from .publication import atomic_bytes, publication_lock
@@ -47,14 +48,19 @@ def processing_identity() -> str:
     for path in sorted((root / "science").rglob("*.py")):
         digest.update(path.relative_to(root).as_posix().encode())
         digest.update(hashlib.sha256(path.read_bytes()).digest())
-    digest.update(Path(__file__).read_bytes())
+    for adapter in (Path(__file__), Path(__file__).with_name("lightcurve_metadata.py")):
+        digest.update(adapter.read_bytes())
     return digest.hexdigest()
 
 
 def public_failure(frame_id, reason, *, download=False):
-    reason = (
-        "no_overlap" if str(reason).startswith("NoOverlap") else "download_failed" if download else "measurement_failed"
-    )
+    text = str(reason)
+    if text.startswith("NoOverlap"):
+        reason = "no_overlap"
+    elif download and (text.startswith(("ValueError:", "EOFError:", "VerifyError:")) or "truncated FITS" in text):
+        reason = "invalid_pixels"
+    else:
+        reason = "download_failed" if download else "measurement_failed"
     return MeasurementFailure(frame_id=frame_id, reason=reason).model_dump(mode="json")
 
 
@@ -112,7 +118,13 @@ def calculate(doc: dict) -> LightCurveProduct:
         "n_selected": selected,
         "stale_search": bool(search.get("stale")),
         "truncated_search": truncated,
-        "partial": bool(native["failures"] or truncated or search.get("stale") or search.get("errors")),
+        "partial": bool(
+            any(f["reason"] != "no_overlap" for f in native["failures"])
+            or truncated
+            or search.get("stale")
+            or search.get("errors")
+            or getattr(series, "timings", {}).get("timed_out")
+        ),
         "notes": [
             "Offline FITS measurement using WS3 variability methods; not a new R05 validation.",
             "Fixed sky position. This calculation does not follow proper motion or parallax.",
@@ -120,8 +132,21 @@ def calculate(doc: dict) -> LightCurveProduct:
             "Relative magnitudes are normalized per detector/wavelength bin; negative means brighter.",
             "zero_point_mag is reported but not applied; rel_mag_err is statistical, read comparison controls for systematics.",
             "A truncated selection may alter a period estimate. Inspect significance, aliases and independent data.",
+            f"Native measurement unit: {curve.unit}.",
+            "Product id is an opaque content identity, not a Git revision or an independent validation certificate.",
         ],
     }
+    provenance["notes"] += acquisition_notes(
+        search,
+        getattr(series, "timings", {}),
+        box_px=ws3.DEFAULT_BOX_PX[params.method],
+        planes=ws3.DEFAULT_PLANES[params.method],
+        deadline_s=doc["archive_deadline_s"],
+    ) + target_notes(doc["target_id"], params, curve)
+    # Keep generic counts even when the archive reports a snapshot or a capped selection.
+    provenance["notes"].append(
+        f"Archive selection: {selected} selected of {found if found is not None else 'unknown'} found."
+    )
     identity = {"parameters": params.model_dump(mode="json"), "curve": native, "provenance": provenance}
     product_id = hashlib.sha256(json.dumps(identity, sort_keys=True, allow_nan=False).encode()).hexdigest()
     return LightCurveProduct(
@@ -137,7 +162,7 @@ def calculate(doc: dict) -> LightCurveProduct:
 
 
 def publish(product: LightCurveProduct, out: Path) -> Path:
-    payload = product.model_dump_json(indent=2).encode()
+    payload = product.model_dump_json().encode()
     if len(payload) > MAX_PRODUCT_BYTES:
         raise ValueError("Published light curve exceeds the size limit")
     # Validate the exact bytes before replacing the previous complete product.
@@ -166,6 +191,8 @@ def run_bounded(doc: dict, work: Path, *, deadline_s=600, max_bytes=2 * 1024**3)
             "ERRANTE_JOB_SUPERVISED": "1",
             "ERRANTE_JOB_OWNER_PID": str(os.getpid()),
             "ERRANTE_JOB_OWNER_CREATED": str(psutil.Process().create_time()),
+            "ERRANTE_SEARCH_DEADLINE_S": str(doc.get("archive_deadline_s", deadline_s)),
+            "ERRANTE_SEARCH_FALLBACK_DEADLINE_S": str(doc.get("archive_deadline_s", deadline_s)),
         }
         options = (
             {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW}
@@ -234,8 +261,8 @@ def main(argv=None):
     )
     parser.add_argument("--work-dir", type=Path, default=core.CACHE_DIR / "lightcurve-builds")
     parser.add_argument("--max-frames", type=int, default=600)
-    parser.add_argument("--bootstrap", type=int, default=100)
-    parser.add_argument("--permutations", type=int, default=100)
+    parser.add_argument("--bootstrap", type=int, default=1000)
+    parser.add_argument("--permutations", type=int, default=999)
     parser.add_argument("--archive-deadline", type=float, default=180)
     parser.add_argument("--deadline", type=float, default=600)
     parser.add_argument("--max-bytes", type=int, default=2 * 1024**3)
