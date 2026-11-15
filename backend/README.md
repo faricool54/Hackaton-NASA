@@ -281,7 +281,7 @@ python -m errante_api.lightcurve_build --preset r-draconis --out data/products/l
 Use the worktree's virtual environment (`.venv/Scripts/python.exe` on Windows). The CLI requires an explicit
 publication directory. Presets use DR1 + QR3, fixed sky coordinates and a historical MJD cutoff (RW: 61300,
 Dra: 61315). RW uses detector 1 aperture photometry; Dra uses all detectors and PSF-wing photometry with a
-period search over 20–800 days, 100 bootstraps and 100 visit permutations. Defaults: 600 frames (allowed
+period search over 20–800 days, 1000 bootstraps and 999 visit permutations. Defaults: 600 frames (allowed
 2–2500), archive deadline 180 s, total deadline 600 s (up to 1800 s), private staging budget 2 GiB and log
 limit 1 MiB. CLI flags: `--max-frames`, `--bootstrap`, `--permutations`, `--archive-deadline`, `--deadline`,
 `--max-bytes`, `--work-dir`. Private work and public output directories must be separate.
@@ -298,7 +298,7 @@ Old packaged snapshots remain explicitly dated snapshots; refreshing them is an 
 ### Real-data acceptance and interpretation
 
 The two packaged JSON products were calculated from real SPHEREx FITS on 2026-11-15. Both preserve
-`synthetic: false`. Rebuilt after WS3's review fixes (#93), both now use live SIA searches with
+`synthetic: false`. Rebuilt after WS3's fixes (#93), the curves reproduce #94 (floating-point rounding in chi-square only), while both now use live SIA searches with
 `stale_search: false`, `partial: false`. R Dra retains one `no_overlap` footprint: the target is outside
 that detector, rather than a failed download. Fresh queries are bounded selections, not proof of future
 archive completeness. Inspect `n_found`, `n_selected`, failures, source URIs and acquisition notes.
@@ -306,7 +306,7 @@ archive completeness. Inspect `n_found`, `n_selected`, failures, source URIs and
 | Target | Measured / usable | Interpretation |
 |---|---:|---|
 | RW Aurigae | 56 / 10 | Uncorrected 3-pixel aperture flux in **mJy**, A+BC unresolved; 8 matched pairs; 37 saturated exposures excluded, preferentially removing bright states; D1 only, no period fitted |
-| R Draconis | 538 / 450 | Wide-survey DR1+QR3 only (539 selected; no deep collections), ending 2026-07-16; relative PSF-wing surface brightness in **MJy/sr**, not total flux; candidate period ≈262 d, bootstrap 95% ≈241–276 d from 1000 resamples, permutation FAP 1/1000 from 999 permutations; aliases retained |
+| R Draconis | 538 / 450 | Wide-survey DR1+QR3 only (539 selected; no deep collections), ending 2026-07-16; relative PSF-wing surface brightness in **MJy/sr**, not total flux; candidate period ≈262 d, bootstrap 95% ≈241–276 d from 1000 resamples, permutation FAP 1/1000 (0 of 999 permutations reached the peak); aliases retained; catalog periods 245.6–247.2 d lie inside the interval |
 
 Relative magnitudes are normalized separately per detector/wavelength bin; negative means brighter.
 `zero_point_mag` is reported but not applied. Statistical `rel_mag_err` does not include comparison-star
