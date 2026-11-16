@@ -22,9 +22,16 @@ Timeouts surface as ``requests.Timeout`` in the ``__cause__`` chain of :class:`S
 backend maps that to HTTP 504 and any other failure to 502). When one service timed out and the
 other failed differently (e.g. SIA timeout, TAP 502), the timeout is the cause, so callers see 504.
 
-A whole search (SIA retries + TAP fallback) is bounded by ``settings.SEARCH_DEADLINE_S``: SIA may use
-half of it but at least 10 s, or all of a shorter budget (:func:`sia_budget`), TAP the rest, and no attempt
-starts without at least ``_MIN_ATTEMPT_S`` left.
+A whole search is bounded by ``settings.SEARCH_DEADLINE_S`` (a supervised build job gets
+``settings.JOB_SEARCH_DEADLINE_S`` instead, see settings.py). Within it :func:`_query_archive` asks SIA, SIA
+again, then alternates TAP / SIA (a timeout switches service at once), with a short exponential backoff
+(``SEARCH_BACKOFF_S`` x 1, 2, 4, 8, at most 4 s, plus up to 25 % jitter) after fast failures. Only HTTP 429/5xx,
+connection errors and timeouts are retried; a 4xx or an answer that does not parse drops that service for the
+search. Each service gets at most ``SEARCH_ATTEMPTS`` attempts and two timeouts. An SIA attempt may hold half of
+the time left but at least 10 s, or all of a shorter remainder (:func:`sia_budget`), so a hung SIA still leaves TAP
+its turn; no attempt starts without at least ``_MIN_ATTEMPT_S`` left and no attempt's timeout outlives the
+deadline. 2026-11-15: IRSA answered SIA/TAP with intermittent fast 502s and hangs, and one try per service failed
+every map-click build (docs/DATA.md §3.4).
 When the search has a fallback in hand (an expired cache entry or a covering snapshot, see below) the
 budget is capped at ``settings.SEARCH_FALLBACK_DEADLINE_S`` (20 s), so the fallback still answers before
 the backend gives up on the request (ERRANTE_API_TIMEOUT_S, 30 s -> HTTP 504).
@@ -50,6 +57,7 @@ import json
 import logging
 import math
 import os
+import random
 import re
 import threading
 import time
@@ -86,6 +94,9 @@ _VERSION_RE = re.compile(r"v(\d+)-(\d{4})-(\d+)")
 _SIA_SHARE = 0.5  # fraction of the search budget that SIA may use before TAP gets the rest (see sia_budget)
 _SIA_MIN_S = 10.0  # ... but never less (or the whole budget when shorter): SIA's slowest answer seen was 9.3 s
 _MIN_ATTEMPT_S = 2.0  # do not start an HTTP attempt with less time than this left
+_BACKOFF_MAX_S = 4.0  # longest pause between two search attempts (before jitter)
+_MAX_TIMEOUTS = 2  # a service that hung twice is not asked again in the same search
+_SERVICES = ("sia", "tap")
 _TAP_LOCK = threading.Lock()  # IRSA asks for one TAP query at a time (backend threads + CLI share it)
 # Collections that exist in SIA2/ObsCore (verified live 2026-11-14; qr2 is no longer indexed).
 _VERIFIED_COLLECTIONS = frozenset({"spherex_dr1", "spherex_dr1_deep", "spherex_qr3", "spherex_qr3_deep"})
@@ -104,9 +115,10 @@ ORDER BY p.time_bounds_lower
 
 
 class SearchError(RuntimeError):
-    """The archive search failed. ``__cause__`` keeps the last transport error (e.g. ``requests.Timeout``).
+    """The archive search failed. ``__cause__`` is the first timeout if any attempt timed out, else the last error.
 
-    ``failures`` lists the underlying error of every service tried, in order (SIA, then TAP).
+    ``failures`` lists the error of every failed attempt, in order (the attempt history: SIA, SIA, TAP, ...); the
+    message names each one (``sia 2/4: HTTPError: HTTP 502 ...``).
     """
 
     def __init__(self, message: str, failures: list[BaseException] | None = None):
@@ -121,6 +133,14 @@ class SearchError(RuntimeError):
 
 def _is_timeout(err: BaseException) -> bool:
     return isinstance(err, (requests.Timeout, TimeoutError))
+
+
+def _is_retryable(err: BaseException) -> bool:
+    """Worth asking again: a timeout, a connection error, HTTP 429 or 5xx. Not a 4xx, not an answer that did not parse."""
+    if _is_timeout(err) or isinstance(err, requests.ConnectionError):
+        return True
+    status = getattr(getattr(err, "response", None), "status_code", None)
+    return isinstance(err, requests.HTTPError) and status is not None and (status == 429 or status >= 500)
 
 
 def _is_transport_failure(err: BaseException) -> bool:
@@ -153,7 +173,12 @@ class SearchReport:
     collections: tuple[str, ...]
     overflow: bool = False
     n_duplicates: int = 0
+    # Why the answer is a fallback: the failed SIA attempts when TAP answered, or the SearchError when a stale
+    # cache entry / snapshot answered. Empty when SIA answered, even after retries (the answer is complete).
     errors: list[str] = field(default_factory=list)
+    # Every failed attempt before the answer ("sia 1/4: HTTPError: HTTP 502 ..."), for logs and the CLI only; a
+    # search answered on a retry is not partial (backend/errante_api/lightcurve_build.py reads ``errors``).
+    retries: list[str] = field(default_factory=list)
     # True when IRSA failed and an older answer was served instead: an expired cache entry (``service`` is
     # the service that produced it) or a committed search snapshot (``service == 'snapshot'``).
     stale: bool = False
@@ -240,6 +265,7 @@ def search_frames_report(
     use_cache = use_cache and settings.QUERY_CACHE_TTL_S > 0
     cached = _cache_read(key) if use_cache else None
     errors: list[str] = []
+    retries: list[str] = []
     stale = False
     # A truncated (overflow) entry is never served as fresh: MAXREC may have been raised since.
     if cached is not None and cached.age_s <= settings.QUERY_CACHE_TTL_S and not cached.overflow:
@@ -255,7 +281,7 @@ def search_frames_report(
             cap = t0 + max(0.0, float(deadline_s))
             deadline = cap if deadline is None else min(deadline, cap)
         try:
-            raw, service, overflow, errors = _query_archive(ra, dec, radius, mjd_min, mjd_max, cols, deadline)
+            raw, service, overflow, errors, retries = _query_archive(ra, dec, radius, mjd_min, mjd_max, cols, deadline)
         except SearchError as e:
             if cached is not None:
                 # IRSA is down: an expired answer beats no answer (new weeks may be missing).
@@ -304,6 +330,7 @@ def search_frames_report(
         overflow=overflow,
         n_duplicates=n_dup,
         errors=errors,
+        retries=retries,
         stale=stale,
         warnings=warn,
     )
@@ -506,6 +533,50 @@ def parse_tap_csv(text: str) -> list[ArchiveRow]:
 # --------------------------------------------------------------------------- services
 
 
+@dataclass(frozen=True)
+class _Attempt:
+    service: str  # 'sia' or 'tap'
+    number: int  # 1-based attempt number of that service
+    error: BaseException
+    seconds: float
+
+
+def _next_service(history: list[_Attempt], usable: set[str]) -> str | None:
+    """SIA first and, after a fast SIA failure, SIA once more (it answers in 1-4 s, TAP in 8-19 s); then alternate.
+    A timeout switches to the other service at once. With one usable service left, that one."""
+    if not usable:
+        return None
+    if not history:
+        want = "sia"
+    elif len(history) == 1 and history[0].service == "sia" and not _is_timeout(history[0].error):
+        want = "sia"
+    else:
+        want = "tap" if history[-1].service == "sia" else "sia"
+    return want if want in usable else next(s for s in _SERVICES if s in usable)
+
+
+def _backoff(n_failed: int, last: BaseException) -> float:
+    """Pause before the next attempt: ``SEARCH_BACKOFF_S`` x 1, 2, 4, ... (at most ``_BACKOFF_MAX_S``) + up to 25 %
+    jitter, and at least a ``Retry-After`` of up to 10 s. None after a timeout: that attempt already waited."""
+    if _is_timeout(last):
+        return 0.0
+    base = min(settings.SEARCH_BACKOFF_S * 2 ** (n_failed - 1), _BACKOFF_MAX_S)
+    delay = base + random.uniform(0.0, base / 4)
+    retry_after = str(getattr(getattr(last, "response", None), "headers", {}).get("Retry-After", ""))
+    if retry_after.isdigit():
+        delay = max(delay, min(float(retry_after), 10.0))
+    return delay
+
+
+def _attempt_timeout(service: str, remaining: float | None) -> float:
+    """Timeout of the next attempt: the service's own (SIA_TIMEOUT_S / TAP_TIMEOUT_S) capped by the time left; an SIA
+    attempt by :func:`sia_budget` of it, so a hung SIA still leaves TAP (8-19 s) its turn."""
+    limit = settings.SIA_TIMEOUT_S if service == "sia" else settings.TAP_TIMEOUT_S
+    if remaining is None:
+        return limit
+    return min(limit, sia_budget(remaining) if service == "sia" else remaining)
+
+
 def _query_archive(
     ra: float,
     dec: float,
@@ -514,28 +585,85 @@ def _query_archive(
     mjd_max: float | None,
     cols: tuple[str, ...],
     deadline: float | None = None,
-) -> tuple[list[ArchiveRow], str, bool, list[str]]:
+) -> tuple[list[ArchiveRow], str, bool, list[str], list[str]]:
+    """Ask SIA and TAP until one answers, the attempts run out or ``deadline`` (``time.monotonic()``) comes.
+
+    Returns (rows, service, overflow, errors, retries). ``retries`` describes every failed attempt before the
+    answer; ``errors`` only the failed SIA attempts when the answer came from TAP (a real fallback), so a search
+    that SIA answered on a retry is complete, not partial. Raises :class:`SearchError` with the whole attempt
+    history when nothing answered.
+    """
+    t0 = time.monotonic()
+    max_tries = max(1, settings.SEARCH_ATTEMPTS)
+    tries = dict.fromkeys(_SERVICES, 0)
+    timeouts = dict.fromkeys(_SERVICES, 0)
+    usable = set(_SERVICES)
+    history: list[_Attempt] = []
     errors: list[str] = []
-    sia_deadline = None
-    if deadline is not None:
+    stopped = ""
+    while True:
+        service = _next_service(history, usable)
+        delay = _backoff(len(history), history[-1].error) if history and service else 0.0
         now = time.monotonic()
-        sia_deadline = now + sia_budget(deadline - now)
-    try:
-        rows, overflow = _search_sia(ra, dec, radius, mjd_min, mjd_max, cols, sia_deadline)
-        return rows, "sia", overflow, errors
-    except Exception as e:  # any SIA failure (HTTP, timeout, parse) falls back to TAP
-        sia_err = e
-        log.warning("SIA search failed (%s); falling back to TAP", _describe(sia_err))
-        errors.append(f"sia: {_describe(sia_err)}")
-    try:
-        rows, overflow = _search_tap(ra, dec, radius, mjd_min, mjd_max, cols, deadline)
-    except Exception as tap_err:
-        errors.append(f"tap: {_describe(tap_err)}")
-        failures = [sia_err, tap_err]
-        # A real timeout anywhere wins the cause chain (backend: 504), else the last error (502).
-        cause = next((f for f in failures if _is_timeout(f)), tap_err)
-        raise SearchError(f"IRSA frame search failed ({'; '.join(errors)})", failures) from cause
-    return rows, "tap", overflow, errors
+        if service is not None and deadline is not None and now + delay + _MIN_ATTEMPT_S > deadline:
+            stopped = f"{max(0.0, deadline - now):.1f} s left of the search budget"
+            service = None
+        if history:
+            last = history[-1]
+            if service:
+                left = "" if deadline is None else f", {deadline - now:.1f} s left"
+                plan = f"retrying {service.upper()} ({tries[service] + 1}/{max_tries}) in {delay:.1f} s{left}"
+            else:
+                plan = f"giving up ({stopped or 'no attempts left'})"
+            log.warning(
+                "%s attempt %d/%d failed after %.1f s: %s; %s",
+                last.service.upper(),
+                last.number,
+                max_tries,
+                last.seconds,
+                _describe(last.error),
+                plan,
+            )
+        if service is None:
+            break
+        if delay:
+            time.sleep(delay)
+        start = time.monotonic()
+        timeout = _attempt_timeout(service, None if deadline is None else deadline - start)
+        tries[service] += 1
+        search = _search_sia if service == "sia" else _search_tap
+        try:
+            rows, overflow = search(ra, dec, radius, mjd_min, mjd_max, cols, start + timeout)
+        except Exception as e:  # any failure (HTTP, timeout, parse) is recorded; only transport ones are retried
+            history.append(_Attempt(service, tries[service], e, time.monotonic() - start))
+            errors.append(f"{service} {tries[service]}/{max_tries}: {_describe(e)}")
+            if _is_timeout(e):
+                timeouts[service] += 1
+            if not _is_retryable(e) or tries[service] >= max_tries or timeouts[service] >= _MAX_TIMEOUTS:
+                usable.discard(service)
+            continue
+        if history:
+            log.info(
+                "%s answered on attempt %d/%d after %d failed attempt(s), %.1f s in all",
+                service.upper(),
+                tries[service],
+                max_tries,
+                len(history),
+                time.monotonic() - t0,
+            )
+        fallback = [e for a, e in zip(history, errors, strict=True) if a.service == "sia"] if service == "tap" else []
+        return rows, service, overflow, fallback, errors
+    if not history:
+        err = requests.Timeout(f"search deadline reached before querying IRSA ({stopped})")
+        raise SearchError(f"IRSA frame search failed ({_describe(err)})", [err]) from err
+    failures = [a.error for a in history]
+    # A real timeout anywhere wins the cause chain (backend: 504), else the last error (502).
+    cause = next((f for f in failures if _is_timeout(f)), failures[-1])
+    detail = "; ".join(errors) + (f"; stopped: {stopped}" if stopped else "")
+    elapsed = time.monotonic() - t0
+    raise SearchError(
+        f"IRSA frame search failed after {len(history)} attempt(s) in {elapsed:.1f} s ({detail})", failures
+    ) from cause
 
 
 def _search_sia(
@@ -547,9 +675,10 @@ def _search_sia(
     cols: tuple[str, ...],
     deadline: float | None = None,
 ) -> tuple[list[ArchiveRow], bool]:
+    """ONE SIA2 request (timeout ``SIA_TIMEOUT_S``, capped by ``deadline``); retries are :func:`_query_archive`'s."""
     params = sia_params(ra, dec, radius, mjd_min, mjd_max, cols)
     t0 = time.monotonic()
-    resp = _fetch("GET", settings.IRSA_SIA, params=params, timeout=settings.SIA_TIMEOUT_S, deadline=deadline)
+    resp = _request_once("GET", settings.IRSA_SIA, params=params, timeout=settings.SIA_TIMEOUT_S, deadline=deadline)
     rows, overflow = parse_sia_votable(resp.content)
     log.info("SIA: %d rows, %.0f KB in %.2f s", len(rows), len(resp.content) / 1024, time.monotonic() - t0)
     return rows, overflow
@@ -564,7 +693,9 @@ def _search_tap(
     cols: tuple[str, ...],
     deadline: float | None = None,
 ) -> tuple[list[ArchiveRow], bool]:
-    """TAP sync fallback; returns (rows, overflow). Overflow = as many rows as MAXREC (TAP CSV has no status)."""
+    """ONE TAP sync query (timeout ``TAP_TIMEOUT_S``, capped by ``deadline``); returns (rows, overflow).
+
+    Overflow = as many rows as MAXREC (TAP CSV has no status). Retries are :func:`_query_archive`'s."""
     query = build_query(ra, dec, radius_deg=radius, mjd_min=mjd_min, mjd_max=mjd_max, collections=cols)
     maxrec = settings.SIA_MAXREC
     data = {"REQUEST": "doQuery", "LANG": "ADQL", "FORMAT": "csv", "MAXREC": str(maxrec), "QUERY": query}
@@ -573,7 +704,9 @@ def _search_tap(
     if not _TAP_LOCK.acquire(timeout=wait):
         raise requests.Timeout(f"waited {wait:.0f} s for another TAP query to finish")
     try:
-        resp = _fetch("POST", settings.IRSA_TAP_SYNC, data=data, timeout=settings.TAP_TIMEOUT_S, deadline=deadline)
+        resp = _request_once(
+            "POST", settings.IRSA_TAP_SYNC, data=data, timeout=settings.TAP_TIMEOUT_S, deadline=deadline
+        )
     finally:
         _TAP_LOCK.release()
     rows = parse_tap_csv(resp.text)
@@ -582,6 +715,21 @@ def _search_tap(
         log.warning("TAP result has MAXREC=%d rows: probably truncated", maxrec)
     log.info("TAP: %d rows in %.2f s", len(rows), time.monotonic() - t0)
     return rows, overflow
+
+
+def _request_once(
+    method: str, url: str, *, params=None, data=None, timeout: float, deadline: float | None = None
+) -> requests.Response:
+    """One HTTP attempt whose timeout never outlives ``deadline``. Any HTTP status >= 400 raises
+    ``requests.HTTPError`` (with ``.response``), so the caller can tell 5xx/429 (retried) from 4xx (not)."""
+    if deadline is not None:
+        timeout = min(timeout, deadline - time.monotonic())
+        if timeout <= 0:
+            raise requests.Timeout(f"search deadline reached before querying {url}")
+    resp = _http(method, url, params=params, data=data, timeout=timeout)
+    if resp.status_code >= 400:
+        raise requests.HTTPError(f"HTTP {resp.status_code} from {url}", response=resp)
+    return resp
 
 
 def _http(method: str, url: str, *, params=None, data=None, timeout: float) -> requests.Response:
