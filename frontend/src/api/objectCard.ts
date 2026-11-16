@@ -6,8 +6,18 @@ import type {
 } from './types';
 import { SHOWCASE_TARGETS } from './showcase';
 
-/** What the card looks up: presets and name searches by NAME (better identity), map clicks by position. */
-export type ObjectLookup = { name: string } | { ra: number; dec: number };
+/** What the card looks up: presets and name searches by NAME (better identity), map clicks by position. A click on a
+ *  Gaia DR3 marker also sends the epoch its position was predicted for and a small radius (gaiaMarkerLookup), so a
+ *  crowded field does not turn the marker's own star into an ambiguous identification. */
+export type ObjectLookup = { name: string } | PositionLookup;
+export interface PositionLookup {
+  ra: number;
+  dec: number;
+  /** Match radius (arcsec, API radius_arcsec); the API default (8″) when absent. */
+  radiusArcsec?: number;
+  /** Epoch of the position (MJD, API epoch_mjd); the API default (MJD 61000) when absent. */
+  epochMjd?: number;
+}
 export type Tone = 'ok' | 'warn' | 'none';
 
 export function nameLookup(name: string): ObjectLookup | null {
@@ -18,6 +28,17 @@ export function nameLookup(name: string): ObjectLookup | null {
 export function positionLookup(ra: number, dec: number): ObjectLookup | null {
   return Number.isFinite(ra) && Number.isFinite(dec) && ra >= 0 && ra < 360 && dec >= -90 && dec <= 90
     ? { ra, dec } : null;
+}
+
+/** Match radius (arcsec) of a click on a Gaia DR3 marker: the marker sits on its star's predicted position. */
+export const GAIA_MARKER_RADIUS_ARCSEC = 1.5;
+
+/** A click on a Gaia DR3 marker: its predicted position at `epochMjd` with a 1.5″ radius. An epoch outside the API
+ *  range (MJD 15020–88070) falls back to the plain position lookup. */
+export function gaiaMarkerLookup(ra: number, dec: number, epochMjd: number): ObjectLookup | null {
+  const lookup = positionLookup(ra, dec);
+  if (!lookup || !Number.isFinite(epochMjd) || epochMjd < 15020 || epochMjd > 88070) return lookup;
+  return { ...lookup, radiusArcsec: GAIA_MARKER_RADIUS_ARCSEC, epochMjd };
 }
 
 // Presets carry 5 decimals: half the last digit (0.018″) tells "the preset's own position" from any edit.
@@ -37,7 +58,10 @@ export function coordinateLookup(ra: number, dec: number,
 /** Stable identity of a lookup (effect dependency); '' when nothing is chosen. */
 export function lookupKey(lookup: ObjectLookup | null): string {
   if (!lookup) return '';
-  return 'name' in lookup ? `name:${lookup.name}` : `pos:${lookup.ra.toFixed(7)},${lookup.dec.toFixed(7)}`;
+  if ('name' in lookup) return `name:${lookup.name}`;
+  const radius = lookup.radiusArcsec !== undefined ? `;r=${lookup.radiusArcsec}` : '';
+  const epoch = lookup.epochMjd !== undefined ? `;t=${lookup.epochMjd.toFixed(5)}` : '';
+  return `pos:${lookup.ra.toFixed(7)},${lookup.dec.toFixed(7)}${radius}${epoch}`;
 }
 
 export function lookupLabel(lookup: ObjectLookup): string {

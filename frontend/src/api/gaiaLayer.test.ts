@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  getGaiaMarkers, getGaiaView, GaiaViewCache, gaiaViewRadiusDeg, gaiaViewVisibleRadiusDeg, GAIA_DEFAULT_EPOCH,
-  GAIA_SOURCE_LIMIT, GAIA_VIEW_MAX_FOV, type GaiaMarkerSet,
+  getGaiaMarkers, getGaiaView, GaiaViewCache, gaiaViewMagLimit, gaiaViewRadiusDeg, gaiaViewVisibleRadiusDeg,
+  GAIA_DEFAULT_EPOCH, GAIA_FULL_FOV, GAIA_SOURCE_LIMIT, GAIA_VIEW_MAX_FOV, GAIA_WIDE_MAG_LIMIT, type GaiaMarkerSet,
 } from './gaiaLayer';
 // Real VizieR CfA asu-tsv responses for I/355/gaiadr3 with the columns the map asks for, fetched on 2026-11-15
 // (Barnard's Star, 90″ cone): brightest rows, faintest rows, negative parallaxes, and an empty 0.05″ cone.
@@ -91,8 +91,38 @@ describe('Gaia DR3 map catalog', () => {
 });
 
 describe('Gaia DR3 stars per view (FE-4b)', () => {
-  it('queries views of at most 0.5° (dense fields took 16–18 s for a 1° view on VizieR CfA)', () => {
-    expect(GAIA_VIEW_MAX_FOV).toBe(0.5);
+  it('queries views of at most 1.2°: every source up to 0.5°, then G < 15 (wider cones are too slow on VizieR)', () => {
+    expect([GAIA_FULL_FOV, GAIA_VIEW_MAX_FOV, GAIA_WIDE_MAG_LIMIT]).toEqual([0.5, 1.2, 15]);
+    expect(gaiaViewMagLimit({ fov: 0.5 })).toBeNull();
+    expect(gaiaViewMagLimit({ fov: 0.51 })).toBe(15);
+    expect(gaiaViewMagLimit({ fov: 1.2 })).toBe(15);
+  });
+
+  it('sends the G limit of a wider view to VizieR, and none up to 0.5°', async () => {
+    const fetch = stubCatalog(brightTsv);
+    for (const fov of [0.4, 1]) await getGaiaView({ ra: 133.7598, dec: -7.24219, fov }, GAIA_DEFAULT_EPOCH, new AbortController().signal);
+    const limits = fetch.mock.calls.map(([url]) => new URL(url).searchParams.get('Gmag'));
+    expect(limits).toEqual([null, '<15']);
+    for (const [url] of fetch.mock.calls) expect(new URL(url).searchParams.get('-sort')).toBe('Gmag');
+  });
+
+  it('asks once more after a fast incomplete answer (QA: WISE 0855, 899-byte HTTP 200 without the table)', async () => {
+    // The head of a real answer, cut before the Gmag column and the rows.
+    const cut = brightTsv.slice(0, brightTsv.indexOf('#Column	Gmag'));
+    const answers = [cut, brightTsv];
+    const fetch = vi.fn(async (_url: string, _init?: RequestInit) => new Response(answers.shift()));
+    vi.stubGlobal('fetch', fetch);
+    const view = { ra: 269.44623, dec: 4.7687, fov: 0.38 };
+    const result = await getGaiaView(view, EPOCH, new AbortController().signal, 1);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(result.markers[0].sourceId).toBe('4472832130942575872');
+  });
+
+  it('reports a second failure instead of asking forever', async () => {
+    const fetch = vi.fn(async (_url: string, _init?: RequestInit) => new Response('#ERROR	unavailable'));
+    vi.stubGlobal('fetch', fetch);
+    await expect(getGaiaView({ ra: 10, dec: 20, fov: 0.3 }, EPOCH, new AbortController().signal, 1)).rejects.toThrow('Gaia DR3 query failed');
+    expect(fetch).toHaveBeenCalledTimes(2);
   });
 
   it('covers the visible half-diagonal, 1.2 × wider for small pans, or 0.71 × fov without both sides', () => {
@@ -167,6 +197,20 @@ describe('per-view cache', () => {
       // A quarter of the view away, the visible corners leave the cached cone.
       expect(cache.get(pan(0.25), GAIA_DEFAULT_EPOCH)).toBeUndefined();
     }
+  });
+
+  it('answers only views with the same G limit (a G < 15 cone cannot answer a fainter request)', () => {
+    const cache = new GaiaViewCache(20);
+    const mid = { ra: 133.7598, dec: -7.24219, fov: 1 };
+    const stored = result();
+    cache.set(mid, GAIA_DEFAULT_EPOCH, stored);
+    expect(cache.get(mid, GAIA_DEFAULT_EPOCH)).toBe(stored);
+    expect(cache.get({ ...mid, fov: 0.9 }, GAIA_DEFAULT_EPOCH)).toBe(stored); // same limit, covered
+    expect(cache.get({ ...mid, fov: 0.4 }, GAIA_DEFAULT_EPOCH)).toBeUndefined(); // no limit: fainter stars needed
+    const full = result();
+    cache.set({ ...mid, fov: 0.5 }, GAIA_DEFAULT_EPOCH, full);
+    expect(cache.get({ ...mid, fov: 0.45 }, GAIA_DEFAULT_EPOCH)).toBe(full); // the unlimited cone answers unlimited views
+    expect(cache.get({ ...mid, fov: 1.1 }, GAIA_DEFAULT_EPOCH)).toBe(stored); // and the G < 15 cone the limited ones
   });
 
   it('keeps the 20 most recently used views', () => {

@@ -184,10 +184,20 @@ export function snapToMarker<M extends SkyCoord>(point: SkyCoord, markers: Itera
 
 // --- what each message does: card and selection ------------------------------------------------------------------
 
+/** A selected Gaia marker carries the epoch its position was predicted for, when the selection is at that marker's own
+ *  position in the layer shown (`stars` by source id); any other selection is returned unchanged. */
+export function withGaiaEpoch(select: MapSelection, stars: ReadonlyMap<string, SkyCoord>, epoch: number | undefined): MapSelection {
+  const star = select.sourceId !== undefined ? stars.get(select.sourceId) : undefined;
+  return star && epoch !== undefined && Number.isFinite(epoch) && star.ra === select.ra && star.dec === select.dec
+    ? { ...select, epochMjd: epoch } : select;
+}
+
 /** What a click on the map selected. ra/dec are the marker's own position when a marker was clicked. */
 export interface MapSelection extends SkyCoord {
   /** Gaia DR3 source_id of a clicked Gaia marker. */
   sourceId?: string;
+  /** Epoch (MJD) the clicked Gaia marker's position (ra/dec) was predicted for; ExplorerMap sets it. */
+  epochMjd?: number;
   /** Marker id of a clicked challenge target (the saved field id when api/showcase.ts lists one). */
   targetId?: string;
   /** Name of a clicked challenge target. */

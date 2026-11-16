@@ -3,7 +3,7 @@ import { client } from '../api/client';
 import type { JobStatusResponse, JobSubmitRequest, SkyCoord, SystemSummary } from '../api/types';
 import { isTerminal, parseCoordinate, positionUrl, readPosition, watchJob } from '../api/jobs';
 import { DETECTOR_BANDS } from '../api/format';
-import { coordinateLookup, nameLookup, positionLookup, type ObjectLookup } from '../api/objectCard';
+import { coordinateLookup, gaiaMarkerLookup, nameLookup, positionLookup, type ObjectLookup } from '../api/objectCard';
 import { SHOWCASE_TARGETS } from '../api/showcase';
 import { localTargetSequences, type SearchSequence } from '../api/skySearch';
 import type { MapSelection } from '../api/mapHover';
@@ -33,6 +33,9 @@ interface SelectionOptions {
   note?: string;
   /** The pick came from the map (a tap or a target marker): on phones the sheet keeps the map in view. */
   fromMap?: boolean;
+  /** A click on a Gaia DR3 marker: the epoch (MJD) its position was predicted for. The object card then looks up that
+   *  exact position at that epoch with a 1.5″ radius, so a crowded field does not make the star ambiguous. */
+  gaiaEpochMjd?: number;
 }
 
 export type SelectionOrigin = 'map' | 'preset' | 'search' | 'form';
@@ -201,7 +204,8 @@ export function SkyExplorer({ sequences, systems, synthetic, manifestError }: Pr
     const to = selectionSnap(origin === 'map' || !!options.fromMap, short);
     setSheet((snap) => raiseSheet(snap, to));
     const catalogName = options.catalogName ?? (options.fieldId ? undefined : options.label);
-    setLookup(origin === 'map' ? positionLookup(point.ra, point.dec)
+    setLookup(origin === 'map'
+      ? options.gaiaEpochMjd !== undefined ? gaiaMarkerLookup(point.ra, point.dec, options.gaiaEpochMjd) : positionLookup(point.ra, point.dec)
       : catalogName ? nameLookup(catalogName) : coordinateLookup(point.ra, point.dec));
     setView(origin === 'map' && !live && !fieldId ? 'Object' : 'Time');
     const typedSize = Number(fov);
@@ -314,6 +318,7 @@ export function SkyExplorer({ sequences, systems, synthetic, manifestError }: Pr
           select({ ra: point.ra, dec: point.dec }, 'map', {
             fieldId: point.insideFieldId === footprintFieldId ? footprintFieldId : undefined,
             label: point.sourceId ? `Gaia DR3 ${point.sourceId}` : undefined,
+            gaiaEpochMjd: point.sourceId ? point.epochMjd : undefined,
           });
         }} />
       <div className="xp-search">

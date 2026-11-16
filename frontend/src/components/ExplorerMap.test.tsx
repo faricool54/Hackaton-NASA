@@ -157,7 +157,7 @@ describe('ExplorerMap messages from the map iframe (FE-4a)', () => {
 
   it('runs every message after ready through reduceMapMessage and hands on its selection, view and cursor', () => {
     expect(explorerMapSource).toContain('const outcome = reduceMapMessage(mapState.current, message, context);');
-    expect(explorerMapSource).toContain('if (outcome.select) selectRef.current(outcome.select);');
+    expect(explorerMapSource).toContain('if (outcome.select) selectRef.current(withGaiaEpoch(outcome.select, gaiaIndex, gaiaSet?.epoch));');
     expect(explorerMapSource).toContain('if (outcome.view) { setView(outcome.view); viewRef.current?.(outcome.view); }');
   });
 });
@@ -317,7 +317,11 @@ describe('ExplorerMap Gaia DR3 stars per view (FE-4b) and hover layers', () => {
   });
 
   it('says "not SPHEREx" and the source cut in the Gaia legend of both layouts', () => {
-    expect(explorerMapSource).toContain('Gaia DR3 catalog positions predicted for {gaiaDate}, not SPHEREx detections{gaiaLimit}');
+    expect(explorerMapSource).toContain('<>{gaiaStars} positions predicted for {gaiaDate}, not SPHEREx detections{gaiaLimit}</>');
+    // Wider views name their G limit; the full layer keeps "Gaia DR3 catalog positions predicted for ...".
+    expect(explorerMapSource).toContain("`Gaia DR3 stars brighter than G ${gaiaSet.magLimit} in view: catalog`");
+    expect(explorerMapSource).toContain("'Gaia DR3 catalog'");
+    expect(explorerMapSource).toContain("'Zoom in to see fainter Gaia stars'");
     expect(explorerMapSource).toContain('Cyan circles: {gaiaLegend}');
     expect(explorerMapSource).toContain('Cyan circles show {gaiaLegend} · ESA/Gaia/DPAC');
   });

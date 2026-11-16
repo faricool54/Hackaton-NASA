@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiError, createClient } from './client';
 import { parseCoordinate, positionUrl, readPosition } from './jobs';
 import {
-  coordinateLookup, describeObjectError, factRows, formatArcsec, identityCaveat, identityNotSecure, isEmptySky, keyRows,
+  coordinateLookup, describeObjectError, factRows, formatArcsec, gaiaMarkerLookup, GAIA_MARKER_RADIUS_ARCSEC,
+  identityCaveat, identityNotSecure, isEmptySky, keyRows,
   lookupKey, lookupLabel, magnitudeText, matchBadge, matchSummary, nameLookup, objectTitle, objectTypeLine,
   photometryGroups, planetLine, planetsRow, planetsSummary, positionLookup, serviceRows, servicesSummary, splitCaveat,
   summaryLines, variabilityText,
@@ -77,6 +78,24 @@ describe('object lookups', () => {
     const offline = createClient({ mode: 'static', apiBase: 'http://api', staticBase: '/data/demo/' });
     await expect(offline.getObjectContext({ name: 'x' })).rejects.toThrow('live API');
     expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('sends the radius and epoch of a Gaia marker click, and keeps them in the lookup key', async () => {
+    const fetch = vi.fn().mockImplementation(async () => new Response(JSON.stringify(response()), { status: 200 }));
+    vi.stubGlobal('fetch', fetch);
+    const api = createClient({ mode: 'api', apiBase: 'http://api', staticBase: '/data/demo/' });
+    const marker = gaiaMarkerLookup(269.4463725391953, 4.768815881735359, 61116.6838019213);
+    expect(marker).toEqual({ ra: 269.4463725391953, dec: 4.768815881735359, radiusArcsec: GAIA_MARKER_RADIUS_ARCSEC, epochMjd: 61116.6838019213 });
+    await api.getObjectContext(marker!);
+    expect(fetch.mock.calls[0][0]).toBe(
+      'http://api/api/object?ra=269.4463725391953&dec=4.768815881735359&radius_arcsec=1.5&epoch_mjd=61116.6838019213');
+    // A marker lookup is a different card from a plain click at the same position (8″ radius at MJD 61000).
+    expect(lookupKey(marker)).not.toBe(lookupKey(positionLookup(269.4463725391953, 4.768815881735359)));
+    expect(lookupKey(marker)).not.toBe(lookupKey(gaiaMarkerLookup(269.4463725391953, 4.768815881735359, 61000)));
+    expect(lookupKey({ ra: 200, dec: 40.1 })).toBe('pos:200.0000000,40.1000000');
+    // An epoch the API refuses (outside MJD 15020–88070) falls back to the plain position lookup.
+    expect(gaiaMarkerLookup(200, 40.1, Number.NaN)).toEqual({ ra: 200, dec: 40.1 });
+    expect(gaiaMarkerLookup(200, 40.1, 90000)).toEqual({ ra: 200, dec: 40.1 });
   });
 });
 

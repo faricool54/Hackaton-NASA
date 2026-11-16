@@ -4,6 +4,7 @@ import {
   atViewCentre, cardAnnouncement, createCursorStore, formatCursor, formatDecDms, formatDistance, formatEpochDate,
   formatParallax, formatProperMotion, formatRaHms, gaiaCard, MAP_TARGETS, parallaxDistancePc, placeCard,
   showcaseTargetId, snapToMarker, targetCard, targetId, totalProperMotionArcsecYr, validMarkerId, viewPixel, viewScaleDeg,
+  withGaiaEpoch,
 } from './mapHover';
 import { pointInFootprint } from './skyFootprint';
 import { SHOWCASE_TARGETS } from './showcase';
@@ -268,5 +269,19 @@ describe('map helpers', () => {
     store.set({ ra: 3, dec: 4 });
     expect(listener).toHaveBeenCalledTimes(2);
     expect(store.get()).toEqual({ ra: 3, dec: 4 });
+  });
+});
+
+describe('Gaia marker selections carry the layer epoch (object card lookups)', () => {
+  const star = { ra: 269.4463725391953, dec: 4.768815881735359 };
+  const stars = new Map([['4472832130942575872', star]]);
+  it('adds the epoch only to a select at the marker\'s own position', () => {
+    const select = { ...star, origin: 'map' as const, layer: 'gaia' as const, sourceId: '4472832130942575872' };
+    expect(withGaiaEpoch(select, stars, EPOCH)).toEqual({ ...select, epochMjd: EPOCH });
+    // The marker left the layer, the select is elsewhere, there is no epoch, or it is a plain click: unchanged.
+    expect(withGaiaEpoch({ ...select, sourceId: '1' }, stars, EPOCH)).not.toHaveProperty('epochMjd');
+    expect(withGaiaEpoch({ ...select, ra: star.ra + 1e-4 }, stars, EPOCH)).not.toHaveProperty('epochMjd');
+    expect(withGaiaEpoch(select, stars, undefined)).not.toHaveProperty('epochMjd');
+    expect(withGaiaEpoch({ ...star, origin: 'map' }, stars, EPOCH)).not.toHaveProperty('epochMjd');
   });
 });
