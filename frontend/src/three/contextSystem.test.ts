@@ -1,6 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+import { createObjectContextCache } from '../api/objectCardCache';
 import type { Fact, ObjectContextResponse, ObjectPlanet, SystemModel } from '../api/types';
 import { BodyPanel } from '../components/BodyPanel';
 import { appearanceNotes } from './appearanceNotes';
@@ -16,10 +17,12 @@ import {
   SOLAR_SYSTEM_NOTE,
   systemFromObjectContext,
   variabilityKind,
+  isFlareType,
   isPlanetTransitType,
+  WHITE_DWARF_REASON,
 } from './contextSystem';
 import { hasDatasetWindow } from './datasetGate';
-import { UNKNOWN_NOTE_PREFIX, unknownReasons } from './factOrigin';
+import { bodyLabelText, isColourKnown, UNKNOWN_NOTE_PREFIX, UNKNOWN_SIZE_TEXT, unknownReasons } from './factOrigin';
 import { CATALOG_BADGE, ObjectModelView, ObjectSystemPreview, STATIC_HINT, STATIC_MESSAGE } from './ObjectSystemPreview';
 import * as kit from './viewerKit';
 
@@ -345,6 +348,61 @@ describe('systemFromObjectContext: other objects', () => {
     expect(reasons?.radius).toMatch(/not a positive number/);
   });
 
+  // V14 review (WS3, #107) minors 1-3. The fact sources below copy the wording of science/context.py.
+  const GAIA_AP = 'Gaia DR3 1, gaiadr3.astrophysical_parameters (ESA Gaia archive, retrieved 2026-11-15)';
+  const GSP_PHOT = `${GAIA_AP} | GSP-Phot (BP/RP spectra + parallax), 16th-84th percentiles`;
+  const FLAME = `${GAIA_AP} | Gaia DR3 FLAME (from GSP-Phot parameters, G photometry and the Gaia distance), 16th-84th pct`;
+  const M_DWARF_CAVEAT = 'Caveat: GSP-Phot temperatures of M dwarfs and cooler objects are unreliable (see the Gaia DR3 astrophysical-parameters documentation): indicative only.';
+
+  it('a GSP-Phot Teff the card marks indicative only (M dwarf) is drawn as a MODEL value, with a note (Proxima-like)', () => {
+    const teff: Fact = { label: 'Effective temperature', value: '2829', unit: 'K', source: `${GSP_PHOT} | ${M_DWARF_CAVEAT}`, verified: true };
+    const s = systemFromObjectContext(literal({ facts: [teff] }, { display_name: 'Proxima-like test star', object_type: 'BY*', spectral_type: 'M5.5Ve' }), POS).system!;
+    const [star] = s.bodies;
+    expect(star.teff_k).toBe(2829); // still drawn (orange), but not as a measurement
+    expect(paramTier(star, 'teff').tier).toBe('model');
+    expect(s.provenance.notes).toContain('Temperature is drawn from Gaia DR3 values that the object card marks indicative only (GSP-Phot is unreliable for M dwarfs and cooler objects, and FLAME inherits its temperature): model values, not measurements.');
+    // The caveat is what weakens it: the same fact without it stays MEASURED, and gets no note.
+    const plain = systemFromObjectContext(literal({ facts: [{ ...teff, source: GSP_PHOT }] }), POS).system!;
+    expect(paramTier(plain.bodies[0], 'teff').tier).toBe('measured');
+    expect(plain.provenance.notes.some((n) => /indicative only/.test(n))).toBe(false);
+  });
+
+  it('a white dwarf gets no Teff, radius or mass from Gaia GSP-Phot / FLAME: unknown (grey, fixed size), with the reason', () => {
+    const facts: Fact[] = [
+      { label: 'Effective temperature', value: '9000', unit: 'K', source: GSP_PHOT, verified: true },
+      { label: 'Radius', value: '0.5', unit: 'R_sun', source: FLAME, verified: true },
+      { label: 'Mass', value: '0.6', unit: 'M_sun', source: FLAME, verified: true },
+    ];
+    const cases: Array<[Partial<ObjectContextResponse['identity']>, string]> = [
+      [{ object_type: 'WD*', object_type_label: 'White Dwarf', spectral_type: null }, "SIMBAD type 'WD*' (White Dwarf) marks a white dwarf"],
+      [{ object_type: 'WD?', object_type_label: 'White Dwarf Candidate', spectral_type: null }, "SIMBAD type 'WD?' (White Dwarf Candidate) marks a white dwarf candidate"],
+      [{ object_type: '*', object_type_label: 'Star', spectral_type: 'DA2' }, "SIMBAD's spectral type DA2 marks a white dwarf"],
+    ];
+    for (const [identity, marks] of cases) {
+      const s = systemFromObjectContext(literal({ facts }, identity), POS).system!;
+      const [star] = s.bodies;
+      expect([star.teff_k, star.radius_km, star.mass_kg], marks).toEqual([null, null, null]);
+      expect(isColourKnown(star)).toBe(false); // neutral grey
+      expect(bodyLabelText(star)).toContain(UNKNOWN_SIZE_TEXT); // fixed marker size
+      expect(unknownReasons(s).get('Test star')).toEqual({ temperature: WHITE_DWARF_REASON, radius: WHITE_DWARF_REASON, mass: WHITE_DWARF_REASON });
+      expect(s.provenance.notes).toContain(`${marks}: Gaia DR3 GSP-Phot, FLAME and ESP-UCD do not apply to white dwarfs, so the card's Gaia DR3 temperature, radius and mass are not drawn (shown as unknown).`);
+      const html = renderToStaticMarkup(createElement(BodyPanel, { system: s, body: star, fieldExists: false }));
+      expect(html).toContain(`Why: ${WHITE_DWARF_REASON}.`);
+    }
+    // The same Gaia values of a main-sequence star are drawn.
+    const star = systemFromObjectContext(literal({ facts }, { object_type: '*', spectral_type: 'A0V' }), POS).system!.bodies[0];
+    expect([star.teff_k, star.radius_km]).toEqual([9000, 0.5 * R_SUN_KM]);
+  });
+
+  it('a VSX type with flares (BY+UV) is not animated: the range may be a flare amplitude', () => {
+    const s = systemFromObjectContext(literal({ variability: {
+      name: 'Test star', var_type: 'BY+UV', period_days: 82.8, mag_max: 11.0, mag_min: 0.2, min_is_amplitude: true,
+      passband: 'V', separation_arcsec: 0.1, url: null, source: 'AAVSO VSX',
+    } }), POS).system!;
+    expect(s.bodies[0].variability).toBeNull();
+    expect(s.provenance.notes).toContain('AAVSO VSX period 82.8 d (type BY+UV) is not animated: the type includes flares, so the VSX magnitude range may be a flare amplitude, not the periodic variation.');
+  });
+
   describe('an exoplanet entry (SIMBAD Pl / Pl?)', () => {
     const byName = (over: Partial<ObjectContextResponse> = {}, identity: Partial<ObjectContextResponse['identity']> = {}) => {
       const base = literal(over, { display_name: 'Test b', main_id: 'Test b', object_type: 'Pl', object_type_label: 'Extra-solar Planet',
@@ -402,6 +460,11 @@ describe('classification tables', () => {
     expect(['EP', 'EP+BY', 'EA+BY', 'BY+ROT'].map(variabilityKind)).toEqual([null, null, null, 'rotation']);
     expect(isPlanetTransitType('EP+BY')).toBe(true);
     expect(isPlanetTransitType('BY')).toBe(false);
+    // A type with flares (UV Ceti 'UV', 'UVN', 'FLARE') is not animated: the VSX range may be a flare amplitude
+    // (Proxima Cen 'BY+UV' would otherwise spin as a 0.2 mag rotation).
+    expect(['BY+UV', 'UV', 'UVN', 'UV:', 'FLARE', 'ROT+FLARE'].map(variabilityKind)).toEqual(Array(6).fill(null));
+    expect(['BY+UV', 'UVN', 'FLARE'].map(isFlareType)).toEqual([true, true, true]);
+    expect(['BY', 'RS', 'UVCET'].map(isFlareType)).toEqual([false, false, false]);
   });
 
   it('uses the same constants as astro.PHYS', () => {
@@ -451,6 +514,31 @@ describe('ObjectSystemPreview', () => {
     expect(html).not.toContain(CATALOG_BADGE);
     const named = renderToStaticMarkup(createElement(ObjectSystemPreview, { position: POS, lookup: { name: "Barnard's Star" } }));
     expect(named).toContain(STATIC_MESSAGE);
+  });
+
+  // The live 3D tab waits through FE-5's session cache (getObjectContextCached) with its own 45 s timeout signal.
+  // The effect cannot run in these node SSR tests, so this checks the cache behaviour it relies on.
+  it("a 3D timeout abort stops only the 3D wait: the card's shared request lives on and its answer is cached", async () => {
+    const pending: { resolve: (r: ObjectContextResponse) => void }[] = [];
+    const cache = createObjectContextCache((_lookup, signal) => new Promise((resolve, reject) => {
+      pending.push({ resolve });
+      signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+    }), { timeoutMs: 0 });
+    const lookup = { name: "Barnard's Star" };
+    const card = cache.get(lookup, new AbortController().signal);
+    const preview = new AbortController();
+    const wait3d = cache.get(lookup, preview.signal);
+    preview.abort(new DOMException('Catalog context timed out', 'TimeoutError'));
+    await expect(wait3d).rejects.toMatchObject({ name: 'TimeoutError' });
+    await new Promise((r) => setTimeout(r, 0)); // the cache aborts an abandoned request one tick later
+    expect(cache.inFlight()).toBe(1); // the card still waits on the same single request
+    const answer = fromSnapshot(snapshot('barnards-star'));
+    pending[0].resolve(answer);
+    await expect(card).resolves.toBe(answer);
+    expect(pending).toHaveLength(1);
+    expect(cache.peek(lookup)).toBe(answer); // the next 3D lookup reuses it: no second GET /api/object
+    expect(await cache.get(lookup, new AbortController().signal)).toBe(answer);
+    expect(pending).toHaveLength(1);
   });
 });
 

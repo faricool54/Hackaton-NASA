@@ -9,7 +9,8 @@
 //   - Teff, radius and mass come only from VERIFIED facts with a readable number; anything else stays null
 //     (drawn grey / at a fixed marker size) and is explained in the "Not measured, so not drawn" note that
 //     factOrigin.unknownReasons reads, so the body panel shows the reason per body;
-//   - variability only when AAVSO VSX gives a period (never an invented pulsation);
+//   - variability only when AAVSO VSX gives a period (never an invented pulsation; never for a transit or flare type);
+//   - a white dwarf gets no Teff, radius or mass from Gaia DR3 GSP-Phot / FLAME / ESP-UCD (they do not apply to one);
 //   - planets only when confirmed, not controversial and with BOTH a published period and semi-major axis.
 // Nothing here is measured by SPHEREx; every copied fact keeps its catalog source.
 import { isEmptySky, isUnknown, matchSummary } from '../api/objectCard';
@@ -161,14 +162,21 @@ export function isPlanetTransitType(varType: string | null | undefined): boolean
   return (varType ?? '').toUpperCase().split(/[\s/+|:(),]+/).includes('EP');
 }
 
+/** True when the VSX type includes flares (UV Ceti 'UV', flaring Orion 'UVN', 'FLARE'): the VSX range may be a
+ *  flare amplitude, not the periodic variation. */
+export function isFlareType(varType: string | null | undefined): boolean {
+  return (varType ?? '').toUpperCase().split(/[\s/+|:(),]+/).some((t) => /^(UV|UVN|FLARE)$/.test(t));
+}
+
 /**
- * Kind of a VSX/GCVS variability type with a period, or null when the type does not say. A planetary transit (EP)
- * and a combined type whose parts are of different kinds (e.g. 'EP+BY': one period, two phenomena, and the
- * amplitude may belong to either) are never animated.
+ * Kind of a VSX/GCVS variability type with a period, or null when the type does not say. A planetary transit (EP),
+ * a type that includes flares (UV, UVN, FLARE: e.g. 'BY+UV', the VSX range may be a flare amplitude, not the
+ * periodic one) and a combined type whose parts are of different kinds (e.g. 'EP+BY': one period, two phenomena,
+ * and the amplitude may belong to either) are never animated.
  */
 export function variabilityKind(varType: string | null | undefined): VariabilityKind | null {
   const tokens = (varType ?? '').toUpperCase().split(/[\s/+|:(),]+/).filter(Boolean);
-  if (tokens.includes('EP')) return null;
+  if (tokens.includes('EP') || isFlareType(varType)) return null;
   const kindOf = (t: string): VariabilityKind | null => {
     if (/^(E|EA|EB|EW|EC)$/.test(t)) return 'eclipse';
     if (/^(ROT|BY|RS|ELL|ACV|SXARI|SPOT)$/.test(t)) return 'rotation';
@@ -190,6 +198,10 @@ function bodyVariability(ctx: ObjectContextResponse, notes: string[]): Variabili
   const kind = variabilityKind(v.var_type);
   if (!kind && isPlanetTransitType(v.var_type)) {
     notes.push(`AAVSO VSX period ${v.period_days} d (type ${v.var_type}) is a planetary transit: the planet is drawn on its own orbit, and the star's brightness is not animated.`);
+    return null;
+  }
+  if (!kind && isFlareType(v.var_type)) {
+    notes.push(`AAVSO VSX period ${v.period_days} d (type ${v.var_type}) is not animated: the type includes flares, so the VSX magnitude range may be a flare amplitude, not the periodic variation.`);
     return null;
   }
   if (!kind) {
@@ -354,6 +366,13 @@ function typeText(ctx: ObjectContextResponse): string {
 
 const isSimbadFact = (f: Fact) => /^simbad\b/i.test((f.source ?? '').trim());
 
+/** Gaia DR3 astrophysical-parameter methods named in a card fact's source (science/context.py derive_parameters). */
+const GAIA_AP_METHODS = /\b(GSP-Phot|FLAME|ESP-UCD)\b/i;
+/** Why a white dwarf's Gaia DR3 Teff, radius or mass is not drawn (the body panel shows it as "Why: ..."). */
+export const WHITE_DWARF_REASON = 'Gaia DR3 GSP-Phot / FLAME / ESP-UCD values do not apply to a white dwarf';
+/** The card's caveat on GSP-Phot / FLAME values of M dwarfs and cooler objects ("... unreliable ...: indicative only."). */
+const INDICATIVE_CAVEAT = /indicative|unreliable/i;
+
 /**
  * The catalog 3D model of the object the card identified at `position`, or null with the reason why no model is
  * drawn. Only real catalog values: nothing unknown or unverified is drawn.
@@ -438,15 +457,39 @@ export function systemFromObjectContext(ctx: ObjectContextResponse, position: Sk
   const rootId = slug(rootName) || 'object';
   const unknown: string[] = [];
   const rootUnknown: string[] = [];
+  // A white dwarf (SIMBAD WD* / WD?, or spectral class D; not a planet entry's SIMBAD values, see above): Gaia DR3
+  // GSP-Phot and FLAME (and ESP-UCD, for ultracool dwarfs) do not apply to one, so their values stay unknown.
+  const whiteDwarf = cls.kind !== 'planet' && (/^WD[*?]$/.test(id.object_type ?? '') || spectralClass(id.spectral_type) === 'D');
+  const notForWhiteDwarf: Param[] = [];
+  const indicative: Param[] = [];
   const read = (p: Param) => {
     const r = factValue(cardFacts, p);
-    if (r.value === null) rootUnknown.push(`${p} (${r.reason})`);
+    if (r.value === null) {
+      rootUnknown.push(`${p} (${r.reason})`);
+      return null;
+    }
+    const source = r.fact.source ?? '';
+    if (whiteDwarf && GAIA_AP_METHODS.test(source)) {
+      notForWhiteDwarf.push(p);
+      rootUnknown.push(`${p} (${WHITE_DWARF_REASON})`);
+      return null;
+    }
+    if (INDICATIVE_CAVEAT.test(source)) indicative.push(p);
     return r.value;
   };
   const teff = read('temperature');
   const radius = read('radius');
   const mass = read('mass');
   if (rootUnknown.length) unknown.push(`${rootName}: ${rootUnknown.join(', ')}`);
+  if (notForWhiteDwarf.length) {
+    const evidence = /^WD[*?]$/.test(id.object_type ?? '') ? typeText(ctx) : `SIMBAD's spectral type ${id.spectral_type}`;
+    const wdWord = id.object_type === 'WD?' ? 'a white dwarf candidate' : 'a white dwarf';
+    notes.push(`${evidence} marks ${wdWord}: Gaia DR3 GSP-Phot, FLAME and ESP-UCD do not apply to white dwarfs, so the card's Gaia DR3 ${listText(notForWhiteDwarf).toLowerCase()} ${notForWhiteDwarf.length > 1 ? 'are' : 'is'} not drawn (shown as unknown).`);
+  }
+  if (indicative.length) {
+    // The card's caveat sits in the fact's source (science/context.py); astro.paramTier rates such a value MODEL.
+    notes.push(`${listText(indicative)} ${indicative.length > 1 ? 'are' : 'is'} drawn from Gaia DR3 values that the object card marks indicative only (GSP-Phot is unreliable for M dwarfs and cooler objects, and FLAME inherits its temperature): model values, not measurements.`);
+  }
 
   // Only verified facts with a value are attached (an 'unknown' Fact would read as an unverified value).
   const facts = cardFacts.filter((f) => f.verified && !isUnknown(f.value));

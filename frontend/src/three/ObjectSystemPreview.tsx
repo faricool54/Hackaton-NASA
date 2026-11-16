@@ -3,6 +3,7 @@
 import { useEffect, useState, type MouseEvent } from 'react';
 import { client } from '../api/client';
 import { describeObjectError, lookupKey, matchSummary, positionLookup, type ObjectLookup } from '../api/objectCard';
+import { getObjectContextCached } from '../api/objectCardCache';
 import type { ObjectContextResponse, SkyCoord } from '../api/types';
 import { BodyPanel } from '../components/BodyPanel';
 import { ErrorBoundary } from '../components/ErrorBoundary';
@@ -78,7 +79,11 @@ function LiveObjectSystem({ position, lookup: given, compact }: { position: SkyC
     const timedOut = () => ctrl.signal.reason instanceof DOMException && ctrl.signal.reason.name === 'TimeoutError';
     setLoad({ state: 'loading' });
     const code = loadContextModule();
-    client.getObjectContext(lookup, ctrl.signal).then(
+    // Through FE-5's session cache (api/objectCardCache.ts): the card's answer for the same lookup, or its request
+    // in flight, is reused instead of a second GET /api/object. Aborting `ctrl` (timeout, new lookup, unmount) only
+    // stops this wait: the shared request lives on while the card still waits for it, and errors and partial
+    // answers are never cached, so a timeout here leaves nothing behind for the card and Retry asks again.
+    getObjectContextCached(lookup, ctrl.signal).then(
       (ctx) => {
         clearTimeout(timer); // the card arrived: the timeout no longer applies
         return code.then(
