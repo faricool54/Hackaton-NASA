@@ -3,12 +3,12 @@ import { createPortal } from 'react-dom';
 import { client } from '../api/client';
 import { formatMjd } from '../api/format';
 import {
-  getGaiaMarkers, getGaiaView, medianFrameEpoch, GaiaViewCache, GAIA_DEFAULT_EPOCH, GAIA_SOURCE_LIMIT, GAIA_VIEW_MAX_FOV,
-  type GaiaMarker, type GaiaMarkerSet,
+  getGaiaMarkers, getGaiaView, gaiaViewMagLimit, medianFrameEpoch, GaiaViewCache, GAIA_DEFAULT_EPOCH, GAIA_FULL_FOV,
+  GAIA_SOURCE_LIMIT, GAIA_VIEW_MAX_FOV, GAIA_WIDE_MAG_LIMIT, type GaiaMarker, type GaiaMarkerSet,
 } from '../api/gaiaLayer';
 import {
   cardAnnouncement, createCursorStore, createPositionSender, gaiaCard, INITIAL_MAP_STATE, MAP_TARGETS, parseMapMessage,
-  reduceMapMessage, snapToMarker, targetCard, type Box, type MapCard, type MapCardContent, type MapContext,
+  reduceMapMessage, snapToMarker, targetCard, withGaiaEpoch, type Box, type MapCard, type MapCardContent, type MapContext,
   type MapEventMessage, type MapLayer, type MapMarker, type MapSelection, type MapState, type MapView,
 } from '../api/mapHover';
 import type { SkyCoord } from '../api/types';
@@ -17,6 +17,9 @@ import { MapCursorReadout, MapHoverCard } from './MapHoverCard';
 import '../styles/map.css';
 
 export type { MapSelection } from '../api/mapHover';
+
+/** How long the map waits for the open sequence's field (its footprint and Gaia epoch) before going on without it. */
+const FIELD_TIMEOUT_MS = 12_000;
 
 interface SequenceOverlay {
   fieldId: string;
@@ -46,6 +49,9 @@ const SPHEREX_CREDIT = 'https://irsa.ipac.caltech.edu/data/SPHEREx/';
 const ALADIN_CREDIT = 'https://aladin.cds.unistra.fr/AladinLite/';
 const GAIA_VIZIER = 'https://vizier.cfa.harvard.edu/viz-bin/VizieR?-source=I/355/gaiadr3';
 const TARGETS = new Map(MAP_TARGETS.map((target) => [target.id, target]));
+// A pick moves the map, loads the sequence epoch and zooms within ~1 s: only the settled view and epoch reach VizieR
+// (QA 2026-11-15: queries fired for the old view at the new epoch were aborted here but still ran on VizieR CfA).
+const STARS_SETTLE_MS = 600;
 const coarsePointer = () => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 // Screen-reader-only text without a class (the panel layout keeps its markup free of .mp- classes).
 const SR_ONLY: CSSProperties = {
@@ -87,7 +93,9 @@ export function ExplorerMap({ center, footprintFieldId, onSelect, layout = 'pane
   // FE-4b: Gaia DR3 stars around any view of at most GAIA_VIEW_MAX_FOV. On by default in the fill layout only.
   const [showStars, setShowStars] = useState(layout === 'fill');
   const [view, setView] = useState<MapView | null>(null);
-  const [stars, setStars] = useState<{ epoch: number; data: GaiaMarkerSet | null; status: 'loading' | 'ready' | 'error' } | null>(null);
+  const [stars, setStars] = useState<{
+    epoch: number; magLimit: number | null; data: GaiaMarkerSet | null; status: 'loading' | 'ready' | 'error';
+  } | null>(null);
   const [viewCache] = useState(() => new GaiaViewCache(20));
   // The reducer state (api/mapHover.ts) lives in a ref; `card` is what React draws from it.
   const mapState = useRef<MapState>(INITIAL_MAP_STATE);
@@ -106,12 +114,15 @@ export function ExplorerMap({ center, footprintFieldId, onSelect, layout = 'pane
   // An open sequence's own Gaia predictions (#111) win over the stars of the view.
   const sequenceGaia = showGaia && hasGaiaEpoch && currentGaia?.data ? currentGaia.data : null;
   const starsEpoch = mapField?.epoch ?? GAIA_DEFAULT_EPOCH;
+  // While an open sequence's field loads, its epoch is not known yet: wait instead of querying the default epoch.
+  const starsEpochKnown = !footprintFieldId || overlay?.fieldId === footprintFieldId;
   const starsWanted = showStars && !sequenceGaia;
   const starsInView = starsWanted && !!view && view.fov <= GAIA_VIEW_MAX_FOV;
+  const starsLimit = view ? gaiaViewMagLimit(view) : null;
   const gaiaSet = sequenceGaia && mapField?.epoch != null
-    ? { ...sequenceGaia, epoch: mapField.epoch, origin: 'sequence' as const }
+    ? { ...sequenceGaia, epoch: mapField.epoch, origin: 'sequence' as const, magLimit: null }
     : starsInView && stars?.data && stars.epoch === starsEpoch
-      ? { ...stars.data, epoch: starsEpoch, origin: 'view' as const } : null;
+      ? { ...stars.data, epoch: starsEpoch, origin: 'view' as const, magLimit: stars.magLimit } : null;
   const gaiaMarkers = gaiaSet?.markers;
   const gaiaIndex = useMemo(() => new Map((gaiaMarkers ?? []).map((star) => [star.sourceId, star])), [gaiaMarkers]);
   const targetsShown = ready && showTargets;
@@ -182,7 +193,8 @@ export function ExplorerMap({ center, footprintFieldId, onSelect, layout = 'pane
     if (outcome.state.card !== before) showCard(outcome.state.card);
     if (outcome.cursor !== undefined) cursor.set(outcome.cursor);
     if (outcome.view) { setView(outcome.view); viewRef.current?.(outcome.view); }
-    if (outcome.select) selectRef.current(outcome.select);
+    // A clicked Gaia marker's ra/dec are its star's position predicted for the layer epoch, which goes along.
+    if (outcome.select) selectRef.current(withGaiaEpoch(outcome.select, gaiaIndex, gaiaSet?.epoch));
   };
 
   useEffect(() => {
@@ -220,13 +232,18 @@ export function ExplorerMap({ center, footprintFieldId, onSelect, layout = 'pane
     if (!footprintFieldId) return;
     let current = true;
     const unavailable = { fieldId: footprintFieldId, center: null, corners: null, epoch: null };
+    let settled = false;
+    // A stalled API must not hold the per-view Gaia stars back (they wait for the sequence epoch): after
+    // FIELD_TIMEOUT_MS they load at the default epoch, and a late field answer still replaces the overlay.
+    const timer = setTimeout(() => { if (current && !settled) setOverlay(unavailable); }, FIELD_TIMEOUT_MS);
     client.getField(footprintFieldId).then((field) => {
+      settled = true;
       if (!current) return;
       setOverlay(field.provenance.synthetic ? unavailable : {
         fieldId: footprintFieldId, center: field.center, corners: fieldFootprint(field.grid), epoch: medianFrameEpoch(field.frames),
       });
-    }).catch(() => { if (current) setOverlay(unavailable); });
-    return () => { current = false; };
+    }).catch(() => { settled = true; if (current) setOverlay(unavailable); });
+    return () => { current = false; clearTimeout(timer); };
   }, [footprintFieldId]);
   useEffect(() => {
     if (ready) post({ type: 'footprint', corners: showFootprint ? corners ?? [] : [] });
@@ -242,22 +259,28 @@ export function ExplorerMap({ center, footprintFieldId, onSelect, layout = 'pane
       .finally(() => clearTimeout(timer));
     return () => { current = false; clearTimeout(timer); abort.abort(); };
   }, [showGaia, mapField, currentGaia]);
-  // FE-4b: one VizieR query per settled view (the iframe debounces 'view' by 500 ms); a new view aborts the last one.
+  // FE-4b: one VizieR query per settled view (the iframe debounces 'view' by 500 ms, and this waits STARS_SETTLE_MS for
+  // the epoch and zoom of a pick to settle); a new view aborts the last one.
   useEffect(() => {
-    if (!ready || !starsInView || !view) return;
+    if (!ready || !starsInView || !view || !starsEpochKnown) return;
+    const magLimit = gaiaViewMagLimit(view);
     const cached = viewCache.get(view, starsEpoch);
-    if (cached) { setStars({ epoch: starsEpoch, data: cached, status: 'ready' }); return; }
+    if (cached) { setStars({ epoch: starsEpoch, magLimit, data: cached, status: 'ready' }); return; }
     const abort = new AbortController();
-    setStars((last) => ({ epoch: starsEpoch, data: last?.epoch === starsEpoch ? last.data : null, status: 'loading' }));
-    getGaiaView(view, starsEpoch, abort.signal).then((data) => {
-      viewCache.set(view, starsEpoch, data);
-      if (!abort.signal.aborted) setStars({ epoch: starsEpoch, data, status: 'ready' });
-    }).catch(() => {
-      // VizieR failing never blocks the map: keep the last stars of this epoch and say so.
-      if (!abort.signal.aborted) setStars((last) => ({ epoch: starsEpoch, data: last?.epoch === starsEpoch ? last.data : null, status: 'error' }));
-    });
-    return () => abort.abort();
-  }, [ready, starsInView, view, starsEpoch, viewCache]);
+    // The last stars stay on screen while loading only when they answer the same epoch and G limit.
+    const keep = (last: typeof stars) => last?.epoch === starsEpoch && last.magLimit === magLimit ? last.data : null;
+    setStars((last) => ({ epoch: starsEpoch, magLimit, data: keep(last), status: 'loading' }));
+    const timer = setTimeout(() => {
+      getGaiaView(view, starsEpoch, abort.signal).then((data) => {
+        viewCache.set(view, starsEpoch, data);
+        if (!abort.signal.aborted) setStars({ epoch: starsEpoch, magLimit, data, status: 'ready' });
+      }).catch(() => {
+        // VizieR failing never blocks the map: keep the last stars of this epoch and say so.
+        if (!abort.signal.aborted) setStars((last) => ({ epoch: starsEpoch, magLimit, data: keep(last), status: 'error' }));
+      });
+    }, STARS_SETTLE_MS);
+    return () => { clearTimeout(timer); abort.abort(); };
+  }, [ready, starsInView, view, starsEpoch, starsEpochKnown, viewCache]);
   useEffect(() => {
     // Only ids and positions go to the iframe; the catalog values stay here for the hover card.
     if (ready) post({ type: 'gaia', markers: (gaiaMarkers ?? []).map(({ sourceId, ra, dec }) => ({ sourceId, ra, dec })) });
@@ -349,10 +372,18 @@ export function ExplorerMap({ center, footprintFieldId, onSelect, layout = 'pane
   const gaiaDate = gaiaSet && <>{formatMjd(gaiaSet.epoch)}{gaiaSet.epoch === mapField?.epoch ? ' (median frame date)' : ''}</>;
   const gaiaLimit = gaiaSet?.limited
     ? gaiaSet.origin === 'sequence' ? ` · first ${GAIA_SOURCE_LIMIT} sources only` : ` · brightest ${GAIA_SOURCE_LIMIT} in view only` : '';
-  const gaiaLegend = gaiaSet && <>Gaia DR3 catalog positions predicted for {gaiaDate}, not SPHEREx detections{gaiaLimit}</>;
+  const gaiaStars = gaiaSet?.magLimit != null ? `Gaia DR3 stars brighter than G ${gaiaSet.magLimit} in view: catalog`
+    : 'Gaia DR3 catalog';
+  const gaiaLegend = gaiaSet && <>{gaiaStars} positions predicted for {gaiaDate}, not SPHEREx detections{gaiaLimit}</>;
   const targetsLegend = 'challenge targets at SIMBAD positions predicted for their SPHEREx dates, not SPHEREx detections';
   const starsMessage = starsStatus === 'loading' ? 'Loading Gaia DR3 stars…'
-    : starsStatus === 'error' ? 'Gaia DR3 stars are unavailable (VizieR did not answer). The map still works.' : '';
+    : starsStatus === 'error' ? starsLimit !== null
+      // A timeout and a fast VizieR error answer look the same here, so the text names neither.
+      ? 'Gaia DR3 stars did not load for this wide view (VizieR did not answer). Zoom in or try again later.'
+      : 'Gaia DR3 stars are unavailable (VizieR did not answer). The map still works.' : '';
+  // Wider than GAIA_FULL_FOV only the bright stars are shown; wider than GAIA_VIEW_MAX_FOV none.
+  const zoomHint = zoomForStars ? 'Zoom in to see Gaia stars'
+    : starsInView && starsLimit !== null && starsStatus === 'ready' ? 'Zoom in to see fainter Gaia stars' : '';
   // Children keep the same slots in both layouts, so the iframe (third child) is never unmounted (#86).
   return <section ref={section} className={fill ? 'explorer-map mp-root mp-fill' : 'explorer-map'} aria-label="Infrared sky map">
     {fill ? <div className="mp-zone mp-zone--layers" ref={layersZone} onKeyDown={(e) => {
@@ -376,8 +407,8 @@ export function ExplorerMap({ center, footprintFieldId, onSelect, layout = 'pane
           {currentGaia.data.markers.length} Gaia DR3 sources with proper motion in the search region.
           {currentGaia.data.limited ? ` Query limited to ${GAIA_SOURCE_LIMIT} sources.` : ''}</p>}
         <label className="mp-check">{starsToggle}<span>Gaia DR3 stars</span></label>
-        <p className="mp-hint">Brightest {GAIA_SOURCE_LIMIT} catalog stars when the view is {GAIA_VIEW_MAX_FOV}° or smaller.
-          Hover for Gaia values; not SPHEREx measurements.</p>
+        <p className="mp-hint">Brightest {GAIA_SOURCE_LIMIT} catalog stars when the view is {GAIA_FULL_FOV}° or smaller; up to
+          {' '}{GAIA_VIEW_MAX_FOV}°, only stars brighter than G {GAIA_WIDE_MAG_LIMIT}. Hover for Gaia values; not SPHEREx measurements.</p>
         {(gaiaState !== 'off' || showStars) && <p className="mp-hint"><a href={GAIA_VIZIER} target="_blank" rel="noreferrer">Gaia DR3 · VizieR</a></p>}
         <label className="mp-check">{targetsToggle}<span>Challenge targets</span></label>
         {mapField?.center && corners && <button type="button" className="mp-button" disabled={!ready}
@@ -401,7 +432,7 @@ export function ExplorerMap({ center, footprintFieldId, onSelect, layout = 'pane
       {gaiaState === 'loading' && <p className="mp-glass mp-note" role="status">Loading Gaia DR3 sources…</p>}
       {gaiaState === 'unavailable' && <p className="mp-glass mp-note" role="status">
         Gaia DR3 is unavailable. Toggle the layer to try again.</p>}
-      {zoomForStars && <p className="mp-glass mp-note mp-zoom-hint" role="status">Zoom in to see Gaia stars</p>}
+      {zoomHint && <p className="mp-glass mp-note mp-zoom-hint" role="status">{zoomHint}</p>}
       {starsMessage && <p className="mp-glass mp-note" role="status">{starsMessage}</p>}
     </div> : (!ready || error) && <p className={error ? 'error map-message' : 'muted map-message'} role="status">
       {error || 'Loading Aladin sky map…'}</p>}
@@ -415,8 +446,8 @@ export function ExplorerMap({ center, footprintFieldId, onSelect, layout = 'pane
         : currentGaia ? 'Gaia DR3 is unavailable. Toggle the layer to try again.' : 'Loading Gaia DR3 sources…'}
       {' '}<a href={GAIA_VIZIER} target="_blank" rel="noreferrer">Gaia DR3 · VizieR</a>
     </p>}
-    {!fill && (zoomForStars || starsMessage) && <p className="muted small" role="status">
-      {zoomForStars ? 'Zoom in to see Gaia stars.' : starsMessage}</p>}
+    {!fill && (zoomHint || starsMessage) && <p className="muted small" role="status">
+      {starsMessage || `${zoomHint}.`}</p>}
     {fill ? <div className="mp-zone mp-zone--credits">
       <div className="mp-glass mp-strip">
         {(showFootprint && corners || showGaiaLegend || allwise || targetsShown) && <ul className="mp-legend" aria-label="Map legend">
