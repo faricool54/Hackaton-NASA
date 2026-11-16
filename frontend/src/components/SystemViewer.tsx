@@ -418,7 +418,7 @@ export function SystemViewer(props: Props) {
   );
 
   return (
-    <div className={`system-viewer s3d-viewer${compact ? ' s3d-viewer--compact' : ''}`}>
+    <div className={`system-viewer s3d-viewer${compact ? ' s3d-viewer--compact' : ''}${dataset ? ' s3d-viewer--dataset' : ''}`}>
       <div
         className={`s3d-stage${compact ? ' s3d-stage--compact' : ''}`}
         ref={containerRef}
