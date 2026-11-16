@@ -13,6 +13,38 @@ Los dos videos se hicieron con la herramienta `docs/submission/skills/video-tuto
 - **Write guard activo:** cada toma corre con la protección de escritura encendida.
 - **Verificación:** `verificar.py --final` da 0 errores y 0 advertencias en los dos.
 
+## 04 · Final (27,2 s): candidato a final con lo que pidió el equipo
+
+Pedido del equipo:
+- un arranque comercial;
+- que no parezca un PowerPoint, con más movimiento y algo más vistoso;
+- una voz mejor;
+- elementos del video de referencia: titulares, subtítulos y entradas animadas.
+
+**Equipo:** RetMax. La app sigue siendo Errante.
+
+Hay dos versiones:
+- `04-final-captions-08dfb85.mp4`: **la recomendada**, con titulares por sección y subtítulos en inglés.
+  Es un postproceso del montaje verificado, hecho con `04-final-source/overlays.py`.
+- `04-final-08dfb85.mp4`: el montaje sin titulares. `verificar.py --final` da 0 errores y 0 advertencias.
+
+Hoja de contacto (versión con subtítulos): `04-final-sheet.jpg`.
+
+**Recorrido.** Es el mismo del 03, contado igual de honesto.
+
+**Contenido, de 0 a 27 s:**
+- **Apertura (0–7 s):** el blink real en falso color del campo del 03, con «Expand» a pantalla completa.
+  Encima, el título animado «ERRANTE · Watch the infrared sky change» y un acercamiento lento.
+- **Build:** build real en 76.73397°, +30.23697°. El cartel del corte usa el tiempo medido por la API del
+  job (`ca52180e`): «Edited cut: this build took 1 min 11 s».
+- **Object y 3D:** zoom de 1,55× sobre la ficha y de 1,6× sobre el 3D; «3D MODEL · NOT AN IMAGE» queda visible.
+- **Cierre:** placa de créditos con acercamiento lento. Dice «Team: RetMax».
+
+**Voz:** en-US-AvaMultilingualNeural (edge-tts) a +6%. Está declarada como IA en la placa, en la metadata y
+en `descripcion.md`.
+
+**En la VM** quedó publicado un campo de job más: `ca52180e`.
+
 ## 03 · Build por click (`03-build-08dfb85.mp4`, 27,8 s): candidato a final
 
 Sigue el recorrido que pidió faricool54 después de `e89ab45`, grabado sobre `08dfb85`.
