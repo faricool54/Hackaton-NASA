@@ -104,42 +104,42 @@
           "verified": true
         },
         {
-          "label": "Effective temperature",
+          "label": "Effective temperature (catalog cross-check)",
           "value": "3100 (3099-3102)",
           "unit": "K",
           "source": "Gaia DR3 4472832130942575872, gaiadr3.astrophysical_parameters (ESA Gaia archive, retrieved 2026-11-15) | GSP-Phot (BP/RP spectra + parallax), 16th-84th percentiles | Caveat: GSP-Phot temperatures of M dwarfs and cooler objects are unreliable (see the Gaia DR3 astrophysical-parameters documentation): indicative only. Gaia GSP-Spec gives 4250 K: the two Gaia estimates disagree. (via WS3 object context; catalog, not measured by SPHEREx)",
           "verified": true
         },
         {
-          "label": "Radius",
+          "label": "Radius (catalog cross-check)",
           "value": "0.202 (0.198-0.206)",
           "unit": "R_sun",
           "source": "Gaia DR3 4472832130942575872, gaiadr3.astrophysical_parameters (ESA Gaia archive, retrieved 2026-11-15) | Gaia DR3 FLAME (from GSP-Phot parameters, G photometry and the Gaia distance), 16th-84th pct | Caveat: FLAME assumes a single star and inherits the GSP-Phot temperature. For M dwarfs the GSP-Phot input is unreliable: indicative only. (via WS3 object context; catalog, not measured by SPHEREx)",
           "verified": true
         },
         {
-          "label": "Luminosity",
+          "label": "Luminosity (catalog cross-check)",
           "value": "0.0034 (0.0033977-0.0033984)",
           "unit": "L_sun",
           "source": "Gaia DR3 4472832130942575872, gaiadr3.astrophysical_parameters (ESA Gaia archive, retrieved 2026-11-15) | Gaia DR3 FLAME (from GSP-Phot parameters, G photometry and the Gaia distance), 16th-84th pct | Caveat: FLAME assumes a single star and inherits the GSP-Phot temperature. For M dwarfs the GSP-Phot input is unreliable: indicative only. (via WS3 object context; catalog, not measured by SPHEREx)",
           "verified": true
         },
         {
-          "label": "Distance",
+          "label": "Distance (catalog cross-check)",
           "value": "1.828 (1.828-1.8282)",
           "unit": "pc",
           "source": "Gaia DR3 4472832130942575872, external.gaiaedr3_distance (ESA Gaia archive, retrieved 2026-11-15) | Bailer-Jones et al. (2021) geometric distance from the Gaia parallax, 16th-84th percentiles (via WS3 object context; catalog, not measured by SPHEREx)",
           "verified": true
         },
         {
-          "label": "Variability type",
+          "label": "Variability type (catalog cross-check)",
           "value": "BY (V amplitude 0.02)",
           "unit": null,
           "source": "AAVSO VSX V2500 Oph (B/vsx, VizieR CfA, retrieved 2026-11-15) (via WS3 object context; catalog, not measured by SPHEREx)",
           "verified": true
         },
         {
-          "label": "Variability period",
+          "label": "Variability period (catalog cross-check)",
           "value": "130.0",
           "unit": "days",
           "source": "AAVSO VSX V2500 Oph (B/vsx, VizieR CfA, retrieved 2026-11-15) (via WS3 object context; catalog, not measured by SPHEREx)",
@@ -432,7 +432,7 @@
     "synthetic": false,
     "data_releases": [],
     "notes": [
-      "Values checked on 2026-11-14 against the NASA Exoplanet Archive, SIMBAD (CfA mirror), Gaia DR3, VizieR and the cited papers (tasks/WS7-3d-systems.md, WS7-2). Facts still marked 'unverified' are estimates no source states. The 'seen by SPHEREx' facts were copied from the validation records (docs/validation/; AI analysis with an independent second analysis, human review pending), not from that catalog cross-check.",
+      "Values checked on 2026-11-14 against the NASA Exoplanet Archive, SIMBAD (CfA mirror), Gaia DR3, VizieR and the cited papers (tasks/WS7-3d-systems.md, WS7-2). Facts still marked 'unverified' are estimates no source states. The 'seen by SPHEREx' facts were copied from the validation records (docs/validation/; AI analysis with an independent second analysis; the five records were human-reviewed on 2026-11-15, a guided review that did not re-run the analyses), not from that catalog cross-check.",
       "Planet phases follow the t0 and periods of Basant et al. 2025 (Table 3), read as times of inferior conjunction: a position on a real date is a prediction with the 1-sigma spread given in each orbit note. The star's rotational phase is not known.",
       "Planet masses are minimum masses (M sin i) and planet radii are estimates: radial velocity measures neither the inclination nor the size.",
       "Catalog values from the frozen WS3 object-context snapshot 'barnards-star' (query \"Barnard's Star\"; services answered 2026-11-15T03:44:16Z to 2026-11-15T04:21:22Z; replayed offline from the WS3 fixtures), pipeline/errante/systems/inputs/objects/: not measured by SPHEREx, and not queried when the site is built."

@@ -90,14 +90,14 @@
           "verified": true
         },
         {
-          "label": "Distance",
+          "label": "Distance (catalog cross-check)",
           "value": "2.278 (2.266-2.29)",
           "unit": "pc",
           "source": "SIMBAD via Sesame (CfA mirror, vizier.cfa.harvard.edu), retrieved 2026-11-15 | 1/parallax (SIMBAD parallax 439.0 +/- 2.4 mas, ref 2021ApJS..253....7K) (via WS3 object context; catalog, not measured by SPHEREx)",
           "verified": true
         },
         {
-          "label": "Spectral type",
+          "label": "Spectral type (catalog cross-check)",
           "value": "Y2",
           "unit": null,
           "source": "SIMBAD via Sesame (CfA mirror, vizier.cfa.harvard.edu), retrieved 2026-11-15 (via WS3 object context; catalog, not measured by SPHEREx)",
@@ -114,7 +114,7 @@
     "synthetic": false,
     "data_releases": [],
     "notes": [
-      "Values checked on 2026-11-14 against the NASA Exoplanet Archive, SIMBAD (CfA mirror), Gaia DR3, VizieR and the cited papers (tasks/WS7-3d-systems.md, WS7-2). Facts still marked 'unverified' are estimates no source states. The 'seen by SPHEREx' facts were copied from the validation records (docs/validation/; AI analysis with an independent second analysis, human review pending), not from that catalog cross-check.",
+      "Values checked on 2026-11-14 against the NASA Exoplanet Archive, SIMBAD (CfA mirror), Gaia DR3, VizieR and the cited papers (tasks/WS7-3d-systems.md, WS7-2). Facts still marked 'unverified' are estimates no source states. The 'seen by SPHEREx' facts were copied from the validation records (docs/validation/; AI analysis with an independent second analysis; the five records were human-reviewed on 2026-11-15, a guided review that did not re-run the analyses), not from that catalog cross-check.",
       "The challenge gives 133.79513, −7.24515: the WISE All-Sky position at epoch 2010.34 (MJD 55320.4). The object moves ~8.2 arcsec per year, so positions must be propagated to the date of each image.",
       "Catalog values from the frozen WS3 object-context snapshot 'wise-0855' (query 'WISE J085510.83-071442.5'; services answered 2026-11-15T03:44:36Z to 2026-11-15T03:44:41Z; replayed offline from the WS3 fixtures), pipeline/errante/systems/inputs/objects/: not measured by SPHEREx, and not queried when the site is built.",
       "Not measured, so not drawn (shown as unknown): WISE 0855−0714: mass (only a 3–10 Jupiter-mass range from evolutionary models for ages of 1–10 Gyr is published (Luhman et al. 2024); a single value would be a pick inside it; WS3 object context: No Gaia DR3 counterpart)."

@@ -47,7 +47,7 @@ describe('fact origin (V13 convention)', () => {
     ];
     for (const [f, origin] of cases) expect(factOrigin(f), `${f.label} / ${f.source}`).toBe(origin);
     expect(FACT_ORIGIN_LABEL).toEqual({
-      spherex: 'SPHEREx-measured',
+      spherex: 'SPHEREx-measured (offline)',
       derived: 'derived',
       catalog: 'catalog, not measured by SPHEREx',
       unsourced: 'no source given',

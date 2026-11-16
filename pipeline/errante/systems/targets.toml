@@ -94,12 +94,12 @@ source = "SPHEREx DR1+QR3+deep, offline PSF-wing photometry; docs/validation/r-d
 
 # --- RW Aurigae ---------------------------------------------------------------------------------------------
 # The WS3 context of "RW Aur" is the unresolved A+B pair, and SIMBAD's A/B names are swapped against the WDS
-# (V15, open): its values go into a system note, never onto A or B.
+# (V15: fixed in the WS3 card by #101; this snapshot predates it): its values go into a system note, never onto A or B.
 [[system]]
 id = "rw-aurigae"
 snapshot = "rw-aurigae"
 snapshot_keys = ["distance", "spectral_type", "variability_type", "variability_period"]
-snapshot_note = "Not attached to A or B: the context describes the unresolved A+B pair, and SIMBAD's A/B names are swapped against the WDS (V15, open)."
+snapshot_note = "Not attached to A or B: the context describes the unresolved A+B pair, and SIMBAD's A/B names are swapped against the WDS (V15: fixed in the WS3 card by #101; this snapshot predates it)."
 
 [[system.body]]
 id = "rw-aur-a"

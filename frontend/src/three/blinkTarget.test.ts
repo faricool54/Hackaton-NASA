@@ -209,6 +209,27 @@ describe('predictTarget: other targets', () => {
     expect(insideGrid(field('eps-indi-b').grid, xyA)).toBe(false);
   });
 
+  it('says that Epsilon Indi B is not detected in 2 of the 5 published D1 frames (docs/validation/eps-indi-b.md)', () => {
+    const p = predict('epsilon-indi', 'eps-indi-b');
+    const d1 = field('eps-indi-b').frames.filter((f) => f.detector === 1);
+    expect(d1).toHaveLength(5);
+    const blue = d1.filter((f) => f.wavelength_um !== null && f.wavelength_um < 0.83);
+    expect(blue.map((f) => f.wavelength_um!.toFixed(3))).toEqual(['0.756', '0.776']);
+    expect(p.caption).toContain('Not detected in 2 of the 5 D1 frames shown (< 0.83 µm): there the crosshair marks empty sky.');
+    expect(p.details.join('\n')).toContain(
+      'In 2 of the 5 published D1 frames (0.756 and 0.776 µm, bluer than ~0.83 µm) the T dwarf is not detected, so there the crosshair marks its predicted place on empty sky',
+    );
+  });
+
+  it("says that RW Aurigae's crosshair is at A and that B is unresolved", () => {
+    const p = predict('rw-aurigae', 'rw-aurigae');
+    expect(p.caption).toContain("Crosshair at A's Gaia position; B is 1.5″ (0.24 px) WSW, unresolved: SPHEREx sees the blend.");
+    const details = p.details.join('\n');
+    expect(details).toContain('Gaia DR3: B is 1.493″ from A at PA 254.4° (docs/SCIENCE.md).');
+    expect(details).toContain('The track is A’s: its Gaia DR3 position, propagated with B’s parallax and proper motion.');
+    expect(details).not.toContain('the track is the pair');
+  });
+
   it('projects the static field star next to WISE 0855 and names it in the legend', () => {
     const p = predict('wise-0855', 'wise-0855');
     expect(p.staticSources).toHaveLength(1);
@@ -217,16 +238,23 @@ describe('predictTarget: other targets', () => {
     expect(star.inGrid).toBe(true);
     // Its catalog position, projected the same way as everything else.
     expect(star).toMatchObject(tanWorldToPng(field('wise-0855').grid, 133.7581825, -7.2411559)!);
-    // Within a pixel of the predicted target: the D1-D3 blob at the target position.
-    const nearest = Math.min(...p.points.map((q) => Math.hypot(q.x - star.x, q.y - star.y)));
-    expect(nearest).toBeLessThan(1);
+    // Near the predicted target, not at it: the D1–D4 blob is 0.7–1.8 px from the crosshair in the published frames.
+    const dist = p.points.map((q) => Math.hypot(q.x - star.x, q.y - star.y));
+    expect(Math.min(...dist)).toBeLessThan(1);
+    expect([Math.min(...dist).toFixed(1), Math.max(...dist).toFixed(1)]).toEqual(['0.7', '1.8']);
     expect(p.caption).toContain('Dashed circle: Gaia DR3 5756956644387831296 (static).');
-    // The visible line says the target itself is only in D5/D6, so no D1–D4 blob reads as WISE 0855
+    // The visible line says the target itself is barely visible even in D5/D6, so no D1–D4 blob reads as WISE 0855
     // (docs/validation/wise-0855.md: "Observado en D1–D4: solo aparece la estrella de fondo").
-    expect(p.caption).toContain('The target shows only in D5/D6; in D1–D4 the blob at the crosshair is that star.');
-    expect(p.details.join('\n')).toContain('in D1–D4 the blob at the target position is this star');
-    expect(p.details.join(' ')).not.toContain('in D1–D3 the blob');
-    expect(p.details.join('\n')).toContain('docs/validation/wise-0855.md');
+    expect(p.caption).toContain(
+      'Barely visible even in D5/D6; in D1–D4 the blob near the crosshair (0.7–1.8 px away) is that star.',
+    );
+    expect(p.caption).not.toContain('at the crosshair');
+    const details = p.details.join('\n');
+    expect(details).toContain('in D1–D4 the blob near the target position (0.7–1.8 px away in the published frames) is this star');
+    expect(details).toContain('faint even there: median S/N 3.4–3.8 per exposure; the published blink does not show it convincingly');
+    expect(details).not.toContain('at the target position');
+    expect(details).not.toContain('in D1–D3 the blob');
+    expect(details).toContain('docs/validation/wise-0855.md');
     // docs/validation/wise-0855.md: "La separación es 1,85 / 1,32 / 0,70 px en S0/S1/S2". Rounded
     // to 0.01 px; that log may use the team's own WISE fit, 0.05 px from this Kirkpatrick et al.
     // 2021 track (skyTrack.ts note), so 0.06 px.
@@ -302,10 +330,12 @@ describe('labels', () => {
 
   it('keep the visible line short: it sits between the stage and the scrubber', () => {
     // ~50 characters per line in the 343 px phone column at 0.85rem: ~4 lines, ~7 for WISE 0855,
-    // which also names its field star and the detectors the target shows in (was 352-542 characters).
+    // which also names its field star and the detectors the target shows in (was 352-542 characters),
+    // and for Epsilon Indi B and RW Aurigae, whose legend notes say what the crosshair marks (WS3 review of #99).
+    const long = new Set(['wise-0855', 'epsilon-indi', 'rw-aurigae']);
     for (const s of SYSTEMS) {
       const p = predictTarget(s, field(s.field_id!))!;
-      expect(p.caption.length, s.id).toBeLessThanOrEqual(s.id === 'wise-0855' ? 350 : 240);
+      expect(p.caption.length, s.id).toBeLessThanOrEqual(long.has(s.id) ? 350 : 240);
     }
   });
 
@@ -409,7 +439,7 @@ describe('BlinkViewer with a prediction (server-rendered markup, WS5 reticle + W
     expect(html).toContain('predicted from Kirkpatrick et al. 2021, not a measurement.');
     expect(html).not.toContain('stroke-dasharray="3 2"'); // drawn once the frame image has loaded
     expect(html).toContain('Dashed circle: Gaia DR3 5756956644387831296 (static).');
-    expect(html).toContain('in D1–D4 the blob at the crosshair is that star');
+    expect(html).toContain('in D1–D4 the blob near the crosshair (0.7–1.8 px away) is that star');
   });
 
   it('draws no track for a target that is static at this pixel scale (R Draconis)', () => {

@@ -27,7 +27,7 @@
   ],
   "generated_media": [],
   "real_target_validation": false,
-  "real_target_validation_basis": "A 3D model of a target is not an R05 validation (AGENTS.md rule 3). The formal per-target validation records are the coordinator's (docs/validation/) and their human review is pending (docs/VALIDATION.md); the 'seen by SPHEREx' facts in the systems are copied from those records, not re-measured by WS7",
+  "real_target_validation_basis": "A 3D model of a target is not an R05 validation (AGENTS.md rule 3). The formal per-target validation records are the coordinator's (docs/validation/) and their human review was signed on 2026-11-15 (#126, docs/VALIDATION.md); the 'seen by SPHEREx' facts in the systems are copied from those records, not re-measured by WS7",
   "human_review": "DankoLiv directs the WS7 work done with Claude Code, chooses its design decisions and reviews the changes; that review is in progress and is not claimed complete, and a line-by-line human review of the code, tests or data is not claimed",
   "repository_disclosure": "AI_USAGE.md",
   "integration_validation": {

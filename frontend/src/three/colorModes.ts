@@ -22,7 +22,7 @@
 // Mira / AGB stars (astro.miraReason, e.g. R Dra once a Teff is measured): drawn with the photosphere blackbody like any star; the
 //   legends say what that leaves out (H₂O/CO bands and dust in the SPHEREx modes, TiO in visible), as
 //   the body panel and the AB rule do.
-// Unknown Teff (factOrigin.isColourKnown): a star or brown dwarf without a measured temperature is drawn
+// Unknown Teff (factOrigin.isColourKnown): a star or brown dwarf without a published temperature is drawn
 //   neutral grey in every mode ('unknown-colour'), never at a guessed temperature (docs/VISION.md).
 import type { Body, SystemModel } from '../api/types';
 import {

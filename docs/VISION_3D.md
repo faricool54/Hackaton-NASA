@@ -59,7 +59,7 @@ clickeables, transiciones suaves de cámara, panel lateral legible y que funcion
   derivado por WS7: el radio de RW Aur A, ~1.3 R☉, desde la luminosidad de Herczeg & Hillenbrand 2014 llevada a la
   distancia Gaia (por eso RW Aur sigue con el badge). El radio de R Dra y su masa class-typical ya no existen.
 - **Origen de cada dato** (V13, `frontend/src/three/factOrigin.ts`, sin campo nuevo en el contrato): la ficha pone un
-  chip en cada `Fact`. **"SPHEREx-measured"** si `Fact.source` empieza con "SPHEREx" (los facts "seen by SPHEREx" del
+  chip en cada `Fact`. **"SPHEREx-measured (offline)"** si `Fact.source` empieza con "SPHEREx" (los facts "seen by SPHEREx" del
   bloque A5 de `SCIENCE.md`, copiados de los registros de validación: análisis offline de los FITS, revisión humana
   pendiente); **"derived"** si la etiqueta contiene "(derived" (la fuente dice desde qué); **"catalog, not measured
   by SPHEREx"** para el resto con fuente (Gaia DR3, SIMBAD, VSX, NASA Exoplanet Archive, papers); **"no source
@@ -126,7 +126,7 @@ agregan como facts de cruce, rotulados "catalog, not measured by SPHEREx" (ver
 | **Epsilon Indi** | K5V + Ab (6.5 M♃, a 15.8 AU, e 0.25) + Ba/Bb (T1/T6, P 11.02 a, e 0.54; **tamaño desconocido**) | Exoplanet Archive (Sanghi+2026), Matthews+2024, Chen+2022, Scholz+2003, Gaia DR3 | Ab: el ajuste vigente (Sanghi+2026) reemplaza a Matthews+2024 (28 AU, e 0.4); masa de A 0.80; Teff 4700 K; A es "an orange dwarf star", no "Sun-like"; Ba+Bb son una sola fuente para Gaia y para SPHEREx (≤ ~1″ contra píxeles de 6.15″) |
 | **WISE 0855−0714** | enana marrón aislada, ~285 K, ~Y4 (Kirkpatrick+2021; SIMBAD da Y2); masa sin valor único (rango 3–10 M♃) | Kirkpatrick+2021 (paralaje/movimiento), Luhman+2024 (JWST) | movimiento propio −8123.7/+673.2 mas/a; las coordenadas del enunciado son WISE All-Sky **época 2010.34**, no J2014 |
 | **R Draconis** | Mira, P 245.6 d, V 6.7–13.2 (*Free-running*: seno ilustrativo del brillo; *Dataset time*: fase V fechada con los máximos AAVSO medidos dentro de la ventana SPHEREx y con la efeméride VSX fuera de ella); **color y tamaño desconocidos**, radio constante | GCVS 5.1, AAVSO VSX, Gaia DR3, Bailer-Jones+2021, van Belle+2002, McDonald+2012 | Teff como rango 2000–3300 K (cambia con la fase); se agregó movimiento (~790 pc); se quitaron la Teff dibujada, el radio ilustrativo y la masa class-typical (V13) |
-| **RW Aurigae** | A (CTTS, 1.24 M☉, radio derivado ~1.3 R☉) + disco de polvo de 19 AU + B (K6.5, 1.0 M☉) en la órbita ajustada | Kurtovic+2024 (ALMA), Dodin+2020, Testi+2022, Herczeg & Hillenbrand 2014, VSX, Gaia DR3 | B tiene órbita publicada (a ~258 AU, e 0.79, P ~2800 a, muy incierta); **SIMBAD tiene invertidos los Gaia DR3 de A y B** (V15, abierto en WS3) |
+| **RW Aurigae** | A (CTTS, 1.24 M☉, radio derivado ~1.3 R☉) + disco de polvo de 19 AU + B (K6.5, 1.0 M☉) en la órbita ajustada | Kurtovic+2024 (ALMA), Dodin+2020, Testi+2022, Herczeg & Hillenbrand 2014, VSX, Gaia DR3 | B tiene órbita publicada (a ~258 AU, e 0.79, P ~2800 a, muy incierta); **SIMBAD tiene invertidos los Gaia DR3 de A y B** (V15, corregido en la ficha de WS3 por #101; el snapshot es anterior) |
 | Asteroides / TNOs del pipeline | órbita heliocéntrica real (elementos osculantes) + forma si existe | JPL SBDB, NASA 3D Resources, DAMIT | pendiente (WS7-3) |
 | Planeta Nueve (P2, opcional) | órbita **hipotética** con `Orbit.quality = "hypothetical"` | Brown & Batygin 2021 (AJ 162, 219), a verificar | pendiente (WS7-7) |
 
@@ -136,7 +136,7 @@ de posición WDS y Kurtovic+2024). Las coordenadas del enunciado para WISE 0855 
 
 Lo que **no** sale de SPHEREx: las órbitas y los parámetros físicos dibujados vienen de catálogos. SPHEREx aporta
 *dónde está y cómo se mueve en el cielo*, su **espectro 0.75–5 µm** y su variabilidad. Los campos reales de los cinco
-blancos existen (`data/products`, WS2) y los registros de validación (`docs/validation/`, revisión humana pendiente)
+blancos existen (`data/products`, WS2) y los registros de validación (`docs/validation/`, revisión humana guiada el 2026-11-15, sin volver a correr los análisis)
 midieron offline el movimiento, el ciclo y el cambio de brillo: el 3D los muestra en la ficha como facts "seen by
 SPHEREx" (bloque A5 de `SCIENCE.md`), sin convertirlos en geometría. La curva de luz SPHEREx precomputada de R Dra y
 de RW Aur la muestra el panel de la página del campo (`LightCurvePanel`, WS5, #83, en modo API), no el 3D. Las
@@ -172,7 +172,7 @@ frontend/src/three/             (WS7, three.js en un chunk aparte, carga diferid
   colorModes.ts      modos de color (SPHEREx IR por defecto, visible, D1–D6 en gris), glow, leyendas
   appearance.ts      color base, gate de superficies (solo el sintético), distancias comprimidas, radios
                      (sin radio: marcador fijo, sin escalar)
-  factOrigin.ts      origen de cada Fact (SPHEREx-measured / derived / catalog) y textos de color y tamaño
+  factOrigin.ts      origen de cada Fact (SPHEREx-measured (offline) / derived / catalog) y textos de color y tamaño
                      desconocidos; sin astro ni three (va en el chunk principal)
   sceneLayout.ts     radios sin solapes, cámara, reloj, reglas de spin (radio constante: nada pulsa en tamaño)
   starMaterial.ts    shaders: limb darkening, contorno (rim)
@@ -225,7 +225,7 @@ VSX / NASA Exoplanet Archive como valores de catálogo rotulados "catalog, not m
   desconocido (`teff`, `radius`, `mass`), **por qué** (`unknown`). El build falla si un campo queda desconocido sin
   razón. Un `snapshot` a nivel de sistema (`snapshot_keys`, `snapshot_note`) es para un contexto que no se puede dar a
   un solo cuerpo: ε Ind B es una sola fuente Gaia sin resolver (Ba+Bb), y en RW Aur el contexto describe el par A+B sin
-  resolver y SIMBAD tiene invertidos los nombres A/B respecto del WDS (V15, abierto en WS3). En esos dos casos los
+  resolver y SIMBAD tiene invertidos los nombres A/B respecto del WDS (V15, corregido en la ficha de WS3 por #101; el snapshot es anterior). En esos dos casos los
   valores van solo a una nota del sistema, nunca a un componente.
 - `measured.py`: la **capa de mediciones** (`apply_registry`). Lee registro y snapshots (solo JSON: sin red y sin
   código de WS3 en build ni en tests) y, al final de `Body.facts` para no cambiar el orden de los existentes, agrega a
@@ -275,7 +275,7 @@ re-graba con `--record` y revisa el diff. El costo: los snapshots envejecen; se 
    si falta `motion`.
 
 **Cómo agregar una fuente de medición.** Una medición SPHEREx nueva de un registro de validación entra como
-`spherex_fact` (fuente que empiece con "SPHEREx": la UI le pone el chip "SPHEREx-measured"). Un parámetro nuevo de
+`spherex_fact` (fuente que empiece con "SPHEREx": la UI le pone el chip "SPHEREx-measured (offline)"). Un parámetro nuevo de
 WS3 entra agregando su clave a `cross_check`. Cuando WS3 publique la temperatura ajustada al espectro SPHEREx (V18),
 ese valor tendrá que reemplazar la Teff de catálogo con su fuente SPHEREx; eso todavía no está implementado (WS7-8).
 

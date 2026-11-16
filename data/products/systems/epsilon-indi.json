@@ -308,7 +308,7 @@
     "synthetic": false,
     "data_releases": [],
     "notes": [
-      "Values checked on 2026-11-14 against the NASA Exoplanet Archive, SIMBAD (CfA mirror), Gaia DR3, VizieR and the cited papers (tasks/WS7-3d-systems.md, WS7-2). Facts still marked 'unverified' are estimates no source states. The 'seen by SPHEREx' facts were copied from the validation records (docs/validation/; AI analysis with an independent second analysis, human review pending), not from that catalog cross-check.",
+      "Values checked on 2026-11-14 against the NASA Exoplanet Archive, SIMBAD (CfA mirror), Gaia DR3, VizieR and the cited papers (tasks/WS7-3d-systems.md, WS7-2). Facts still marked 'unverified' are estimates no source states. The 'seen by SPHEREx' facts were copied from the validation records (docs/validation/; AI analysis with an independent second analysis; the five records were human-reviewed on 2026-11-15, a guided review that did not re-run the analyses), not from that catalog cross-check.",
       "Orbital and pulsation phases are arbitrary (no epoch): positions are not predictions for a real date.",
       "Simplified hierarchy: Ba orbits A and Bb orbits Ba (no barycenters).",
       "Ba and Bb have no published radius: their size is unknown and they are drawn at a fixed marker size, not to scale. The radius of Ab is the archive's estimate from its mass.",
