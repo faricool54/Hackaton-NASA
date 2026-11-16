@@ -304,7 +304,7 @@ export const TRACK_SOURCES: Readonly<Record<string, TrackSourceEntry>> = {
         name: 'Gaia DR3 5756956644387831296',
         raDeg: 133.7581825,
         decDeg: -7.2411559,
-        note: 'static field star (CatWISE J085501.95−071428.2, G 16.31): in D1–D4 the blob at the target position is this star (docs/validation/wise-0855.md)',
+        note: 'static field star (CatWISE J085501.95−071428.2, G 16.31): in D1–D4 the blob near the target position is this star (docs/validation/wise-0855.md)',
         source: RECON_43,
       },
     ],
@@ -318,7 +318,9 @@ export const TRACK_SOURCES: Readonly<Record<string, TrackSourceEntry>> = {
     target: 'RW Aurigae A+B',
     source:
       'Position of A, Gaia DR3 156430817820015232; parallax and proper motion of B, Gaia DR3 156430822114424576, as adopted by Kurtovic et al. 2024 (A’s solution has RUWE 16); radial velocity 15 km/s from SIMBAD (Nguyen et al. 2012)',
-    notes: ['A and B are 1.5″ apart (0.24 px): one SPHEREx point source, so the track is the pair’s.'],
+    notes: [
+      'The track is A’s: its Gaia DR3 position, propagated with B’s parallax and proper motion. B is 1.5″ (0.24 px) WSW and unresolved: SPHEREx sees the A+B blend as one point source.',
+    ],
   },
 };
 

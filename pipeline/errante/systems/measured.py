@@ -38,6 +38,8 @@ REGISTRY_SCHEMA = 1
 SNAPSHOT_SCHEMA = 1
 
 CATALOG_SUFFIX = " (via WS3 object context; catalog, not measured by SPHEREx)"
+# Appended to the label of a cross-check fact, so it reads apart from the drawn value's fact of the same name.
+CROSS_CHECK_LABEL_SUFFIX = " (catalog cross-check)"
 UNKNOWN_NOTE_PREFIX = "Not measured, so not drawn (shown as unknown): "
 SPHEREX_SOURCE_PREFIX = "SPHEREx"
 
@@ -191,11 +193,16 @@ def snapshot_fact(snapshot: dict, key: str) -> Fact | None:
     return fact
 
 
-def cross_check_fact(snapshot: dict, key: str) -> Fact | None:
+def cross_check_fact(snapshot: dict, key: str, *, label_suffix: bool = True) -> Fact | None:
+    """A verified snapshot value as a catalog fact. ``label_suffix=False`` when it is the drawn value itself
+    (system_from_snapshot), so it is not labelled as a cross-check of another value."""
     fact = snapshot_fact(snapshot, key)
     if fact is None:
         return None
-    return fact.model_copy(update={"source": (fact.source or "WS3 object context") + CATALOG_SUFFIX})
+    update = {"source": (fact.source or "WS3 object context") + CATALOG_SUFFIX}
+    if label_suffix:
+        update["label"] = fact.label + CROSS_CHECK_LABEL_SUFFIX
+    return fact.model_copy(update=update)
 
 
 def _snapshot_reason(snapshot: dict, key: str) -> str | None:
@@ -325,7 +332,7 @@ class ExplainRow:
 
 def _origin_of(fact: Fact) -> str:
     if (fact.source or "").startswith(SPHEREX_SOURCE_PREFIX):
-        return "SPHEREx-measured (offline analysis, review pending)"
+        return "SPHEREx-measured (offline analysis)"
     if "(derived" in fact.label:
         return "derived"
     if CATALOG_SUFFIX in (fact.source or ""):
@@ -458,7 +465,7 @@ def system_from_snapshot(spec: SystemSpec, snapshot: dict, *, pipeline_version: 
 
     teff, radius, mass = verified_value("teff"), verified_value("radius"), verified_value("mass")
     root_id = new.get("body_id", spec.id)
-    facts = [cross_check_fact(snapshot, k) for k in PARAM_KEYS]
+    facts = [cross_check_fact(snapshot, k, label_suffix=False) for k in PARAM_KEYS]  # the drawn values themselves
     root = Body(
         id=root_id,
         name=new.get("name") or ident.get("display_name") or spec.id,

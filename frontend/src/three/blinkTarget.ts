@@ -5,7 +5,7 @@
 // projection in image-edge coordinates = the PNG pixel below + 0.5). This module adds what the
 // reticle alone does not say: which target and astrometry it is for (all five targets, not only
 // Barnard's Star), the honest label, the shift over the frames shown, the faint predicted track
-// with its first/last points, and static field stars that sit at the target position.
+// with its first/last points, and static field stars that sit near the target position.
 //
 // Why: the real fields move by only ~1-2 SPHEREx pixels over the whole baseline (Barnard's Star
 // ~1.7 px, docs/validation/barnards-star.md), so the motion is hard to see in the blink without a
@@ -153,17 +153,26 @@ export interface BlinkTargetPrediction {
 
 /**
  * Legend notes per tracked target (TrackAstrometry.target) that the visible caption must carry (not only the disclosure).
- * TODO(WS7): move into skyTrack.ts TRACK_SOURCES once PR #90 merges, and change its WISE 0855
- * field-star note from D1–D3 (docs/RECON_SPHEREX.md 4.3) to D1–D4 (docs/validation/wise-0855.md).
+ * The captions stay within the length the tests allow (blinkTarget.test.ts); the sources and the rest are the detail line.
+ * TODO(WS7): move into skyTrack.ts TRACK_SOURCES (its WISE 0855 field-star note already says D1–D4).
  */
 const LEGEND_NOTES: Readonly<Record<string, { caption: string; detail: string; staticNote?: string }>> = {
   'WISE 0855−0714': {
-    caption: 'The target shows only in D5/D6; in D1–D4 the blob at the crosshair is that star.',
-    // Replaces skyTrack's D1–D3 field-star note in the details, so the panel does not contradict itself.
+    caption: 'Target faint even in D5/D6; in D1–D4 the blob near the crosshair (0.7–1.8 px off) is that star.',
+    // Replaces skyTrack's field-star note in the details: adds its distance from the crosshair in the published frames.
     staticNote:
-      'static field star (CatWISE J085501.95−071428.2, G 16.31): in D1–D4 the blob at the target position is this star (docs/validation/wise-0855.md; docs/RECON_SPHEREX.md 4.3 lists D1–D3)',
+      'static field star (CatWISE J085501.95−071428.2, G 16.31): in D1–D4 the blob near the target position (0.7–1.8 px away in the published frames) is this star (docs/validation/wise-0855.md; docs/RECON_SPHEREX.md 4.3 lists D1–D3)',
     detail:
-      'WISE 0855−0714 is visible only at λ ≥ 3.9 µm, D5/D6 (docs/RECON_SPHEREX.md 4.3); in D1–D4 only the background star appears at the predicted position (docs/validation/wise-0855.md).',
+      'WISE 0855−0714 is visible only at λ ≥ 3.9 µm, D5/D6 (docs/RECON_SPHEREX.md 4.3), and faint even there: median S/N 3.4–3.8 per exposure; the published blink does not show it convincingly (docs/validation/wise-0855.md). In D1–D4 only the background star appears, near the predicted position (docs/validation/wise-0855.md).',
+  },
+  'RW Aurigae A+B': {
+    caption: "Crosshair at A's Gaia position; B is 1.5″ (0.24 px) WSW, unresolved: SPHEREx sees the blend.",
+    detail: 'Gaia DR3: B is 1.493″ from A at PA 254.4° (docs/SCIENCE.md).',
+  },
+  'Epsilon Indi B (Ba+Bb, unresolved)': {
+    caption: 'Not detected in 2 of the 5 D1 frames shown (< 0.83 µm): there the crosshair marks empty sky.',
+    detail:
+      'In 2 of the 5 published D1 frames (0.756 and 0.776 µm, bluer than ~0.83 µm) the T dwarf is not detected, so there the crosshair marks its predicted place on empty sky (docs/validation/eps-indi-b.md, update of 2026-11-15).',
   },
 };
 

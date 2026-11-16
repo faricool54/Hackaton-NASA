@@ -3,7 +3,8 @@
 //
 // Fact origin, read from the Fact itself (contract 0.7.0 has no origin field; WS7 convention, V13):
 //   'spherex'  Fact.source starts with "SPHEREx": a value measured on SPHEREx data (offline analysis of
-//              the FITS files, copied from the validation records; their human review is pending)
+//              the FITS files, copied from the validation records; guided human review on 2026-11-15,
+//              which did not re-run the analyses)
 //   'derived'  the label contains "(derived": computed by WS7 from other values, the source says from what
 //   'catalog'  a catalog or literature value (Gaia DR3, SIMBAD, VSX, NASA Exoplanet Archive, papers),
 //              not measured by SPHEREx
@@ -19,7 +20,7 @@ export type FactOrigin = 'spherex' | 'derived' | 'catalog' | 'unsourced' | 'synt
 
 /** Chip text of each origin. */
 export const FACT_ORIGIN_LABEL: Readonly<Record<FactOrigin, string>> = {
-  spherex: 'SPHEREx-measured',
+  spherex: 'SPHEREx-measured (offline)',
   derived: 'derived',
   catalog: 'catalog, not measured by SPHEREx',
   unsourced: 'no source given',
@@ -28,7 +29,7 @@ export const FACT_ORIGIN_LABEL: Readonly<Record<FactOrigin, string>> = {
 
 /** One-line meaning of each origin (chip tooltip). */
 export const FACT_ORIGIN_MEANING: Readonly<Record<FactOrigin, string>> = {
-  spherex: 'Measured on SPHEREx data: offline analysis of the SPHEREx FITS files (see the source line; human review pending)',
+  spherex: 'Measured on SPHEREx data: offline analysis of the SPHEREx FITS files (see the source line; its validation record had a guided human review on 2026-11-15 that did not re-run the analyses)',
   derived: 'Computed from other values with the relation named in the source; not measured by SPHEREx',
   catalog: 'A catalog or literature value (Gaia, SIMBAD, VSX, NASA Exoplanet Archive or a paper), not measured by SPHEREx',
   unsourced: 'No source is given for this value: treat it as unverified',

@@ -52,7 +52,8 @@ VERIFIED_NOTE = (
     "Values checked on 2026-11-14 against the NASA Exoplanet Archive, SIMBAD (CfA mirror), Gaia DR3, VizieR and the "
     "cited papers (tasks/WS7-3d-systems.md, WS7-2). Facts still marked 'unverified' are estimates no source states. "
     "The 'seen by SPHEREx' facts were copied from the validation records (docs/validation/; AI analysis with an "
-    "independent second analysis, human review pending), not from that catalog cross-check."
+    "independent second analysis; the five records were human-reviewed on 2026-11-15, a guided review that did "
+    "not re-run the analyses), not from that catalog cross-check."
 )
 
 REAL_REPRESENTATION = (
@@ -499,7 +500,7 @@ RDRA_PULSATION_NOTE = (
     "amplitude is much smaller in the infrared: offline measurements on the SPHEREx FITS files give 0.5–1.3 mag "
     "peak-to-peak at 0.74–5.0 µm and a ~260-day cycle in 2025–2026 (docs/validation/r-draconis.md). The "
     "animation is not that light curve, and the SPHEREx images in this app do not show it. The R Draconis field "
-    "page shows the precomputed SPHEREx light curve (WS3/WS4 product) in live API mode."
+    "page shows the precomputed SPHEREx light curve (WS3/WS4 product)."
 )
 
 

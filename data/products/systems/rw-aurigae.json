@@ -251,12 +251,12 @@
     "synthetic": false,
     "data_releases": [],
     "notes": [
-      "Values checked on 2026-11-14 against the NASA Exoplanet Archive, SIMBAD (CfA mirror), Gaia DR3, VizieR and the cited papers (tasks/WS7-3d-systems.md, WS7-2). Facts still marked 'unverified' are estimates no source states. The 'seen by SPHEREx' facts were copied from the validation records (docs/validation/; AI analysis with an independent second analysis, human review pending), not from that catalog cross-check.",
+      "Values checked on 2026-11-14 against the NASA Exoplanet Archive, SIMBAD (CfA mirror), Gaia DR3, VizieR and the cited papers (tasks/WS7-3d-systems.md, WS7-2). Facts still marked 'unverified' are estimates no source states. The 'seen by SPHEREx' facts were copied from the validation records (docs/validation/; AI analysis with an independent second analysis; the five records were human-reviewed on 2026-11-15, a guided review that did not re-run the analyses), not from that catalog cross-check.",
       "Orbital and pulsation phases are arbitrary (no epoch): positions are not predictions for a real date.",
       "The disk body has no orbit: the UI draws it centred on its host (rw-aur-a).",
       "SIMBAD swaps the Gaia DR3 identifiers of the two stars: A is Gaia DR3 156430817820015232 and B is 156430822114424576 (WDS position angle; Kurtovic et al. 2024).",
       "Parallax and proper motion come from B's Gaia DR3 solution (A's is unreliable, RUWE 16), as adopted by Kurtovic et al. 2024. Radial velocity 15 km/s from SIMBAD (Nguyen et al. 2012).",
-      "WS3 object context of 'RW Aur' (RW Aur, Gaia DR3 156430817820015232, match 'ambiguous'; catalog, not measured by SPHEREx): Spectral type K1/5e+K5e; Variability type CTTS/ROT+CTTS (V 9.2-13.6); Variability period 2.64 days. Not used (unknown or not verified in WS3): Distance. Not attached to A or B: the context describes the unresolved A+B pair, and SIMBAD's A/B names are swapped against the WDS (V15, open).",
+      "WS3 object context of 'RW Aur' (RW Aur, Gaia DR3 156430817820015232, match 'ambiguous'; catalog, not measured by SPHEREx): Spectral type K1/5e+K5e; Variability type CTTS/ROT+CTTS (V 9.2-13.6); Variability period 2.64 days. Not used (unknown or not verified in WS3): Distance. Not attached to A or B: the context describes the unresolved A+B pair, and SIMBAD's A/B names are swapped against the WDS (V15: fixed in the WS3 card by #101; this snapshot predates it).",
       "Catalog values from the frozen WS3 object-context snapshot 'rw-aurigae' (query 'RW Aur'; services answered 2026-11-15T03:44:42Z to 2026-11-15T04:21:31Z; replayed offline from the WS3 fixtures), pipeline/errante/systems/inputs/objects/: not measured by SPHEREx, and not queried when the site is built."
     ]
   }

@@ -229,14 +229,19 @@ def test_measured_layer_changes_no_drawn_value():
 
 
 def test_cross_checks_are_verified_catalog_facts_never_on_blended_or_swapped_components():
-    from errante.systems.measured import CATALOG_SUFFIX
+    from errante.systems.measured import CATALOG_SUFFIX, CROSS_CHECK_LABEL_SUFFIX
 
+    assert CROSS_CHECK_LABEL_SUFFIX == " (catalog cross-check)"
     bodies = _real_bodies()
     for body in bodies.values():
         for f in body.facts:
             if CATALOG_SUFFIX in (f.source or ""):
                 assert f.verified and f.value != "unknown", (body.id, f.label)
                 assert f.source.endswith(CATALOG_SUFFIX)
+                # The label says it too, so it reads apart from the drawn value's fact of the same name.
+                assert f.label.endswith(CROSS_CHECK_LABEL_SUFFIX), (body.id, f.label)
+        labels = [f.label for f in body.facts]
+        assert len(labels) == len(set(labels)), (body.id, labels)
     # eps Ind B is one unresolved Gaia source; RW Aur's context is the A+B pair with swapped names (V15).
     for bid in ("eps-indi-ba", "eps-indi-bb", "rw-aur-a", "rw-aur-b", "rw-aur-a-disk"):
         assert not [f.label for f in bodies[bid].facts if CATALOG_SUFFIX in (f.source or "")], bid
@@ -245,7 +250,7 @@ def test_cross_checks_are_verified_catalog_facts_never_on_blended_or_swapped_com
     rw = _system_by_id("rw-aurigae").provenance.notes
     note = next(n for n in rw if n.startswith("WS3 object context of 'RW Aur'"))
     assert "match 'ambiguous'" in note and "Not used (unknown or not verified in WS3): Distance" in note
-    assert "V15" in note
+    assert "V15: fixed in the WS3 card by #101; this snapshot predates it" in note and "V15, open" not in note
     # Barnard: Gaia's own values sit next to the published ones, without replacing them.
     barnard = bodies["barnards-star"]
     teffs = [f.value for f in barnard.facts if "temperature" in f.label.lower()]
@@ -337,7 +342,8 @@ def test_explain_gives_origin_and_reason_for_every_drawn_value(capsys):
     origins = {(r.body, r.parameter): r.origin for r in rows}
     assert origins[("rw-aur-a", "radius")] == "derived"
     assert origins[("r-draconis", "Cycle seen by SPHEREx")].startswith("SPHEREx-measured")
-    assert origins[("barnards-star", "Effective temperature")] == "catalog cross-check (WS3 snapshot)"
+    teff_check = ("barnards-star", "Effective temperature (catalog cross-check)")
+    assert origins[teff_check] == "catalog cross-check (WS3 snapshot)"
     assert origins[("barnards-star", "temperature")] == "catalog, not measured by SPHEREx"
     assert main(["systems", "--explain", "--json"]) == 0
     printed = capsys.readouterr().out
@@ -418,6 +424,7 @@ def test_context_only_target_builds_from_its_snapshot_without_inventing():
         assert p.orbit.parent == star.id and p.orbit.period_days > 0 and p.orbit.semi_major_axis_au > 0
         labels = {f.label for f in p.facts}
         assert "Minimum mass" in labels and "Radius (model estimate)" in labels
+    assert not [f.label for f in star.facts if f.label.endswith(" (catalog cross-check)")]  # drawn values, not checks
     facts = [f for b in system.bodies for f in b.facts]
     assert facts and all(f.verified and f.value != "unknown" and CATALOG_SUFFIX in f.source for f in facts)
     note = next(n for n in system.provenance.notes if n.startswith(UNKNOWN_NOTE_PREFIX))

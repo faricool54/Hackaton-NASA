@@ -29,9 +29,9 @@ export function SystemsPage() {
           verification status.
         </p>
         <p>
-          What SPHEREx measured for each target is listed as “Seen by SPHEREx”. Every other value is a catalog value, not
-          measured by SPHEREx. What is not measured is not invented: a body without a measured temperature is drawn grey
-          (colour unknown), and one without a measured radius at a fixed marker size (size unknown, not to scale).
+          What SPHEREx measured for each target is listed as “Seen by SPHEREx”. Every other value is a catalog or derived
+          value, not measured by SPHEREx. What is not measured is not invented: a body without a published temperature is
+          drawn grey (colour unknown), and one without a published or model-estimated radius at a fixed marker size (size unknown, not to scale).
         </p>
         <p className="s3d-hero-note">
           These are model representations, not images: sizes are exaggerated and distances can be compressed so
