@@ -1,7 +1,7 @@
 {
   "updated_on": "2026-11-15",
   "tool": "Anthropic Claude Code",
-  "scope": "WS1 SPHEREx data access (pull requests by faricool54 with Claude Code): frame search (SIA2 VOTable over spherex_dr1 + spherex_qr3 with a TAP fallback, deduplication, disk cache with a stale fallback, retries and deadlines) and the committed search snapshots of the five targets; pixels from S3 HTTP Range patches with an IRSA IBE cutout fallback; FITS reading with the per-pixel WCS-WAVE wavelength and the mid-exposure time; spectra of any position from the DR1 HiPS cube on S3; point_series (every exposure at a point as S3 stamps); deploy facts for WS4; the verified data facts in docs/DATA.md; their regression tests and real-data fixtures; also the WS1 reservation (#10). No generated sky imagery and no independent human R05 certification",
+  "scope": "WS1 SPHEREx data access (pull requests by faricool54 with Claude Code): frame search (SIA2 VOTable over spherex_dr1 + spherex_qr3 with a TAP fallback, deduplication, disk cache with a stale fallback, retries and deadlines) and the committed search snapshots of the five targets; pixels from S3 HTTP Range patches with an IRSA IBE cutout fallback; FITS reading with the per-pixel WCS-WAVE wavelength and the mid-exposure time; spectra of any position from the DR1 HiPS cube on S3; point_series (every exposure at a point as S3 stamps); deploy facts for WS4; the verified data facts in docs/DATA.md; their regression tests and real-data fixtures; also the WS1 reservation (#10). No generated sky imagery and no independent human R05 certification. On 2026-11-15 evening, the IRSA frame search was made robust to a flaky archive (retries with backoff and a 120 s budget for supervised jobs, #154).",
   "affected_paths": [
     "pipeline/errante/data/",
     "pipeline/errante/cli.py",
@@ -67,7 +67,9 @@
       "number": 10,
       "title": "chore: reserve WS1 (faricool54 + Claude)",
       "merged_at": "2026-11-14T16:55:47Z",
-      "ai_generated": ["Docs: two-line WS1 reservation in docs/TEAM.md"],
+      "ai_generated": [
+        "Docs: two-line WS1 reservation in docs/TEAM.md"
+      ],
       "humans": "faricool54 directed the change; rpccp merged it"
     },
     {
@@ -105,7 +107,9 @@
       "number": 24,
       "title": "ws1: record verified SPHEREx facts from the WS1 implementation (DATA.md §3.1) and task status",
       "merged_at": "2026-11-14T18:34:06Z",
-      "ai_generated": ["Docs: docs/DATA.md 3.1 (facts measured live while implementing #21-#23) and tasks/WS1-data-access.md"],
+      "ai_generated": [
+        "Docs: docs/DATA.md 3.1 (facts measured live while implementing #21-#23) and tasks/WS1-data-access.md"
+      ],
       "humans": "faricool54 directed the work and merged it"
     },
     {
@@ -133,7 +137,9 @@
       "number": 44,
       "title": "ws1: record validation and vision-track data facts",
       "merged_at": "2026-11-14T20:47:38Z",
-      "ai_generated": ["Docs: docs/DATA.md 3.2 (facts from the validation records #36 and the vision tracks) and tasks/WS1-data-access.md"],
+      "ai_generated": [
+        "Docs: docs/DATA.md 3.2 (facts from the validation records #36 and the vision tracks) and tasks/WS1-data-access.md"
+      ],
       "humans": "faricool54 directed the work and merged it"
     },
     {
@@ -173,22 +179,39 @@
       "number": 61,
       "title": "ws1: make the S3 pool concurrency test deterministic",
       "merged_at": "2026-11-15T04:49:16Z",
-      "ai_generated": ["Tests: a gated, deterministic S3 pool concurrency test in test_data_point.py (the code of #50 was unchanged)"],
+      "ai_generated": [
+        "Tests: a gated, deterministic S3 pool concurrency test in test_data_point.py (the code of #50 was unchanged)"
+      ],
       "humans": "faricool54 directed the work and merged it"
     },
     {
       "number": 67,
       "title": "ws1: fix the RW Aur saturation summary in DATA.md",
       "merged_at": "2026-11-15T05:54:19Z",
-      "ai_generated": ["Docs: the RW Aurigae saturation summary in docs/DATA.md 3.2"],
+      "ai_generated": [
+        "Docs: the RW Aurigae saturation summary in docs/DATA.md 3.2"
+      ],
       "humans": "faricool54 directed the work and merged it"
     },
     {
       "number": 92,
       "title": "ws1: clamp point_series' search budget to the caller's deadline",
       "merged_at": "2026-11-15T16:04:24Z",
-      "ai_generated": ["Code: one line in data/point.py so the search never gets more than the caller's deadline"],
+      "ai_generated": [
+        "Code: one line in data/point.py so the search never gets more than the caller's deadline"
+      ],
       "humans": "faricool54 directed the work and merged it"
+    },
+    {
+      "number": 154,
+      "title": "ws1: IRSA frame search survives a flaky archive (retries, backoff, 120 s job budget)",
+      "merged_at": "2026-11-16T00:04:44Z",
+      "ai_generated": [
+        "Code: the retry scheduler in data/irsa.py (SIA/TAP alternation, backoff, deadline-bounded attempts) and the supervised-job search budget in settings.py",
+        "Tests: 502/timeout recovery, exhaustion, deadline invariants and the supervised override in pipeline/tests/test_data_search.py",
+        "Docs: docs/DATA.md 3.4 with the 2026-11-15 IRSA measurements"
+      ],
+      "humans": "faricool54 directed the work and merged it; implemented and reviewed by Claude Code agents (implementation, independent review, fix); live IRSA checks run from faricool54's PC"
     }
   ],
   "related_work_note": "Work by the same developer with Claude Code outside WS1's paths is not covered here: AI_USAGE.md describes the collaboration infrastructure (#2), the data-facts documentation (#3, #24) and the validation records of the five targets; the chore #66 (RW Aurigae saturation counts in docs/validation/rw-aurigae.md, merged with #67) also carries a Claude co-author trailer"

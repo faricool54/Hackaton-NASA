@@ -58,7 +58,35 @@ in them were run by AI agents in Claude Code (review and adversarial-verificatio
   #89).
 - Light curves, spectra and validation figures are measurements made by code on real SPHEREx FITS files. No AI image,
   video or audio model output is used, and no NASA branding was generated.
-- Human line-by-line review of this work and the human sign-off of the five validation records are still pending.
+- The five validation records got a guided human review by DankoLiv on 2026-11-15 (#126; analyses not re-run).
+  Human line-by-line review of the code above is not claimed.
+
+## Claude Code assistance to faricool54: frontend plan, basic flows and coordination (November 15, 2026, evening)
+
+Claude Code (Anthropic, Claude Opus 5.5) assisted team member faricool54, who also coordinated the team. Every pull
+request below was directed by faricool54. Most were implemented by Claude Code agents in their own git worktrees,
+reviewed by an independent agent, fixed, checked in a browser by the main Claude Code session and merged by
+faricool54's session. Reviews of other members' pull requests were run by AI agents with adversarial verification,
+not by people.
+
+- **Frontend plan:** the parallel plan itself (#123); map layout, floating layers and corner credits (FE-4a.0, #129);
+  completion of FE-2 after its author could not continue (#127); the star card next to the mouse and Gaia DR3 stars
+  per view (FE-4a/4b, #139), zoom to a picked target (#141), the empty-dock steps (#142), the compact blink player
+  (FE-7, #143), spectrum chart first and the inline light-curve variant (FE-8, #146), keyboard shortcuts (FE-11,
+  #148), the phone bottom sheet (FE-10, #151), Gaia at wider zoom with the WISE 0855 fix and the exact lookup of a
+  clicked Gaia star (#155), color for map-click builds (#159) and the foldable map legend (#161). Records:
+  `frontend/ai-usage/fe-2.json`, `fe-4.json`, `fe-7.json`, `fe-8.json`, `fe-10.json`, `fe-11.json`.
+- **WS1:** the IRSA frame search now survives a flaky archive (#154), after live measurements on 2026-11-15
+  (SIA ~23 s, intermittent HTTP 502). Record: [pipeline/errante/data/ai-usage.json](pipeline/errante/data/ai-usage.json).
+- **Demo tooling (WS6, with notice):** the demo-video takes follow the tabbed field page (#152).
+- **Reviews (AI agents, with adversarial verification):** WS2 #136, #137, #140; WS5 #144, #145; WS7 #138, #147,
+  #156, #157, #158, #160; contract #119 (merged as coordination with WS2's OK).
+- **Deployments:** public deploys of 850968e, d06896f, e89ab45 and 08dfb85 with `scripts/deploy_vm.py`, plus a
+  republication of the five curated fields and five systems into the VM's runtime volume (WS4's `publish_field`),
+  each followed by a smoke test and a comparison of the public API with `main`.
+- No AI image, video or audio model output is used and no NASA branding was generated. Gaia, SIMBAD and catalog
+  values are labelled as catalog values, not SPHEREx measurements. Human line-by-line review of this code is not
+  claimed.
 
 ## Origin of the product vision (November 14, 2026)
 
