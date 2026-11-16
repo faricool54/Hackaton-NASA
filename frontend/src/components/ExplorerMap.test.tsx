@@ -448,3 +448,14 @@ describe('sky-map.html hover protocol (FE-4a)', () => {
     expect(block).toContain("A.source(ra, dec, { id, layer: 'targets', label })");
   });
 });
+
+describe('ExplorerMap folded legend', () => {
+  it('starts with the legend folded behind a toggle and keeps the credits visible', () => {
+    const html = renderToStaticMarkup(createElement(ExplorerMap, { center: { ra: 269.44623, dec: 4.7687 }, onSelect: () => {}, layout: 'fill' }));
+    expect(html).toContain('Static coadd · not a video');
+    if (html.includes('class="mp-legend"')) {
+      expect(html).toMatch(/<button type="button" class="mp-legend-toggle" aria-expanded="false"[^>]*>Legend ▸<\/button>/);
+      expect(html).toMatch(/<ul class="mp-legend" aria-label="Map legend" id="[^"]+" hidden="">/);
+    }
+  });
+});

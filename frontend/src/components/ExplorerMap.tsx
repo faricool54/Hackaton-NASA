@@ -107,6 +107,9 @@ export function ExplorerMap({ center, footprintFieldId, onSelect, layout = 'pane
   const layersZone = useRef<HTMLDivElement>(null);
   const layersButton = useRef<HTMLButtonElement>(null);
   const layersId = useId();
+  const legendId = useId();
+  // The map legend starts folded so it does not cover the sky; the credits line below it always stays visible.
+  const [legendOpen, setLegendOpen] = useState(false);
   const mapField = overlay?.fieldId === footprintFieldId ? overlay : null;
   const corners = mapField?.corners;
   const currentGaia = gaia?.fieldId === footprintFieldId ? gaia : null;
@@ -450,7 +453,11 @@ export function ExplorerMap({ center, footprintFieldId, onSelect, layout = 'pane
       {starsMessage || `${zoomHint}.`}</p>}
     {fill ? <div className="mp-zone mp-zone--credits">
       <div className="mp-glass mp-strip">
-        {(showFootprint && corners || showGaiaLegend || allwise || targetsShown) && <ul className="mp-legend" aria-label="Map legend">
+        {(showFootprint && corners || showGaiaLegend || allwise || targetsShown) && <button type="button"
+          className="mp-legend-toggle" aria-expanded={legendOpen} aria-controls={legendId}
+          onClick={() => setLegendOpen((open) => !open)}>{legendOpen ? 'Hide legend ▾' : 'Legend ▸'}</button>}
+        {(showFootprint && corners || showGaiaLegend || allwise || targetsShown) && <ul className="mp-legend" aria-label="Map legend"
+          id={legendId} hidden={!legendOpen}>
           {showFootprint && corners && <li><span className="mp-swatch mp-swatch--footprint" aria-hidden="true" />
             Blue outline: reprojected SPHEREx sequence grid</li>}
           {showGaiaLegend && <li><span className="mp-swatch mp-swatch--gaia" aria-hidden="true" />

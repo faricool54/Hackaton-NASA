@@ -322,3 +322,17 @@
   .mp-root .mp-zone--readout { display: none; }
   .mp-root .mp-zone--credits { max-width: min(560px, calc(100% - 2 * var(--mp-inset))); }
 }
+
+/* Folded legend (opened with "Legend ▸"); the credits line stays visible. */
+.mp-root .mp-legend[hidden] { display: none; }
+.mp-root .mp-legend-toggle {
+  display: inline-block;
+  margin: 0 0 3px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent, #7cc4ff);
+  font: inherit;
+  cursor: pointer;
+}
+.mp-root .mp-legend-toggle:focus-visible { outline: 2px solid var(--accent, #7cc4ff); outline-offset: 2px; }
