@@ -583,6 +583,22 @@ describe('ObjectSystemPreview', () => {
 });
 
 describe('ObjectSystemPreview compact (FE-12)', () => {
+  it('shows the Gaia-parallax notice visibly, next to the identity line, before the stage (#124)', () => {
+    const ctx = literal({ provenance: [row('gaia-esa', 'ok'), row('sesame', 'no_match')] },
+      { display_name: 'Gaia DR3 156328460158131584', main_id: null, object_type: null, object_type_label: null, spectral_type: null });
+    const result = systemFromObjectContext(ctx, POS);
+    for (const compact of [false, true]) {
+      const html = renderToStaticMarkup(createElement(ObjectModelView, { ctx, result, selectedId: null, onSelect: () => {}, compact }));
+      const at = html.indexOf(`<p class="small s3d-note s3d-notice">${PARALLAX_STAR_NOTE}</p>`);
+      expect(at, String(compact)).toBeGreaterThan(-1);
+      expect(at).toBeLessThan(html.indexOf('s3d-stage'));
+      expect(at).toBeLessThan(html.indexOf('<details'));
+    }
+    // A model SIMBAD types has no notice.
+    const plain = renderToStaticMarkup(createElement(ObjectModelView, { ctx: fromSnapshot(snapshot('barnards-star')), result: build('barnards-star'), selectedId: null, onSelect: () => {}, compact: true }));
+    expect(plain).not.toContain('s3d-notice');
+  });
+
   const view = (slug: string, compact: boolean) => {
     const ctx = fromSnapshot(snapshot(slug));
     const result = systemFromObjectContext(ctx, POS);
