@@ -3,7 +3,7 @@
 import { useEffect, useState, type MouseEvent } from 'react';
 import { client } from '../api/client';
 import { describeObjectError, lookupKey, matchSummary, positionLookup, type ObjectLookup } from '../api/objectCard';
-import { getObjectContextCached } from '../api/objectCardCache';
+import { forgetObjectContext, getObjectContextCached } from '../api/objectCardCache';
 import type { ObjectContextResponse, SkyCoord } from '../api/types';
 import { BodyPanel } from '../components/BodyPanel';
 import { ErrorBoundary } from '../components/ErrorBoundary';
@@ -116,7 +116,7 @@ function LiveObjectSystem({ position, lookup: given, compact }: { position: SkyC
   if (load.state === 'error') {
     return <p className="error" role="alert">
       Could not build a catalog 3D model: {load.message} This is a gap in the lookup, not a sign that nothing is here.{' '}
-      <button className="link-button" type="button" onClick={() => setAttempt((n) => n + 1)}>Retry</button>
+      <button className="link-button" type="button" onClick={() => { forgetObjectContext(lookup); setAttempt((n) => n + 1); }}>Retry</button>
     </p>;
   }
   return <ObjectModelView ctx={load.ctx} result={load.result} selectedId={selectedId} onSelect={setSelectedId} compact={compact} />;
@@ -171,6 +171,7 @@ export function ObjectModelView({ ctx, result, selectedId, onSelect, compact = f
       {unverified && <>{' '}<span className="badge u-badge u-badge--warn" title="Some values are estimates that no catalog or paper states">UNVERIFIED VALUES</span></>}
     </h3>
     {identity}
+    {result.notice && <p className="small s3d-note s3d-notice">{result.notice}</p>}
     <p className="muted small s3d-note">{system.representation_note}</p>
     <ErrorBoundary what="The 3D view">
       <SystemViewer key={system.id} system={system} selectedId={selectedId} onSelect={onSelect} fieldExists={false} compact={compact} />

@@ -20,6 +20,9 @@ import {
   isFlareType,
   isPlanetTransitType,
   WHITE_DWARF_REASON,
+  WHITE_DWARF_ROW_NOTE,
+  PARALLAX_STAR_NOTE,
+  PARALLAX_STAR_TAG,
 } from './contextSystem';
 import { hasDatasetWindow } from './datasetGate';
 import { bodyLabelText, isColourKnown, UNKNOWN_NOTE_PREFIX, UNKNOWN_SIZE_TEXT, unknownReasons } from './factOrigin';
@@ -263,10 +266,42 @@ describe('systemFromObjectContext: other objects', () => {
     expect(r.system).toBeNull();
     expect(r.reason).toMatch(/^SIMBAD \(Sesame CfA\) did not answer, so the object type is unknown \(a gap, not a negative result\)/);
     expect(r.reason).not.toMatch(/identifies no SIMBAD object type/);
-    // SIMBAD answered with no entry: then "no SIMBAD type" is a real catalog answer.
-    const none = systemFromObjectContext(literal({ provenance: [row('gaia-esa', 'ok'), row('sesame', 'no_match')] },
-      { object_type: null, object_type_label: null, spectral_type: null }), POS);
+    // SIMBAD answered with no entry and the Gaia DR3 parallax is not significant: "no SIMBAD type" is the answer.
+    const noPlx = literal({ provenance: [row('gaia-esa', 'ok'), row('sesame', 'no_match')] },
+      { object_type: null, object_type_label: null, spectral_type: null });
+    const weak = { ...noPlx, facts: noPlx.facts.map((f) => (/^distance\b/i.test(f.label) ? { ...f, verified: false } : f)) };
+    const none = systemFromObjectContext(weak, POS);
+    expect(none.system).toBeNull();
     expect(none.reason).toMatch(/identifies no SIMBAD object type: an object with no SIMBAD type/);
+  });
+
+  it('no SIMBAD entry but a Gaia DR3 parallax with S/N >= 5 and a secure identity: classed as a star, with a visible notice', () => {
+    const ctx = literal({ provenance: [row('gaia-esa', 'ok'), row('sesame', 'no_match')] },
+      { display_name: 'Gaia DR3 156328460158131584', main_id: null, object_type: null, object_type_label: null, spectral_type: null });
+    // The Barnard snapshot's Distance: Bailer-Jones from the Gaia parallax, verified (S/N >= 5 in science/context.py).
+    const distance = ctx.facts.find((f) => /^distance\b/i.test(f.label))!;
+    expect(distance.verified && /Gaia DR3/.test(distance.source ?? '') && /parallax/.test(distance.source ?? '')).toBe(true);
+    const r = systemFromObjectContext(ctx, POS);
+    expect(r.system, r.reason).not.toBeNull();
+    expect(r.system!.bodies[0].kind).toBe('star');
+    expect(r.notice).toBe(PARALLAX_STAR_NOTE);
+    expect(PARALLAX_STAR_NOTE).toMatch(/^No SIMBAD entry: classed as a star from its Gaia DR3 parallax \(S\/N ≥ 5\); galaxies and quasars have no measurable parallax\. Type not confirmed by SIMBAD/);
+    expect(r.system!.tags).toEqual([CONTEXT_TAG, PARALLAX_STAR_TAG]);
+    expect(r.system!.provenance.notes).toContain(PARALLAX_STAR_NOTE);
+    // Not the spectral-type wording (there is no spectral type).
+    expect(r.system!.provenance.notes.join(' ')).not.toMatch(/from its spectral type null/);
+
+    // Not when the identity is not secure, when SIMBAD failed, or with a Gaia DSC "likely quasar" caveat.
+    const loose = systemFromObjectContext({ ...ctx, identity: { ...ctx.identity, match: 'loose', identity_uncertain: true } }, POS);
+    expect(loose.system).toBeNull();
+    expect(loose.notice).toBeUndefined();
+    const down = systemFromObjectContext({ ...ctx, partial: true, provenance: [row('gaia-esa', 'ok'), row('sesame', 'error')] }, POS);
+    expect(down.system).toBeNull();
+    expect(down.reason).toMatch(/^SIMBAD \(Sesame CfA\) did not answer/);
+    const qso = systemFromObjectContext({ ...ctx, warnings: ['Gaia DR3 DSC classifies it as a likely quasar (probability 0.93): stellar parameters are caveated.'] }, POS);
+    expect(qso.system).toBeNull();
+    // A source SIMBAD does type is unchanged: no notice.
+    expect(build('barnards-star').notice).toBeUndefined();
   });
 
   it('a name lookup has no position-lookup caveat', () => {
@@ -388,10 +423,15 @@ describe('systemFromObjectContext: other objects', () => {
       expect(s.provenance.notes).toContain(`${marks}: Gaia DR3 GSP-Phot, FLAME and ESP-UCD do not apply to white dwarfs, so the card's Gaia DR3 temperature, radius and mass are not drawn (shown as unknown).`);
       const html = renderToStaticMarkup(createElement(BodyPanel, { system: s, body: star, fieldExists: false }));
       expect(html).toContain(`Why: ${WHITE_DWARF_REASON}.`);
+      // The Gaia rows stay listed with their source (as the card shows them), marked as not applying (#157 review).
+      const gaiaRows = star.facts.filter((f) => /GSP-Phot|FLAME/.test(f.source ?? ''));
+      expect(gaiaRows.length).toBeGreaterThan(0);
+      for (const f of gaiaRows) expect(f.label.endsWith(`(${WHITE_DWARF_ROW_NOTE})`), f.label).toBe(true);
     }
     // The same Gaia values of a main-sequence star are drawn.
     const star = systemFromObjectContext(literal({ facts }, { object_type: '*', spectral_type: 'A0V' }), POS).system!.bodies[0];
     expect([star.teff_k, star.radius_km]).toEqual([9000, 0.5 * R_SUN_KM]);
+    expect(star.facts.some((f) => f.label.includes(WHITE_DWARF_ROW_NOTE))).toBe(false);
   });
 
   it('a VSX type with flares (BY+UV) is not animated: the range may be a flare amplitude', () => {
