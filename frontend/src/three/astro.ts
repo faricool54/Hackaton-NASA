@@ -448,9 +448,15 @@ export const FACT_LABEL_PATTERNS = {
   distance: /^distance\b/i,
 } as const;
 
-/** Words in a Fact label or source that weaken it: ILLUSTRATIVE first, then MODEL. */
+/**
+ * Words in a Fact label or source that weaken it: ILLUSTRATIVE first, then MODEL. 'indicative' and 'unreliable'
+ * are the object card's caveat on Gaia DR3 GSP-Phot and FLAME values of M dwarfs and cooler objects
+ * (science/context.py: "GSP-Phot temperatures of M dwarfs and cooler objects are unreliable ...: indicative
+ * only."), so such a value is never drawn as MEASURED.
+ */
 const ILLUSTRATIVE_WORDS = /illustrativ|drawing value|placeholder|arbitrary/i;
-const MODEL_WORDS = /estimat|model|calculated from|not measured/i;
+const MODEL_WORDS = /estimat|model|calculated from|not measured|indicative|unreliable/i;
+const INDICATIVE_WORDS = /indicative|unreliable/i;
 const LOWER_BOUND_LABEL = /^minimum\s+mass\b|m\s*sin\s*i/i;
 
 /** Unit (lower-case) → factor to the body field's unit (K, km, kg, AU, unitless, hours, pc). */
@@ -611,7 +617,9 @@ function assessFact(fact: Fact, param: BodyParam | 'distance', drawn: number | s
     why.push('labelled illustrative');
   } else if (MODEL_WORDS.test(text)) {
     tiers.push('model');
-    why.push('labelled as an estimate/model value');
+    why.push(INDICATIVE_WORDS.test(text) && !/estimat|model|calculated from|not measured/i.test(text)
+      ? 'the catalog marks it indicative only (unreliable for this kind of object)'
+      : 'labelled as an estimate/model value');
   }
   if (param === 'spectralType') {
     if (spectralKey(String(drawn)) !== spectralKey(fact.value)) {
@@ -665,7 +673,7 @@ function noFact(param: BodyParam | 'distance', drawn: number | string | null, wh
 
 /**
  * Evidence tier of one drawn body field. 'measured' only for a verified Fact matched by label
- * (FACT_LABEL_PATTERNS) whose label/source does not say estimate/model/illustrative and whose
+ * (FACT_LABEL_PATTERNS) whose label/source does not say estimate/model/indicative/illustrative and whose
  * value agrees with the drawn number (within its quoted error plus half a unit in the last digit;
  * without an error, 1 % or that half unit; 5 % only for a '~' value); a number picked inside a
  * published range is 'range-pick'; anything else is weaker.
