@@ -1,7 +1,7 @@
 {
   "updated_on": "2026-11-15",
   "tool": "Anthropic Claude Code",
-  "scope": "WS7 3D systems, pipeline side (DankoLiv with Claude Code): the curated SystemModel catalog of the five challenge targets and the synthetic demo system (catalog.py), the NASA Exoplanet Archive, SIMBAD and Gaia DR3 fetchers that the network tests re-run (sources.py), hierarchy validation and writers (build.py), errante systems in cli.py, their tests in test_systems.py and the systems JSON in data/demo/systems and data/products/systems; plus, on branch ws7/measured-3d (V13, with V4 and V12; not merged when this record was written, so it has no pull request entry), the removal of hand-picked temperature, radius and mass values, the frozen WS3 object-context snapshots in systems/inputs/objects/, the targets.toml registry (with the 'seen by SPHEREx' facts copied verbatim from docs/SCIENCE.md, block A5), measured.py (including a generic system_from_snapshot builder, tested offline but not used by any published system), record.py and the errante systems --explain and --record flags. The frontend side of the same work is recorded in frontend/src/three/ai-usage.json",
+  "scope": "WS7 3D systems, pipeline side (DankoLiv with Claude Code): the curated SystemModel catalog of the five challenge targets and the synthetic demo system (catalog.py), the NASA Exoplanet Archive, SIMBAD and Gaia DR3 fetchers that the network tests re-run (sources.py), hierarchy validation and writers (build.py), errante systems in cli.py, their tests in test_systems.py and the systems JSON in data/demo/systems and data/products/systems; plus, in #90 (V13, with V4 and V12), the removal of hand-picked temperature, radius and mass values, the frozen WS3 object-context snapshots in systems/inputs/objects/, the targets.toml registry (with the 'seen by SPHEREx' facts copied verbatim from docs/SCIENCE.md, block A5), measured.py (including a generic system_from_snapshot builder, tested offline but not used by any published system), record.py and the errante systems --explain and --record flags. The frontend side of the same work is recorded in frontend/src/three/ai-usage.json",
   "affected_paths": [
     "pipeline/errante/systems/",
     "pipeline/errante/cli.py",
@@ -151,6 +151,27 @@
         "Data: data/products/systems/*.json and the rebuilt data/products/manifest.json"
       ],
       "humans": "DankoLiv directed the work; it was squash-merged into main"
+    },
+    {
+      "number": 90,
+      "title": "ws7: build the 3D from measurements and drop invented surface detail (V13, V4, V12)",
+      "merged_at": "2026-11-15T17:54:02Z",
+      "ai_generated": [
+        "Code: the removal of hand-picked values, the frozen WS3 object-context snapshots, targets.toml, measured.py, record.py and the errante systems --explain / --record options",
+        "Tests: test_systems.py additions",
+        "Data: the regenerated systems JSON in data/demo/systems and data/products/systems"
+      ],
+      "humans": "DankoLiv directed the work and merged it; faricool54 reviewed it as WS3 (with Claude Code) and approved it with minor follow-ups"
+    },
+    {
+      "number": 156,
+      "title": "ws7: address the WS3 review follow-ups of #90 and #99",
+      "merged_at": "2026-11-16T00:44:01Z",
+      "ai_generated": [
+        "Text and code: the V15 note, the R Dra note, the (catalog cross-check) label suffix, the human-review wording, the blink legend captions of WISE 0855, RW Aur and Epsilon Indi B",
+        "Data: the regenerated systems JSON (only those strings change)"
+      ],
+      "humans": "DankoLiv directed the work and merged it after faricool54 approved it as WS3 (with Claude Code); the drawn radius of RW Aur A was deliberately left at 1.30 solar radii"
     }
   ],
   "trailer_note": "Squash commits keep the Co-Authored-By trailers of every commit on the branch, so some list Claude more than once; the squash-commit author that git shows is not always the WS7 developer. Teammates' WS7-path pull requests #27 (playback speed slider) and #30 (system detail cards, OpenAI Codex co-author trailer) are frontend work and are noted in frontend/src/three/ai-usage.json"
