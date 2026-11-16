@@ -63,6 +63,13 @@ POOL_FACTOR = 2
 # large background step were 19.6x (WISE 0855, 2025W19_1B_0241_4D1) and 45.5x
 # (eps Indi B, 2025W17_4B_0468_1D1).
 MAX_NOISE_RATIO = 15.0
+# On bright extended emission EVERY frame scatters far above its VARIANCE (live job on the Orion Nebula,
+# 83.82 -5.39 D3, 2026-11-15: all 64 candidates 29-73x, so all were rejected and the build failed). A frame is
+# therefore only rejected when it is ALSO an outlier among the same detector's candidates: its limit is
+# max(MAX_NOISE_RATIO, NOISE_OUTLIER_FACTOR x their median ratio), with at least MIN_FRAMES_RELATIVE_LIMIT of
+# them; the golden fields' medians are ~2x, so their limit stays 15x and their selection is unchanged.
+NOISE_OUTLIER_FACTOR = 3.0
+MIN_FRAMES_RELATIVE_LIMIT = 3
 MAD_TO_SIGMA = 1.4826
 DOWNLOAD_FAILED = "download failed"
 OUTSIDE_CUTOUT = "target outside the cutout"
@@ -309,6 +316,16 @@ def noise_ratio(img) -> float | None:
     return sigma / float(np.sqrt(np.median(variance[usable])))
 
 
+def noise_limits(ratios: Mapping[int, Sequence[float]]) -> dict[int, float]:
+    """Per detector, the noise ratio above which a candidate is a bad frame (see ``NOISE_OUTLIER_FACTOR``)."""
+    return {
+        det: max(MAX_NOISE_RATIO, NOISE_OUTLIER_FACTOR * float(np.median(values)))
+        if len(values) >= MIN_FRAMES_RELATIVE_LIMIT
+        else MAX_NOISE_RATIO
+        for det, values in ratios.items()
+    }
+
+
 def _project(refs: list[FrameRef], cfg: FieldConfig, grid) -> tuple[list[_Projected], list[tuple[FrameRef, str]]]:
     """Download (WS1), vet and reproject (WS2) ``refs``; return (projected, [(ref, reason)])."""
     from .data import cutouts, fits_io
@@ -322,15 +339,27 @@ def _project(refs: list[FrameRef], cfg: FieldConfig, grid) -> tuple[list[_Projec
         )
     projected: list[_Projected] = []
     skipped: list[tuple[FrameRef, str]] = []
-    for ref, path in zip(refs, paths, strict=True):
+    # Pass 1: the noise ratio of every downloaded candidate (images are re-read in pass 2, not kept in memory).
+    measured: list[tuple[int | None, float | None]] = []
+    by_detector: dict[int, list[float]] = defaultdict(list)
+    for path in paths:
         if path is None:
-            skipped.append((ref, DOWNLOAD_FAILED))
+            measured.append((None, None))
             continue
         img = fits_io.read_spherex(path)
         ratio = noise_ratio(img)
-        if ratio is not None and ratio > MAX_NOISE_RATIO:
+        measured.append((img.detector, ratio))
+        if ratio is not None:
+            by_detector[img.detector].append(ratio)
+    limits = noise_limits(by_detector)
+    for ref, path, (detector, ratio) in zip(refs, paths, measured, strict=True):
+        if path is None:
+            skipped.append((ref, DOWNLOAD_FAILED))
+            continue
+        if ratio is not None and ratio > limits.get(detector, MAX_NOISE_RATIO):
             skipped.append((ref, f"{BAD_FRAME}: noise {ratio:.1f}x VARIANCE"))
             continue
+        img = fits_io.read_spherex(path)
         data, bad = reproject.reproject_to_grid(img, grid)
         if np.isfinite(data).mean() < MIN_FINITE_FRACTION:
             skipped.append((ref, OUTSIDE_CUTOUT))
@@ -669,7 +698,8 @@ def _selection_note(sel: _Selection, max_frames: int) -> str:
         f"per-detector reference ({refs or 'no wavelength known'}) come first, then those nearest the season "
         f"middle; frames without a known wavelength rank last. Rejected {n_bad} bad frame(s) whose "
         f"IMAGE - ZODI robust scatter exceeds {MAX_NOISE_RATIO:g}x the noise of their VARIANCE plane "
-        "(background steps)."
+        f"(background steps) and {NOISE_OUTLIER_FACTOR:g}x the median of the same detector's candidates "
+        "(on bright nebulae every frame scatters more, so only outliers are rejected)."
         + (
             f" Downloaded {sel.n_topup} more D2/D3 frame(s) only to find J/H/Ks wavelengths for the "
             "false-color composites; they are not blink frames."

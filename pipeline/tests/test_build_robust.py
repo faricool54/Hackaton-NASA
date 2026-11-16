@@ -145,6 +145,25 @@ def test_a_saturated_star_frame_is_kept(monkeypatch, tmp_path):
     assert not any(n.startswith("Skipped") for n in field.provenance.notes)
 
 
+def test_noise_limits_rise_only_for_a_detector_whose_candidates_all_scatter():
+    from errante.build import NOISE_OUTLIER_FACTOR, noise_limits
+
+    limits = noise_limits({1: [1.0, 2.0, 2.5], 3: [30.0, 35.0, 40.0, 73.0], 5: [40.0, 45.0]})
+    assert limits[1] == MAX_NOISE_RATIO  # ordinary sky: the absolute limit
+    assert limits[3] == pytest.approx(NOISE_OUTLIER_FACTOR * 37.5)  # bright nebula: relative to the median
+    assert limits[5] == MAX_NOISE_RATIO  # too few candidates for a median
+
+
+def test_a_bright_nebula_field_keeps_its_frames(monkeypatch, tmp_path):
+    """Live job on the Orion Nebula (2026-11-15): every D3 candidate scattered 29-73x its VARIANCE and all were
+    rejected. Extended emission over every frame (here the same soft background step) is not a bad frame."""
+    frames = [frame(f"N{i}", SEASON_0 + i, seed=i + 1, step=STEP) for i in range(4)]
+    install_archive(monkeypatch, frames)
+    field = build_field(config(max_frames=4), tmp_path)
+    assert len(field.frames) == 4
+    assert "Rejected 0 bad frame(s)" in note(field, "Frame selection: ")
+
+
 def test_every_frame_rejected_is_a_build_error_with_reasons(monkeypatch, tmp_path):
     install_archive(monkeypatch, [frame("A0", SEASON_0, seed=1, step=STEP), frame("B0", SEASON_1, seed=2, step=STEP)])
     with pytest.raises(ValueError, match="was rejected") as err:
