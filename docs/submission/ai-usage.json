@@ -64,7 +64,20 @@
     "pipeline/errante/science/continuum-ai-usage.json",
     "docs/submission/skills/video-tutorial/ai-usage.json",
     "pipeline/errante/imaging/ai-usage.json",
-    "docs/submission/final-delivery-ai-usage.json"
+    "docs/submission/final-delivery-ai-usage.json",
+    "pipeline/errante/systems/ai-usage.json",
+    "frontend/src/three/ai-usage.json",
+    "frontend/ai-usage/fe-1.json",
+    "frontend/ai-usage/fe-2.json",
+    "frontend/ai-usage/fe-3.json",
+    "frontend/ai-usage/fe-4.json",
+    "frontend/ai-usage/fe-5.json",
+    "frontend/ai-usage/fe-6.json",
+    "frontend/ai-usage/fe-7.json",
+    "frontend/ai-usage/fe-8.json",
+    "frontend/ai-usage/fe-9.json",
+    "frontend/ai-usage/fe-10.json",
+    "frontend/ai-usage/fe-11.json"
   ],
   "workstream_records": [
     {

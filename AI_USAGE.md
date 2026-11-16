@@ -126,6 +126,32 @@ Component metadata: [backend/ai-usage.json](backend/ai-usage.json),
 [frontend/ai-usage.json](frontend/ai-usage.json). Human review remains pending. No AI-generated sky imagery
 or new physical measurements were used; Aladin, IRSA and ESA imagery retain their source credits.
 
+## Claude Code assistance in WS7 (3D) and frontend packages FE-5/FE-6 (November 14–15, 2026)
+
+Claude Code (Anthropic) assisted team member DankoLiv in WS7, the optional 3D gallery (P2), and in two packages
+of the frontend plan. Every pull request below was directed by DankoLiv. Reviews named in them were run by AI
+agents in Claude Code; faricool54's WS3 reviews of #90, #99, #107, #138, #156, #157 and #160 were also run with
+Claude Code.
+
+- **WS7 3D systems:**
+  - catalog verification and contract fixes (#7, #8, #9);
+  - procedural 3D and dataset time (#47) and the five published systems (#64);
+  - only measured or catalog values drawn (#90), and the follow-ups of the WS3 reviews (#156, #157, #158);
+  - the blink reticle for all five targets (#99, on top of #96);
+  - 3D for any object picked on the map (#107, #160);
+  - 3D style and compact mode (#138, #147, #149).
+
+  Machine-readable records: [pipeline/errante/systems/ai-usage.json](pipeline/errante/systems/ai-usage.json)
+  and [frontend/src/three/ai-usage.json](frontend/src/three/ai-usage.json).
+- **Frontend plan:** FE-5 object card and session cache (#144) and FE-6 field dashboard (#145), with records
+  [frontend/ai-usage/fe-5.json](frontend/ai-usage/fe-5.json) and [fe-6.json](frontend/ai-usage/fe-6.json). The
+  other packages (FE-1 to FE-4, FE-7 to FE-11) keep their own records in `frontend/ai-usage/`.
+- **Coordination:** DankoLiv's guided human review of the five validation records (#126); the analyses were not
+  re-run.
+- The 3D views are catalog-based models labelled "3D MODEL · NOT AN IMAGE": they are not SPHEREx images and not
+  R05 validations. No AI image, video or audio model output is used, and no NASA branding was generated. Human
+  review of the 3D code is not claimed complete.
+
 ## Cache and scientific panels (November 15, 2026)
 
 At rpccp's request, Codex implemented processing-fingerprint cache invalidation, the additive 0.4.0
