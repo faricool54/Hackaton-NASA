@@ -92,17 +92,20 @@ function CompactBodyPanel(props: Props) {
           {radiusFact && <FactFlags fact={radiusFact} synthetic={synthetic} />}
         </dd>
       </dl>
-      {(origins.length > 0 || unverified) && (
+      {origins.length > 0 && (
         <p className="s3d-origins small">
-          {origins.length > 0 && <span className="muted">All facts:</span>}
+          <span className="muted">All facts:</span>
           {origins.map((o) => (
             <OriginChip key={o} origin={o} />
           ))}
-          {unverified && (
-            <span className="unverified s3d-unverified" title="Some values of this system are estimates that no catalog or paper states">
-              unverified
-            </span>
-          )}
+        </p>
+      )}
+      {/* A flag of the whole system, on its own line so it does not read as one of this body's origins (#138 review). */}
+      {unverified && (
+        <p className="small s3d-system-unverified">
+          <span className="unverified s3d-unverified" title="Some values of this system are estimates that no catalog or paper states">
+            System model: some values unverified
+          </span>
         </p>
       )}
       <details className="s3d-disclosure">

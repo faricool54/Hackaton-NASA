@@ -168,6 +168,23 @@ describe('BodyPanel compact (FE-12)', () => {
     expect(sun).toMatch(/<dt>Temperature<\/dt><dd>~\d+ K<\/dd><dt>Radius<\/dt><dd>~[\d,]+ km \([\d.]+ R☉\)<\/dd>/);
   });
 
+  it('puts the system-wide unverified flag on its own line, not among the body origin chips (#138 review)', () => {
+    const rw = system('rw-aurigae'); // one unverified fact in the system
+    const a = rw.bodies.find((b) => b.id === 'rw-aur-a')!;
+    const html = renderToStaticMarkup(createElement(BodyPanel, { system: rw, body: a, fieldExists: true, compact: true }));
+    const visible = html.slice(0, html.indexOf('<details'));
+    const origins = /<p class="s3d-origins small">(.*?)<\/p>/.exec(visible)?.[1];
+    expect(origins).toContain('All facts:');
+    expect(origins).not.toContain('s3d-unverified');
+    expect(origins).not.toContain('System model');
+    expect(visible).toContain(
+      '</p><p class="small s3d-system-unverified"><span class="unverified s3d-unverified" title="Some values of this system are estimates that no catalog or paper states">System model: some values unverified</span></p>',
+    );
+    // A system whose facts are all verified has no such line.
+    const barnard = renderToStaticMarkup(createElement(BodyPanel, { system: s, body: star, fieldExists: true, compact: true }));
+    expect(barnard).not.toContain('System model: some values unverified');
+  });
+
   it('the full panel keeps its sections', () => {
     const html = renderToStaticMarkup(createElement(BodyPanel, { system: s, body: star, fieldExists: true }));
     expect(html).toMatch(/^<div class="panel body-panel s3d-body"><h2>/);
@@ -236,6 +253,24 @@ describe('the .s3d- twins of the styles.css 3D section (FE-1b can delete it, FRO
     expect(css).toContain('.s3d-preview .s3d-bodies {'); // beats .s3d-preview > p (0,1,1)
     expect(css).not.toMatch(/^\.s3d-body-key \{/m);
     expect(css).not.toMatch(/^\.s3d-bodies \{/m);
+  });
+
+  it('keeps the transport in view in Dataset time on the two-column page only (#138 review)', () => {
+    // Free-running markup carries no dataset modifier, so the default and compact sizes are untouched.
+    expect(viewer({})).not.toContain('s3d-viewer--dataset');
+    expect(viewer({ compact: true })).not.toContain('s3d-viewer--dataset');
+    const block = css.slice(css.indexOf('@media (min-width: 901px) {'));
+    expect(block).toMatch(/^@media \(min-width: 901px\) \{\s*\.s3d-page \.s3d-viewer--dataset \.s3d-stage \{/);
+    expect(block).toMatch(/\.s3d-page \.s3d-viewer--dataset \.s3d-transport \{[^}]*position: sticky;[^}]*bottom: 0;/);
+    // Every dataset rule is scoped to the full page.
+    for (const m of css.matchAll(/^[^\n{]*s3d-viewer--dataset[^\n{]*\{/gm)) expect(m[0].trim()).toMatch(/^\.s3d-page /);
+  });
+
+  it('defines the footer height with the FE-6 footer tokens and marks unverified tags with a glyph (#138 review)', () => {
+    expect(css).toContain('--s3d-footer-h: calc(2 * var(--sp-3, 12px) + var(--fs-xs, 0.75rem) * var(--lh, 1.45) + 1px);');
+    expect(css).toMatch(/\.s3d-unverified::before \{ content: '\\26A0\\FE0E';/);
+    // The catalog chip keeps the plan's token.
+    expect(css).toContain('.s3d-origin--catalog { --chip-c: var(--src-catalog, #f5c26b); }');
   });
 
   it('resets the side column scroll when the selected body changes', () => {

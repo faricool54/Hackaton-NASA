@@ -222,6 +222,10 @@
 }
 .s3d-facts td { padding: 4px 0; border-top: 1px solid var(--border, #232a3d); }
 .s3d-unverified { color: var(--unconfirmed, #fbbf24); font-size: 0.75rem; }
+/* A warning glyph before the 'unverified' text, so the tag is not mistaken for the amber 'catalog' origin chip
+   (--src-catalog, a bordered pill) next to it (#138 review). The text stays; the glyph is hidden from screen readers. */
+.s3d-unverified::before { content: '\26A0\FE0E'; content: '\26A0\FE0E' / ''; margin-inline: 0.25em 0.1em; }
+.s3d-system-unverified .s3d-unverified::before { margin-inline-start: 0; }
 .s3d-origin, .s3d-tier {
   display: inline-block;
   padding: 0 6px;
@@ -297,6 +301,9 @@
 
 /* --- System page (#/system/<id>): no page scroll at 1366x650, panels scroll inside ------------------- */
 main.s3d-page {
+  /* The App.tsx footer (.app-footer): 2 × --sp-3 padding + one --fs-xs line at --lh, + 1 px for rounding; the same
+     tokens as FE-6's --fd-footer-h (styles/field.css), so a larger browser font size grows it too. */
+  --s3d-footer-h: calc(2 * var(--sp-3, 12px) + var(--fs-xs, 0.75rem) * var(--lh, 1.45) + 1px);
   display: flex;
   flex-direction: column;
   gap: var(--sp-2, 8px);
@@ -329,6 +336,26 @@ main.s3d-page {
   height: clamp(240px, calc(100vh - 340px), 620px);
   height: clamp(240px, calc(100dvh - 340px), 620px);
   min-height: 240px;
+}
+/* Dataset time, two-column page only (#138 review: Play/Pause and Free-running fell below the column at 1366x650).
+   The DatasetTimeline sits between the stage and the transport and is ~300-650 px tall in a ~908 px column (overview
+   slider 87 px, pass buttons, pass details, the ~215 px frame strip of a built pass, legend, notes and source; R Dra's
+   light-curve row adds ~160 px), more than the ~445 px column at 650 px, so shrinking the stage alone cannot keep the
+   transport in view. The stage gives up the timeline's first 124 px (8 px margin + 87 px overview slider + ~29 px date
+   line) and the transport sticks to the bottom of the scrolling column; the rest of the timeline scrolls under it. */
+@media (min-width: 901px) {
+  .s3d-page .s3d-viewer--dataset .s3d-stage {
+    height: clamp(160px, calc(100vh - 464px), 620px);
+    height: clamp(160px, calc(100dvh - 464px), 620px);
+    min-height: 160px;
+  }
+  .s3d-page .s3d-viewer--dataset .s3d-transport {
+    position: sticky;
+    bottom: 0;
+    z-index: 4;
+    border-top: 1px solid rgba(124, 196, 255, 0.12);
+    border-radius: 14px;
+  }
 }
 
 /* "In this system" and "Where it is" cards (BenjaminPondal #30), same values as their inline styles. */

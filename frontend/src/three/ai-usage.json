@@ -1,7 +1,7 @@
 {
   "updated_on": "2026-11-15",
   "tool": "Anthropic Claude Code",
-  "scope": "WS7 3D systems, frontend side (DankoLiv with Claude Code): the lazily loaded three.js scene and its pure modules in frontend/src/three/ (Kepler orbits, blackbody and CIE 1931 colour, SPHEREx IR and D1-D6 colour modes, limb darkening, glow, layout, Dataset time on the SPHEREx pass dates, ephemerides, SPHEREx coverage windows, predicted sky track, 'How this body is drawn' notes) with their vitest tests, and the 3D viewer, body panel and system pages; plus V13 with V4 and V12 (#90: the removal of the class-typical toggle and its invented surface features on real targets, the 'colour unknown' and 'size unknown · not to scale' rendering, R Dra drawn at constant radius, the fact-origin chips (factOrigin.ts) and the V4/V12 texts of the WS3 review in docs/SCIENCE.md), the catalog reticle and predicted track of the five targets in the frame viewer (V3 add-on on top of WS5's #96, #99), the catalog 3D model of any object picked on the map (V14, #107: three/contextSystem.ts and ObjectSystemPreview.tsx) and, on branch ws7/fe-12-3d-polish (FE-12 of docs/FRONTEND_PLAN.md; not merged when this record was written, so it has no pull request entry), the .s3d- stylesheet three/system.css that replaces the inline styles of the 3D pages, the system page without page scroll, the restyled systems list and the optional compact mode of SystemViewer, BodyPanel and ObjectSystemPreview for the explorer dock. The pipeline side of the same work is recorded in pipeline/errante/systems/ai-usage.json",
+  "scope": "WS7 3D systems, frontend side (DankoLiv with Claude Code): the lazily loaded three.js scene and its pure modules in frontend/src/three/ (Kepler orbits, blackbody and CIE 1931 colour, SPHEREx IR and D1-D6 colour modes, limb darkening, glow, layout, Dataset time on the SPHEREx pass dates, ephemerides, SPHEREx coverage windows, predicted sky track, 'How this body is drawn' notes) with their vitest tests, and the 3D viewer, body panel and system pages; plus V13 with V4 and V12 (#90: the removal of the class-typical toggle and its invented surface features on real targets, the 'colour unknown' and 'size unknown · not to scale' rendering, R Dra drawn at constant radius, the fact-origin chips (factOrigin.ts) and the V4/V12 texts of the WS3 review in docs/SCIENCE.md), the catalog reticle and predicted track of the five targets in the frame viewer (V3 add-on on top of WS5's #96, #99), the catalog 3D model of any object picked on the map (V14, #107: three/contextSystem.ts and ObjectSystemPreview.tsx), FE-12 of docs/FRONTEND_PLAN.md (#138: the .s3d- stylesheet three/system.css that replaces the inline styles of the 3D pages, the system page without page scroll, the restyled systems list and the optional compact mode of SystemViewer, BodyPanel and ObjectSystemPreview for the explorer dock), its wiring into the FE-2 dock's 3D tab (#147: SystemPreview.tsx and PositionResults.tsx), the orbit legend and model-time line kept visible in compact (#149) and the review nits of #138 on branch ws7/fe12-review-nits (the system-wide 'unverified' flag on its own line in the compact body panel, the transport kept in view in Dataset time on the system page, a warning glyph on the 'unverified' tags and the footer height token; not merged when this record was written, so it has no pull request entry). The pipeline side of the same work is recorded in pipeline/errante/systems/ai-usage.json",
   "affected_paths": [
     "frontend/src/three/",
     "frontend/src/components/SystemViewer.tsx",
@@ -9,6 +9,7 @@
     "frontend/src/components/ErrorBoundary.tsx",
     "frontend/src/components/BlinkViewer.tsx",
     "frontend/src/components/PositionResults.tsx",
+    "frontend/src/components/SystemPreview.tsx",
     "frontend/src/components/SkyExplorer.tsx",
     "frontend/src/pages/SystemsPage.tsx",
     "frontend/src/pages/SystemPage.tsx",
@@ -23,7 +24,7 @@
   ],
   "generated_media": [],
   "real_target_validation": false,
-  "real_target_validation_basis": "A 3D model of a target is not an R05 validation (AGENTS.md rule 3). The formal per-target validation records are the coordinator's (docs/validation/) and their human review is pending (docs/VALIDATION.md); the 3D views draw catalog values and show the 'seen by SPHEREx' facts copied from those records, not new measurements",
+  "real_target_validation_basis": "A 3D model of a target is not an R05 validation (AGENTS.md rule 3). The formal per-target validation records are the coordinator's (docs/validation/); their human review (V5/E7, #126: DankoLiv on 2026-11-15, guided, without re-running the analyses; docs/VALIDATION.md) covers those five records only, not the 3D, and the step-6 human check in incognito and on a phone (A9) is still pending (docs/VALIDATION.md); the 3D views draw catalog values and show the 'seen by SPHEREx' facts copied from those records, not new measurements",
   "human_review": "DankoLiv directs the WS7 work done with Claude Code, chooses its design decisions and reviews the changes, including in the browser; that review is in progress and is not claimed complete, and a line-by-line human review of the code or tests is not claimed",
   "repository_disclosure": "AI_USAGE.md",
   "integration_validation": {
@@ -163,7 +164,37 @@
         "Tests: contextSystem.test.ts, sceneLayout.test.ts and bodyFormat.test.ts additions"
       ],
       "humans": "DankoLiv directed the work; it was squash-merged into main"
+    },
+    {
+      "number": 138,
+      "title": "ws7: 3D style and compact mode (FE-12)",
+      "merged_at": "2026-11-15T21:54:18Z",
+      "ai_generated": [
+        "UI code: three/system.css (.s3d- classes) in place of the inline styles of SystemViewer.tsx, BodyPanel.tsx, SystemPage.tsx and SystemsPage.tsx; the system page without page scroll at 1366x650; the optional compact mode of SystemViewer, BodyPanel and ObjectSystemPreview",
+        "Code: three/factOrigin.ts additions",
+        "Tests: compactViewer.test.ts and the factOrigin.test.ts and contextSystem.test.ts additions"
+      ],
+      "humans": "DankoLiv directed the work; it was squash-merged into main. faricool54's review comments on it (posted with Claude Code) are addressed in #149 and on branch ws7/fe12-review-nits (not merged when this record was written), except the note that ObjectSystemPreview's default output does change slightly (a wrapping div and the 3D MODEL · NOT AN IMAGE and UNVERIFIED VALUES badges in its title) although the #138 description says it is unchanged, which is acknowledged here, not changed in code"
+    },
+    {
+      "number": 147,
+      "title": "ws5: compact 3D in the dock's 3D tab (FE-12 follow-up)",
+      "merged_at": "2026-11-15T22:41:27Z",
+      "ai_generated": [
+        "UI code: SystemPreview.tsx passes compact and fullViewHref to SystemViewer, and PositionResults.tsx renders ObjectSystemPreview compact (FE-2 files, 3 lines)"
+      ],
+      "humans": "Asked for by faricool54 on #124; DankoLiv directed the work; it was squash-merged into main"
+    },
+    {
+      "number": 149,
+      "title": "ws7: keep the orbit legend and model-time line visible in compact 3D",
+      "merged_at": "2026-11-15T22:48:06Z",
+      "ai_generated": [
+        "UI code: SystemViewer.tsx compact mode keeps the orbit-quality legend and the model-time / arbitrary-phase line outside the legend disclosure",
+        "Tests: compactViewer.test.ts"
+      ],
+      "humans": "Asked for by faricool54 on #147; DankoLiv directed the work; it was squash-merged into main"
     }
   ],
-  "trailer_note": "Squash commits keep the Co-Authored-By trailers of every commit on the branch, so some list Claude more than once; the squash-commit author that git shows is not always the WS7 developer. Teammates' code in these files (BenjaminPondal's #26/#27 transport and speed slider in SystemViewer.tsx, his #30 cards in SystemPage.tsx, and the UNVERIFIED VALUES badge in SystemPage.tsx, which git blame gives to rpccp and Juan Farid Jalil Barberis) was kept verbatim up to #107. FE-12 (ws7/fe-12-3d-polish) restyles part of it: the #30 cards move their inline styles into three/system.css classes with the same values, and the UNVERIFIED VALUES badge takes the u-badge u-badge--warn classes and moves into the new page header; their texts, order and behaviour are unchanged, and the #26/#27 transport keeps its controls, order and texts in the default view (it only gains .s3d- classes; the new optional compact mode folds the view options). Their authorship is not covered by this record"
+  "trailer_note": "Squash commits keep the Co-Authored-By trailers of every commit on the branch, so some list Claude more than once; the squash-commit author that git shows is not always the WS7 developer. Teammates' code in these files (BenjaminPondal's #26/#27 transport and speed slider in SystemViewer.tsx, his #30 cards in SystemPage.tsx, and the UNVERIFIED VALUES badge in SystemPage.tsx, which git blame gives to rpccp and Juan Farid Jalil Barberis) was kept verbatim up to #107. FE-12 (#138) restyles part of it: the #30 cards move their inline styles into three/system.css classes with the same values, and the UNVERIFIED VALUES badge takes the u-badge u-badge--warn classes and moves into the new page header; their texts, order and behaviour are unchanged, and the #26/#27 transport keeps its controls, order and texts in the default view (it only gains .s3d- classes; the optional compact mode folds the view options, and on ws7/fe12-review-nits it sticks to the bottom of the left column in Dataset time on the system page, Play still first). Their authorship is not covered by this record"
 }
