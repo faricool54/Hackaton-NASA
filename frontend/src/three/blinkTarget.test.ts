@@ -243,10 +243,10 @@ describe('predictTarget: other targets', () => {
     expect(Math.min(...dist)).toBeLessThan(1);
     expect([Math.min(...dist).toFixed(1), Math.max(...dist).toFixed(1)]).toEqual(['0.7', '1.8']);
     expect(p.caption).toContain('Dashed circle: Gaia DR3 5756956644387831296 (static).');
-    // The visible line says the target itself is barely visible even in D5/D6, so no D1–D4 blob reads as WISE 0855
+    // The visible line says the target itself is faint even in D5/D6, so no D1–D4 blob reads as WISE 0855
     // (docs/validation/wise-0855.md: "Observado en D1–D4: solo aparece la estrella de fondo").
     expect(p.caption).toContain(
-      'Barely visible even in D5/D6; in D1–D4 the blob near the crosshair (0.7–1.8 px away) is that star.',
+      'Target faint even in D5/D6; in D1–D4 the blob near the crosshair (0.7–1.8 px off) is that star.',
     );
     expect(p.caption).not.toContain('at the crosshair');
     const details = p.details.join('\n');
@@ -439,7 +439,7 @@ describe('BlinkViewer with a prediction (server-rendered markup, WS5 reticle + W
     expect(html).toContain('predicted from Kirkpatrick et al. 2021, not a measurement.');
     expect(html).not.toContain('stroke-dasharray="3 2"'); // drawn once the frame image has loaded
     expect(html).toContain('Dashed circle: Gaia DR3 5756956644387831296 (static).');
-    expect(html).toContain('in D1–D4 the blob near the crosshair (0.7–1.8 px away) is that star');
+    expect(html).toContain('in D1–D4 the blob near the crosshair (0.7–1.8 px off) is that star');
   });
 
   it('draws no track for a target that is static at this pixel scale (R Draconis)', () => {

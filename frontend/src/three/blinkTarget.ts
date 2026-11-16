@@ -158,7 +158,7 @@ export interface BlinkTargetPrediction {
  */
 const LEGEND_NOTES: Readonly<Record<string, { caption: string; detail: string; staticNote?: string }>> = {
   'WISE 0855−0714': {
-    caption: 'Barely visible even in D5/D6; in D1–D4 the blob near the crosshair (0.7–1.8 px away) is that star.',
+    caption: 'Target faint even in D5/D6; in D1–D4 the blob near the crosshair (0.7–1.8 px off) is that star.',
     // Replaces skyTrack's field-star note in the details: adds its distance from the crosshair in the published frames.
     staticNote:
       'static field star (CatWISE J085501.95−071428.2, G 16.31): in D1–D4 the blob near the target position (0.7–1.8 px away in the published frames) is this star (docs/validation/wise-0855.md; docs/RECON_SPHEREX.md 4.3 lists D1–D3)',

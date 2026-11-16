@@ -76,7 +76,7 @@ describe('BlinkViewer compact player (FE-7)', () => {
     expect(note).toBeLessThan(barnardHtml.indexOf('class="pl-transport"'));
     const wise = text(render('wise-0855', true));
     expect(wise).toContain('Catalog prediction');
-    expect(wise).toContain('in D1–D4 the blob near the crosshair (0.7–1.8 px away) is that star');
+    expect(wise).toContain('in D1–D4 the blob near the crosshair (0.7–1.8 px off) is that star');
   });
 
   it('without a prediction there is no prediction toggle or note, but the zoom and help stay', () => {

@@ -61,7 +61,7 @@ clickeables, transiciones suaves de cámara, panel lateral legible y que funcion
 - **Origen de cada dato** (V13, `frontend/src/three/factOrigin.ts`, sin campo nuevo en el contrato): la ficha pone un
   chip en cada `Fact`. **"SPHEREx-measured (offline)"** si `Fact.source` empieza con "SPHEREx" (los facts "seen by SPHEREx" del
   bloque A5 de `SCIENCE.md`, copiados de los registros de validación: análisis offline de los FITS, revisión humana
-  pendiente); **"derived"** si la etiqueta contiene "(derived" (la fuente dice desde qué); **"catalog, not measured
+  guiada el 2026-11-15, sin volver a correr los análisis); **"derived"** si la etiqueta contiene "(derived" (la fuente dice desde qué); **"catalog, not measured
   by SPHEREx"** para el resto con fuente (Gaia DR3, SIMBAD, VSX, NASA Exoplanet Archive, papers); **"no source
   given"** si un fact real no trae fuente (hoy ninguno, y nunca se lo llama catálogo); y **"synthetic demo"** para todo
   fact del sistema sintético (`provenance.synthetic`), diga lo que diga su fuente. No existe todavía
