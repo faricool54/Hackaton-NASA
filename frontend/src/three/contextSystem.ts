@@ -39,6 +39,12 @@ export const M_JUP_KG = 1.2668653e17 / G;
 export const M_EARTH_KG = 3.986004e14 / G;
 
 export const CONTEXT_TAG = 'context-only';
+/** Tag of a model whose object SIMBAD does not list, classed as a star from its Gaia DR3 parallax (shown visibly). */
+export const PARALLAX_STAR_TAG = 'gaia-parallax-star';
+/** The visible note for such a model (ObjectSystemPreview shows it next to the identity line). */
+export const PARALLAX_STAR_NOTE =
+  'No SIMBAD entry: classed as a star from its Gaia DR3 parallax (S/N ≥ 5); galaxies and quasars have no measurable ' +
+  'parallax. Type not confirmed by SIMBAD (it could be a white dwarf or a brown dwarf).';
 
 export const CONTEXT_REPRESENTATION =
   'Catalog model built in the browser from the object card (Gaia DR3, SIMBAD, AAVSO VSX, NASA Exoplanet Archive): ' +
@@ -50,7 +56,10 @@ export const SOLAR_SYSTEM_NOTE =
   'The object card does not look up solar-system bodies (asteroids, comets, planets) yet, so a moving body at this ' +
   'position would not be listed here: this is not evidence that none is there.';
 
-export type ContextSystemResult = { system: SystemModel; reason?: undefined } | { system: null; reason: string };
+/** `notice`: a caveat the preview shows visibly next to the identity line (not folded with the model notes). */
+export type ContextSystemResult =
+  | { system: SystemModel; reason?: undefined; notice?: string }
+  | { system: null; reason: string; notice?: undefined };
 
 // --- SIMBAD object types -------------------------------------------------------------------------------------
 
@@ -366,10 +375,24 @@ function typeText(ctx: ObjectContextResponse): string {
 
 const isSimbadFact = (f: Fact) => /^simbad\b/i.test((f.source ?? '').trim());
 
+/**
+ * True when the card's Distance comes from a Gaia DR3 parallax with S/N >= 5: science/context.py marks a Gaia
+ * distance verified only from that S/N (PLX_SNR_MEASURED), and its source names Gaia DR3 and the parallax. A Gaia
+ * DSC "likely quasar/galaxy" caveat (or any extragalactic warning) rules it out.
+ */
+function hasSignificantGaiaParallax(ctx: ObjectContextResponse): boolean {
+  const extragalactic = /likely (a )?(quasar|galaxy)|extragalactic/i;
+  if (ctx.warnings.some((w) => extragalactic.test(w)) || ctx.facts.some((f) => extragalactic.test(f.source ?? ''))) return false;
+  const d = factValue(ctx.facts, 'distance');
+  return d.value !== null && /gaia dr3/i.test(d.fact.source ?? '') && /parallax/i.test(d.fact.source ?? '');
+}
+
 /** Gaia DR3 astrophysical-parameter methods named in a card fact's source (science/context.py derive_parameters). */
 const GAIA_AP_METHODS = /\b(GSP-Phot|FLAME|ESP-UCD)\b/i;
 /** Why a white dwarf's Gaia DR3 Teff, radius or mass is not drawn (the body panel shows it as "Why: ..."). */
 export const WHITE_DWARF_REASON = 'Gaia DR3 GSP-Phot / FLAME / ESP-UCD values do not apply to a white dwarf';
+/** Appended to such a fact's label in a white dwarf's panel: listed as the card shows it, not drawn. */
+export const WHITE_DWARF_ROW_NOTE = 'does not apply to a white dwarf; not drawn';
 /** The card's caveat on GSP-Phot / FLAME values of M dwarfs and cooler objects ("... unreliable ...: indicative only."). */
 const INDICATIVE_CAVEAT = /indicative|unreliable/i;
 
@@ -409,7 +432,10 @@ export function systemFromObjectContext(ctx: ObjectContextResponse, position: Sk
   if (!id.object_type && !id.spectral_type && simbad === 'not-queried') {
     return noModel(ctx, 'SIMBAD was not queried for this source (see the object card\'s catalog services), so the object type is unknown (a gap, not a negative result): no 3D model is drawn.');
   }
-  const cls = classifyObjectType(id.object_type, id.spectral_type);
+  // No SIMBAD entry (SIMBAD answered, no type and no spectral type) for a securely identified Gaia DR3 source with a
+  // significant parallax: classed as a star (galaxies and quasars have no measurable parallax), with a visible note.
+  const parallaxStar = !id.object_type && !id.spectral_type && simbad === 'answered' && !insecure && hasSignificantGaiaParallax(ctx);
+  const cls: TypeClass = parallaxStar ? { kind: 'star', candidate: false, binary: false } : classifyObjectType(id.object_type, id.spectral_type);
   if (cls.kind === 'not-modelled') {
     return noModel(ctx, `The object card identifies ${typeText(ctx)}: ${cls.what}. This viewer draws only stars, brown dwarfs and their confirmed planets, so no 3D model is drawn.`);
   }
@@ -451,7 +477,8 @@ export function systemFromObjectContext(ctx: ObjectContextResponse, position: Sk
     if (/\+\s*[OBAFGKMLTYD]/.test(id.spectral_type ?? '')) {
       notes.push(`SIMBAD's spectral type ${id.spectral_type} is composite (more than one component, unresolved): drawn as one body; a single catalog value may describe the blend or one component.`);
     }
-    if (!id.object_type) notes.push(`No SIMBAD object type: classed as a ${kind === 'star' ? 'star' : 'brown dwarf'} from its spectral type ${id.spectral_type}.`);
+    if (parallaxStar) notes.push(PARALLAX_STAR_NOTE);
+    else if (!id.object_type) notes.push(`No SIMBAD object type: classed as a ${kind === 'star' ? 'star' : 'brown dwarf'} from its spectral type ${id.spectral_type}.`);
   }
 
   const rootId = slug(rootName) || 'object';
@@ -492,7 +519,10 @@ export function systemFromObjectContext(ctx: ObjectContextResponse, position: Sk
   }
 
   // Only verified facts with a value are attached (an 'unknown' Fact would read as an unverified value).
-  const facts = cardFacts.filter((f) => f.verified && !isUnknown(f.value));
+  const facts = cardFacts.filter((f) => f.verified && !isUnknown(f.value))
+    .map((f) => (whiteDwarf && GAIA_AP_METHODS.test(f.source ?? '')
+      ? { ...f, label: `${f.label} (${WHITE_DWARF_ROW_NOTE})` }
+      : f));
   const root: Body = {
     id: rootId,
     name: rootName,
@@ -559,7 +589,7 @@ export function systemFromObjectContext(ctx: ObjectContextResponse, position: Sk
       id: `context-${systemSlug}`.replace(/-+/g, '-'),
       name: rootName,
       description: `Catalog model of ${rootName} built in the browser from the object card: ${cls.kind === 'planet' ? `host star of ${id.display_name ?? id.main_id ?? 'the planet'} (${typeText(ctx)})` : typeText(ctx)}. Not measured by SPHEREx, not an image.`,
-      tags: [CONTEXT_TAG],
+      tags: parallaxStar ? [CONTEXT_TAG, PARALLAX_STAR_TAG] : [CONTEXT_TAG],
       center,
       motion,
       field_id: null,
@@ -567,5 +597,6 @@ export function systemFromObjectContext(ctx: ObjectContextResponse, position: Sk
       representation_note: CONTEXT_REPRESENTATION,
       provenance: { pipeline_version: 'browser (three/contextSystem.ts)', built_at: ctx.built_at, synthetic: false, data_releases: [], notes },
     },
+    ...(parallaxStar ? { notice: PARALLAX_STAR_NOTE } : {}),
   };
 }
