@@ -235,3 +235,36 @@ acknowledgment/data DOIs, integrated the contributor-authored WS2 disclosure, an
 Barnard D2 season-difference demo take proposed by WS2. Job products and direct/share URLs are retained.
 The update does not generate a final narrated video, submit the form or establish human R05 approval.
 Metadata and checked sources: [final-delivery-ai-usage.json](docs/submission/final-delivery-ai-usage.json).
+
+## Demo video (November 15, 2026)
+
+**Who and how.** Claude Code (Anthropic, Claude Opus 5.5) produced the demo video at V0id47's request,
+with the team's feedback in #100. It used the `docs/submission/skills/video-tutorial/` tool.
+
+**AI-generated:**
+- the narration script;
+- the automated Playwright takes of the public app (`08dfb85` for the final cut);
+- the ffmpeg montage;
+- the on-screen text: animated opening title, section headlines, English captions and the edit-cut label;
+- the narration audio, made with Microsoft Edge TTS. The final cut uses `en-US-AvaMultilingualNeural` and
+  the drafts used `en-US-JennyNeural`. It is disclosed on the closing card, in the MP4 metadata and in the
+  video description. Public-output terms for the TTS service are not marked cleared.
+
+**Not AI-generated:**
+- All imagery is screen recordings of the real application.
+- The SPHEREx frames and the false-color season composites are the app's real products, labeled as false
+  color.
+- The 3D view keeps its «3D MODEL · NOT AN IMAGE» label.
+
+No AI-generated images or video are used.
+
+**The build shown is real** (job `ca52180e`). Its wait is cut, and the cut is labeled on screen with the
+time measured from the job API.
+
+**Writes to the public VM.** Recording and testing published job fields there. They are listed in the
+machine-readable record.
+
+**Where things are.** Drafts, scripts and contact sheets are in the `ws6/demo-video-drafts` branch. The team
+does the final selection, upload, form and Submit for Judging; none of these is implied here.
+
+Machine-readable record: [docs/submission/demo-video-ai-usage.json](docs/submission/demo-video-ai-usage.json).

@@ -1,0 +1,39 @@
+{
+  "document_version": "1.0",
+  "updated_on": "2026-11-15",
+  "status": "draft_requires_team_review",
+  "work": "NASA Space Apps 2026 demo video for Errante (team RetMax)",
+  "tool": "Claude Code (Anthropic, Claude Opus 5.5) with docs/submission/skills/video-tutorial/",
+  "directed_by": "V0id47, with team feedback in issue #100",
+  "ai_generated": [
+    "Narration audio: Microsoft Edge TTS",
+    "Narration script",
+    "On-screen text: animated opening title, section headlines, English captions and the edit-cut label",
+    "Automated recording scripts (tomas.py) and the overlay compositor (overlays.py)"
+  ],
+  "not_ai_generated": [
+    "Screen recordings of the deployed application (08dfb85 for the final cut)",
+    "SPHEREx frames and false-color season composites shown in the app (real products, labeled false color)",
+    "Catalog values shown in the Object and 3D views (Gaia DR3 and the services cited in the app)"
+  ],
+  "no_ai_generated_imagery": true,
+  "tts": {
+    "engine": "edge-tts (Microsoft Edge TTS)",
+    "final_cut_voice": "en-US-AvaMultilingualNeural",
+    "draft_voice": "en-US-JennyNeural",
+    "disclosed_in": ["closing card", "MP4 metadata comment", "descripcion.md"],
+    "public_output_terms_cleared": false
+  },
+  "real_build_shown": {
+    "job": "ca52180e77ff46e897c990cf308730c1",
+    "position_deg": [76.73397, 30.23697],
+    "wait_cut": "labeled on screen with the build time measured from the job API"
+  },
+  "writes_to_public_vm": {
+    "video_job_fields": ["62c214110de846ccbbb19e299f33c13b", "7aa7d11f851c45b3bdd599343d1428fe", "ca52180e77ff46e897c990cf308730c1"],
+    "build_test_job_fields": ["38b4ba39be2f48248e1c93a8b09c0930", "2db1b8786e1944d197c0740bd7bf918d", "bb2b4921b39c40029aad85afe8a4faeb"]
+  },
+  "sources": "Branch ws6/demo-video-drafts, docs/submission/video-drafts/ (cuts, contact sheets, scripts, takes, overlays.py)",
+  "human_review": "Team review of the drafts in issue #100; final selection, upload and submission are the team's actions",
+  "upload_or_submission_completed": false
+}
