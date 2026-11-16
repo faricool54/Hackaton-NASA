@@ -19,21 +19,32 @@ export function parseCoordinate(value: string, ra: boolean): number {
   return degrees;
 }
 
+export const ALL_DETECTORS = [1, 2, 3, 4, 5, 6] as const;
+
+/** The URL value of a request's detectors: "all" for several, else the one detector number. */
+export function detectorParam(detectors: readonly number[] | null | undefined): string {
+  if (!detectors?.length || detectors.length > 1) return 'all';
+  return String(detectors[0]);
+}
+
 export function readPosition(search: string): JobSubmitRequest {
   const p = new URLSearchParams(search);
   const ra = parseCoordinate(p.get('ra') ?? '269.44623', true);
   const dec = parseCoordinate(p.get('dec') ?? '4.76870', false);
   const size_deg = Number(p.get('fov') ?? '0.25');
-  const detector = Number(p.get('detector') ?? '2');
+  // "all" (the default) builds from every detector, so the sequence also gets false-color composites.
+  const raw = p.get('detector') ?? 'all';
   if (!Number.isFinite(size_deg) || size_deg < 0.01 || size_deg > 0.5) throw new Error('FOV must be 0.01–0.5 degrees.');
-  if (!Number.isInteger(detector) || detector < 1 || detector > 6) throw new Error('Detector must be 1–6.');
+  if (raw === 'all') return { ra, dec, size_deg, detectors: [...ALL_DETECTORS], max_frames: 40 };
+  const detector = Number(raw);
+  if (!Number.isInteger(detector) || detector < 1 || detector > 6) throw new Error('Detector must be 1–6 or all.');
   return { ra, dec, size_deg, detectors: [detector], max_frames: 40 };
 }
 
 export function positionUrl(url: string, request: JobSubmitRequest, jobId?: string): string {
   const next = new URL(url);
   for (const [key, value] of Object.entries({ ra: request.ra, dec: request.dec, fov: request.size_deg ?? 0.25,
-    detector: request.detectors?.[0] ?? 2 })) next.searchParams.set(key, String(value));
+    detector: detectorParam(request.detectors) })) next.searchParams.set(key, String(value));
   next.searchParams.delete('job');
   if (jobId) next.searchParams.set('job', jobId);
   next.hash = '/';

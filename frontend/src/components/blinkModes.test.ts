@@ -48,7 +48,8 @@ describe('isModeAvailable / modeTitle', () => {
     expect(isModeAvailable('jhk', onlyDetectors)).toBe(false);
     expect(modeTitle('jhk', onlyDetectors)).toMatch(/^Not available: .*J, H and Ks/);
     expect(isModeAvailable('detectors', undefined)).toBe(false);
-    expect(modeTitle('detectors', [])).toBe('Not available: no false-color composites were built for this field');
+    expect(modeTitle('detectors', [])).toBe('Not available: color needs frames from several detectors and this sequence has none'
+      + ' (build it with "All detectors · color" to get color)');
   });
 });
 

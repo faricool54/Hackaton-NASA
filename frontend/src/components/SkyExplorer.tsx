@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { client } from '../api/client';
 import type { JobStatusResponse, JobSubmitRequest, SkyCoord, SystemSummary } from '../api/types';
-import { isTerminal, parseCoordinate, positionUrl, readPosition, watchJob } from '../api/jobs';
+import { ALL_DETECTORS, isTerminal, parseCoordinate, positionUrl, readPosition, watchJob } from '../api/jobs';
 import { DETECTOR_BANDS } from '../api/format';
 import { coordinateLookup, gaiaMarkerLookup, nameLookup, positionLookup, type ObjectLookup } from '../api/objectCard';
 import { SHOWCASE_TARGETS } from '../api/showcase';
@@ -39,6 +39,11 @@ interface SelectionOptions {
 }
 
 export type SelectionOrigin = 'map' | 'preset' | 'search' | 'form';
+
+/** 0 means all six detectors (B/W blink plus false-color composites); 1-6 one detector. */
+export function detectorsFor(detector: number): number[] {
+  return detector >= 1 && detector <= 6 ? [detector] : [...ALL_DETECTORS];
+}
 
 /** D-1: presets and searches never start a job; a map click does only live and away from a saved sequence. */
 export function buildsOnSelect(origin: SelectionOrigin, live: boolean, savedFieldId?: string) {
@@ -99,7 +104,8 @@ export function SkyExplorer({ sequences, systems, synthetic, manifestError }: Pr
   const [ra, setRa] = useState(String(initial.request.ra));
   const [dec, setDec] = useState(String(initial.request.dec));
   const [fov, setFov] = useState(String(initial.request.size_deg));
-  const [detector, setDetector] = useState(initial.request.detectors![0]);
+  // 0 = all detectors (the default): the sequence then also gets false-color composites.
+  const [detector, setDetector] = useState(initial.request.detectors!.length > 1 ? 0 : initial.request.detectors![0]);
   const [job, setJob] = useState<JobStatusResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(initial.error);
@@ -213,7 +219,7 @@ export function SkyExplorer({ sequences, systems, synthetic, manifestError }: Pr
     const selectedDetector = options.detector ?? detector;
     setFov(String(size));
     setDetector(selectedDetector);
-    const body: JobSubmitRequest = { ra: point.ra, dec: point.dec, size_deg: size, detectors: [selectedDetector], max_frames: 40 };
+    const body: JobSubmitRequest = { ra: point.ra, dec: point.dec, size_deg: size, detectors: detectorsFor(selectedDetector), max_frames: 40 };
     if (buildsOnSelect(origin, live, fieldId)) void build(body);
     else updateShare(body);
   };
@@ -225,7 +231,7 @@ export function SkyExplorer({ sequences, systems, synthetic, manifestError }: Pr
       const size = Number(fov);
       if (!(size >= 0.01 && size <= 0.5)) throw new Error('Field side must be 0.01–0.5 degrees.');
       if (lookup && point.ra === position.ra && point.dec === position.dec) {
-        void build({ ...point, size_deg: size, detectors: [detector], max_frames: 40 });
+        void build({ ...point, size_deg: size, detectors: detectorsFor(detector), max_frames: 40 });
       } else {
         select(point, 'form', { size, detector });
       }
@@ -271,6 +277,7 @@ export function SkyExplorer({ sequences, systems, synthetic, manifestError }: Pr
         <label>Field side (degrees)<input type="number" min="0.01" max="0.5" step="any" value={fov}
           onChange={(event) => setFov(event.target.value)} required /></label>
         <label>Detector<select value={detector} onChange={(event) => setDetector(Number(event.target.value))}>
+          <option value={0}>All detectors · color</option>
           {[1, 2, 3, 4, 5, 6].map((d) => <option key={d} value={d}>D{d} · {DETECTOR_BANDS[d]}</option>)}
         </select></label>
       </details>
@@ -310,7 +317,7 @@ export function SkyExplorer({ sequences, systems, synthetic, manifestError }: Pr
           const target = SHOWCASE_TARGETS.find((t) => t.fieldId === point.targetId);
           if (target) {
             select(target, 'preset', {
-              label: target.name, catalogName: target.catalogName, detector: target.detector, size: 0.15, note: presetNote(target),
+              label: target.name, catalogName: target.catalogName, size: 0.15, note: presetNote(target),
               fromMap: true,
             });
             return;
@@ -327,7 +334,7 @@ export function SkyExplorer({ sequences, systems, synthetic, manifestError }: Pr
             { label: name, note: name ? resolverNote(name, source) : undefined })} />
         <TargetChips sequences={sequences} activeName={SHOWCASE_TARGETS.some((t) => t.name === label) ? label : undefined}
           onPick={(target) => select(target, 'preset', {
-            label: target.name, catalogName: target.catalogName, detector: target.detector, size: 0.15, note: presetNote(target),
+            label: target.name, catalogName: target.catalogName, size: 0.15, note: presetNote(target),
           })} />
         {manifestError && <p className="error small" role="alert">Could not load saved fields: {manifestError}</p>}
       </div>

@@ -88,3 +88,17 @@ describe('job client and polling', () => {
       vi.fn(), 1)).rejects.toThrow('without a field ID');
   });
 });
+
+describe('all detectors (color for click builds)', () => {
+  it('defaults to every detector and round-trips "all" in the URL', async () => {
+    const { readPosition, positionUrl, detectorParam } = await import('./jobs');
+    expect(readPosition('?ra=10&dec=20').detectors).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(readPosition('?ra=10&dec=20&detector=all').detectors).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(readPosition('?ra=10&dec=20&detector=3').detectors).toEqual([3]);
+    expect(() => readPosition('?ra=10&dec=20&detector=7')).toThrow('Detector must be 1–6 or all.');
+    expect(detectorParam([1, 2, 3, 4, 5, 6])).toBe('all');
+    expect(detectorParam([2])).toBe('2');
+    const url = positionUrl('https://x.test/', { ra: 10, dec: 20, size_deg: 0.25, detectors: [1, 2, 3, 4, 5, 6], max_frames: 40 });
+    expect(new URL(url).searchParams.get('detector')).toBe('all');
+  });
+});

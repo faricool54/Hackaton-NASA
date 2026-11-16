@@ -50,7 +50,10 @@ export function modeTitle(mode: BlinkMode, composites: Composite[] | undefined):
   if (mode === 'bw') return DESCRIPTION.bw;
   const n = compositesForMode(composites, mode).length;
   if (n > 0) return `${DESCRIPTION[mode]} (${n} season${n === 1 ? '' : 's'})`;
-  if (!composites?.length) return 'Not available: no false-color composites were built for this field';
+  if (!composites?.length) {
+    return 'Not available: color needs frames from several detectors and this sequence has none'
+      + ' (build it with "All detectors · color" to get color)';
+  }
   return `Not available: ${UNAVAILABLE[mode]}`;
 }
 
