@@ -13,6 +13,33 @@ Los dos videos se hicieron con la herramienta `docs/submission/skills/video-tuto
 - **Write guard activo:** cada toma corre con la protección de escritura encendida.
 - **Verificación:** `verificar.py --final` da 0 errores y 0 advertencias en los dos.
 
+## 03 · Build por click (`03-build-08dfb85.mp4`, 27,8 s): candidato a final
+
+Sigue el recorrido que pidió faricool54 después de `e89ab45`, grabado sobre `08dfb85`.
+Hoja de contacto: `03-build-sheet.jpg`. Guion y tomas: `03-build-source/`.
+
+| # | Narración | Visual | Entra | Dura |
+|---|---|---|---|---|
+| 1 | Errante connects real NASA images, spectra, and light curves in one public explorer. | Placa 1 | 0:00.1 | 6,5 s |
+| 2 | Pick a point in the sky and build its SPHEREx sequence. | D1: el punto elegido (76.7330°, +30.2370°) y el click en «Build SPHEREx sequence» (All detectors · color); el panel muestra el job real arrancando («Preparing SPHEREx observations · queued») | 0:06.7 | 4,2 s |
+| 3 | After a two-minute cut, its real frames blink in false color. | D2: el mismo job terminado, con el cartel «Edited cut: this build took 1 min 53 s»; click en «Color · detectors» y blink de las 3 temporadas en falso color | 0:10.9 | 4,7 s |
+| 4 | Hover a Gaia star for its card; click it for its catalog facts. | D3: hover sobre Gaia DR3 156328460158131584 (la estrella de #160), con su tarjeta; click y Object: «Matched», 2371 pc por paralaje, 4779 K | 0:15.6 | 5,0 s |
+| 5 | 3D draws it from catalog values. | D4: 3D, con «CATALOG MODEL · built from the object card» y «3D MODEL · NOT AN IMAGE» | 0:20.7 | 3,4 s |
+| 6 | Explore the changing sky with Errante. | Placa 2 | 0:24.1 | 3,7 s |
+
+Notas:
+
+- **El tiempo del corte es el medido.** El job grabado en D1 (`7aa7d11f`, en 76.73297°, +30.23697°) tardó
+  1 min 53 s: de 01:07:34Z a 01:09:27Z. D2–D4 reabren ese mismo punto, así que muestran el resultado
+  de ese build. El punto está 3″ al este de la estrella para que D1 arranque un build nuevo: el punto
+  exacto ya lo había armado fuera de cámara a las 21:58 ART, y el servidor reutiliza un job listo durante
+  15 min.
+- **Los dos builds que quedaron publicados en la VM:**
+  - `62c21411`, en 76.73197°, el de la exploración;
+  - `7aa7d11f`, en 76.73297°, el grabado.
+- **Gaia en la vista ancha:** después del build, el mapa en vista ancha mostró «Gaia DR3 stars did not
+  load for this wide view (VizieR did not answer)». Para D3 se acerca el zoom fuera de cámara, a ~17′.
+
 ## 02 · Recorrido (`02-walkthrough-d06896f.mp4`, 28,2 s)
 
 Sigue el recorrido que propuso faricool54 en #100. Está grabado sobre `d06896f`.
